@@ -7,6 +7,7 @@ from typing import Sequence, Union
 import numpy as np
 import onnx_ir as ir
 
+import onnxscript.onnx_types as _onnx_types
 import onnxscript.rewriter._fusion_utils as _fusion_utils
 from onnxscript.rewriter import _basics, _ir_utils, pattern
 
@@ -354,9 +355,163 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             _outputs=3,
         )
 
+class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
+    def __init__(self):
+        super().__init__("LongRoPeGQACausalMask", remove_nodes=False)
+        self._mask_cache = {}
+    
+    def _get_mask_key(self, attention_mask):
+        """
+        Generate a unique key for the mask based on input_ids and past_kv_cache.
+        This is used to cache the mask to avoid recomputation.
+        """
+        return (id(attention_mask))
+    
+    def compute_mask(self, op, attention_mask : _onnx_types.INT64['batch', 'seq_len']):
+        mask_key = self._get_mask_key(attention_mask)
+
+        if mask_key in self._mask_cache:
+            total_seq_length_int32, seqlens_k_int32 = self._mask_cache[mask_key]
+
+        else:
+            # Construct total_seq_length_int32 and seqlens_k
+            attention_shape = op.Shape(attention_mask, _outputs=["seq_len"])
+            total_seq_length = op.Gather(attention_shape, op.Constant(value=ir.tensor(1, ir.DataType.INT64)), axis=0, _outputs=["total_seq_length"])
+            reduced_attention = op.ReduceSum(attention_mask, op.Constant(value=ir.tensor([1], ir.DataType.INT64)), _outputs=["reduced_attention"])            
+            sub_reduced_attention = op.Sub(reduced_attention, op.Constant(value=ir.tensor([1], ir.DataType.INT64)), _outputs=["sub_reduced_attention"])
+            total_seq_length_int32 = op.Cast(total_seq_length, to=ir.DataType.INT32, _outputs=["total_seq_length_int32"])
+            seqlens_k_int32 = op.Cast(sub_reduced_attention, to=ir.DataType.INT32, _outputs=["seqlens_k_int32"])
+            self._mask_cache[mask_key] = (total_seq_length_int32, seqlens_k_int32)
+        
+        return self._mask_cache[mask_key]
+    
+
+    def pattern(
+        self,
+        op,
+        mask,
+        input_ids,
+        past_kv_cache_1,
+        past_kv_cache_2,
+        attention_mask,
+        past_seq_length,
+        total_seq_length,
+    ):
+        seq_len = op.Shape(input_ids, end=2, start=1, _outputs=["seq_len"])
+        seq_len_0D = op.Squeeze(seq_len, _outputs=["seq_len_0D"])
+        past_seq_len = op.Shape(past_kv_cache_1, end=3, start=2, _outputs=["past_seq_len"])
+        past_seq_len_0D = op.Squeeze(past_seq_len, _outputs=["past_seq_len_0D"])
+        total_seq_len_0D = op.Add(past_seq_len_0D, seq_len_0D, _outputs=["total_seq_len_0D"])
+
+        # All of the Add node's outputs
+        current_range_A = op.Range(past_seq_len_0D, total_seq_len_0D, 1, _outputs=["current_range_A"])
+        total_seq_len_A = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_A"])
+        current_range_B = op.Range(0, total_seq_len_0D, 1, _outputs=["current_range_B"])
+        total_seq_len_B = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_B"])
+        total_seq_len_C = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_C"])
+            
+        total_seq_len_final = op.Reshape(total_seq_len_0D, pattern.ANY_VALUE, allowzero=0, _outputs=["total_seq_len_final"])
+    
+        # EXPAND BRANCH A
+        batch_size = op.Shape(past_kv_cache_2, end=1, start=0, _outputs=["batch_size"])
+        mask_shape_A = op.Concat(batch_size, [1], seq_len, total_seq_len_A, axis=0, _outputs=["mask_shape_A"])
+        mask_shape_A_abs = op.Abs(mask_shape_A, _outputs=["mask_shape_A_abs"])
+        reshaped_range_A = op.Reshape(current_range_A, [1, 1, -1, 1], allowzero=1, _outputs=["reshaped_range_A"])
+        mask_expanded_A = op.Expand(reshaped_range_A, mask_shape_A_abs, _outputs=["mask_expanded_A"])
+
+        # EXPAND BRANCH B
+        mask_shape_B = op.Concat(batch_size, [1], seq_len, total_seq_len_B, axis=0, _outputs=["mask_shape_B"])
+        mask_shape_B_abs = op.Abs(mask_shape_B, _outputs=["mask_shape_B_abs"])
+        reshaped_range_B = op.Reshape(current_range_B, [1, 1, 1, -1], allowzero=1, _outputs=["reshaped_range_B"])
+        mask_expanded_B = op.Expand(reshaped_range_B, mask_shape_B_abs, _outputs=["mask_expanded_B"])
+        
+        # EXPAND BRANCH C
+        mask_shape_C = op.Concat(batch_size, [1], seq_len, total_seq_len_C, axis=0, _outputs=["mask_shape_C"])
+        mask_shape_C_abs = op.Abs(mask_shape_C, _outputs=["mask_shape_C_abs"])
+        batch_size_squeezed = op.Squeeze(batch_size, _outputs=["batch_size_squeezed"])
+        batch_range = op.Range(0, batch_size_squeezed, 1, _outputs=["batch_range"])
+        reshaped_range_C = op.Reshape(batch_range, [-1, 1, 1, 1], allowzero=1, _outputs=["reshaped_range_C"])
+        mask_expanded_C = op.Expand(reshaped_range_C, mask_shape_C_abs, _outputs=["mask_expanded_C"])
+
+        # EXPAND A/B TO AND
+        mask_expanded_A_sub = op.Sub(mask_expanded_A, 262144, _outputs=["mask_expanded_A_sub"])
+        mask_A_B_greater = op.Greater(mask_expanded_B, mask_expanded_A_sub, _outputs=["mask_A_B_greater"])
+        mask_A_B_greater_bitwise = op.And(True, mask_A_B_greater, _outputs=["mask_A_B_greater_bitwise"])
+        mask_A_B_less = op.LessOrEqual(mask_expanded_B, mask_expanded_A, _outputs=["mask_A_B_less"])
+        mask_A_B_combined = op.And(mask_A_B_greater_bitwise, mask_A_B_less, _outputs=["mask_A_B_combined"])
+        mask_A_B_combined_bitwise = op.And(True, mask_A_B_combined, _outputs=["mask_A_B_combined_bitwise"])
+
+        # EXPAND B/C TO AND
+        unsqueezed_mask_expanded_B = op.Unsqueeze(mask_expanded_B, [-1], _outputs=["unsqueezed_mask_expanded_B"])
+        unsqueezed_mask_expanded_C = op.Unsqueeze(mask_expanded_C, [-1], _outputs=["unsqueezed_mask_expanded_C"])
+        mask_B_C_concat = op.Concat(unsqueezed_mask_expanded_C, unsqueezed_mask_expanded_B, axis=-1, _outputs=["mask_B_C_concat"])
+        attention_mask_bool = op.Cast(attention_mask, to=ir.DataType.BOOL, _outputs=["attention_mask_bool"])
+        mask_gatherND = op.GatherND(attention_mask_bool, mask_B_C_concat, batch_dims=0, _outputs=["mask_gatherND"])
+
+        mask_A_B_C_combined = op.And(mask_A_B_combined_bitwise, mask_gatherND, _outputs=["mask_A_B_C_combined"])
+        mask_A_B_C_negated = op.Not(mask_A_B_C_combined, _outputs=["mask_A_B_C_negated"])
+        mask_A_B_C_fp32 = op.Cast(mask_A_B_C_negated, to=ir.DataType.FLOAT, _outputs=["mask_A_B_C_fp32"])
+        mask_A_B_C_scaled = op.Mul(mask_A_B_C_fp32, pattern.ANY_VALUE)
+        # Propagation to GQA
+        mask_sliced = op.Slice(mask_A_B_C_scaled, [0], pattern.ANY_VALUE, [3], [1], _outputs=["mask_sliced"])
+
+        #mask_where = op.Where(mask_sliced, pattern.ANY_VALUE, pattern.ANY_VALUE, _outputs=["mask_where"])
+
+        return op.GQA(
+            mask_sliced,
+            pattern.ANY_VALUE,  # position_ids_k
+            pattern.ANY_VALUE,  # position_ids_q  
+            pattern.ANY_VALUE,  # query
+            pattern.ANY_VALUE,  # key
+            pattern.ANY_VALUE,  # value
+            pattern.ANY_VALUE,  # past_key
+            pattern.ANY_VALUE,  # past_value
+            pattern.ANY_VALUE,  # seqlens_k (optional)
+            pattern.ANY_VALUE,  # total_seq_length (optional)
+            pattern.ANY_VALUE,  # cos
+            pattern.ANY_VALUE,  # sin
+            _allow_other_inputs=True,
+            _domain="ai.onnxruntime._fusion",
+            _outputs=["attn_output", "key_seq", "value_seq"],
+        )
+
+
+    def rewrite(
+        self,
+        op,
+        attention_mask,
+        attn_output,
+        **_,
+    ):
+        # Compute total_seq_length_int32 and seqlens_k_int32
+        total_seq_length_int32, seqlens_k_int32 = self.compute_mask(op, attention_mask)
+
+        gqa_node = attn_output.producer()
+        assert len(gqa_node.inputs) == 12, (
+            f"Expected 12 inputs for GQA node, got {len(gqa_node.inputs)}"
+        )
+        query, key, value, past_key, past_value = gqa_node.inputs[3:8]
+        cos, sin = gqa_node.inputs[10:12]
+        updated_inputs = [
+            query,
+            key,
+            value,
+            past_key,
+            past_value,
+            seqlens_k_int32,
+            total_seq_length_int32,
+            cos,
+            sin,
+        ]
+        attributes = gqa_node.attributes
+        return op.GroupQueryAttention(
+            *updated_inputs, **attributes, _domain="com.microsoft", _outputs=3
+        )
 
 _basic_gqa_rule = GroupQueryAttention.rule()
+_longrope_gqa_causal_mask_rule = LongRoPeGQACausalMask.rule()
 
 gqa_rules = pattern.RewriteRuleSet([_basic_gqa_rule])
+gqa_rules = pattern.RewriteRuleSet([_basic_gqa_rule, _longrope_gqa_causal_mask_rule])
 
 fuse_gqa = _fusion_utils.apply_fusion_rules(gqa_rules)
