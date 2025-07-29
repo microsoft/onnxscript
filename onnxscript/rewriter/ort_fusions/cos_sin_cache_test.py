@@ -7,9 +7,9 @@ import unittest
 from parameterized import parameterized
 
 import onnxscript.optimizer
+from onnxscript.rewriter.models import _rotary_embedding_models, _smollm_1
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
-from onnxscript.rewriter.ort_fusions.models import _rotary_embedding_models, _smollm_1
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
     fuse_rotary_embedding,

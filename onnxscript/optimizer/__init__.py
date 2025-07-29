@@ -15,8 +15,8 @@ __all__ = [
 ]
 
 import onnx
+import onnx_ir.passes.common as common_passes
 
-import onnxscript.ir.passes.common
 import onnxscript.optimizer._constant_folding as constant_folding
 from onnxscript import ir
 from onnxscript.optimizer._constant_folding import (
@@ -90,7 +90,7 @@ def optimize(
 def inline(model: ir.Model) -> None:
     """Inline all function calls (recursively) in the model."""
     if model.functions:
-        onnxscript.ir.passes.common.InlinePass()(model)
+        common_passes.InlinePass()(model)
 
 
 def fold_constants(
@@ -114,10 +114,10 @@ def fold_constants(
 def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
     """Removes unused nodes from a model inplace."""
     if isinstance(model, ir.Model):
-        onnxscript.ir.passes.common.RemoveUnusedNodesPass()(model)
+        common_passes.RemoveUnusedNodesPass()(model)
     else:
         model_ir = ir.serde.deserialize_model(model)
-        model_ir = onnxscript.ir.passes.common.RemoveUnusedNodesPass()(model_ir).model
+        model_ir = common_passes.RemoveUnusedNodesPass()(model_ir).model
         new_proto = ir.serde.serialize_model(model_ir)
         model.Clear()
         model.CopyFrom(new_proto)
@@ -126,10 +126,10 @@ def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
 def remove_unused_functions(model: ir.Model | onnx.ModelProto) -> None:
     """Removes unused functions from a model inplace."""
     if isinstance(model, ir.Model):
-        onnxscript.ir.passes.common.RemoveUnusedFunctionsPass()(model)
+        common_passes.RemoveUnusedFunctionsPass()(model)
     else:
         model_ir = ir.serde.deserialize_model(model)
-        model_ir = onnxscript.ir.passes.common.RemoveUnusedFunctionsPass()(model_ir).model
+        model_ir = common_passes.RemoveUnusedFunctionsPass()(model_ir).model
         new_proto = ir.serde.serialize_model(model_ir)
         model.Clear()
         model.CopyFrom(new_proto)

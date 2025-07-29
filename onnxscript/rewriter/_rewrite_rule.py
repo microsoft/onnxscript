@@ -45,6 +45,165 @@ def always_true(*args, **kwargs) -> bool:
     return True
 
 
+class Pattern:
+    """A pattern that can be matched against nodes in an ONNX graph.
+
+    This class encapsulates pattern matching functionality, providing the ability to
+    match patterns against nodes without requiring replacement functionality.
+    """
+
+    def __init__(
+        self,
+        target_pattern: _pattern_ir.GraphPattern | Callable,
+        condition_function: Callable | None = None,
+        matcher: _matcher.PatternMatcher
+        | Callable[[_pattern_ir.GraphPattern], _matcher.PatternMatcher]
+        | None = None,
+        verbose: int = 0,
+        name: str | None = None,
+    ) -> None:
+        """Create a pattern matcher.
+
+        Args:
+            target_pattern: The _pattern_ir.GraphPattern that will be matched against the IR.
+                If a callable is provided, it will be converted to a _pattern_ir.GraphPattern.
+            condition_function: The condition function that will be used to check if
+                the pattern match found should be rewritten.
+            matcher: The pattern matcher that will be used to match the pattern.
+                If not provided, a default matcher will be used.
+            verbose: The verbosity level of the rule.
+            name: An optional name for the pattern that will show up in verbose logging.
+        """
+        if not isinstance(target_pattern, _pattern_ir.GraphPattern):
+            target_pattern = _pattern_ir._to_graph_pattern(target_pattern)
+        self._target_pattern = target_pattern
+
+        self._condition_function = condition_function or always_true
+        if isinstance(matcher, _matcher.PatternMatcher):
+            self._matcher = matcher
+        elif matcher is None:
+            if target_pattern.has_single_output_node:
+                self._matcher = _matcher.SimplePatternMatcher(self._target_pattern)
+            else:
+                import onnxscript.rewriter.generic_pattern as generic_pattern
+
+                self._matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
+        else:
+            self._matcher = matcher(self._target_pattern)
+        self._verbose = verbose
+        self.name = name
+
+    def __str__(self) -> str:
+        return self.name if self.name else "Anonymous Pattern"
+
+    def match(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+        *,
+        verbose: int | None = None,
+        check_nodes_are_removable: bool = True,
+        tracer: _basics.MatchingTracer | None = None,
+    ) -> _basics.MatchResult | None:
+        """Check if the node matches the pattern and return the match result.
+
+        Args:
+            model: The model containing the graph or function.
+            graph_or_function: The graph or function to match against.
+            node: The node to try to match the pattern against.
+            verbose: The verbosity level of messages.
+            check_nodes_are_removable: If True, validate that matched nodes can be safely removed.
+            tracer: The tracer for debugging.
+
+        Returns:
+            MatchResult if the pattern matches successfully and passes the condition function,
+            None otherwise.
+        """
+        if verbose and verbose > 2:
+            print(f"[match] {self}")
+        verbose = verbose if verbose is not None else self._verbose
+        match = self._matcher.match(
+            model,
+            graph_or_function,
+            node,
+            verbose=verbose,
+            remove_nodes=check_nodes_are_removable,
+        )
+        if match:
+            context = _basics.MatchContext(model, graph_or_function, node, match)
+            for var in self._target_pattern.inputs:
+                if var.name is not None:
+                    if var.name not in match.bindings:
+                        match.bind(var.name, None)
+
+            # Perform value/node level checks before condition function
+            def fail(check_result, default_message, failure_object=None):
+                """Local utility to handle check failures consistently."""
+                if isinstance(check_result, _basics.MatchResult):
+                    match.fail(
+                        check_result.reason,
+                        check_result.failure_nodes_and_values,
+                    )
+                else:
+                    match.fail(default_message, failure_object)
+                if tracer:
+                    tracer.log(
+                        self,  # type: ignore[arg-type]
+                        graph_or_function,
+                        node,
+                        match,
+                        _basics.MatchStatus.CONDITION_FAILED,
+                    )
+                return None
+
+            def wrap_try(f):
+                """Encapsulates try-except pattern for check functions."""
+
+                def wrapped(*args, **kwargs):
+                    try:
+                        return f(*args, **kwargs)
+                    except _basics.MatchFailureError as e:
+                        result = _basics.MatchResult()
+                        result.fail(e.reason, list(e.failure_sources))
+                        return result
+
+                return wrapped
+
+            # Check node-level checkers
+            for pattern_node, ir_node in match.node_bindings.items():
+                if pattern_node.check_method is not None:
+                    check_result = wrap_try(pattern_node.check_method)(context, ir_node)
+                    if not check_result:
+                        return fail(
+                            check_result,
+                            f"Node-level check failed for pattern node {pattern_node}",
+                            ir_node,
+                        )
+
+            # Check value-level checkers
+            for pattern_value, ir_value in match.value_bindings.items():
+                if pattern_value.check_method is not None:
+                    check_result = wrap_try(pattern_value.check_method)(context, ir_value)
+                    if not check_result:
+                        return fail(
+                            check_result,
+                            f"Value-level check failed for pattern value {pattern_value}",
+                            ir_value,
+                        )
+
+            check_match_result = wrap_try(self._condition_function)(context, **match.bindings)
+            if not check_match_result:
+                # If check function was provided, but it failed, return the reason for failure to the tracer.
+                return fail(check_match_result, "Condition function check failed")
+            if tracer:
+                tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.SUCCESS)  # type: ignore[arg-type]
+            return match
+        if tracer:
+            tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.NO_MATCH)  # type: ignore[arg-type]
+        return match
+
+
 class ReplacementPatternFunction:
     """The replacement pattern that will replace the targeted pattern.
 
@@ -82,7 +241,7 @@ def _update_opset_imports(
             )
 
 
-class RewriteRule:
+class RewriteRule(Pattern):
     def __init__(
         self,
         target_pattern: _pattern_ir.GraphPattern | Callable,
@@ -124,27 +283,13 @@ class RewriteRule:
         """
         if as_function and not remove_nodes:
             raise ValueError("as_function=True is only supported when remove_nodes=True.")
-        if not isinstance(target_pattern, _pattern_ir.GraphPattern):
-            target_pattern = _pattern_ir._to_graph_pattern(target_pattern)
-        self._target_pattern = target_pattern
+
+        # Initialize the base pattern matching functionality
+        super().__init__(target_pattern, condition_function, matcher, verbose, name)
 
         if not isinstance(replacement_pattern, ReplacementPatternFunction):
             replacement_pattern = ReplacementPatternFunction(replacement_pattern)
         self._replacement_pattern = replacement_pattern
-        self._condition_function = condition_function or always_true
-        if isinstance(matcher, _matcher.PatternMatcher):
-            self._matcher = matcher
-        elif matcher is None:
-            if target_pattern.has_single_output_node:
-                self._matcher = _matcher.SimplePatternMatcher(self._target_pattern)
-            else:
-                import onnxscript.rewriter.generic_pattern as generic_pattern
-
-                self._matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
-        else:
-            self._matcher = matcher(self._target_pattern)
-        self._verbose = verbose
-        self.name = name
         self.remove_nodes = remove_nodes
         self.graph_pre_visitor = graph_pre_visitor
         self.graph_post_visitor = graph_post_visitor
@@ -163,64 +308,38 @@ class RewriteRule:
         tracer: _basics.MatchingTracer | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
-        if verbose and verbose > 2:
-            print(f"[try_rewrite] {self}")
-        verbose = verbose if verbose is not None else self._verbose
-        match = self._matcher.match(
-            model, graph_or_function, node, verbose=verbose, remove_nodes=self.remove_nodes
+        # Use the inherited match method from Pattern
+        match = self.match(
+            model,
+            graph_or_function,
+            node,
+            verbose=verbose,
+            check_nodes_are_removable=self.remove_nodes,
+            tracer=tracer,
         )
-        if match:
-            context = None  # TODO(rama)
-            for var in self._target_pattern.inputs:
-                if var.name is not None:
-                    if var.name not in match.bindings:
-                        match.bind(var.name, None)
-            try:
-                check_match_result = self._condition_function(context, **match.bindings)
-            except _basics.MatchFailureError as e:
-                check_match_result = _basics.MatchResult()
-                check_match_result.fail(e.reason, list(e.failure_sources))
-            if not check_match_result:
-                # If check function was provided, but it failed, return the reason for failure to the tracer.
-                if isinstance(check_match_result, _basics.MatchResult):
-                    match.fail(
-                        check_match_result.reason,
-                        check_match_result.failure_nodes_and_values,
-                    )
-                if tracer:
-                    tracer.log(
-                        self,
-                        graph_or_function,
-                        node,
-                        match,
-                        _basics.MatchStatus.CONDITION_FAILED,
-                    )
-                return None
-            replacement_subgraph = self._replacement_pattern.get_replacement(match)
-            if replacement_subgraph is None:
-                if tracer:
-                    tracer.log(
-                        self,
-                        graph_or_function,
-                        node,
-                        match,
-                        _basics.MatchStatus.REPLACEMENT_FAILED,
-                    )
-                return None
-            if len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
-                raise ValueError(
-                    f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
-                    f"Expected {self._target_pattern.num_outputs}, but got {len(replacement_subgraph.new_outputs)}."
-                )
-            # TODO(rama): Remove the opset imports from deleted nodes?
-            _update_opset_imports(graph_or_function, replacement_subgraph)
-            _update_opset_imports(model.graph, replacement_subgraph)
+        if not match:
+            return None
+
+        replacement_subgraph = self._replacement_pattern.get_replacement(match)
+        if replacement_subgraph is None:
             if tracer:
-                tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.SUCCESS)
-            return replacement_subgraph
-        if tracer:
-            tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.NO_MATCH)
-        return None
+                tracer.log(
+                    self,
+                    graph_or_function,
+                    node,
+                    match,
+                    _basics.MatchStatus.REPLACEMENT_FAILED,
+                )
+            return None
+        if len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
+            raise ValueError(
+                f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
+                f"Expected {self._target_pattern.num_outputs}, but got {len(replacement_subgraph.new_outputs)}."
+            )
+        # TODO(rama): Remove the opset imports from deleted nodes?
+        _update_opset_imports(graph_or_function, replacement_subgraph)
+        _update_opset_imports(model.graph, replacement_subgraph)
+        return replacement_subgraph
 
     def apply_to_model(
         self,
@@ -257,7 +376,81 @@ class RewriteRule:
         return [replace_pattern(p) for p in self._target_pattern.commute()]
 
 
-class RewriteRuleClassBase(abc.ABC):
+class PatternBase(abc.ABC):
+    """Base class for implementing pattern matching as a class.
+
+    This class encapsulates the pattern definition and condition checking
+    without the replacement functionality.
+
+    Example::
+
+        class TransposePattern(PatternBase):
+            def pattern(cls, op, x, perm):
+                return op.Transpose(x, perm=perm)
+
+            def check(cls, context, x: ir.Value, perm: ir.Attr) -> bool:
+                if perm.is_ref():
+                    return False
+                if perm.type == ir.AttributeType.INTS:
+                    if perm.as_ints() == list(range(len(perm.as_ints()))):
+                        return True
+                return False
+    """
+
+    def __init__(self, name: str | None = None, **kwargs) -> None:
+        self.name = name or self.__class__.__name__
+        # Initialize to None and create on demand to avoid construction order issues
+        self._compiled_pattern: Pattern | None = None
+        self._pattern_kwargs = kwargs
+
+    @abc.abstractmethod
+    def pattern(self, op, *args, **kwargs):
+        raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
+
+    def check(self, op, *args, **kwargs) -> _basics.MatchResult:
+        """Default check function that returns a _basics.MatchResult object with success always set to True."""
+        return _basics.MatchResult()
+
+    def match(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+        *,
+        verbose: int | None = None,
+        check_nodes_are_removable: bool = True,
+        tracer: _basics.MatchingTracer | None = None,
+    ) -> _basics.MatchResult | None:
+        """Check if the node matches the pattern and return the match result.
+
+        Args:
+            model: The model containing the graph or function.
+            graph_or_function: The graph or function to match against.
+            node: The node to try to match the pattern against.
+            verbose: The verbosity level of messages.
+            check_nodes_are_removable: If True, validate that matched nodes can be safely removed.
+            tracer: The tracer for debugging.
+
+        Returns:
+            MatchResult if the pattern matches successfully and passes the condition function,
+            None otherwise.
+        """
+        # Create the compiled pattern on demand if not already created
+        if self._compiled_pattern is None:
+            self._compiled_pattern = Pattern(
+                self.pattern, self.check, name=self.name, **self._pattern_kwargs
+            )
+        return self._compiled_pattern.match(
+            model,
+            graph_or_function,
+            node,
+            verbose=verbose,
+            check_nodes_are_removable=check_nodes_are_removable,
+            tracer=tracer,
+        )
+
+
+class RewriteRuleClassBase(PatternBase):
     """Base class for implementing rewrite rules as a class.
 
     Example::
@@ -300,17 +493,9 @@ class RewriteRuleClassBase(abc.ABC):
     def __init__(
         self, name: str | None = None, remove_nodes: bool = True, as_function: bool = False
     ) -> None:
-        self.name = name or self.__class__.__name__
+        super().__init__(name)
         self.remove_nodes = remove_nodes
         self.as_function = as_function
-
-    @abc.abstractmethod
-    def pattern(self, op, *args, **kwargs):
-        raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
-
-    def check(self, op, *args, **kwargs) -> _basics.MatchResult:
-        """Default check function that returns a _basics.MatchResult object with success always set to True."""
-        return _basics.MatchResult()
 
     @abc.abstractmethod
     def rewrite(self, op, *args, **kwargs):
@@ -465,12 +650,12 @@ class RewriteRuleSet:
         """
         count = 0
 
-        # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
-        # And the graph is applied in order.
         for rule in self.rules:
             if rule.graph_pre_visitor:
                 rule.graph_pre_visitor()
-            for node in graph_or_function:
+
+        for node in graph_or_function:
+            for rule in self.rules:
                 delta = rule.try_rewrite(
                     model, graph_or_function, node, verbose=verbose, tracer=tracer
                 )
@@ -549,6 +734,9 @@ class RewriteRuleSet:
                 )
 
                 count += 1
+                break
+
+        for rule in self.rules:
             if rule.graph_post_visitor:
                 rule.graph_post_visitor()
 

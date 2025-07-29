@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Callable, Sequence, Union
 
-import onnxscript.ir as ir
-import onnxscript.ir.passes.common as common_passes
-from onnxscript.rewriter import pattern
-from onnxscript.rewriter._basics import MatchFailureError
+import onnx_ir as ir
+import onnx_ir.passes.common as common_passes
+
+from onnxscript.rewriter._basics import MatchFailureError, MatchingTracer
+from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 Dim = Union[int, ir.SymbolicDim]
 
@@ -43,7 +44,7 @@ def check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]):
             )
 
 
-def apply_fusion_rules(rules: pattern.RewriteRule | pattern.RewriteRuleSet) -> Callable:
+def apply_fusion_rules(rules: RewriteRule | RewriteRuleSet) -> Callable:
     """
     Apply the given fusion rules to the model and return the number of fusions applied.
 
@@ -59,7 +60,7 @@ def apply_fusion_rules(rules: pattern.RewriteRule | pattern.RewriteRuleSet) -> C
         if apply_shape_inference:
             common_passes.ShapeInferencePass()(model)
         if count == 0 and debug:
-            tracer = pattern.MatchingTracer()
+            tracer = MatchingTracer()
             rules.apply_to_model(model, tracer=tracer, **kwargs)
             tracer.report()
         return count

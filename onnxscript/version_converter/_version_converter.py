@@ -9,8 +9,9 @@ import functools
 import logging
 from typing import Callable, Sequence, Union
 
+import onnx_ir.convenience as ir_convenience
+
 import onnxscript.ir._tape as _tape
-import onnxscript.ir.convenience as ir_convenience
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)

@@ -10,10 +10,13 @@ from onnxscript.rewriter._pattern_ir import (
     Constant,
     OpsetPatternBuilder,
     OrValue,
+    Var,
     pattern_builder,
     torch_module_op,
 )
 from onnxscript.rewriter._rewrite_rule import (
+    Pattern,
+    PatternBase,
     RewriteRule,
     RewriteRuleClassBase,
     RewriteRuleSet,
@@ -27,6 +30,8 @@ __all__ = [
     "Constant",
     "OpsetPatternBuilder",
     "pattern_builder",
+    "PatternBase",
+    "Pattern",
     "RewriteRule",
     "RewriteRuleClassBase",
     "RewriteRuleSet",
@@ -37,4 +42,5 @@ __all__ = [
     "PatternMatcher",
     "SimplePatternMatcher",
     "torch_module_op",
+    "Var",
 ]

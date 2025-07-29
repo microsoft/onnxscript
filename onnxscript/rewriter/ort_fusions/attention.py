@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Sequence, Union
 
-import onnxscript.ir as ir
+import onnx_ir as ir
+
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 Dim = Union[int, ir.SymbolicDim]
@@ -33,7 +34,6 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         qkv_bias,
         # mask_index,
         past,
-        attention_bias,
         num_heads,
         # scale,
         start1,
@@ -105,7 +105,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 value_BSD,
                 qkv_bias,
                 None,  # key_padding_mask
-                attention_bias,
+                pattern.Var("attention_bias", can_match_none=True),
                 past_key,
                 past_value,
                 num_heads=num_heads,
@@ -126,7 +126,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 value_BSD,
                 qkv_bias,
                 None,  # key_padding_mask
-                attention_bias,
+                pattern.Var("attention_bias", can_match_none=True),
                 None,  # past_key
                 None,  # past_value
                 num_heads=num_heads,

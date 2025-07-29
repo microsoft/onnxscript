@@ -20,7 +20,8 @@ from typing import Mapping
 import numpy as np
 
 from onnxscript import ir
-from onnxscript.rewriter import pattern as orp
+from onnxscript.rewriter._basics import MatchResult
+from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
 
 def _reshape_for_broadcast(x: np.ndarray, rank: int, axis: int = 1) -> np.ndarray:
@@ -29,7 +30,7 @@ def _reshape_for_broadcast(x: np.ndarray, rank: int, axis: int = 1) -> np.ndarra
     return np.reshape(x, broadcast_shape)
 
 
-class _FuseBatchNormBase(orp.RewriteRuleClassBase, ABC):
+class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
     """Interface for BatchNormalization nodes fusion."""
 
     def __init__(
@@ -90,11 +91,9 @@ class _FuseBatchNormBase(orp.RewriteRuleClassBase, ABC):
             attributes=inbound_node.attributes,
         )
 
-    def check(
-        self, context, x, inbound_out: ir.Value, batchnorm_out: ir.Value
-    ) -> orp.MatchResult:
+    def check(self, context, x, inbound_out: ir.Value, batchnorm_out: ir.Value) -> MatchResult:
         del context  # Unused
-        check_result = orp.MatchResult()
+        check_result = MatchResult()
 
         inbound_node = inbound_out.producer()
         batchnorm_node = batchnorm_out.producer()
@@ -172,14 +171,14 @@ fuse_batchnorm_into_convtranspose_rule = FuseBatchNormIntoConvTranspose().rule()
 fuse_batchnorm_into_gemm_rule = FuseBatchNormIntoGemm().rule()
 
 
-def fuse_batchnorm_rule_set() -> orp.RewriteRuleSet:
+def fuse_batchnorm_rule_set() -> RewriteRuleSet:
     """Returns a set of rewrite rules that fuse BatchNormalization nodes
     into preceding nodes such as Conv, ConvTranspose, and Gemm.
 
     Returns:
         RewriteRuleSet
     """
-    return orp.RewriteRuleSet(
+    return RewriteRuleSet(
         [
             fuse_batchnorm_into_conv_rule,
             fuse_batchnorm_into_convtranspose_rule,

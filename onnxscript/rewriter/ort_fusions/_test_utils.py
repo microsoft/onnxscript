@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import numpy as np
+import onnx_ir as ir
 import onnxruntime
 import packaging.version
-
-import onnxscript.ir as ir
 
 ORT_VERSION = packaging.version.Version(onnxruntime.__version__)
 
