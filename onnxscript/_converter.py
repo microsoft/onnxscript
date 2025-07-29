@@ -29,37 +29,6 @@ from onnxscript import onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
 from onnxscript._internal import _analysis, ast_utils, autocast
 
-if TYPE_CHECKING:
-    # The type-alias LocalSymValue represents the types of values that local names in a
-    # script-function may be bound to during translation, (ONNX IR values).
-    # TODO(rama): Rationalize this and values.SymbolValue
-
-    LocalSymValue = Union[values.SymbolValue, ir.Function]
-
-    # The type-alias PyValue is used to represent the types of python values that may be used
-    # in an ONNX Script function.
-    # TODO(rama): Flesh out the set of valid types here. These include values such as
-    # 1 (int), 1.0 (float), [2, 4], [1.0], etc. which will be converted to ONNX, for
-    # use as value-parameters or attribute-parameters in an ONNX call (Node).
-
-    PyValue = Any
-
-    # The type-alias SymValue denotes values that an identifier may be bound to during
-    # translation. A local name will be bound to a LocalSymValue, while a global name
-    # will be bound to a PyValue.
-
-    SymValue = Union[LocalSymValue, PyValue]
-
-    # PreferredName is a type-alias used to represent the preferred name used in the generated
-    # ONNX for a value returned by an expression. There is no guarantee that the specified
-    # name will be used exactly. The converter will modify the name (with a suffix),
-    # if necesssary, to ensure that it is unique (to ensure ONNX's SSA requirement).
-
-    PreferredName = str
-
-    # The type-alias OnnxVar indicates variable names used in the generated ONNX.
-    OnnxVarName = str
-
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +84,126 @@ _PRIMOP_MAP = {
 
 
 _CASTABLE_FIELD = "pkg.onnxscript.converter.castable"
+
+
+
+class SymbolValue:
+    """Represents script-time value information about named variables used in a script.
+
+    At translation-time, the (local) variables of a script, including its parameters,
+    are bound to a SymbolValue.
+
+    SymbolValues fall into the following categories:
+
+    AttrRef: Function parameters of attribute-kind, also mapped to ONNX attributes
+
+    Dynamic: values computed at runtime (of tensor type, for now) mapped to NodeArgs.
+    Dynamic values include input-parameters of the script, as well intermediate
+    values computed in the script.
+
+    For example, consider the following script definition:
+    ::
+
+        @script()
+        def ThresholdedRelu(X, alpha: float):
+            zero = op.CastLike(0, X)
+            return op.Where(X > alpha, X, zero)
+
+    Here, `X` has a Dynamic value, `alpha` has an AttrRef value, and `zero`
+    has a Dynamic value.
+
+    Scripts may also contain references to global variables, but the translator
+    does not associate a SymbolValue with them. The python value of global variables
+    is used directly in the translation, and such global variables are intended
+    to be used for limited purposes, namely:
+    * To identify an opset
+    * To represent constant-values, translated into ONNX constants.
+    """
+
+    def __init__(self, info: sourceinfo.SourceInfo) -> None:
+        if not isinstance(info, sourceinfo.SourceInfo):
+            raise TypeError(f"info must be of type sourceinfo.SourceInfo not {type(info)!r}.")
+        self.info = info
+
+
+class AttrRef(SymbolValue):
+    def __init__(
+        self, attr_name: str, typeinfo: _GenericAlias, info: sourceinfo.SourceInfo
+    ) -> None:
+        """Initializes AttrRef.
+
+        Arguments:
+            attr_name: name of the attribute-parameter
+            typeinfo: type annotation of the attribute.
+                op's attributes in ONNX are usually single type or list of single type.
+            info: for debugging use.
+        """
+        super().__init__(info)
+        self.value = attr_name
+
+        if not isinstance(typeinfo, (type, _GenericAlias)):
+            # typing._GenericAlias for List[int] and List[str], etc.
+            raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
+        self.typeinfo = typeinfo
+
+
+class DynamicKind(IntFlag):
+    Unknown = 0
+    Input = 1
+    Output = 2
+    Intermediate = 4
+    Loop = 8
+
+
+class Dynamic(SymbolValue):
+    def __init__(
+        self, onnx_var: str, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
+    ) -> None:
+        """Initializes Dynamic.
+
+        Arguments:
+            onnx_var: the name of the ONNX variable used to represent this value
+            kind: the DynamicKind of this variable
+            info: source-location information for error-messages/debugging
+            typeinfo: type-information for the value
+        """
+        super().__init__(info)
+        assert isinstance(kind, DynamicKind)
+        self.value = onnx_var
+        self.kind = kind
+        self.typeinfo = typeinfo
+
+
+# The type-alias LocalSymValue represents the types of values that local names in a
+# script-function may be bound to during translation, (ONNX IR values).
+# TODO(rama): Rationalize this and values.SymbolValue
+
+LocalSymValue = Union[SymbolValue, ir.Function]
+
+# The type-alias PyValue is used to represent the types of python values that may be used
+# in an ONNX Script function.
+# TODO(rama): Flesh out the set of valid types here. These include values such as
+# 1 (int), 1.0 (float), [2, 4], [1.0], etc. which will be converted to ONNX, for
+# use as value-parameters or attribute-parameters in an ONNX call (Node).
+
+PyValue = Any
+
+# The type-alias SymValue denotes values that an identifier may be bound to during
+# translation. A local name will be bound to a LocalSymValue, while a global name
+# will be bound to a PyValue.
+
+SymValue = Union[LocalSymValue, PyValue]
+
+# PreferredName is a type-alias used to represent the preferred name used in the generated
+# ONNX for a value returned by an expression. There is no guarantee that the specified
+# name will be used exactly. The converter will modify the name (with a suffix),
+# if necesssary, to ensure that it is unique (to ensure ONNX's SSA requirement).
+
+PreferredName = str
+
+# The type-alias OnnxVar indicates variable names used in the generated ONNX.
+OnnxVarName = str
+
 
 def mark_castable(value: ir.Value):
     """Mark an ONNX value as auto-castable."""
