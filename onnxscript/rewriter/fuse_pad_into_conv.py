@@ -68,19 +68,13 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
     def rewrite(
         self, op: ir.tape.Tape, x: ir.Value, pad: ir.Value, conv: ir.Value
     ) -> ir.Value:
-        pad_node = pad.producer()
         conv_node = conv.producer()
 
         # Retrieve the padding and axes
         x_rank = len(x.shape)
-        pad_pads = pad_node.inputs[1].const_value.numpy().tolist()
-        if len(pad_node.inputs) > 3 and (axes := pad_node.inputs[3]) is not None:
-            axes = [x if x >= 0 else x_rank + x for x in axes.const_value.numpy()]
-        else:
-            axes = list(range(x_rank))
 
-        # Fulfill pad_pads in every dimension (filling with zero the other ones)
-        pad_pads = fill_pads_with_axes(pad_pads, axes, x_rank)
+        # Get computed pads in check()
+        pad_pads = self._pads_list
 
         # Get only spatial pads
         new_pads = pad_pads[2:x_rank] + pad_pads[x_rank + 2 :]
@@ -145,8 +139,9 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
             axes_list = list(range(x_rank))
 
         # Pad constraints: values
-        pads_list = fill_pads_with_axes(pads.const_value.numpy(), axes_list, x_rank)
-        if np.any(pads_list[:2] + pads_list[x_rank : x_rank + 2]):
+        self._pads_list = fill_pads_with_axes(pads.const_value.numpy(), axes_list, x_rank)
+        if np.any(self._pads_list[:2] + self._pads_list[x_rank : x_rank + 2]):
+            self._pads_list = None
             return check_result.fail(f"{pads.name} must be zero in non-spatial dimensions.")
 
         return check_result
@@ -164,14 +159,12 @@ class FuseConvPad(_FuseConvPadBase):
 
     def check(self, context, x: ir.Value, pad: ir.Value, conv: ir.Value) -> orp.MatchResult:
         check_result = super().check(context, x, pad, conv)
-        if check_result.reason:
+        if not check_result:
             return check_result
 
         # Conv constraints: attributes
         conv_node = conv.producer()
-        if (
-            apad := conv_node.attributes.get("auto_pad", None)
-        ) and apad.as_string() != "NOTSET":
+        if conv_node.attributes.get_string("auto_pad", "NOTSET") != "NOTSET":
             return check_result.fail(
                 f"{conv_node.name} ({conv_node.op_type}) auto_pad must be 'NOTSET'."
             )
