@@ -16,7 +16,7 @@ from onnxscript.rewriter import pattern
 @script()
 def original_model(A: FLOAT[4, 4]) -> FLOAT[2, 4]:
     # Split operation that produces 2 outputs
-    result1, result2 = opset18.Split(A, num_outputs=2, axis=0)
+    result1, _result2 = opset18.Split(A, num_outputs=2, axis=0)
     # We only return the first output for simplicity
     return result1
 
