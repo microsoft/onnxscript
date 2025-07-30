@@ -19,6 +19,7 @@ from typing import (
     Sequence,
     Tuple,
     Union,
+    _GenericAlias
 )
 
 import onnx_ir as ir
@@ -222,6 +223,49 @@ class ASTMeta:
     live_in: set[str] | None = None
 
 
+class _ValueEnvironment:
+    def __init__(self, converter: Converter):
+        self._sym_value_to_onnx_values: dict[SymbolValue, ir.Value] = {}
+        self._converter = converter
+
+    def get_or_create_value(
+        self, val: SymbolValue, info: sourceinfo.SourceInfo
+    ) -> ir.Value:
+        """Get or create an ONNX Value for a SymbolValue."""
+        if val in self._sym_value_to_onnx_values:
+            return self._sym_value_to_onnx_values[val]
+        if isinstance(val, AttrRef):
+            # promote attribute to value
+            result_name = self._converter._generate_unique_name("v")
+            attr = _to_onnx_ref_attr(val, info)
+            result = self._converter.emit([result_name], "Constant", [], attrs=[attr])[0]
+            if ta.base_type_is_bool(val.typeinfo):
+                # ONNX attributes use an int-encoding for bools, but ONNX tensor types
+                # distinguish between int and bool. So we cast the int tensor to a bool tensor,
+                # to promote a (python) bool attribute to a ONNX bool tensor.
+                result_as_bool_name = self._converter._generate_unique_name(f"{result_name}_as_bool")
+                result = self._converter.emit(
+                    [result_as_bool_name],
+                    "Cast",
+                    [result_name],
+                    attrs=[ir.AttrInt64("to", ir.DataType.BOOL)],
+                )[0]
+
+            self._sym_value_to_onnx_values[val] = result
+            return result
+
+        if isinstance(val, Dynamic):
+            # A value in ONNX
+            result = ir.Value(name=val.value)
+            self._sym_value_to_onnx_values[val] = result
+            return result
+
+        # Assume value is a python-value convertible to a tensor
+        result = self._converter._emit_const(val, None, info)
+        self._sym_value_to_onnx_values[val] = result
+        return result
+
+
 class Converter:
     """Main class to translate python code into ONNX operators.
 
@@ -391,39 +435,6 @@ class Converter:
             self._nextvar = self._nextvar + 1
         self._used_vars.add(r)
         return r
-
-    def _to_onnx_var(
-        self,
-        val: values.SymbolValue | PyValue,
-        target: PreferredName = "tmp",
-        *,
-        info: sourceinfo.SourceInfo,
-    ) -> ir.Value:
-        """Convert a Python or symbolic value to an ONNX Value."""
-        if isinstance(val, values.AttrRef):
-            # promote attribute to value
-            result = self._generate_unique_name(target)
-            attr = _to_onnx_ref_attr(val, info)
-            result_val = self.emit([result], "Constant", [], attrs=[attr])[0]
-            if ta.base_type_is_bool(val.typeinfo):
-                # ONNX attributes use an int-encoding for bools, but ONNX tensor types
-                # distinguish between int and bool. So we cast the int tensor to a bool tensor,
-                # to promote a (python) bool attribute to a ONNX bool tensor.
-                result_as_bool = self._generate_unique_name(result + "_as_bool")
-                return self.emit(
-                    [result_as_bool],
-                    "Cast",
-                    [result],
-                    attrs=[ir.AttrInt64("to", ir.DataType.BOOL)],
-                )[0]
-            return result_val
-
-        if isinstance(val, values.Dynamic):
-            # A value in ONNX
-            return ir.Value(name=val.value)
-
-        # Assume value is a python-value convertible to a tensor
-        return self._emit_const(val, target, info)
 
     def _py_var_to_onnx_var(self, py_var: str, info: sourceinfo.SourceInfo) -> Variable:
         """Convert a python variable to an ONNX variable."""
