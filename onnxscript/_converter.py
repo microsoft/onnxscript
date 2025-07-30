@@ -261,7 +261,7 @@ class _ValueEnvironment:
             return result
 
         # Assume value is a python-value convertible to a tensor
-        result = self._converter._emit_const(val, None, info)
+        result = self._converter.emit_const(val, None, info)
         self._sym_value_to_onnx_values[val] = result
         return result
 
@@ -348,6 +348,7 @@ class Converter:
         self._used_vars: set[str] = set()
         self._locals: list[dict[str, LocalSymValue]] = [{}]
         self._finalized = False
+        self._value_env = _ValueEnvironment(self)
         self.meta: defaultdict[ast.AST, ASTMeta] = defaultdict(ASTMeta)
 
     # def _init_function_translation(self) -> None:
@@ -460,7 +461,7 @@ class Converter:
         self._current_fn.append(node)
         return node.outputs
 
-    def _emit_const(
+    def emit_const(
         self,
         pyvalue: PyValue,
         suggested_name: PreferredName | None,
@@ -600,7 +601,7 @@ class Converter:
         elif isinstance(node, ast.Subscript):
             r = self._translate_subscript_expr(node, target)
         elif _is_constant_expr(node):
-            r = self._emit_const(self._eval_constant_expr(node), target, self._source_of(node))
+            r = self.emit_const(self._eval_constant_expr(node), target, self._source_of(node))
         else:
             raise ValueError(
                 self._message(node, f"Unsupported expression type {type(node)!r}.")
@@ -676,7 +677,7 @@ class Converter:
         def const_1d(value, name: Optional[str] = None):
             nonlocal cached_int_consts
             if value not in cached_int_consts:
-                cached_int_consts[value] = self._emit_const([value], name, info)
+                cached_int_consts[value] = self.emit_const([value], name, info)
             return cached_int_consts[value]
 
         def one_1d():
@@ -815,7 +816,7 @@ class Converter:
                     "Slice",
                     [var_name, start_name, end_name, axes_name, steps_name],
                 )
-                squeezed_axes = self._emit_const(squeezed_axes, "squeezed_axes", info)
+                squeezed_axes = self.emit_const(squeezed_axes, "squeezed_axes", info)
 
                 if non_scalar_indices:  # use temporary to store result of squeeze
                     result = self._generate_unique_name(f"{var_name}_squeezed")
@@ -1231,7 +1232,7 @@ class Converter:
         outputs = list(loop_state_vars | scan_outputs)
 
         # loop-condition:
-        # o_loop_condition = self._emit_const(True, "true", self._source_of(loop_stmt))
+        # o_loop_condition = self.emit_const(True, "true", self._source_of(loop_stmt))
 
         # build loop_body
         self._enter_scope("loop_body", loop_stmt)
