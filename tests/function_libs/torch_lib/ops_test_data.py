@@ -694,7 +694,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("ceil", core_ops.aten_ceil),
-    TorchLibOpInfo("chunk", core_ops.aten_chunk),
+    TorchLibOpInfo("chunk", core_ops.aten_chunk).skip(
+        enabled_if=version_utils.torch_older_than("2.7"),
+        reason="Test for chunk is not configured for torch<2.7",
+    ),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max_tensor).skip(
         reason="Size 0 inputs are not handled by design",
         matcher=lambda sample: sample.input.numel() == 0,
