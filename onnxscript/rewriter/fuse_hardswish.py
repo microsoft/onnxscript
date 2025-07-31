@@ -5,6 +5,8 @@
 - Mul(HardSigmoid(x), x) -> HardSwish
 """
 
+from __future__ import annotations
+
 import numpy as np
 import onnx_ir as ir
 
