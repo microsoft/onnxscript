@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Does the following transformation:
+"""Absorbs affine operation into convolution (best effort):
 - Conv(Mul(Add(x))) -> Conv (only conv without padding can be fused)
 - Add(Mul(Conv)) -> Conv (for all convolutions)
 """
