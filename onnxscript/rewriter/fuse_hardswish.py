@@ -13,36 +13,22 @@ import onnx_ir as ir
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._rewrite_rule import RewriteRuleSet
+from ._ir_utils import is_singleton_value
 
-
-def _is_const_scalar(value: ir.Value) -> bool:
-    if value.is_graph_input():
-        return False
-
-    if ir.convenience.get_const_tensor(value) is None:
-        return False
-    return True
 
 class _HardSigmoidFusionBase(pattern.RewriteRuleClassBase):
     def check(
         self, op, x: ir.Value, clip_min: ir.Value, clip_max: ir.Value, bias: ir.Value, divisor: ir.Value
     ) -> MatchResult:
         check_result = MatchResult()
-        if not (_is_const_scalar(clip_min) and _is_const_scalar(clip_max) and _is_const_scalar(bias) and _is_const_scalar(divisor)):
-            return check_result.fail("Non-constant inputs for clip and divisor")
 
-        min_value = ir.convenience.get_const_tensor(clip_min).numpy()
-        max_value = ir.convenience.get_const_tensor(clip_max).numpy()
-        bias_value = ir.convenience.get_const_tensor(bias).numpy()
-        divisor_value = ir.convenience.get_const_tensor(divisor).numpy()
-
-        if min_value != 0.0:
-            return check_result.fail("Swish requires min value of -3 for clip")
-        if max_value != 6.0:
-            return check_result.fail("Swish requires max value of 3 for clip")
-        if bias_value != 3.0:
+        if not is_singleton_value(clip_min, 0.0, rtol=1e-4):
+            return check_result.fail("Swish requires min value of 0 for clip")
+        if not is_singleton_value(clip_max, 6.0, rtol=1e-4):
+            return check_result.fail("Swish requires max value of 6 for clip")
+        if not is_singleton_value(bias, 3.0, rtol=1e-4):
             return check_result.fail("Swish requires bias value of 3")
-        if divisor_value != 6.0:
+        if not is_singleton_value(divisor, 6.0, rtol=1e-4):
             return check_result.fail("Swish requires divisor value of 6")
         return check_result
 
