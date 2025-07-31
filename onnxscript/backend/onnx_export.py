@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
-import numpy
+import numpy as np
 import onnx
 from onnx import FunctionProto, GraphProto, ModelProto, TensorProto, ValueInfoProto
 
@@ -384,17 +384,17 @@ class _Exporter:
             if isinstance(value, str):
                 attributes.append((at.name, f"{value!r}"))
                 continue
-            if isinstance(value, numpy.ndarray):
+            if isinstance(value, np.ndarray):
                 onnx_dtype = at.t.data_type
                 if len(value.shape) == 0:
                     text = (
                         f'make_tensor("value", {onnx_dtype}, dims=[], '
-                        f"vals=[{value.tolist()!r}])"
+                        f"vals=[{repr(value.tolist()).replace('nan', 'np.nan').replace('inf', 'np.inf')}])"
                     )
                 else:
                     text = (
                         f'make_tensor("value", {onnx_dtype}, dims={list(value.shape)!r}, '
-                        f"vals={value.ravel().tolist()!r})"
+                        f"vals={repr(value.ravel().tolist()).replace('nan', 'np.nan').replace('inf', 'np.inf')})"
                     )
                 attributes.append((at.name, text))
                 continue
@@ -738,7 +738,7 @@ class _Exporter:
                 raise NotImplementedError(
                     f"Unable to generate random initializer for data type {value.data_type}."
                 )
-            return f"{__}{name} = numpy.random.rand({shape}).astype(numpy.float32)"
+            return f"{__}{name} = np.random.rand({shape}).astype(np.float32)"
 
         random_initializer_values = "\n".join(
             generate_rand(key, value) for key, value in self.skipped_initializers.items()
@@ -793,7 +793,7 @@ def make_model_with_random_weights():
             result.append(line)
 
         # Generic imports.
-        add("import numpy")
+        add("import numpy as np")
         add("from onnx import TensorProto")
         add("from onnx.helper import make_tensor")
         add("from onnxscript import script, external_tensor")
@@ -873,11 +873,11 @@ def export2python(
     .. runpython::
         :showcode:
         :process:
-        import numpy
+        import numpy as np
         from sklearn.cluster import KMeans
         from mlprodict.onnx_conv import to_onnx
         from mlprodict.onnx_tools.onnx_export import export2python
-        X = numpy.arange(20).reshape(10, 2).astype(numpy.float32)
+        X = np.arange(20).reshape(10, 2).astype(np.float32)
         tr = KMeans(n_clusters=2)
         tr.fit(X)
         onx = to_onnx(tr, X, target_opset=14)
