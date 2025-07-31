@@ -12,8 +12,7 @@ import onnx_ir as ir
 
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchResult
-
-from ._ir_utils import get_const_value, get_singleton_value
+from onnxscript.rewriter._ir_utils import get_const_value, get_singleton_value
 
 
 class _ConvAffineFusionBase(pattern.RewriteRuleClassBase):
@@ -28,9 +27,6 @@ class _ConvAffineFusionBase(pattern.RewriteRuleClassBase):
         conv_out: ir.Value,
     ) -> MatchResult:
         check_result = MatchResult()
-        import ipdb
-
-        ipdb.set_trace()
         if get_const_value(w) is None:
             return check_result.fail("The weight of Conv should be constant")
         if get_const_value(b) is None:

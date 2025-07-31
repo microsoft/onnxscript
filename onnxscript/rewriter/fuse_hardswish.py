@@ -5,16 +5,13 @@
 - Mul(HardSigmoid(x), x) -> HardSwish
 """
 
-from __future__ import annotations
-
 import numpy as np
 import onnx_ir as ir
 
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchResult
+from onnxscript.rewriter._ir_utils import is_singleton_value
 from onnxscript.rewriter._rewrite_rule import RewriteRuleSet
-
-from ._ir_utils import is_singleton_value
 
 
 class _HardSigmoidFusionBase(pattern.RewriteRuleClassBase):
