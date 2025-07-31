@@ -3,9 +3,11 @@ import unittest
 import numpy as np
 
 from onnxscript import ir
-from onnxscript.rewriter import rewrite
-from onnxscript.rewriter.fuse_conv_affine import conv_affine_fusion_rule, affine_conv_fusion_rule
-from onnxscript.rewriter import testing
+from onnxscript.rewriter import rewrite, testing
+from onnxscript.rewriter.fuse_conv_affine import (
+    affine_conv_fusion_rule,
+    conv_affine_fusion_rule,
+)
 
 
 class FuseConvAffineTest(unittest.TestCase):
@@ -14,17 +16,13 @@ class FuseConvAffineTest(unittest.TestCase):
 
     def test_conv_affine_fusion(self):
         tape = ir.tape.Tape()
-        x = ir.Input("x", shape=ir.Shape([1, 3, 32, 32]), type=ir.TensorType(ir.DataType.FLOAT))
-        w = tape.initializer(
-            ir.tensor(np.ones((3, 3, 3, 3), dtype=np.float32), name="w")
+        x = ir.Input(
+            "x", shape=ir.Shape([1, 3, 32, 32]), type=ir.TensorType(ir.DataType.FLOAT)
         )
+        w = tape.initializer(ir.tensor(np.ones((3, 3, 3, 3), dtype=np.float32), name="w"))
         b = tape.initializer(ir.tensor(np.ones((3,), dtype=np.float32), name="b"))
-        scale = tape.initializer(
-            ir.tensor(np.array([2.0], dtype=np.float32), name="scale")
-        )
-        offset = tape.initializer(
-            ir.tensor(np.array([3.0], dtype=np.float32), name="offset")
-        )
+        scale = tape.initializer(ir.tensor(np.array([2.0], dtype=np.float32), name="scale"))
+        offset = tape.initializer(ir.tensor(np.array([3.0], dtype=np.float32), name="offset"))
 
         conv_out = tape.op("Conv", [x, w, b], attributes={"pads": [1, 1, 1, 1]})
         mul_out = tape.op("Mul", [conv_out, scale])
@@ -58,22 +56,20 @@ class FuseConvAffineTest(unittest.TestCase):
 
         # Check that the results are numerically equal
         rng = np.random.default_rng(42)
-        inputs = [rng.random((1, 3, 32, 32), dtype=np.float32), ]
+        inputs = [
+            rng.random((1, 3, 32, 32), dtype=np.float32),
+        ]
         testing.assert_numerically_equal(model, rewritten_model, inputs)
 
     def test_affine_conv_fusion_without_pad(self):
         tape = ir.tape.Tape()
-        x = ir.Input("x", shape=ir.Shape([1, 3, 32, 32]), type=ir.TensorType(ir.DataType.FLOAT))
-        w = tape.initializer(
-            ir.tensor(np.ones((3, 3, 3, 3), dtype=np.float32), name="w")
+        x = ir.Input(
+            "x", shape=ir.Shape([1, 3, 32, 32]), type=ir.TensorType(ir.DataType.FLOAT)
         )
+        w = tape.initializer(ir.tensor(np.ones((3, 3, 3, 3), dtype=np.float32), name="w"))
         b = tape.initializer(ir.tensor(np.ones((3,), dtype=np.float32), name="b"))
-        scale = tape.initializer(
-            ir.tensor(np.array([2.0], dtype=np.float32), name="scale")
-        )
-        offset = tape.initializer(
-            ir.tensor(np.array([3.0], dtype=np.float32), name="offset")
-        )
+        scale = tape.initializer(ir.tensor(np.array([2.0], dtype=np.float32), name="scale"))
+        offset = tape.initializer(ir.tensor(np.array([3.0], dtype=np.float32), name="offset"))
 
         mul_out = tape.op("Mul", [x, scale])
         z = tape.op(
@@ -108,7 +104,9 @@ class FuseConvAffineTest(unittest.TestCase):
 
         # Check that the results are numerically equal
         rng = np.random.default_rng(42)
-        inputs = [rng.random((1, 3, 32, 32), dtype=np.float32), ]
+        inputs = [
+            rng.random((1, 3, 32, 32), dtype=np.float32),
+        ]
         testing.assert_numerically_equal(model, rewritten_model, inputs)
 
 

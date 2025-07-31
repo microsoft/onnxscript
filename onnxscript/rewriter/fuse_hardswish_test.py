@@ -6,10 +6,9 @@ import numpy as np
 import onnx
 import onnx_ir as ir
 import onnxruntime as ort
-from onnxscript import optimizer
 from onnx_ir.passes.common import onnx_checker, shape_inference
 
-import onnxscript
+from onnxscript import optimizer
 from onnxscript.rewriter import testing
 from onnxscript.rewriter.fuse_hardswish import fuse_hardswish_rules
 
@@ -37,9 +36,7 @@ class FuseHardSwishTest(unittest.TestCase):
         updated_model = optimizer.optimize(updated_model)
 
         # Check expected op_types
-        self.assertEqual(
-            [node.op_type for node in updated_model.graph], expected_op_types
-        )
+        self.assertEqual([node.op_type for node in updated_model.graph], expected_op_types)
 
         # Check inference
         inputs = (self.rng.integers(low=-10, high=10, size=(2 * 32), dtype=np.int32),)
@@ -115,6 +112,6 @@ class FuseHardSwishTest(unittest.TestCase):
         model = ir.from_proto(onnx.parser.parse_model(model_text))
         self.run_test(model, ["HardSwish"])
 
+
 if __name__ == "__main__":
     unittest.main()
-
