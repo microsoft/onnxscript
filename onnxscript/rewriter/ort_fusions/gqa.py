@@ -324,6 +324,12 @@ fuse_gqa = _fusion_utils.apply_fusion_rules(gqa_rules)
 
 
 class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
+    """
+    LongRoPeGQACausalMask is a specialized version of GQACausalMask that handles
+    the LongRoPe GQA fusion. It computes the causal mask for Group Query Attention
+    with LongRoPe (Long Range Rotary Position Embedding) and caches the mask to
+    avoid recomputation at each layer.
+    """
     def __init__(self):
         super().__init__("LongRoPeGQACausalMask", remove_nodes=False)
         self._mask_cache = {}
@@ -369,6 +375,12 @@ class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
         past_seq_length,
         total_seq_length,
     ):
+        """
+        Pattern for LongRoPe GQA Causal Mask.
+        This pattern computes the causal mask for Group Query Attention with LongRoPe.
+        It constructs the mask based on input_ids and past_kv_cache, and handles the
+        expansion of the mask across the batch and sequence dimensions.
+        """
         seq_len = op.Shape(input_ids, end=2, start=1, _outputs=["seq_len"])
         seq_len_0D = op.Squeeze(seq_len, _outputs=["seq_len_0D"])
         past_seq_len = op.Shape(past_kv_cache_1, end=3, start=2, _outputs=["past_seq_len"])
@@ -455,6 +467,11 @@ class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
         attn_output,
         **_,
     ):
+        """
+        Rewrite the GQA node with the new mask information.
+        This method computes the total sequence length and seqlens_k based on the
+        attention_mask and rewrites the GQA node to use these values.
+        """
         # Compute total_seq_length_int32 and seqlens_k_int32
         total_seq_length_int32, seqlens_k_int32 = self.compute_mask(op, attention_mask)
 
