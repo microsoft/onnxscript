@@ -394,8 +394,6 @@ class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
         total_seq_len_for_query = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_for_query"])
         total_seq_len_for_batch = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_for_batch"])
 
-        #total_seq_len_final = op.Reshape(total_seq_len_0D, pattern.ANY_VALUE, allowzero=0, _outputs=["total_seq_len_final"])
-
         # BRANCH A: KV Range - Creates tensor with KV positions [1, 1, seq_len, 1]
         batch_size = op.Shape(past_kv_cache_2, end=1, start=0, _outputs=["batch_size"])
         kv_mask_shape = op.Concat(batch_size, [1], seq_len, total_seq_len_for_kv, axis=0, _outputs=["kv_mask_shape"])
@@ -437,7 +435,7 @@ class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
         inverted_mask = op.Not(final_attention_mask, _outputs=["inverted_mask"])
         mask_fp32 = op.Cast(inverted_mask, to=ir.DataType.FLOAT, _outputs=["mask_fp32"])
         scaled_mask = op.Mul(mask_fp32, pattern.ANY_VALUE)
-        
+
         # Propagation to GQA
         sliced_mask = op.Slice(scaled_mask, [0], pattern.ANY_VALUE, [3], [1], _outputs=["sliced_mask"])
 
