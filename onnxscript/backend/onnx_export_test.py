@@ -45,14 +45,8 @@ def skip(pattern: str | Pattern, reason: str, *, condition: bool = True):
 
 
 SKIP_TESTS = (
-    skip(
-        r"^test_ai_onnx_ml_array_feature_extractor",
-        "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
-    ),
-    skip(
-        r"^test_ai_onnx_ml_binarizer",
-        "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
-    ),
+    skip(r"^test_ai_onnx_ml_array_feature_extractor", "ORT doesn't support this op"),
+    skip(r"^test_ai_onnx_ml_binarizer", "ORT doesn't support this op"),
     skip(r"^test_center_crop_pad_crop_negative_axes_hwc", "fixme: ORT segfaults"),
     skip(r"_scan_", "Operator Scan is not supported by onnxscript"),
     skip(r"^test_scan", "Operator Scan is not supported by onnxscript"),
@@ -89,6 +83,7 @@ SKIP_TESTS = (
         "Change when the converter supports support something like 'while i < n and cond:'",
     ),
     skip(r"^test_ai_onnx_ml_label_encoder", "ONNX Runtime does not support Opset 21 at 1.17"),
+    skip(r"^test_ai_onnx_ml_tree_ensemble", "Opset 23 is not supported"),
 )
 
 if sys.platform == "win32":
@@ -160,7 +155,7 @@ class TestOnnxBackEnd(unittest.TestCase):
     test_folder = root_folder / "tests" / "onnx_backend_test_code"
     temp_folder = root_folder / "tests" / "export"
 
-    def _proto_to_os_and_back(self, proto: onnxscript.FunctionProto, **export_options):
+    def _proto_to_os_and_back(self, proto: onnx.FunctionProto, **export_options):
         """Convert a proto to onnxscript code and convert it back to a proto."""
         code = onnx_export.export2python(proto, **export_options)
         map = extract_functions(proto.name, code, TestOnnxBackEnd.temp_folder)
