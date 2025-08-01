@@ -286,11 +286,11 @@ class GQACausalMask(pattern.RewriteRuleClassBase):
     ):
         # Construct total_seq_length_int32 and seqlens_k
         total_seq_length_int32 = op.Cast(total_seq_length, to=ir.DataType.INT32)
-        one_0D = op.Constant(value_int=1)
-        one_0D_int32 = op.Cast(one_0D, to=ir.DataType.INT32)
-        seqlens_k_0D = op.Sub(total_seq_length_int32, one_0D_int32)
-        zero_1D = op.Constant(value_int=0, dtype=ir.DataType.INT64, shape=[1])
-        seqlens_k = op.Unsqueeze(seqlens_k_0D, zero_1D)
+        one_0d = op.Constant(value_int=1)
+        one_0d_int32 = op.Cast(one_0d, to=ir.DataType.INT32)
+        seqlens_k_0d = op.Sub(total_seq_length_int32, one_0d_int32)
+        zero_1d = op.Constant(value_int=0, dtype=ir.DataType.INT64, shape=[1])
+        seqlens_k = op.Unsqueeze(seqlens_k_0d, zero_1d)
 
         gqa_node = attn_output.producer()
         assert len(gqa_node.inputs) == 12, (
@@ -313,15 +313,6 @@ class GQACausalMask(pattern.RewriteRuleClassBase):
         return op.GroupQueryAttention(
             *updated_inputs, **attributes, _domain="com.microsoft", _outputs=3
         )
-
-
-_basic_gqa_rule = GroupQueryAttention.rule()
-_gqa_causal_mask_rule = GQACausalMask.rule()
-
-gqa_rules = pattern.RewriteRuleSet([_basic_gqa_rule, _gqa_causal_mask_rule])
-
-fuse_gqa = _fusion_utils.apply_fusion_rules(gqa_rules)
-
 
 class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
     """
