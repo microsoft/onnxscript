@@ -34,25 +34,25 @@ Dim = Union[int, ir.SymbolicDim]
 
 def causal_mask_pattern(op, input_ids, past_kv_cache, shape_B111):
     seq_len = op.Shape(input_ids, end=2, start=1)
-    seq_len_0D = op.Squeeze(seq_len)
+    seq_len_0d = op.Squeeze(seq_len)
 
     past_seq_len = op.Shape(past_kv_cache, end=3, start=2)
-    past_seq_len_0D = op.Squeeze(past_seq_len)
+    past_seq_len_0d = op.Squeeze(past_seq_len)
 
-    total_seq_len_0D = op.Add(past_seq_len_0D, seq_len_0D)
-    total_seq_len = op.Reshape(total_seq_len_0D, [-1])
+    total_seq_len_0d = op.Add(past_seq_len_0d, seq_len_0d)
+    total_seq_len = op.Reshape(total_seq_len_0d, [-1])
 
     # The Phi modeling code generates the following +1 as the target-length, which seems
     # unnecessary in this context. But using it for pattern-matching against
     # generated onnx model.
-    total_seq_len_plus_1_0D = op.Add(total_seq_len_0D, 1)
-    total_seq_len_plus_1 = op.Reshape(total_seq_len_plus_1_0D, [-1])
+    total_seq_len_plus_1_0d = op.Add(total_seq_len_0d, 1)
+    total_seq_len_plus_1 = op.Reshape(total_seq_len_plus_1_0d, [-1])
 
-    current_range = op.Range(past_seq_len_0D, total_seq_len_0D, 1)
+    current_range = op.Range(past_seq_len_0d, total_seq_len_0d, 1)
     mask_shape = op.Concat(seq_len, total_seq_len_plus_1, axis=0)
     min_float32 = float(np.finfo(np.float32).min)
     mask_all_min = op.Expand(min_float32, mask_shape)
-    total_range_as_row = op.Range(0, total_seq_len_plus_1_0D, 1)
+    total_range_as_row = op.Range(0, total_seq_len_plus_1_0d, 1)
     current_range_as_column = op.Reshape(current_range, [-1, 1])
     boolean_mask = op.Greater(total_range_as_row, current_range_as_column)
     float_0_1_mask = op.Cast(boolean_mask, to=1)
@@ -382,17 +382,17 @@ class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
         expansion of the mask across the batch and sequence dimensions.
         """
         seq_len = op.Shape(input_ids, end=2, start=1, _outputs=["seq_len"])
-        seq_len_0D = op.Squeeze(seq_len, _outputs=["seq_len_0D"])
+        seq_len_0d = op.Squeeze(seq_len, _outputs=["seq_len_0d"])
         past_seq_len = op.Shape(past_kv_cache_1, end=3, start=2, _outputs=["past_seq_len"])
-        past_seq_len_0D = op.Squeeze(past_seq_len, _outputs=["past_seq_len_0D"])
-        total_seq_len_0D = op.Add(past_seq_len_0D, seq_len_0D, _outputs=["total_seq_len_0D"])
+        past_seq_len_0d = op.Squeeze(past_seq_len, _outputs=["past_seq_len_0d"])
+        total_seq_len_0d = op.Add(past_seq_len_0d, seq_len_0d, _outputs=["total_seq_len_0d"])
 
         # Create ranges for different dimensions
-        kv_range = op.Range(past_seq_len_0D, total_seq_len_0D, 1, _outputs=["kv_range"])
-        total_seq_len_for_kv = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_for_kv"])
-        query_range = op.Range(0, total_seq_len_0D, 1, _outputs=["query_range"])
-        total_seq_len_for_query = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_for_query"])
-        total_seq_len_for_batch = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_for_batch"])
+        kv_range = op.Range(past_seq_len_0d, total_seq_len_0d, 1, _outputs=["kv_range"])
+        total_seq_len_for_kv = op.Reshape(total_seq_len_0d, [-1], allowzero=0, _outputs=["total_seq_len_for_kv"])
+        query_range = op.Range(0, total_seq_len_0d, 1, _outputs=["query_range"])
+        total_seq_len_for_query = op.Reshape(total_seq_len_0d, [-1], allowzero=0, _outputs=["total_seq_len_for_query"])
+        total_seq_len_for_batch = op.Reshape(total_seq_len_0d, [-1], allowzero=0, _outputs=["total_seq_len_for_batch"])
 
         # BRANCH A: KV Range - Creates tensor with KV positions [1, 1, seq_len, 1]
         batch_size = op.Shape(past_kv_cache_2, end=1, start=0, _outputs=["batch_size"])
