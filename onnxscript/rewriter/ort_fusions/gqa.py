@@ -331,6 +331,9 @@ class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
         super().__init__("LongRoPeGQACausalMask", remove_nodes=False)
         self._mask_cache = {}
 
+    def cleanup(self):
+        self._mask_cache.clear()
+
     def compute_mask(self, op, attention_mask):
         """
         Computes the total_seq_length_int32 and seqlens_k_int32 based on the attention_mask,
