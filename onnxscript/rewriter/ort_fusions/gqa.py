@@ -31,7 +31,6 @@ T: total sequence length (after concatenation of past and current key/value)
 
 Dim = Union[int, ir.SymbolicDim]
 
-
 def causal_mask_pattern(op, input_ids, past_kv_cache, shape_B111):
     seq_len = op.Shape(input_ids, end=2, start=1)
     seq_len_0d = op.Squeeze(seq_len)
@@ -314,6 +313,13 @@ class GQACausalMask(pattern.RewriteRuleClassBase):
             *updated_inputs, **attributes, _domain="com.microsoft", _outputs=3
         )
 
+def _get_mask_key(attention_mask):
+        """
+        Generate a unique key for the mask based on input_ids and past_kv_cache.
+        This is used to cache the mask to avoid recomputation.
+        """
+        return attention_mask
+
 class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
     """
     LongRoPeGQACausalMask is a specialized version of GQACausalMask that handles
@@ -325,19 +331,12 @@ class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
         super().__init__("LongRoPeGQACausalMask", remove_nodes=False)
         self._mask_cache = {}
 
-    def _get_mask_key(self, attention_mask):
-        """
-        Generate a unique key for the mask based on input_ids and past_kv_cache.
-        This is used to cache the mask to avoid recomputation.
-        """
-        return (id(attention_mask))
-
     def compute_mask(self, op, attention_mask):
         """
         Computes the total_seq_length_int32 and seqlens_k_int32 based on the attention_mask,
         caching results to avoid recomputation at each layer.
         """
-        mask_key = self._get_mask_key(attention_mask)
+        mask_key = _get_mask_key(attention_mask)
 
         if mask_key in self._mask_cache:
             total_seq_length_int32, seqlens_k_int32 = self._mask_cache[mask_key]
