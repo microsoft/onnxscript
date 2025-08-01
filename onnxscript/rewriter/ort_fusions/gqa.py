@@ -387,73 +387,64 @@ class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
         past_seq_len_0D = op.Squeeze(past_seq_len, _outputs=["past_seq_len_0D"])
         total_seq_len_0D = op.Add(past_seq_len_0D, seq_len_0D, _outputs=["total_seq_len_0D"])
 
-        # All of the Add node's outputs
-        current_range_A = op.Range(past_seq_len_0D, total_seq_len_0D, 1, _outputs=["current_range_A"])
-        total_seq_len_A = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_A"])
-        current_range_B = op.Range(0, total_seq_len_0D, 1, _outputs=["current_range_B"])
-        total_seq_len_B = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_B"])
-        total_seq_len_C = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_C"])
+        # Create ranges for different dimensions
+        kv_range = op.Range(past_seq_len_0D, total_seq_len_0D, 1, _outputs=["kv_range"])
+        total_seq_len_for_kv = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_for_kv"])
+        query_range = op.Range(0, total_seq_len_0D, 1, _outputs=["query_range"])
+        total_seq_len_for_query = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_for_query"])
+        total_seq_len_for_batch = op.Reshape(total_seq_len_0D, [-1], allowzero=0, _outputs=["total_seq_len_for_batch"])
 
-        total_seq_len_final = op.Reshape(total_seq_len_0D, pattern.ANY_VALUE, allowzero=0, _outputs=["total_seq_len_final"])
+        #total_seq_len_final = op.Reshape(total_seq_len_0D, pattern.ANY_VALUE, allowzero=0, _outputs=["total_seq_len_final"])
 
-        # EXPAND BRANCH A
+        # BRANCH A: KV Range - Creates tensor with KV positions [1, 1, seq_len, 1]
         batch_size = op.Shape(past_kv_cache_2, end=1, start=0, _outputs=["batch_size"])
-        mask_shape_A = op.Concat(batch_size, [1], seq_len, total_seq_len_A, axis=0, _outputs=["mask_shape_A"])
-        mask_shape_A_abs = op.Abs(mask_shape_A, _outputs=["mask_shape_A_abs"])
-        reshaped_range_A = op.Reshape(current_range_A, [1, 1, -1, 1], allowzero=1, _outputs=["reshaped_range_A"])
-        mask_expanded_A = op.Expand(reshaped_range_A, mask_shape_A_abs, _outputs=["mask_expanded_A"])
+        kv_mask_shape = op.Concat(batch_size, [1], seq_len, total_seq_len_for_kv, axis=0, _outputs=["kv_mask_shape"])
+        kv_mask_shape_abs = op.Abs(kv_mask_shape, _outputs=["kv_mask_shape_abs"])
+        reshaped_kv_range = op.Reshape(kv_range, [1, 1, -1, 1], allowzero=1, _outputs=["reshaped_kv_range"])
+        expanded_kv_range = op.Expand(reshaped_kv_range, kv_mask_shape_abs, _outputs=["expanded_kv_range"])
 
-        # EXPAND BRANCH B
-        mask_shape_B = op.Concat(batch_size, [1], seq_len, total_seq_len_B, axis=0, _outputs=["mask_shape_B"])
-        mask_shape_B_abs = op.Abs(mask_shape_B, _outputs=["mask_shape_B_abs"])
-        reshaped_range_B = op.Reshape(current_range_B, [1, 1, 1, -1], allowzero=1, _outputs=["reshaped_range_B"])
-        mask_expanded_B = op.Expand(reshaped_range_B, mask_shape_B_abs, _outputs=["mask_expanded_B"])
+        # BRANCH B: Query Range - Creates tensor with query positions [1, 1, 1, total_seq_len]
+        query_mask_shape = op.Concat(batch_size, [1], seq_len, total_seq_len_for_query, axis=0, _outputs=["query_mask_shape"])
+        query_mask_shape_abs = op.Abs(query_mask_shape, _outputs=["query_mask_shape_abs"])
+        reshaped_query_range = op.Reshape(query_range, [1, 1, 1, -1], allowzero=1, _outputs=["reshaped_query_range"])
+        expanded_query_range = op.Expand(reshaped_query_range, query_mask_shape_abs, _outputs=["expanded_query_range"])
 
-        # EXPAND BRANCH C
-        mask_shape_C = op.Concat(batch_size, [1], seq_len, total_seq_len_C, axis=0, _outputs=["mask_shape_C"])
-        mask_shape_C_abs = op.Abs(mask_shape_C, _outputs=["mask_shape_C_abs"])
+        # BRANCH C: Batch Range - Creates tensor with batch indices [batch_size, 1, 1, 1]
+        batch_mask_shape = op.Concat(batch_size, [1], seq_len, total_seq_len_for_batch, axis=0, _outputs=["batch_mask_shape"])
+        batch_mask_shape_abs = op.Abs(batch_mask_shape, _outputs=["batch_mask_shape_abs"])
         batch_size_squeezed = op.Squeeze(batch_size, _outputs=["batch_size_squeezed"])
         batch_range = op.Range(0, batch_size_squeezed, 1, _outputs=["batch_range"])
-        reshaped_range_C = op.Reshape(batch_range, [-1, 1, 1, 1], allowzero=1, _outputs=["reshaped_range_C"])
-        mask_expanded_C = op.Expand(reshaped_range_C, mask_shape_C_abs, _outputs=["mask_expanded_C"])
+        reshaped_batch_range = op.Reshape(batch_range, [-1, 1, 1, 1], allowzero=1, _outputs=["reshaped_batch_range"])
+        expanded_batch_range = op.Expand(reshaped_batch_range, batch_mask_shape_abs, _outputs=["expanded_batch_range"])
 
-        # EXPAND A/B TO AND
-        mask_expanded_A_sub = op.Sub(mask_expanded_A, 262144, _outputs=["mask_expanded_A_sub"])
-        mask_A_B_greater = op.Greater(mask_expanded_B, mask_expanded_A_sub, _outputs=["mask_A_B_greater"])
-        mask_A_B_greater_bitwise = op.And(True, mask_A_B_greater, _outputs=["mask_A_B_greater_bitwise"])
-        mask_A_B_less = op.LessOrEqual(mask_expanded_B, mask_expanded_A, _outputs=["mask_A_B_less"])
-        mask_A_B_combined = op.And(mask_A_B_greater_bitwise, mask_A_B_less, _outputs=["mask_A_B_combined"])
-        mask_A_B_combined_bitwise = op.And(True, mask_A_B_combined, _outputs=["mask_A_B_combined_bitwise"])
+        # Combine KV/Query Ranges for Sliding Window Mask
+        kv_range_offset = op.Sub(expanded_kv_range, 262144, _outputs=["kv_range_offset"])
+        query_gt_kv_offset = op.Greater(expanded_query_range, kv_range_offset, _outputs=["query_gt_kv_offset"])
+        query_gt_kv_offset_mask = op.And(True, query_gt_kv_offset, _outputs=["query_gt_kv_offset_mask"])
+        query_le_kv = op.LessOrEqual(expanded_query_range, expanded_kv_range, _outputs=["query_le_kv"])
+        sliding_window_mask = op.And(query_gt_kv_offset_mask, query_le_kv, _outputs=["sliding_window_mask"])
+        sliding_window_mask_final = op.And(True, sliding_window_mask, _outputs=["sliding_window_mask_final"])
 
-        # EXPAND B/C TO AND
-        unsqueezed_mask_expanded_B = op.Unsqueeze(mask_expanded_B, [-1], _outputs=["unsqueezed_mask_expanded_B"])
-        unsqueezed_mask_expanded_C = op.Unsqueeze(mask_expanded_C, [-1], _outputs=["unsqueezed_mask_expanded_C"])
-        mask_B_C_concat = op.Concat(unsqueezed_mask_expanded_C, unsqueezed_mask_expanded_B, axis=-1, _outputs=["mask_B_C_concat"])
+        # Combine Query/Batch Ranges for Attention Mask Lookup
+        unsqueezed_query_range = op.Unsqueeze(expanded_query_range, [-1], _outputs=["unsqueezed_query_range"])
+        unsqueezed_batch_range = op.Unsqueeze(expanded_batch_range, [-1], _outputs=["unsqueezed_batch_range"])
+        batch_query_indices = op.Concat(unsqueezed_batch_range, unsqueezed_query_range, axis=-1, _outputs=["batch_query_indices"])
         attention_mask_bool = op.Cast(attention_mask, to=ir.DataType.BOOL, _outputs=["attention_mask_bool"])
-        mask_gatherND = op.GatherND(attention_mask_bool, mask_B_C_concat, batch_dims=0, _outputs=["mask_gatherND"])
+        attention_lookup = op.GatherND(attention_mask_bool, batch_query_indices, batch_dims=0, _outputs=["attention_lookup"])
 
-        mask_A_B_C_combined = op.And(mask_A_B_combined_bitwise, mask_gatherND, _outputs=["mask_A_B_C_combined"])
-        mask_A_B_C_negated = op.Not(mask_A_B_C_combined, _outputs=["mask_A_B_C_negated"])
-        mask_A_B_C_fp32 = op.Cast(mask_A_B_C_negated, to=ir.DataType.FLOAT, _outputs=["mask_A_B_C_fp32"])
-        mask_A_B_C_scaled = op.Mul(mask_A_B_C_fp32, pattern.ANY_VALUE)
+        # Final Mask Combination
+        final_attention_mask = op.And(sliding_window_mask_final, attention_lookup, _outputs=["final_attention_mask"])
+        inverted_mask = op.Not(final_attention_mask, _outputs=["inverted_mask"])
+        mask_fp32 = op.Cast(inverted_mask, to=ir.DataType.FLOAT, _outputs=["mask_fp32"])
+        scaled_mask = op.Mul(mask_fp32, pattern.ANY_VALUE)
+        
         # Propagation to GQA
-        mask_sliced = op.Slice(mask_A_B_C_scaled, [0], pattern.ANY_VALUE, [3], [1], _outputs=["mask_sliced"])
+        sliced_mask = op.Slice(scaled_mask, [0], pattern.ANY_VALUE, [3], [1], _outputs=["sliced_mask"])
 
-        gqa_input = pattern.OrValue([mask_sliced, mask_A_B_C_scaled])
+        gqa_input = pattern.OrValue([sliced_mask, scaled_mask])
 
         return op.GQA(
             gqa_input,
-            pattern.ANY_VALUE,  # position_ids_k
-            pattern.ANY_VALUE,  # position_ids_q
-            pattern.ANY_VALUE,  # query
-            pattern.ANY_VALUE,  # key
-            pattern.ANY_VALUE,  # value
-            pattern.ANY_VALUE,  # past_key
-            pattern.ANY_VALUE,  # past_value
-            pattern.ANY_VALUE,  # seqlens_k (optional)
-            pattern.ANY_VALUE,  # total_seq_length (optional)
-            pattern.ANY_VALUE,  # cos
-            pattern.ANY_VALUE,  # sin
             _allow_other_inputs=True,
             _domain="ai.onnxruntime._fusion",
             _outputs=["attn_output", "key_seq", "value_seq"],
