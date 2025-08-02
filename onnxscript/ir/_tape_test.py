@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 from onnxscript import ir
+from onnxscript.ir import _tape
 
 
 class TestTape(unittest.TestCase):
@@ -70,6 +71,33 @@ class TestTape(unittest.TestCase):
         _ = tape.op("SomeOtherOp", inputs=[out1, out2, out3])
 
         self.assertEqual([n.op_type for n in tape.nodes], ["SomeOp", "SomeOtherOp"])
+
+
+class TestBuilder(unittest.TestCase):
+    def test_op_name(self):
+        op = _tape.Builder()
+
+        input_a = ir.Value(
+            name="input_a", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((1, 2))
+        )
+        input_b = ir.Value(
+            name="input_b", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((1, 2))
+        )
+
+        add = op.Add(input_a, input_b, _name="add_node")
+        _ = op.Relu(add, _name="relu_node")
+        self.assertEqual(op.nodes[0].name, "add_node")
+        self.assertEqual(op.nodes[1].name, "relu_node")
+
+    def test_op_name_multi_out(self):
+        op = _tape.Builder()
+
+        input_a = ir.Value(
+            name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((1, 2))
+        )
+
+        _ = op.CustomOp(input_a, _name="custom_node", _outputs=3)
+        self.assertEqual(op.nodes[0].name, "custom_node")
 
 
 if __name__ == "__main__":
