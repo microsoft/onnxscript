@@ -26,6 +26,8 @@ class Builder(tape.Tape):
         domain = kwargs.pop("_domain", "")
         version = kwargs.pop("_version", None)
         outputs = kwargs.pop("_outputs", 1)
+        name = kwargs.pop("_name", None)
+
         if isinstance(outputs, Sequence):
             num_outputs = len(outputs)
         else:
@@ -34,7 +36,12 @@ class Builder(tape.Tape):
 
         if num_outputs == 1:
             value = super().op(
-                op_type, inputs=inputs, attributes=kwargs, domain=domain, version=version
+                op_type,
+                inputs=inputs,
+                attributes=kwargs,
+                domain=domain,
+                version=version,
+                name=name,
             )
             if isinstance(outputs, Sequence):
                 value.name = outputs[0]
@@ -45,6 +52,7 @@ class Builder(tape.Tape):
             attributes=kwargs,
             domain=domain,
             version=version,
+            name=name,
             num_outputs=num_outputs,
         )
         if isinstance(outputs, Sequence):
