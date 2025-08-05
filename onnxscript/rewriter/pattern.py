@@ -10,6 +10,7 @@ from onnxscript.rewriter._pattern_ir import (
     Constant,
     OpsetPatternBuilder,
     OrValue,
+    Var,
     pattern_builder,
     torch_module_op,
 )
@@ -41,4 +42,5 @@ __all__ = [
     "PatternMatcher",
     "SimplePatternMatcher",
     "torch_module_op",
+    "Var",
 ]

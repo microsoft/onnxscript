@@ -123,12 +123,16 @@ def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> 
     """Represents promotion of values allowed as keyword-arguments in a pattern-builder call to an AttrPattern."""
     if isinstance(value, AttrPattern):
         return value
-    if type(value) is ValuePattern:
-        # This is a hack. Currently, when we create pattern-variables, we create them as ValuePattern,
+    if isinstance(value, Var):
+        # This is a hack. Currently, when we create pattern-variables, we create them as Var,
         # and change them to AttrPattern if/when used in an attribute context. We could use type
         # annotations to distinguish between ValuePattern and AttrPattern, but forces users to
         # use these type annotations.
         # TODO: check for misuse at rule-creation time. (Currently will be caught by matcher at match-time.)
+        if value.can_match_none or value.check_method is not None:
+            raise ValueError(
+                "Pattern variables used in attributes must not have can_match_none or check_method set."
+            )
         return AttrPattern(value.name)
     if isinstance(value, (int, float, str)):
         return AttrConstantPattern(value)
@@ -320,9 +324,12 @@ class ValuePattern:
     operations, so that we can write patterns like `x + 1` and `1 + x`.
     """
 
-    def __init__(self, name: str | None, *, check: Callable | None = None) -> None:
+    def __init__(
+        self, name: str | None, *, check: Callable | None = None, can_match_none: bool = False
+    ) -> None:
         self._name = name
         self._check = check
+        self._can_match_none = can_match_none
         # Note: uses will be computed only when the full graph-pattern is constructed.
         self._uses: list[tuple[NodePattern, int]] = []
 
@@ -337,6 +344,11 @@ class ValuePattern:
     @property
     def check_method(self) -> Callable | None:
         return self._check
+
+    @property
+    def can_match_none(self) -> bool:
+        """Indicates whether this variable can match a None input."""
+        return self._can_match_none
 
     def producer(self) -> NodePattern | None:
         return None
@@ -547,7 +559,17 @@ class NodeOutputPattern(ValuePattern):
         return self._producer
 
 
-Var = ValuePattern
+class Var(ValuePattern):
+    """Represents a pattern-variable."""
+
+    def __init__(
+        self, name: str | None, *, check: Callable | None = None, can_match_none: bool = False
+    ) -> None:
+        super().__init__(name, check=check, can_match_none=can_match_none)
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> Var:
+        """Clones the pattern-variable, preserving its name and check method."""
+        return Var(self.name, check=self.check_method, can_match_none=self.can_match_none)
 
 
 class AnyValue(ValuePattern):
