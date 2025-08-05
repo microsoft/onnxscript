@@ -176,7 +176,7 @@ class TestAttentionFusion(unittest.TestCase):
         mha_count = xformers.fuse_mha1(model)
         mha_count += xformers.fuse_mha2(model)
         self.assertGreater(mha_count, 0)
-        fused_mha_bias_count = xformers.mha_bias(model)
+        fused_mha_bias_count = xformers.fuse_mha_bias(model)
         self.assertGreater(fused_mha_bias_count, 0)
         # TODO: Enable once source of discrepancy is found
         # attention_count = xformers.fuse_attention(model)

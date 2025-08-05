@@ -166,4 +166,4 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
 mha_bias_rules = pattern.RewriteRuleSet([FuseBiasMHA.rule()])
 
 
-mha_bias = _fusion_utils.apply_fusion_rules(mha_bias_rules)
+fuse_mha_bias = _fusion_utils.apply_fusion_rules(mha_bias_rules)
