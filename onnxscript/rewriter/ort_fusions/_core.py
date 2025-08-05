@@ -18,7 +18,7 @@ from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
 from onnxscript.rewriter.ort_fusions.erfgelu import fuse_erfgelu
 from onnxscript.rewriter.ort_fusions.mha_bias import mha_bias
-from onnxscript.rewriter.ort_fusions.packed_qkv_gqa import fuse_qkv_gqa
+from onnxscript.rewriter.ort_fusions.gqa_packed_qkv import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
 from onnxscript.rewriter.ort_fusions.mha import fuse_mha1, fuse_mha2
