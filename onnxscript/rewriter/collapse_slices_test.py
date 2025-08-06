@@ -100,3 +100,22 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = collapse_slices.rules.apply_to_model(model)
         self.assertEqual(count, 1)
+
+    def test_slice_equal_dynamic_shape_but_step_reverse(self):
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[L, M, N] data) => (float[L, M, N] output)
+            {{
+                starts = Constant<value: tensor = int64[1] {{0}}>()
+                ends = Constant<value: tensor = int64[1] {{{9}}}>()
+                axes = Constant<value: tensor = int64[1] {{0}}>()
+                steps = Constant<value: tensor = int64[1] {{-1}}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }}
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = collapse_slices.rules.apply_to_model(model)
+        # Should not change the output shape if we did not use the default step of 1
+        self.assertEqual(count, 0)
