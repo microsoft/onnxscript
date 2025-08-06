@@ -7325,6 +7325,7 @@ def aten_repeat_interleave_int(
         dim += self_rank
     return aten_flatten(tiled, -2 if dim == -1 else dim, -1 if dim == -1 else (dim + 1))
 
+
 @torch_op("aten::repeat_interleave.Tensor", trace_only=True)
 def aten_repeat_interleave_Tensor(
     self: TensorType, repeats: Optional[TensorType] = None, dim: Optional[int] = None
@@ -7373,6 +7374,7 @@ def aten_repeat_interleave_Tensor(
     else:
         if rk != 2:
             raise NotImplementedError(f"rank(self)={rk} not implemented for repeat_interleave")
+        shape_x = None
 
     ci = op.CumSum(repeats, [0])
     last_ci = op.Gather(ci, [-1])
@@ -7386,6 +7388,8 @@ def aten_repeat_interleave_Tensor(
     values = op.GatherND(self, op.Unsqueeze(indices, [-1]))
     if rk == 2:
         return values
+    # shape_x cannot be None at this stage.
+    assert shape_x is not None  # for mypy
     return op.Reshape(
         values,
         op.Concat([-1], shape_x, axis=0) if shape_x else [-1],
