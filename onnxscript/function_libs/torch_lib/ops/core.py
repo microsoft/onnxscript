@@ -7323,15 +7323,11 @@ def aten_repeat_interleave_int(
 
     if dim < -1:
         dim += self_rank
-    return aten_flatten(
-        tiled,
-        -2 if dim == -1 else dim,
-        -1 if dim == -1 else (dim + 1)
-    )
+    return aten_flatten(tiled, -2 if dim == -1 else dim, -1 if dim == -1 else (dim + 1))
 
 @torch_op("aten::repeat_interleave.Tensor", trace_only=True)
 def aten_repeat_interleave_Tensor(
-    self: TensorType, repeats: Optional[TensorType]=None, dim: Optional[int]=None
+    self: TensorType, repeats: Optional[TensorType] = None, dim: Optional[int] = None
 ) -> TensorType:
     """repeat_interleave.Tensor(Tensor repeats, *, int? output_size=None) -> Tensor
 
