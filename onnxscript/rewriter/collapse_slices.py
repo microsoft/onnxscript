@@ -76,10 +76,14 @@ def _potential_redundant_slice(op, data, starts, ends, axes, steps):
     return op.Slice(data, starts, ends, axes, steps, _outputs=["slice_output"])
 
 
-def _same_shape(op, data: ir.Value, slice_output: ir.Value, **_):
+def _same_shape(op, data: ir.Value, slice_output: ir.Value, steps: ir.Value, **_):
     """Check if the shape of the slice output is the same as the data."""
     if data.shape is None or slice_output.shape is None:
         return False
+
+    if not (steps.const_value.numpy() == 1).all():
+        return False
+
     return data.shape == slice_output.shape
 
 
