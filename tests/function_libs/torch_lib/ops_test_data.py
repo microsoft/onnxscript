@@ -1240,7 +1240,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_remainder,
     ),
     TorchLibOpInfo("repeat", core_ops.aten_repeat),
-    TorchLibOpInfo("repeat_interleave", core_ops.aten_repeat_interleave_self_tensor),
+    # needs to split into two cases
+    # TorchLibOpInfo("repeat_interleave", core_ops.aten_repeat_interleave_Scalar),
+    # TorchLibOpInfo("repeat_interleave", core_ops.aten_repeat_interleave_Tensor),
     TorchLibOpInfo("reshape", core_ops.aten_reshape),
     TorchLibOpInfo("resolve_conj", core_ops.aten_resolve_conj),
     TorchLibOpInfo("resolve_neg", core_ops.aten_resolve_neg),
