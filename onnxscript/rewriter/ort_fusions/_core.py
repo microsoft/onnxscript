@@ -17,11 +17,11 @@ from onnxscript.rewriter.ort_fusions.attention import fuse_attention
 from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
 from onnxscript.rewriter.ort_fusions.erfgelu import fuse_erfgelu
-from onnxscript.rewriter.ort_fusions.fuse_mha_bias import fuse_mha_bias
-from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_gqa import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
+from onnxscript.rewriter.ort_fusions.gqa_packed_qkv import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.mha import fuse_mha1, fuse_mha2
+from onnxscript.rewriter.ort_fusions.mha_bias import fuse_mha_bias
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
