@@ -6,6 +6,7 @@ import logging
 
 from onnxscript import ir
 from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
+from onnxscript.rewriter._ir_utils import is_singleton_value
 
 logger = logging.getLogger(__name__)
 _INT64_MAX = 9223372036854775807
@@ -81,7 +82,7 @@ def _same_shape(op, data: ir.Value, slice_output: ir.Value, steps: ir.Value, **_
     if data.shape is None or slice_output.shape is None:
         return False
 
-    if not (steps.const_value.numpy() == 1).all():
+    if not is_singleton_value(steps, 1):
         return False
 
     return data.shape == slice_output.shape
