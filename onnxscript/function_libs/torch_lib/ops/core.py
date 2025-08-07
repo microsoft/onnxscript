@@ -7320,8 +7320,7 @@ def aten_repeat_interleave_int(
     unsqueezed = op.Unsqueeze(self, [pos_dim + 1])
     onehot = op.Concat(
         op.ConstantOfShape(
-            op.Constant(value_ints=[self_rank]),
-            value=ir.tensor([1], dtype=INT64.dtype)
+            op.Constant(value_ints=[self_rank]), value=ir.tensor([1], dtype=INT64.dtype)
         ),
         op.Constant(value_ints=[repeats]),
         axis=0,
