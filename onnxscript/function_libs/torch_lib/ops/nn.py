@@ -2037,7 +2037,7 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
         op.MatMul(query_scaled, key_transposed_scaled),
         axis=-1,
     )
-    if dropout_p == 0:
+    if dropout_p != 0:
         attn_weight, _ = op.Dropout(attn_weight, dropout_p)
     return op.MatMul(attn_weight, value)
 
@@ -2083,7 +2083,7 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     # the behavior of PyTorch with boolean masks.
     # Reference: https://github.com/pytorch/pytorch/issues/103749
     attn_weight = op.Where(op.IsNaN(attn_weight), zero, attn_weight)
-    if dropout_p == 0:
+    if dropout_p != 0:
         attn_weight, _ = op.Dropout(attn_weight, dropout_p)
     return op.MatMul(attn_weight, value)
 
@@ -2119,7 +2119,7 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
         op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
         axis=-1,
     )
-    if dropout_p == 0:
+    if dropout_p != 0:
         attn_weight, _ = op.Dropout(attn_weight, dropout_p)
     return op.MatMul(attn_weight, value)
 
