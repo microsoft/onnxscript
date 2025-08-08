@@ -22,6 +22,7 @@ from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
 from onnxscript.rewriter.ort_fusions.gqa_packed_qkv import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.mha import fuse_mha1, fuse_mha2
 from onnxscript.rewriter.ort_fusions.mha_bias import fuse_mha_bias
+from onnxscript.rewriter.ort_fusions.mha_scale import fuse_mha_scale
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
@@ -93,6 +94,7 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     fusion_count["packed_qkv_for_gqa"] = fuse(fuse_qkv_gqa)
     fusion_count["mha1"] = fuse(fuse_mha1)
     fusion_count["mha2"] = fuse(fuse_mha2)
+    fusion_count["mha_scale"] = fuse(fuse_mha_scale)
     if (fusion_count["mha1"] == 0) and (fusion_count["mha2"] == 0):
         fusion_count["mha_bias"] = 0
         fusion_count["attention"] = 0
