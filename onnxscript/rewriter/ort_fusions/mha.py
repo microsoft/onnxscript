@@ -270,6 +270,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         else:
             self._use_mask_broadcast = False
 
+        self._scale = sdpa_node.attributes.get_float("scale", None)
         # TODO: verify Reshapes:
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
         # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
@@ -337,7 +338,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             num_heads=num_heads,
             _domain="com.microsoft",
             _outputs=num_outputs,
-            scale=1.0,
+            scale=self._scale,
         )
 
 
