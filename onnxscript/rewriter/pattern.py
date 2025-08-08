@@ -7,6 +7,7 @@ from onnxscript.rewriter._basics import MatchingTracer, MatchResult, MatchStatus
 from onnxscript.rewriter._matcher import PatternMatcher, SimplePatternMatcher
 from onnxscript.rewriter._pattern_ir import (
     ANY_VALUE,
+    AttrVar,
     Constant,
     OpsetPatternBuilder,
     OrValue,
@@ -26,6 +27,7 @@ RewriterContext = _tape.Builder
 
 __all__ = [
     "ANY_VALUE",
+    "AttrVar",
     "OrValue",
     "Constant",
     "OpsetPatternBuilder",
