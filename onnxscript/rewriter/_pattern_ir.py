@@ -501,9 +501,8 @@ class NodePattern:
         for name, attr_pattern in self.attributes.items():
             attr_value = node.attributes.get(name)
             if attr_value is None:
-                if attr_pattern.can_match_none:
-                    continue
-                return match.fail(f"Attribute {name} not found in node.", node)
+                if not attr_pattern.can_match_none:
+                    return match.fail(f"Attribute {name} not found in node.", node)
             elif not attr_pattern.matches(attr_value):
                 return match.fail(
                     f"Attribute {name} mismatch: expected {attr_pattern}, got {attr_value}.",
