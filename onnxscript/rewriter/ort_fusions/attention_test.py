@@ -183,7 +183,6 @@ class TestAttentionFusion(unittest.TestCase):
         # self.assertGreater(attention_count, 0)
         onnxscript.optimizer.optimize(model)
 
-        model.display()
         if test_with_ort:
             # Run model again
             new_outputs = ort_run("optimized", model, inputs)
