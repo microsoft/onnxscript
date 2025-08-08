@@ -76,12 +76,18 @@ class PrefixPattern(StringPattern):
 class AttrPattern(Pattern[ir.Attr]):
     """Base class for an attribute pattern. Matches any attribute value by default."""
 
-    def __init__(self, name: str | None):
+    def __init__(self, name: str | None, *, can_match_none: bool = False):
         self._name = name
+        self._can_match_none = can_match_none
 
     @property
     def name(self) -> str | None:
         return self._name
+
+    @property
+    def can_match_none(self) -> bool:
+        """Indicates whether this pattern can match a None attribute."""
+        return self._can_match_none
 
     def matches(self, attr: ir.Attr) -> bool:
         return True
@@ -89,6 +95,8 @@ class AttrPattern(Pattern[ir.Attr]):
     def __str__(self) -> str:
         return self._name if self._name is not None else "anonymous:" + str(id(self))
 
+
+AttrVar = AttrPattern
 
 # TODO: Support tensors. Align with usage elsewhere.
 SupportedAttrTypes = Union[
@@ -129,11 +137,11 @@ def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> 
         # annotations to distinguish between ValuePattern and AttrPattern, but forces users to
         # use these type annotations.
         # TODO: check for misuse at rule-creation time. (Currently will be caught by matcher at match-time.)
-        if value.can_match_none or value.check_method is not None:
+        if value.check_method is not None:
             raise ValueError(
-                "Pattern variables used in attributes must not have can_match_none or check_method set."
+                "Pattern variables used in attributes must not have check_method set."
             )
-        return AttrPattern(value.name)
+        return AttrPattern(value.name, can_match_none=value.can_match_none)
     if isinstance(value, (int, float, str)):
         return AttrConstantPattern(value)
     if isinstance(value, Sequence):
@@ -493,8 +501,10 @@ class NodePattern:
         for name, attr_pattern in self.attributes.items():
             attr_value = node.attributes.get(name)
             if attr_value is None:
+                if attr_pattern.can_match_none:
+                    continue
                 return match.fail(f"Attribute {name} not found in node.", node)
-            if not attr_pattern.matches(attr_value):
+            elif not attr_pattern.matches(attr_value):
                 return match.fail(
                     f"Attribute {name} mismatch: expected {attr_pattern}, got {attr_value}.",
                     node,
