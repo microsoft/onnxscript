@@ -82,6 +82,7 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     fusion_count["skip_rms_normalization"] = fuse(fuse_skip_rms_normalization)
     fusion_count["rotary_embedding"] = fuse(fuse_rotary_embedding)
     fusion_count["cos_sin_cache"] = fuse(fuse_cos_sin_cache)
+    common_passes.CommonSubexpressionEliminationPass()(model)
     fusion_count["partial_rotary_embedding"] = fuse(fuse_partial_rotary_embedding)
 
     # We apply shape inference after the SDPA fusion as new nodes are added
@@ -90,7 +91,6 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
 
     fusion_count["gqa"] = fuse(fuse_gqa)
     fusion_count["packed_qkv_for_gqa"] = fuse(fuse_qkv_gqa)
-
     fusion_count["mha1"] = fuse(fuse_mha1)
     fusion_count["mha2"] = fuse(fuse_mha2)
     if (fusion_count["mha1"] == 0) and (fusion_count["mha2"] == 0):
