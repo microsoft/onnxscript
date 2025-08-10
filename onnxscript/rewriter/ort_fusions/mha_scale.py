@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import onnx_ir as ir
 
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
@@ -17,20 +16,25 @@ the MHA operation.
 
 Example pattern:
     query -> Mul(scale) -> MultiHeadAttention -> output
-    
+
 Gets rewritten to:
     query -> MultiHeadAttention(with integrated scaling) -> output
 """
 
+
 class FuseMHAScale(pattern.RewriteRuleClassBase):
     def pattern(self, op, query, scale):
         scaled_query = op.Mul(query, scale)
-        mha_output = op.MultiHeadAttention(scaled_query, _allow_other_inputs=True, 
-                                           _domain="com.microsoft", _outputs=["mha_output"])
+        mha_output = op.MultiHeadAttention(
+            scaled_query,
+            _allow_other_inputs=True,
+            _domain="com.microsoft",
+            _outputs=["mha_output"],
+        )
         return mha_output
 
     def check(self, context, scale, **_):
-        scale_value =_ir_utils.get_singleton_value(scale)
+        scale_value = _ir_utils.get_singleton_value(scale)
         if scale_value is None or not isinstance(scale_value, (int, float)):
             return pattern.MatchResult().fail("Scale must be a constant numeric value.", scale)
         self._scale = scale_value
@@ -54,7 +58,10 @@ class FuseMHAScale(pattern.RewriteRuleClassBase):
         inputs[0] = query
         attributes = dict(attributes)
         attributes["scale"] = self._scale
-        return op.MultiHeadAttention(*inputs, **attributes, _domain="com.microsoft", _outputs=1)
+        return op.MultiHeadAttention(
+            *inputs, **attributes, _domain="com.microsoft", _outputs=1
+        )
+
 
 _mha_scale_rules = pattern.RewriteRuleSet([FuseMHAScale.rule()])
 

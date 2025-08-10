@@ -96,7 +96,12 @@ class AttrPattern(Pattern[ir.Attr]):
         return self._name if self._name is not None else "anonymous:" + str(id(self))
 
 
-AttrVar = AttrPattern
+class AttrVar(AttrPattern):
+    """Represents a pattern variable used to match against attribute values."""
+
+    def __init__(self, name: str | None, *, can_match_none: bool = False):
+        super().__init__(name, can_match_none=can_match_none)
+
 
 # TODO: Support tensors. Align with usage elsewhere.
 SupportedAttrTypes = Union[
@@ -141,7 +146,7 @@ def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> 
             raise ValueError(
                 "Pattern variables used in attributes must not have check_method set."
             )
-        return AttrPattern(value.name, can_match_none=value.can_match_none)
+        return AttrVar(value.name, can_match_none=value.can_match_none)
     if isinstance(value, (int, float, str)):
         return AttrConstantPattern(value)
     if isinstance(value, Sequence):
