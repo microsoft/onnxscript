@@ -17,7 +17,17 @@ UsedOpsets = set[tuple[str, Optional[int]]]
 
 
 class Builder(tape.Tape):
-    """An extension of the tape that provides a more convenient API for constructing the IR."""
+    """An extension of the tape that provides a more convenient API for constructing the IR.
+
+    Example:
+        >>> from onnxscript import ir
+        >>> from onnxscript.ir import _tape
+        >>> op = _tape.Builder()
+        >>> input = ir.Value(name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((1, 2)))
+        >>> relu_val = op.Relu(input, _name="relu_node", _domain="", _version=18, _outputs=["relu_out"])
+
+    Note: When passing `_name`, ensure it is unique to avoid duplicate node names.
+    """
 
     def __getattr__(self, op_type: str) -> Any:
         return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
