@@ -14,7 +14,7 @@ import onnxscript.optimizer
 from onnxscript import FLOAT, INT32, script
 from onnxscript import opset18 as op
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
-from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_gqa import fuse_qkv_gqa
+from onnxscript.rewriter.ort_fusions.gqa_packed_qkv import fuse_qkv_gqa
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
 

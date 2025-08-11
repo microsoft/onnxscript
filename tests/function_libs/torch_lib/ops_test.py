@@ -200,7 +200,6 @@ def run_test_output_match(
                 reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
                 if (
                     op.name.startswith("split")
-                    or op.name.startswith("chunk")
                     or op.name.startswith("unbind")
                     or op.name
                     in {"atleast_1d_Sequence", "atleast_2d_Sequence", "atleast_3d_Sequence"}

@@ -36,6 +36,7 @@ from onnxscript import (
     graph,
     ir,
 )
+from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
@@ -1647,29 +1648,40 @@ def aten_choose_qparams_optimized(
     raise NotImplementedError()
 
 
-@torch_op("aten::chunk")
-def aten_chunk(self: TTensor, chunks: int, dim: int = 0) -> Sequence[TTensor]:
-    """chunk(Tensor(a -> *) self, int chunks, int dim=0) -> Tensor(a)[]"""
-    # This will create a Sequence of tensors
-    neg_1 = op.Constant(value_ints=[-1])
-    # Get size of specified dim
-    self_shape = op.Shape(self)
-    dim_size = op.Gather(self_shape, dim, axis=0)
-    # Compute size/chunk to get the number of data in one chunk
-    num_per_chunk = op.Div(dim_size, chunks)
-    num_per_chunk = op.Cast(op.Mod(dim_size, chunks) > 0, to=INT64.dtype) + num_per_chunk  # type: ignore[operator]
+if version_utils.torch_older_than("2.7.0"):
+    # PyTorch <2.7 does not support determining the number of outputs for the Split op
+    # https://github.com/pytorch/pytorch/commit/9a1eac6704671c72a2e85c9138db57eb3a80bfb6
+    @torch_op("aten::chunk")
+    def aten_chunk(self: TTensor, chunks: int, dim: int = 0) -> Sequence[TTensor]:
+        """chunk(Tensor(a -> *) self, int chunks, int dim=0) -> Tensor(a)[]"""
+        # This will create a Sequence of tensors
+        neg_1 = op.Constant(value_ints=[-1])
+        # Get size of specified dim
+        self_shape = op.Shape(self)
+        dim_size = op.Gather(self_shape, dim, axis=0)
+        # Compute size/chunk to get the number of data in one chunk
+        num_per_chunk = op.Div(dim_size, chunks)
+        num_per_chunk = op.Cast(op.Mod(dim_size, chunks) > 0, to=INT64.dtype) + num_per_chunk  # type: ignore[operator]
 
-    # Compute real chunk number
-    num_chunk = op.Div(dim_size, num_per_chunk)
-    # Get something like [n, n, n, n, ...], total num_chunk
-    list_split = op.Expand(num_per_chunk, op.Reshape(num_chunk, neg_1))
+        # Compute real chunk number
+        num_chunk = op.Div(dim_size, num_per_chunk)
+        # Get something like [n, n, n, n, ...], total num_chunk
+        list_split = op.Expand(num_per_chunk, op.Reshape(num_chunk, neg_1))
 
-    remainder = op.Mod(dim_size, num_per_chunk)
-    if remainder > 0:  # type: ignore[operator]
-        # Append the remainder to the [n, n, n, n, ..., r]
-        list_split = op.Concat(list_split, op.Reshape(remainder, neg_1), axis=0)
+        remainder = op.Mod(dim_size, num_per_chunk)
+        if remainder > 0:  # type: ignore[operator]
+            # Append the remainder to the [n, n, n, n, ..., r]
+            list_split = op.Concat(list_split, op.Reshape(remainder, neg_1), axis=0)
 
-    return op.SplitToSequence(self, list_split, axis=dim)
+        return op.SplitToSequence(self, list_split, axis=dim)
+else:
+
+    @torch_op("aten::chunk", trace_only=True)
+    def aten_chunk(self: TTensor, chunks: int, dim: int = 0) -> Sequence[TTensor]:
+        """chunk(Tensor(a -> *) self, int chunks, int dim=0) -> Tensor(a)[]"""
+        if chunks == 1:
+            return op.Identity(self)
+        return op.Split(self, axis=dim, num_outputs=chunks)
 
 
 @torch_op("aten::clamp", trace_only=True)

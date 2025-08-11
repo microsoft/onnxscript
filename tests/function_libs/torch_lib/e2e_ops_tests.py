@@ -76,6 +76,28 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_sdpa_with_bool_attn_mask(self):
+        class ScaledDotProductAttention(torch.nn.Module):
+            def forward(self, query, key, value, attn_mask):
+                return torch.nn.functional.scaled_dot_product_attention(  # pylint: disable=not-callable
+                    query, key, value, attn_mask=attn_mask
+                )
+
+        model = ScaledDotProductAttention()
+        attn_mask = torch.ones(2, 4, 8, 8).bool()  # boolean mask for attention
+        attn_mask[0, 0, 0, :] = False  # masking an entire row (padding token)
+        query = key = value = torch.randn(2, 4, 8, 16)
+
+        onnx_program = torch.onnx.export(
+            model,
+            (query, key, value, attn_mask),
+            input_names=["query", "key", "value", "attn_mask"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
