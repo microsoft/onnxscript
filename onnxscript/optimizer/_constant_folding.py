@@ -824,6 +824,10 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
 class FoldConstantsPass(ir.passes.InPlacePass):
     """A pass that folds constant expressions in the model.
 
+    .. NOTE::
+        ``ConstantOfShape`` will not be replaced unless explicitly specified in
+        ``always_fold_ops``.
+
     Attributes:
         shape_inference: Whether to perform shape inference.
         input_size_limit: Maximum size of input tensors to fold.
