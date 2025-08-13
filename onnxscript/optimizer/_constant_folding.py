@@ -1091,6 +1091,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     log_large_inputs()
                     return None
             else:
+                assert len(node.inputs) == len(large_inputs)
                 if (node.domain, node.op_type) in self.always_fold_ops and all(
                     len(input.consumers()) == 1 or (not is_large)
                     for input, is_large in zip(node.inputs, large_inputs)
