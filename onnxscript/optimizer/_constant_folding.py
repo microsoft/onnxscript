@@ -1014,14 +1014,17 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             _process_constant_node(node)
             return None
 
+        if _is_onnx_op(node, "ConstantOfShape"):
+            return None
+
         if any(x.is_graph_input() for x in node.inputs if x is not None):
             # Do not fold any graph inputs to preserve graph signature
             return None
 
         # Ensure all node inputs are constants
         if any(x.const_value is None for x in node.inputs if x is not None):
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
+            if logger.isEnabledFor(logging.INFO):
+                logger.info(
                     "Skipping constant folding for node %s because it has non-constant inputs",
                     node,
                     [x.name for x in node.inputs if x is not None],
@@ -1039,17 +1042,17 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             ):
                 # If the op is in always_fold_ops and all inputs are used only by this node,
                 # we can still fold it even if the input size exceeds the limit.
-                logger.debug(
+                logger.info(
                     "Folding large constant for node %s because it is in the always_fold_ops list",
                     node,
                 )
             else:
                 # Skip folding large tensors
-                if logger.isEnabledFor(logging.DEBUG):
+                if logger.isEnabledFor(logging.INFO):
                     input_sizes = [
                         tensor.size for tensor in input_tensors if tensor is not None
                     ]
-                    logger.debug(
+                    logger.info(
                         "Skipping constant folding for node %s due to large input size: %s",
                         node,
                         input_sizes,
@@ -1072,11 +1075,11 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             return None
         if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
             replacement = self.new_constant(node, outputs)
-            if _is_onnx_op(node, "ConstantOfShape") or replacement is None:
+            if replacement is None:
                 return None
             return Replacement(replacement.outputs, [replacement])
         else:
-            logger.warning(
+            logger.info(
                 "Skipping constant folding for op %s with multiple outputs.", node.op_type
             )
         return None
