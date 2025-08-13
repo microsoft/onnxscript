@@ -1046,7 +1046,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         if any(x.is_graph_input() for x in node.inputs if x is not None):
             logger.info(
                 "Skipping constant folding for node %r because it is graph input to preserve graph signature",
-                node,
+                node.name,
             )
             return None
 
