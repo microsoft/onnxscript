@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 
 from onnxscript import ir
-from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 from onnxscript.rewriter._ir_utils import is_singleton_value
+from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 logger = logging.getLogger(__name__)
 _INT64_MAX = 9223372036854775807
