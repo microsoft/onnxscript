@@ -1060,7 +1060,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 )
             return None
 
-        input_tensors = [x.const_value for x in node.inputs if x is not None]
+        input_tensors = [x.const_value if x is not None else None for x in node.inputs]
         large_inputs = [
             tensor is not None and tensor.size > self.input_size_limit
             for tensor in input_tensors
@@ -1091,10 +1091,9 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     log_large_inputs()
                     return None
             else:
-                non_none_inputs = [input for input in node.inputs if input is not None]
                 if (node.domain, node.op_type) in self.always_fold_ops and all(
                     len(input.consumers()) == 1 or (not is_large)
-                    for input, is_large in zip(non_none_inputs, large_inputs)
+                    for input, is_large in zip(node.inputs, large_inputs)
                     if input is not None
                 ):
                     # If the op is in always_fold_ops and all large inputs are used only by this node,
