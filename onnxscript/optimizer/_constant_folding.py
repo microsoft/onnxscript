@@ -1034,7 +1034,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         if (
             _is_onnx_op(node, "ConstantOfShape")
-            and "ConstantOfShape" not in self.always_fold_ops
+            and ("", "ConstantOfShape") not in self.always_fold_ops
         ):
             logger.info(
                 "Skipping constant folding for ConstantOfShape node %r because it is considered a constant "
@@ -1091,9 +1091,10 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     log_large_inputs()
                     return None
             else:
+                non_none_inputs = [input for input in node.inputs if input is not None]
                 if (node.domain, node.op_type) in self.always_fold_ops and all(
                     len(input.consumers()) == 1 or (not is_large)
-                    for input, is_large in zip(node.inputs, large_inputs)
+                    for input, is_large in zip(non_none_inputs, large_inputs)
                     if input is not None
                 ):
                     # If the op is in always_fold_ops and all large inputs are used only by this node,
