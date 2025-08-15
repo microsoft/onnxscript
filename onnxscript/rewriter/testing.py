@@ -11,7 +11,7 @@ import onnxruntime as ort
 from onnxscript import ir
 
 
-def generate_random_inputs(self, model: onnx.ModelProto) -> dict[str, Any]:
+def generate_random_inputs(model: onnx.ModelProto) -> dict[str, Any]:
     feeds: dict[str, Any] = {}
     for input in model.graph.input:
         input_type = input.type.tensor_type

@@ -34,6 +34,11 @@ fp_float_types = frozenset([ir.DataType.FLOAT, ir.DataType.DOUBLE])
 
 
 class LayerNormFusion(pattern.RewriteRuleClassBase):
+    def __init__(self, name: str, has_bias: bool):
+        super().__init__(name)
+        self._has_bias = has_bias
+        self._stash_dtype: int | None = None
+
     def pattern(self, op, x, scale, bias, epsilon, target_dtype):
         # Compute mean: Mean = ReduceMean(X, axes=normalized_axes)
         # TODO: support axes attribute too
@@ -43,8 +48,10 @@ class LayerNormFusion(pattern.RewriteRuleClassBase):
         deviation = op.Sub(x, mean)
 
         # Compute squared deviation: DD = Mul(D, D)
-        # TODO: support Pow (D, 2) as well
-        deviation_squared = op.Mul(deviation, deviation)
+        deviation_squared = pattern.OrValue([
+            op.Mul(deviation, deviation),
+            op.Pow(deviation, 2),
+        ])
 
         # Compute variance: Var = ReduceMean(DD, axes=normalized_axes)
         variance = op.ReduceMean(deviation_squared, [-1], keepdims=1)
@@ -56,24 +63,25 @@ class LayerNormFusion(pattern.RewriteRuleClassBase):
         std_dev = op.Sqrt(variance_plus_epsilon)
 
         # Compute reciprocal: InvStdDev = Reciprocal(StdDev)
-        # TODO: support Div(deviation, std_dev) as well?
-        inv_std_dev = op.Reciprocal(std_dev)
-
         # Normalize: Normalized = Mul(D, InvStdDev)
-        normalized = op.Mul(deviation, inv_std_dev)
+
+        inv_std_dev = op.Reciprocal(std_dev)
+        normalized = pattern.OrValue([
+            op.Mul(deviation, inv_std_dev),
+            op.Div(deviation, std_dev)
+        ])
 
         # Scale: NormalizedScaled = Mul(Normalized, Scale)
         normalized_scaled = op.Mul(normalized, scale)
 
         # Add bias (if present): Y = Add(NormalizedScaled, B)
-        if bias is not None:
+        
+        if self._has_bias:
             return op.Add(normalized_scaled, bias)
         else:
             return normalized_scaled
 
-    def check(
-        self, op, x, scale, bias, epsilon, compute_dtype, target_dtype, **_
-    ) -> pattern.MatchResult:  # type: ignore[name-defined]
+    def check(self, op, x, scale, bias, epsilon, target_dtype, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of LayerNormalization op."""
         check_result = pattern.MatchResult()
 

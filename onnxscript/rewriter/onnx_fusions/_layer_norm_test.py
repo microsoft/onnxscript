@@ -9,7 +9,7 @@ import onnxscript
 import onnxscript.rewriter.testing
 from onnxscript import FLOAT, OnnxFunction, script
 from onnxscript import opset18 as op
-from onnxscript.rewriter.layer_normalization import fuse_layer_normalization
+from onnxscript.rewriter.onnx_fusions._layer_norm import fuse_layer_normalization
 
 
 @script()
@@ -86,13 +86,7 @@ def _test_layer_norm_with_bias(
 
 
 class LayerNormFusionTest(unittest.TestCase):
-    def _check(
-        self,
-        test_script: OnnxFunction,
-        expected_graph_len: int,
-        expected_op_type: str,
-        has_bias: bool = False,
-    ):
+    def _check(self, test_script: OnnxFunction):
         """Helper method to run a fusion test scenario."""
         model_proto = test_script.to_model_proto()
         # Create test inputs
@@ -112,11 +106,11 @@ class LayerNormFusionTest(unittest.TestCase):
 
     def test_layer_norm_fusion_without_bias(self):
         """Test LayerNorm fusion without bias."""
-        self._check(_test_layer_norm_without_bias, 1, "LayerNormalization", has_bias=False)
+        self._check(_test_layer_norm_without_bias)
 
     def test_layer_norm_fusion_with_bias(self):
         """Test LayerNorm fusion with bias."""
-        self._check(_test_layer_norm_with_bias, 1, "LayerNormalization", has_bias=True)
+        self._check(_test_layer_norm_with_bias)
 
 
 if __name__ == "__main__":
