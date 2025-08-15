@@ -10,6 +10,24 @@ import onnxruntime as ort
 
 from onnxscript import ir
 
+def generate_random_inputs(self, model: onnx.ModelProto) -> dict[str, Any]:
+    feeds: dict[str, Any] = {}
+    for input in model.graph.input:
+        input_type = input.type.tensor_type
+        shape = tuple(input_type.shape.dim)
+        if not all(hasattr(d, 'dim_value') for d in shape):
+            raise ValueError(f"Input {input.name} has dynamic shape dimensions.")
+        shape = tuple(d.dim_value for d in shape)
+        if input_type.elem_type == onnx.TensorProto.FLOAT:
+            if shape:
+                feeds[input.name] = np.random.randn(*shape).astype(np.float32)
+            else:
+                feeds[input.name] = np.random.randn(1).astype(np.float32)
+        else:
+            raise ValueError(f"Not implemented for input type {input_type.elem_type}")
+    return feeds
+
+
 
 def assert_numerically_equal(
     original_model_proto: onnx.ModelProto | ir.Model,
