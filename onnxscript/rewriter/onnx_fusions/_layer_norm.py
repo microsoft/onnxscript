@@ -48,10 +48,12 @@ class LayerNormFusion(pattern.RewriteRuleClassBase):
         deviation = op.Sub(x, mean)
 
         # Compute squared deviation: DD = Mul(D, D)
-        deviation_squared = pattern.OrValue([
-            op.Mul(deviation, deviation),
-            op.Pow(deviation, 2),
-        ])
+        deviation_squared = pattern.OrValue(
+            [
+                op.Mul(deviation, deviation),
+                op.Pow(deviation, 2),
+            ]
+        )
 
         # Compute variance: Var = ReduceMean(DD, axes=normalized_axes)
         variance = op.ReduceMean(deviation_squared, [-1], keepdims=1)
@@ -66,16 +68,15 @@ class LayerNormFusion(pattern.RewriteRuleClassBase):
         # Normalize: Normalized = Mul(D, InvStdDev)
 
         inv_std_dev = op.Reciprocal(std_dev)
-        normalized = pattern.OrValue([
-            op.Mul(deviation, inv_std_dev),
-            op.Div(deviation, std_dev)
-        ])
+        normalized = pattern.OrValue(
+            [op.Mul(deviation, inv_std_dev), op.Div(deviation, std_dev)]
+        )
 
         # Scale: NormalizedScaled = Mul(Normalized, Scale)
         normalized_scaled = op.Mul(normalized, scale)
 
         # Add bias (if present): Y = Add(NormalizedScaled, B)
-        
+
         if self._has_bias:
             return op.Add(normalized_scaled, bias)
         else:
