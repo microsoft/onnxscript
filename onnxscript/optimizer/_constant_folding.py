@@ -1071,7 +1071,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             if self.allow_bloat:
                 # If allow_bloat is True, we can fold large constants
                 if (node.domain, node.op_type) in self.always_fold_ops:
-                    logger.info(
+                    logger.debug(
                         "Folding large constant for node %r because it is in the always_fold_ops list and allow_bloat is True",
                         node,
                     )
@@ -1087,7 +1087,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 ):
                     # If the op is in always_fold_ops and all large inputs are used only by this node,
                     # we can still fold it even if the input size exceeds the limit.
-                    logger.info(
+                    logger.debug(
                         "Folding large constant for node %r because it is in the always_fold_ops list",
                         node,
                     )
