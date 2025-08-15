@@ -824,10 +824,6 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
 class FoldConstantsPass(ir.passes.InPlacePass):
     """A pass that folds constant expressions in the model.
 
-    .. NOTE::
-        ``ConstantOfShape`` will not be replaced unless explicitly specified in
-        ``always_fold_ops``.
-
     Attributes:
         shape_inference: Whether to perform shape inference.
         input_size_limit: Maximum size of input tensors to fold.
@@ -1024,17 +1020,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         if _is_onnx_op(node, "Constant"):
             _process_constant_node(node)
-            return None
-
-        if (
-            _is_onnx_op(node, "ConstantOfShape")
-            and ("", "ConstantOfShape") not in self.always_fold_ops
-        ):
-            logger.info(
-                "Skipping constant folding for ConstantOfShape node %r because it is considered a constant "
-                "and is not in the always_fold_ops list",
-                node.name,
-            )
             return None
 
         if any(x.is_graph_input() for x in node.inputs if x is not None):
