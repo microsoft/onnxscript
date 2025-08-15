@@ -1020,12 +1020,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             return None
 
         if _is_non_deterministic_op(node):
-            logger.info(
-                "Skipping constant folding for non-deterministic op %r (%s::%s)",
-                node.name,
-                node.domain,
-                node.op_type,
-            )
             return None
 
         if _is_onnx_op(node, "Constant"):
