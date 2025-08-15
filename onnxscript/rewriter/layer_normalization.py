@@ -9,7 +9,7 @@ from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 """
 Layer Normalization fusion optimization.
 
-This module contains rewrite rules for fusing Layer Normalization patterns into the 
+This module contains rewrite rules for fusing Layer Normalization patterns into the
 ONNX LayerNormalization operator.
 
 Layer Normalization performs normalization over the last D dimensions as specified by the axis.
@@ -34,37 +34,37 @@ fp_float_types = frozenset([ir.DataType.FLOAT, ir.DataType.DOUBLE])
 
 
 class LayerNormFusion(pattern.RewriteRuleClassBase):
-    def pattern(self, op, x, scale, bias, epsilon, target_dtype):       
+    def pattern(self, op, x, scale, bias, epsilon, target_dtype):
         # Compute mean: Mean = ReduceMean(X, axes=normalized_axes)
         # TODO: support axes attribute too
         mean = op.ReduceMean(x, [-1], keepdims=1)
-        
+
         # Compute deviation: D = Sub(X, Mean)
         deviation = op.Sub(x, mean)
-        
+
         # Compute squared deviation: DD = Mul(D, D)
         # TODO: support Pow (D, 2) as well
         deviation_squared = op.Mul(deviation, deviation)
-        
+
         # Compute variance: Var = ReduceMean(DD, axes=normalized_axes)
         variance = op.ReduceMean(deviation_squared, [-1], keepdims=1)
-        
+
         # Add epsilon: VarEps = Add(Var, epsilon)
         variance_plus_epsilon = op.Add(variance, epsilon)
-        
+
         # Compute standard deviation: StdDev = Sqrt(VarEps)
         std_dev = op.Sqrt(variance_plus_epsilon)
-        
+
         # Compute reciprocal: InvStdDev = Reciprocal(StdDev)
         # TODO: support Div(deviation, std_dev) as well?
         inv_std_dev = op.Reciprocal(std_dev)
-        
+
         # Normalize: Normalized = Mul(D, InvStdDev)
         normalized = op.Mul(deviation, inv_std_dev)
-       
+
         # Scale: NormalizedScaled = Mul(Normalized, Scale)
         normalized_scaled = op.Mul(normalized, scale)
-        
+
         # Add bias (if present): Y = Add(NormalizedScaled, B)
         if bias is not None:
             return op.Add(normalized_scaled, bias)
@@ -76,17 +76,17 @@ class LayerNormFusion(pattern.RewriteRuleClassBase):
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of LayerNormalization op."""
         check_result = pattern.MatchResult()
-        
+
         # epsilon must be a scalar
         epsilon_value = _ir_utils.get_singleton_value(epsilon)
         if not isinstance(epsilon_value, float):  # TODO: support other types
             return check_result.fail("Epsilon is not a float value.", epsilon)
-        
+
         if x.dtype not in fp_float_types:
             return check_result.fail("Input is not a float type.", x)
-           
+
         self._stash_dtype = x.dtype
-        
+
         return check_result
 
     def rewrite(self, op, x, scale, bias, epsilon, **_):

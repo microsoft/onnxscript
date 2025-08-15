@@ -10,12 +10,13 @@ import onnxruntime as ort
 
 from onnxscript import ir
 
+
 def generate_random_inputs(self, model: onnx.ModelProto) -> dict[str, Any]:
     feeds: dict[str, Any] = {}
     for input in model.graph.input:
         input_type = input.type.tensor_type
         shape = tuple(input_type.shape.dim)
-        if not all(hasattr(d, 'dim_value') for d in shape):
+        if not all(hasattr(d, "dim_value") for d in shape):
             raise ValueError(f"Input {input.name} has dynamic shape dimensions.")
         shape = tuple(d.dim_value for d in shape)
         if input_type.elem_type == onnx.TensorProto.FLOAT:
@@ -28,11 +29,10 @@ def generate_random_inputs(self, model: onnx.ModelProto) -> dict[str, Any]:
     return feeds
 
 
-
 def assert_numerically_equal(
     original_model_proto: onnx.ModelProto | ir.Model,
     rewritten_model_proto: onnx.ModelProto | ir.Model,
-    args: tuple[Any, ...],
+    args: tuple[Any, ...] | dict[str, Any],
     ort_optimization_level: ort.GraphOptimizationLevel = ort.GraphOptimizationLevel.ORT_ENABLE_ALL,
     rtol: float = 1,
     atol: float = 1e-3,
@@ -53,9 +53,17 @@ def assert_numerically_equal(
     if isinstance(rewritten_model_proto, ir.Model):
         rewritten_model_proto = ir.serde.serialize_model(rewritten_model_proto)
 
-    original_proto_ort_inputs = {
-        k.name: v for k, v in zip(original_model_proto.graph.input, args)
-    }
+    if isinstance(args, dict):
+        original_proto_ort_inputs = args
+        the_rewritten_proto_ort_inputs = args
+    else:
+        original_proto_ort_inputs = {
+            k.name: v for k, v in zip(original_model_proto.graph.input, args)
+        }
+        the_rewritten_proto_ort_inputs = {
+            k.name: v for k, v in zip(rewritten_model_proto.graph.input, args)
+        }
+
     original_proto_ort_inference_session = _ort_session_initializer(
         original_model_proto.SerializeToString(), ort_optimization_level
     )
@@ -65,9 +73,6 @@ def assert_numerically_equal(
         None, original_proto_ort_inputs, run_options=run_options
     )
 
-    the_rewritten_proto_ort_inputs = {
-        k.name: v for k, v in zip(rewritten_model_proto.graph.input, args)
-    }
     the_rewritten_proto_ort_inference_session = _ort_session_initializer(
         rewritten_model_proto.SerializeToString(), ort_optimization_level
     )
