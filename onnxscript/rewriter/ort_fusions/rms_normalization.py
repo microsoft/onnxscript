@@ -40,6 +40,8 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
         reciprocal_rms = op.Reciprocal(rms)
         normalized = op.Mul(x, reciprocal_rms)
         normalized = pattern.OrValue([op.Cast(normalized, to=target_dtype), normalized])
+        # To support float16, we need to ensure the scale is casted or not.
+        scale = pattern.OrValue([op.Cast(scale, to=compute_dtype), scale])
         return op.Mul(scale, normalized)
 
     def check(
