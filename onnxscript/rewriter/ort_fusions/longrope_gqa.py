@@ -360,13 +360,10 @@ class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
     def pattern(
         self,
         op,
-        mask,
         input_ids,
         past_kv_cache_1,
         past_kv_cache_2,
         attention_mask,
-        past_seq_length,
-        total_seq_length,
     ):
         """
         Pattern for LongRoPe GQA Causal Mask.
