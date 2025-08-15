@@ -55,7 +55,7 @@ def optimize_ir(
         common_passes.RemoveUnusedNodesPass(),
         common_passes.LiftConstantsToInitializersPass(lift_all_constants=True, size_limit=0),
         common_passes.LiftSubgraphInitializersToMainGraphPass(),
-        common_passes.DeduplicateInitializersPass(),
+        # common_passes.DeduplicateInitializersPass(),
         common_passes.CommonSubexpressionEliminationPass(),
     ]
     if inline:

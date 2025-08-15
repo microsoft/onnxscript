@@ -70,6 +70,37 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         )
 
 
+class SplitRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
+    def __init__(self):
+        super().__init__(name="SplitRotaryEmbedding", as_function=True)
+
+    def pattern(self, op, x, cos, sin):
+        real, imag = op.Split(x, 2, axis=2, num_outputs=2, _outputs=2)
+        real_rotated = real*cos - imag*sin
+        imag_rotated = imag*cos + real*sin
+        x_rotated = op.Concat(real_rotated, imag_rotated, axis=-1)
+        return x_rotated
+
+    def check(self, context, x, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
+        check_result = pattern.MatchResult()
+        # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)
+        if x is None or x.shape is None or len(x.shape) != 4:
+            return check_result.fail("Input is not a 4D tensor.", x)
+        if not isinstance(x.shape[1], int):
+            return check_result.fail("Input dimension 1 is not an integer.", x)
+        head_size = x.shape[3]
+        if not isinstance(head_size, int):
+            return check_result.fail("Head size is not an integer.", x)
+        if head_size % 2 != 0:
+            return check_result.fail("Head size is not even.", x)
+        return check_result
+
+    def rewrite(self, op, x, cos, sin, **_):
+        num_heads = x.shape[1]
+        return op.RotaryEmbedding(
+            x, cos, sin, interleaved=0, num_heads=num_heads
+        )
+
 # Extensions for partial rotary embedding fusion: with partial rotary embedding,
 # embedding is applied only to the first part of the input, and the second part is left unchanged,
 # as captured in the pattern below.

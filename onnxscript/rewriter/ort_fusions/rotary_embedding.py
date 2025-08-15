@@ -59,7 +59,6 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
             x, cos, sin, interleaved=0, num_heads=num_heads, _domain="ai.onnxruntime._fusion"
         )
 
-
 class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
     def pattern(self, op, x, end1, start2):
         x_part_1 = op.Slice(x, [0], end1, [3], [1])
