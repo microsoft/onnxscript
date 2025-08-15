@@ -1052,12 +1052,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         # Ensure all node inputs are constants
         if any(x.const_value is None for x in node.inputs if x is not None):
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    "Skipping constant folding for node %r because it has non-constant inputs",
-                    node,
-                    [x.name for x in node.inputs if x is not None],
-                )
             return None
 
         input_tensors = [x.const_value if x is not None else None for x in node.inputs]
@@ -1084,7 +1078,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 # If allow_bloat is True, we can fold large constants
                 if (node.domain, node.op_type) in self.always_fold_ops:
                     logger.info(
-                        "Folding large constant for node %r because it is in the always_fold_ops list",
+                        "Folding large constant for node %r because it is in the always_fold_ops list and allow_bloat is True",
                         node,
                     )
                 else:
