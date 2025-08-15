@@ -1121,6 +1121,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 return None
             return Replacement(replacement.outputs, [replacement])
         else:
+            # TODO(justinchuby): Enable folding of multiple outputs when allow_bloat is True
             logger.info(
                 "Skipping constant folding for op %s with multiple outputs.", node.op_type
             )
