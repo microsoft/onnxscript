@@ -184,10 +184,15 @@ class SimplePatternMatcher(PatternMatcher):
     ) -> bool:
         """Match an IR value against a ValuePattern instance."""
         if value is not None and value.graph is not self._graph_or_function:
-            return self.fail(
-                f"Value {value.name} is not in the graph {self._graph_or_function.name}. "
-                f"Pattern matches crossing graph boundaries are not supported."
-            )
+            if not isinstance(
+                pattern_value, (_pattern_ir.Var, _pattern_ir.Constant, _pattern_ir.AnyValue)
+            ):
+                # If the pattern value is a Var, Constant, or AnyValue, we allow it to match
+                # values from other graphs. Otherwise, we fail the match.
+                return self.fail(
+                    f"Value {value.name} is not in the graph {self._graph_or_function.name}. "
+                    f"Pattern matches crossing graph boundaries are not supported."
+                )
         if isinstance(pattern_value, _pattern_ir.AnyValue):
             return True
 
