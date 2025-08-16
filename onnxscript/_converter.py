@@ -136,6 +136,11 @@ def set_sourceinfo(value: ir.Value, info: sourceinfo.SourceInfo):
     value.meta[_SOURCEINFO_FIELD] = info
 
 
+def is_base_type_bool(attr: ir.Attr) -> bool:
+    """Check if the attribute is a boolean type."""
+    # FIXME: Add meta to attributes
+    attr.meta[_SOURCEINFO_FIELD]
+
 @dataclasses.dataclass
 class ASTMeta:
     """Metadata for an AST node.
@@ -275,20 +280,6 @@ class Converter:
         self._finalized = False
         self._value_env = _ValueEnvironment(self)
         self.meta: defaultdict[ast.AST, ASTMeta] = defaultdict(ASTMeta)
-
-    # def _init_function_translation(self) -> None:
-    #     """Initialize self for translating a new (top-level) function."""
-    #     self._outer = []
-    #     # TODO(justinchuby): Update this
-    #     self._current_fn = ir.Function(
-    #         domain=self._opset.domain,
-    #         name="",
-    #         graph=ir.Graph((), (), nodes=[]),
-    #         attributes={},
-    #     )
-    #     self._nextvar = 0
-    #     self._used_vars = set()
-    #     self._locals: List[Dict[str, LocalSymValue]] = [{}]
 
     def _source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
         return sourceinfo.SourceInfo(node, self._source, self._current_fn.name)
