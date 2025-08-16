@@ -22,7 +22,8 @@ Key points for the fusion optimization:
 which is also the precision of the output mean/invstddev
 """
 
-float_types = frozenset(
+# input types permitted by LayerNormalization op (ONNX Opset 17)
+LAYER_NORM_INPUT_TYPES = frozenset(
     [
         ir.DataType.FLOAT,
         ir.DataType.FLOAT16,
@@ -30,7 +31,9 @@ float_types = frozenset(
         ir.DataType.DOUBLE,
     ]
 )
-fp_float_types = frozenset([ir.DataType.FLOAT, ir.DataType.DOUBLE])
+
+# Compute types permitted by LayerNormalization op (ONNX Opset 17), aka stash_type.
+LAYER_NORM_COMPUTE_TYPES = frozenset([ir.DataType.FLOAT, ir.DataType.DOUBLE])
 
 
 class LayerNormFusion(pattern.RewriteRuleClassBase):
@@ -78,13 +81,17 @@ class LayerNormFusion(pattern.RewriteRuleClassBase):
         """Check if the pattern matches conditions for use of LayerNormalization op."""
         check_result = pattern.MatchResult()
 
-        # epsilon must be a scalar
-        epsilon_value = _ir_utils.get_singleton_value(epsilon)
-        if not isinstance(epsilon_value, float):  # TODO: support other types
-            return check_result.fail("Epsilon is not a float value.", epsilon)
-
-        if x.dtype not in fp_float_types:
+        # Type validation:
+        if x.dtype not in LAYER_NORM_COMPUTE_TYPES:
             return check_result.fail("Input is not a float type.", x)
+        self._stash_type = x.dtype
+
+        # Check that epsilon is a scalar constant
+        epsilon_value = _ir_utils.get_singleton_value(epsilon)
+        if epsilon_value is None:
+            return check_result.fail("Epsilon is not a constant scalar.", epsilon)
+        # Epsilon is guaranteed to be same type as x (float or double, in this pattern)
+        self._epsilon = float(epsilon_value)
 
         return check_result
 
@@ -93,8 +100,8 @@ class LayerNormFusion(pattern.RewriteRuleClassBase):
             x,
             scale,
             axis=-1,
-            epsilon=_ir_utils.get_singleton_value(epsilon),
-            stash_type=x.dtype,
+            epsilon=self._epsilon,
+            stash_type=self._stash_type,
         )
 
 
