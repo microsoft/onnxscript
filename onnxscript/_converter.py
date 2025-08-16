@@ -85,67 +85,8 @@ _PRIMOP_MAP = {
 
 
 _CASTABLE_FIELD = "pkg.onnxscript.converter.castable"
+_SOURCEINFO_FIELD = "pkg.onnxscript.sourceinfo"
 
-
-
-class SymbolValue:
-    """Represents script-time value information about named variables used in a script.
-
-    At translation-time, the (local) variables of a script, including its parameters,
-    are bound to a SymbolValue.
-
-    SymbolValues fall into the following categories:
-
-    AttrRef: Function parameters of attribute-kind, also mapped to ONNX attributes
-
-    Dynamic: values computed at runtime (of tensor type, for now) mapped to NodeArgs.
-    Dynamic values include input-parameters of the script, as well intermediate
-    values computed in the script.
-
-    For example, consider the following script definition:
-    ::
-
-        @script()
-        def ThresholdedRelu(X, alpha: float):
-            zero = op.CastLike(0, X)
-            return op.Where(X > alpha, X, zero)
-
-    Here, `X` has a Dynamic value, `alpha` has an AttrRef value, and `zero`
-    has a Dynamic value.
-
-    Scripts may also contain references to global variables, but the translator
-    does not associate a SymbolValue with them. The python value of global variables
-    is used directly in the translation, and such global variables are intended
-    to be used for limited purposes, namely:
-    * To identify an opset
-    * To represent constant-values, translated into ONNX constants.
-    """
-
-    def __init__(self, info: sourceinfo.SourceInfo) -> None:
-        if not isinstance(info, sourceinfo.SourceInfo):
-            raise TypeError(f"info must be of type sourceinfo.SourceInfo not {type(info)!r}.")
-        self.info = info
-
-
-class AttrRef(SymbolValue):
-    def __init__(
-        self, attr_name: str, typeinfo: _GenericAlias, info: sourceinfo.SourceInfo
-    ) -> None:
-        """Initializes AttrRef.
-
-        Arguments:
-            attr_name: name of the attribute-parameter
-            typeinfo: type annotation of the attribute.
-                op's attributes in ONNX are usually single type or list of single type.
-            info: for debugging use.
-        """
-        super().__init__(info)
-        self.value = attr_name
-
-        if not isinstance(typeinfo, (type, _GenericAlias)):
-            # typing._GenericAlias for List[int] and List[str], etc.
-            raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
-        self.typeinfo = typeinfo
 
 
 class DynamicKind(IntFlag):
@@ -155,31 +96,11 @@ class DynamicKind(IntFlag):
     Intermediate = 4
     Loop = 8
 
-
-class Dynamic(SymbolValue):
-    def __init__(
-        self, onnx_var: str, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
-    ) -> None:
-        """Initializes Dynamic.
-
-        Arguments:
-            onnx_var: the name of the ONNX variable used to represent this value
-            kind: the DynamicKind of this variable
-            info: source-location information for error-messages/debugging
-            typeinfo: type-information for the value
-        """
-        super().__init__(info)
-        assert isinstance(kind, DynamicKind)
-        self.value = onnx_var
-        self.kind = kind
-        self.typeinfo = typeinfo
-
-
 # The type-alias LocalSymValue represents the types of values that local names in a
 # script-function may be bound to during translation, (ONNX IR values).
 # TODO(rama): Rationalize this and values.SymbolValue
 
-LocalSymValue = Union[SymbolValue, ir.Function]
+LocalSymValue = Union[ir.Value, ir.Attr, ir.Function]
 
 # The type-alias PyValue is used to represent the types of python values that may be used
 # in an ONNX Script function.
@@ -187,7 +108,7 @@ LocalSymValue = Union[SymbolValue, ir.Function]
 # 1 (int), 1.0 (float), [2, 4], [1.0], etc. which will be converted to ONNX, for
 # use as value-parameters or attribute-parameters in an ONNX call (Node).
 
-PyValue = Any
+PyValue = Union[int, float, str, bool, Sequence[int], Sequence[float], Sequence[str], Sequence[bool]]
 
 # The type-alias SymValue denotes values that an identifier may be bound to during
 # translation. A local name will be bound to a LocalSymValue, while a global name
@@ -210,6 +131,10 @@ def mark_castable(value: ir.Value):
     """Mark an ONNX value as auto-castable."""
     value.meta[_CASTABLE_FIELD] = True
 
+def set_sourceinfo(value: ir.Value, info: sourceinfo.SourceInfo):
+    """Set the source information for an ONNX value."""
+    value.meta[_SOURCEINFO_FIELD] = info
+
 
 @dataclasses.dataclass
 class ASTMeta:
@@ -225,45 +150,45 @@ class ASTMeta:
 
 class _ValueEnvironment:
     def __init__(self, converter: Converter):
-        self._sym_value_to_onnx_values: dict[SymbolValue, ir.Value] = {}
+        self._py_var_name_to_ir_values: dict[str, ir.Value] = {}
+        self._py_var_name_to_ir_attr_refs: dict[str, ir.Attr] = {}
+        self._py_var_name_to_py_values: dict[str, PyValue] = {}
         self._converter = converter
 
     def get_or_create_value(
-        self, val: SymbolValue, info: sourceinfo.SourceInfo
+        self, var: str, info: sourceinfo.SourceInfo
     ) -> ir.Value:
-        """Get or create an ONNX Value for a SymbolValue."""
-        if val in self._sym_value_to_onnx_values:
-            return self._sym_value_to_onnx_values[val]
-        if isinstance(val, AttrRef):
+        """Get or create an IR value from Python variable name."""
+        if var in self._py_var_name_to_ir_values:
+            return self._py_var_name_to_ir_values[var]
+        if var in self._py_var_name_to_ir_attr_refs:
             # promote attribute to value
-            result_name = self._converter._generate_unique_name("v")
-            attr = _to_onnx_ref_attr(val, info)
-            result = self._converter.emit([result_name], "Constant", [], attrs=[attr])[0]
-            if ta.base_type_is_bool(val.typeinfo):
+            attr = self._py_var_name_to_ir_attr_refs[var]
+            result = self._converter.op(
+                "Constant", [], attrs=[attr]
+            )
+            if is_base_type_bool(attr):
                 # ONNX attributes use an int-encoding for bools, but ONNX tensor types
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
-                result_as_bool_name = self._converter._generate_unique_name(f"{result_name}_as_bool")
-                result = self._converter.emit(
-                    [result_as_bool_name],
+                result = self._converter.op(
                     "Cast",
-                    [result_name],
+                    [result],
                     attrs=[ir.AttrInt64("to", ir.DataType.BOOL)],
-                )[0]
+                )
 
-            self._sym_value_to_onnx_values[val] = result
+            self._py_var_name_to_ir_values[var] = result
             return result
+        if var in self._py_var_name_to_py_values:
+            # Assume value is a python-value convertible to a tensor
+            result = self._converter.op(
+                "Constant", [], attrs=[ir.AttrTensor("value", ir.tensor(var, name=var))]
+            )
+            mark_castable(result)
+            self._py_var_name_to_ir_values[var] = result
 
-        if isinstance(val, Dynamic):
-            # A value in ONNX
-            result = ir.Value(name=val.value)
-            self._sym_value_to_onnx_values[val] = result
-            return result
-
-        # Assume value is a python-value convertible to a tensor
-        result = self._converter.emit_const(val, None, info)
-        self._sym_value_to_onnx_values[val] = result
-        return result
+        # TODO(justinchuby): Update error message
+        raise ValueError(f"Variable '{var}' is unbound.")
 
 
 class Converter:
