@@ -6,6 +6,7 @@ import unittest
 import onnx_ir as ir
 
 import onnxscript
+import onnxscript.optimizer
 import onnxscript.rewriter.testing
 from onnxscript import FLOAT, OnnxFunction, script
 from onnxscript import opset18 as op
@@ -95,8 +96,10 @@ class LayerNormFusionTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         fuse_layer_normalization(model)
 
+        onnxscript.optimizer.remove_unused_nodes(model)
+
         # Check that a LayerNormalization node was created
-        self.assertIn("LayerNormalization", [n.op_type for n in model.graph])
+        self.assertEqual(["LayerNormalization"], [n.op_type for n in model.graph])
 
         fused_model_proto = ir.serde.serialize_model(model)
 

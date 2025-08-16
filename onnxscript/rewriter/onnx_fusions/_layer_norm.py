@@ -34,12 +34,9 @@ fp_float_types = frozenset([ir.DataType.FLOAT, ir.DataType.DOUBLE])
 
 
 class LayerNormFusion(pattern.RewriteRuleClassBase):
-    def __init__(self, name: str, has_bias: bool):
-        super().__init__(name)
-        self._has_bias = has_bias
-        self._stash_dtype: int | None = None
+    """Fuse LayerNorm pattern into LayerNormalization op."""
 
-    def pattern(self, op, x, scale, bias, epsilon, target_dtype):
+    def pattern(self, op, x, scale, epsilon):
         # Compute mean: Mean = ReduceMean(X, axes=normalized_axes)
         # TODO: support axes attribute too
         mean = op.ReduceMean(x, [-1], keepdims=1)
@@ -75,14 +72,9 @@ class LayerNormFusion(pattern.RewriteRuleClassBase):
         # Scale: NormalizedScaled = Mul(Normalized, Scale)
         normalized_scaled = op.Mul(normalized, scale)
 
-        # Add bias (if present): Y = Add(NormalizedScaled, B)
+        return normalized_scaled
 
-        if self._has_bias:
-            return op.Add(normalized_scaled, bias)
-        else:
-            return normalized_scaled
-
-    def check(self, op, x, scale, bias, epsilon, target_dtype, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
+    def check(self, context, x, epsilon, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of LayerNormalization op."""
         check_result = pattern.MatchResult()
 
@@ -94,35 +86,36 @@ class LayerNormFusion(pattern.RewriteRuleClassBase):
         if x.dtype not in fp_float_types:
             return check_result.fail("Input is not a float type.", x)
 
-        self._stash_dtype = x.dtype
-
         return check_result
 
-    def rewrite(self, op, x, scale, bias, epsilon, **_):
-        if bias is not None:
-            return op.LayerNormalization(
-                x,
-                scale,
-                bias,
-                axis=-1,
-                epsilon=_ir_utils.get_singleton_value(epsilon),
-                stash_type=self._stash_dtype,
-            )
-        else:
-            return op.LayerNormalization(
-                x,
-                scale,
-                axis=-1,
-                epsilon=_ir_utils.get_singleton_value(epsilon),
-                stash_type=self._stash_dtype,
-            )
+    def rewrite(self, op, x, scale, epsilon, **_):
+        return op.LayerNormalization(
+            x,
+            scale,
+            axis=-1,
+            epsilon=_ir_utils.get_singleton_value(epsilon),
+            stash_type=x.dtype,
+        )
+
+
+class LayerNormBiasFusion(pattern.RewriteRuleClassBase):
+    """Fuse LayerNorm => Add into LayerNorm with bias."""
+
+    def pattern(self, op, x, scale, bias):
+        return op.LayerNormalization(x, scale, _outputs=["normalized"]) + bias
+
+    def rewrite(self, op, x, scale, bias, normalized):
+        layernorm_node = normalized.producer()
+        attributes = layernorm_node.attributes
+        num_outputs = len(layernorm_node.outputs)
+        return op.LayerNormalization(x, scale, bias, _outputs=num_outputs, **attributes)
 
 
 # Create rules for both with and without bias
-_layer_norm_with_bias_rule = LayerNormFusion.rule("LayerNormWithBias", has_bias=True)
-_layer_norm_rule = LayerNormFusion.rule("LayerNorm", has_bias=False)
+_layer_norm_rule = LayerNormFusion.rule()
+_layer_norm_with_bias_rule = LayerNormBiasFusion.rule()
 
-layer_normalization_rules = [_layer_norm_with_bias_rule, _layer_norm_rule]
+layer_normalization_rules = [_layer_norm_rule, _layer_norm_with_bias_rule]
 layer_normalization_ruleset = pattern.RewriteRuleSet(layer_normalization_rules)
 
 fuse_layer_normalization = _fusion_utils.apply_fusion_rules(layer_normalization_ruleset)
