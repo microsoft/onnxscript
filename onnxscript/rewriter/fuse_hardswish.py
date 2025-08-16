@@ -75,11 +75,14 @@ class HardSwishFusionFromHardSigmoid(pattern.RewriteRuleClassBase):
     def check(self, op, x: ir.Value, hardsigmoid_out: ir.Value) -> MatchResult:
         check_result = MatchResult()
         hardsigmoid = hardsigmoid_out.producer()
-        if not np.isclose(hardsigmoid.attributes["alpha"].value, 1 / 6):
+        # Use getter to protect when 'alpha' / 'beta' is not in attributes
+        alpha = hardsigmoid.attributes.get_float("alpha", -1)
+        beta = hardsigmoid.attributes.get_float("beta", -1)
+        if not np.isclose(alpha, 1 / 6):
             return check_result.fail(
                 "HardSigmoid alpha must be 1/6 to get fused into HardSwish"
             )
-        if not np.isclose(hardsigmoid.attributes["beta"].value, 0.5):
+        if not np.isclose(beta, 0.5):
             return check_result.fail(
                 "HardSigmoid beta must be 0.5 to get fused into HardSwish"
             )
