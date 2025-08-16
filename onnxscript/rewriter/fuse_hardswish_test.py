@@ -66,7 +66,7 @@ class FuseHardSwishTest(unittest.TestCase):
                 y = Div(clipped, six)
             }
         """
-        model = ir.from_proto(onnx.parser.parse_model(model_text))
+        model = ir.from_onnx_text(model_text)
         self.run_test(model, ["HardSigmoid"])
 
     def test_hardswish_fusion(self):
@@ -82,7 +82,7 @@ class FuseHardSwishTest(unittest.TestCase):
                 y = Div(mul_x, six)
             }
         """
-        model = ir.from_proto(onnx.parser.parse_model(model_text))
+        model = ir.from_onnx_text(model_text)
         self.run_test(model, ["HardSwish"])
 
     def test_hardswish_fusion_mul_last(self):
@@ -98,7 +98,7 @@ class FuseHardSwishTest(unittest.TestCase):
                 y = Mul(div_x, x)
             }
         """
-        model = ir.from_proto(onnx.parser.parse_model(model_text))
+        model = ir.from_onnx_text(model_text)
         self.run_test(model, ["HardSwish"])
 
     def test_hardswish_fusion_from_sigmoid(self):
@@ -109,7 +109,7 @@ class FuseHardSwishTest(unittest.TestCase):
                 y = Mul(hardsigmoid_out, x)
             }
         """
-        model = ir.from_proto(onnx.parser.parse_model(model_text))
+        model = ir.from_onnx_text(model_text)
         self.run_test(model, ["HardSwish"])
 
 
