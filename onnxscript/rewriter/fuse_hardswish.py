@@ -17,6 +17,8 @@ from onnxscript.rewriter._rewrite_rule import RewriteRuleSet
 
 
 class _HardSigmoidFusionBase(pattern.RewriteRuleClassBase):
+    """HardSwish requires constant values so we check in base class."""
+
     def check(
         self,
         op,
@@ -40,6 +42,12 @@ class _HardSigmoidFusionBase(pattern.RewriteRuleClassBase):
 
 
 class HardSwishFusion(_HardSigmoidFusionBase):
+    """Fuse Add(_, 3) + Clip<0, 6>(_) + Mul + Div(_, 6) into HardSwish
+
+    In this case we can't make HardSigmoid fusion first. The Mul
+    is placed before Div while HardSigmoid requires Add+Clip+Div.
+    """
+
     def pattern(
         self,
         op,
@@ -66,6 +74,8 @@ class HardSwishFusion(_HardSigmoidFusionBase):
 
 
 class HardSwishFusionFromHardSigmoid(pattern.RewriteRuleClassBase):
+    """Fuse HardSigmoid<alpha=1/6, beta=0.5> + Mul into HardSwish"""
+
     def pattern(self, op, x: ir.Value) -> ir.Value:
         # Floating point matching for 1/6 is not exact, so we use isclose below
         out = op.HardSigmoid(x, _allow_other_attributes=True, _outputs=["hardsigmoid_out"])
