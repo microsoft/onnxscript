@@ -362,7 +362,7 @@ class SimplePatternMatcher(PatternMatcher):
         complications which require careful consideration.
         """
         self._tracer = tracer
-        self._graph_or_function = graph_or_function
+        self._graph_or_function = graph_or_function[0].graph
         if self.pattern.has_single_output_node:
             self._init_match(verbose)
             return self._match_single_output_node(
