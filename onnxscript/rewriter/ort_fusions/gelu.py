@@ -6,8 +6,8 @@ import math
 
 from onnxscript.rewriter import _fusion_utils, pattern
 
-_sqrt_two_over_pi = math.sqrt(2.0 / math.pi)
-_sqrt_two = math.sqrt(2.0)
+_SQRT_TWO_OVER_PI = math.sqrt(2.0 / math.pi)
+_SQRT_TWO = math.sqrt(2.0)
 
 
 class GeluTanhFusion(pattern.RewriteRuleClassBase):
@@ -17,7 +17,7 @@ class GeluTanhFusion(pattern.RewriteRuleClassBase):
         t2 = op.Mul(0.044715, t1)
         t3 = op.Add(x, t2)
 
-        t4 = op.Mul(_sqrt_two_over_pi, t3)
+        t4 = op.Mul(_SQRT_TWO_OVER_PI, t3)
         t5 = op.Tanh(t4)
         t6 = op.Add(t5, 1)
         t7 = op.Mul(0.5, t6)
@@ -31,7 +31,7 @@ class GeluTanhFusion(pattern.RewriteRuleClassBase):
 class GeluErfFusion(pattern.RewriteRuleClassBase):
     def pattern(self, op, x):
         # GELU(x) = 0.5 * x * (1 + erf(x / sqrt(2)))
-        t1 = op.Div(x, _sqrt_two)
+        t1 = op.Div(x, _SQRT_TWO)
         t2 = op.Erf(t1)
         t3 = op.Add(t2, 1.0)
         t4 = op.Mul(x, t3)
