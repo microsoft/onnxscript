@@ -29,11 +29,11 @@ COMMON_TEST_DEPENDENCIES = (
     "typing_extensions>=4.10",
     "ml-dtypes",
 )
-ONNX = "onnx==1.17"
-ONNX_RUNTIME = "onnxruntime==1.20.1"
-PYTORCH = "torch==2.5.1"
-TORCHVISON = "torchvision==0.20.1"
-TRANSFORMERS = "transformers==4.37.2"
+ONNX = "onnx==1.18"
+ONNX_RUNTIME = "onnxruntime==1.22.1"
+PYTORCH = "torch==2.8.0"
+TORCHVISON = "torchvision==0.23"
+TRANSFORMERS = "transformers==4.55.2"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
     "coloredlogs",
