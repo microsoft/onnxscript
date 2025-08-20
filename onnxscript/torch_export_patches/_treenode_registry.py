@@ -30,7 +30,7 @@ def register_class_serialization(
     """Registers a class.
 
     It can be undone with
-    :func:`optimum.torch_export_patches._treenode_registry.unregister_class_serialization`.
+    :func:`onnxscript.torch_export_patches._treenode_registry.unregister_class_serialization`.
 
     Args:
         cls: class to register
@@ -168,7 +168,7 @@ def serialization_functions(
     all_functions: dict[type, str | None] = {}
 
     if patch_transformers:
-        from optimum.torch_export_patches._treenode_transformers import (
+        from onnxscript.torch_export_patches._treenode_transformers import (
             SUPPORTED_DATACLASSES,
             flatten_dynamic_cache,
             flatten_encoder_decoder_cache,
@@ -189,7 +189,7 @@ def serialization_functions(
             unflatten_sliding_window_cache,
             unflatten_static_cache,
         )
-        from optimum.torch_export_patches._treenode_transformers import (
+        from onnxscript.torch_export_patches._treenode_transformers import (
             __dict__ as dtr,
         )
 
@@ -245,8 +245,8 @@ def serialization_functions(
         classes.update(transformers_classes)
 
     if patch_diffusers:
-        from optimum.torch_export_patches._treenode_diffusers import SUPPORTED_DATACLASSES
-        from optimum.torch_export_patches._treenode_diffusers import __dict__ as dfu
+        from onnxscript.torch_export_patches._treenode_diffusers import SUPPORTED_DATACLASSES
+        from onnxscript.torch_export_patches._treenode_diffusers import __dict__ as dfu
 
         all_functions.update(dfu)
         supported_classes |= SUPPORTED_DATACLASSES

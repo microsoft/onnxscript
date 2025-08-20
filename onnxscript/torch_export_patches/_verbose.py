@@ -17,7 +17,7 @@ def onnx_dtype_name(itype: int) -> str:
         :showcode:
 
         import onnx
-        from optimum.torch_export_patches import _verbose
+        from onnxscript.torch_export_patches import _verbose
 
         itype = onnx.TensorProto.BFLOAT16
         print(_verbose.onnx_dtype_name(itype))
@@ -65,16 +65,16 @@ def string_type(
 
     The element types for a tensor are displayed as integer to shorten the message.
     The semantic is defined by :class:`onnx.TensorProto` and can be obtained
-    by :func:`optimum.torch_export_patches._verbose.onnx_dtype_name`.
+    by :func:`onnxscript.torch_export_patches._verbose.onnx_dtype_name`.
 
     Examples:
         Basic usage:
-            >>> from optimum.torch_export_patches import _verbose
+            >>> from onnxscript.torch_export_patches import _verbose
             >>> print(_verbose.string_type((1, ["r", 6.6])))
 
         With pytorch:
             >>> import torch
-            >>> from optimum.torch_export_patches import _verbose
+            >>> from onnxscript.torch_export_patches import _verbose
             >>> inputs = (
             ...     torch.rand((3, 4), dtype=torch.float16),
             ...     [

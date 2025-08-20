@@ -4,7 +4,8 @@ from typing import Any, ClassVar
 import numpy as np
 import torch
 import torch.utils._pytree as py_pytree
-from optimum.torch_export_patches._core import torch_export_patches
+
+from onnxscript.torch_export_patches._core import torch_export_patches
 
 
 class TestTorchExportPatchesComprehensive(unittest.TestCase):
