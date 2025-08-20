@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+
 import unittest
 
 import numpy as np
@@ -85,7 +84,7 @@ class _TestMinMaxToClipBase(unittest.TestCase):
         self.assertRegex(tracer_match.match_result.reason, expected_message)
 
 
-class TestFuseSuccesiveMinOrMax(_TestMinMaxToClipBase):
+class TestFuseSuccessiveMinOrMax(_TestMinMaxToClipBase):
     @parameterized.expand(
         [
             ("int32_min", "int32", "Min"),
@@ -94,7 +93,7 @@ class TestFuseSuccesiveMinOrMax(_TestMinMaxToClipBase):
             ("float32_max", "float", "Max"),
         ]
     )
-    def test_successful_fuse_succesive_min_or_max(self, _, dtype, op_type):
+    def test_successful_fuse_successive_min_or_max(self, _, dtype, op_type):
         base_model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model ({dtype}[N, 32, 14, 17] X) => ({dtype} [N, ?, ?, ?] Y)
@@ -114,7 +113,7 @@ class TestFuseSuccesiveMinOrMax(_TestMinMaxToClipBase):
             ("float32_max_multi", "float", "Max"),
         ]
     )
-    def test_successful_fuse_succesive_min_or_max_multiple_inputs(self, _, dtype, op_type):
+    def test_successful_fuse_successive_min_or_max_multiple_inputs(self, _, dtype, op_type):
         base_model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model ({dtype}[N, 3, 3] X) => ({dtype}[N, 3, 3] Y)
@@ -140,7 +139,7 @@ class TestFuseSuccesiveMinOrMax(_TestMinMaxToClipBase):
             ("float32_max", "Max"),
         ]
     )
-    def test_successful_fuse_succesive_min_or_max_constants(self, _, op_type):
+    def test_successful_fuse_successive_min_or_max_constants(self, _, op_type):
         base_model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14, 17] X) => (float [N, ?, ?, ?] Y)
