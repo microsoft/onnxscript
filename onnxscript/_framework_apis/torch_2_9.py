@@ -14,8 +14,6 @@ __all__ = [
 
 from typing import TYPE_CHECKING
 
-import onnx_ir as ir
-
 from onnxscript import version_converter
 from onnxscript._framework_apis.torch_2_8 import (
     check_model,
@@ -25,7 +23,7 @@ from onnxscript._framework_apis.torch_2_8 import (
 )
 
 if TYPE_CHECKING:
-    from onnxscript import ir
+    import onnx_ir as ir
 
 
 def convert_version(model: ir.Model, target_version: int) -> ir.Model:
