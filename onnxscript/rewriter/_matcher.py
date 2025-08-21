@@ -183,14 +183,14 @@ class SimplePatternMatcher(PatternMatcher):
         self, pattern_value: _pattern_ir.ValuePattern, value: ir.Value | None
     ) -> bool:
         """Match an IR value against a ValuePattern instance."""
-        if value is not None and value.graph is not self._graph_or_function:
+        if value is not None and value.graph is not self.__graph:
             if not isinstance(
                 pattern_value, (_pattern_ir.Var, _pattern_ir.Constant, _pattern_ir.AnyValue)
             ):
                 # If the pattern value is a Var, Constant, or AnyValue, we allow it to match
                 # values from other graphs. Otherwise, we fail the match.
                 return self.fail(
-                    f"Value {value.name} is not in the graph {self._graph_or_function.name}. "
+                    f"Value {value.name} is not in the graph {self.__graph.name}. "
                     f"Pattern matches crossing graph boundaries are not supported."
                 )
         if isinstance(pattern_value, _pattern_ir.AnyValue):
@@ -362,7 +362,11 @@ class SimplePatternMatcher(PatternMatcher):
         complications which require careful consideration.
         """
         self._tracer = tracer
-        self._graph_or_function = graph_or_function[0].graph
+        self.__graph = (
+            graph_or_function
+            if isinstance(graph_or_function, ir.Graph)
+            else graph_or_function._graph
+        )
         if self.pattern.has_single_output_node:
             self._init_match(verbose)
             return self._match_single_output_node(
