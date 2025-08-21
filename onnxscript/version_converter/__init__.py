@@ -107,6 +107,13 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
                 self.target_version,
             )
             return ir.passes.PassResult(model, False)
+        else:
+            logger.warning(
+                "The model version conversion is not supported by the onnxscript version converter "
+                "and fallback is enabled. The model will be converted using the onnx C API "
+                "(target version: %d).",
+                self.target_version,
+            )
 
         # If the onnxscript version converter does not support the conversion,
         # we can use the onnx C API to convert the model
