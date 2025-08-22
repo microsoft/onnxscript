@@ -13,6 +13,8 @@ import onnxscript.type_annotation
 
 _SINGLE_INDENT = "    "
 
+_SMALL_TENSOR_SIZE = 4
+
 kwlist = {
     "False",
     "None",
@@ -349,14 +351,18 @@ class _Exporter:
         code = []
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
-                if self.skip_initializers and init.data_type == TensorProto.FLOAT:
-                    init_py_name = self._translate_onnx_var(init.name)
-                    if init_py_name in self.skipped_initializers:
-                        raise RuntimeError(
-                            f"Initializer {init.name!r} is already present in skipped_initializers."
-                        )
-                    self.skipped_initializers[init_py_name] = init
-                    continue
+                if self.skip_initializers:
+                    size = 1
+                    for d in init.dims:
+                        size *= d
+                    if size > _SMALL_TENSOR_SIZE:
+                        init_py_name = self._translate_onnx_var(init.name)
+                        if init_py_name in self.skipped_initializers:
+                            raise RuntimeError(
+                                f"Initializer {init.name!r} is already present in skipped_initializers."
+                            )
+                        self.skipped_initializers[init_py_name] = init
+                        continue
                 node = onnx.helper.make_node(  # noqa: TID251
                     "Constant",
                     [],
@@ -743,11 +749,13 @@ class _Exporter:
 
         def generate_rand(name: str, value: TensorProto) -> str:
             shape = ",".join(str(d) for d in value.dims)
-            if value.data_type != TensorProto.FLOAT:
-                raise NotImplementedError(
-                    f"Unable to generate random initializer for data type {value.data_type}."
-                )
-            return f"{__}{name} = np.random.rand({shape}).astype(np.float32)"
+            if value.data_type == TensorProto.FLOAT:
+                return f"{__}{name} = np.random.rand({shape}).astype(np.float32)"
+            if value.data_type == TensorProto.INT8:
+                return f"{__}{name} = np.random.randint(-128, 127, size=({shape},), dtype=np.int8)"
+            raise NotImplementedError(
+                f"Unable to generate random initializer for data type {value.data_type}."
+            )
 
         random_initializer_values = "\n".join(
             generate_rand(key, value) for key, value in self.skipped_initializers.items()
