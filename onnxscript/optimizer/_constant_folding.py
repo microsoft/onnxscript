@@ -574,7 +574,7 @@ def split(node: ir.Node, op, _):
         # Numpy accepts single integer of (even) splits as well
         _split = num_outputs.as_int()
 
-    # Hm, something must be terribly wrong...
+    # Unable to determine split configuration, skip optimization
     if _split is None:
         return None
 
