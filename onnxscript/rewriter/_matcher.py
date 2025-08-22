@@ -365,7 +365,7 @@ class SimplePatternMatcher(PatternMatcher):
         if isinstance(graph_or_function, ir.Graph):
             self._graph: ir.Graph = graph_or_function
         else:
-            self._graph = graph_or_function._graph
+            self._graph = graph_or_function.graph
         if self.pattern.has_single_output_node:
             self._init_match(verbose)
             return self._match_single_output_node(
