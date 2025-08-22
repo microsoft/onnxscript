@@ -547,10 +547,9 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
-# Replaces Split operators with all constant inputs by a list of Constant
-# operators
 @register("Split")
 def split(node: ir.Node, op, _):
+    """Replaces Split operators with all constant inputs by a list of Constant operators."""
     # Replace single output split by Identity(x)
     if len(node.outputs) == 1:
         return op.Identity(node.inputs[0])
