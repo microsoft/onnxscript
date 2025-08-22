@@ -569,7 +569,7 @@ def split(node: ir.Node, op, _):
         _split = np.cumsum(_split.numpy()[:-1])
 
     # Option B: Number of (even) splits
-    if (num_outputs := node.attributes.get("num_outputs")) is not None:
+    elif (num_outputs := node.attributes.get("num_outputs")) is not None:
         # Numpy accepts single integer of (even) splits as well
         _split = num_outputs.as_int()
 
