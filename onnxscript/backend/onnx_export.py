@@ -119,7 +119,7 @@ def _make_short_name_mapper():
 
 def _translate_type(onnx_type):
     """Converts a onnx type into a type defined by *onnxscript*."""
-    return onnxscript.onnx_types.onnx_type_to_onnxscript_repr(onnx_type)
+    return onnxscript.onnx_types.onnx_type_to_onnxscript_repr(onnx_type, reversible=False)
 
 
 def _translate_signature(inputs, outputs):
@@ -349,7 +349,7 @@ class _Exporter:
         code = []
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
-                if self.skip_initializers:
+                if self.skip_initializers and init.data_type == TensorProto.FLOAT:
                     init_py_name = self._translate_onnx_var(init.name)
                     if init_py_name in self.skipped_initializers:
                         raise RuntimeError(
@@ -363,12 +363,16 @@ class _Exporter:
                     [self._translate_onnx_var(init.name)],  # type: ignore[list-item]
                     value=init,
                 )
-                code.append(self._translate_node(node, opsets, indent=indent))
+                pyinit = self._translate_node(node, opsets, indent=indent)
+                if pyinit:
+                    code.append(pyinit)
         if hasattr(graph, "sparse_initializer") and len(graph.sparse_initializer) > 0:
             raise NotImplementedError("Unable to convert sparse_initilizer into python.")
         for node in graph.node:
             pynode = self._translate_node(node, opsets, indent=indent)
             if pynode:
+                if node.name:
+                    pynode += f"  # {node.name}"
                 code.append(pynode)
 
         final = "\n".join(code)
@@ -418,7 +422,8 @@ class _Exporter:
     def _translate_if(self, node, opsets, indent=0):
         """Translates a node If into python."""
         sindent = _SINGLE_INDENT * indent
-        code = [f"{sindent}if {node.input[0]}:"]
+        cond = self._translate_onnx_var_ref(node.input[0])
+        code = [f"{sindent}if {cond}:"]
         if len(node.attribute) != 2:
             raise RuntimeError(
                 f"Node {node.op_type!r} expected two attributes not {len(node.attribute)}."
@@ -502,17 +507,21 @@ class _Exporter:
 
         rows.extend(self._emit_assign(formal_ins, actual_ins, indent))
 
+        if node.name:
+            node_name = "  # " + node.name
+        else:
+            node_name = ""
         if use_iter_var and not use_loop_cond:
-            rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
+            rows.append(f"{sindent}for {iter_var} in range({n_iter}):{node_name}")
             # The following is a hacky way to suppress the generation of
             # "cond_out = cond_in", which ONNX forces for a FOR loop.
             # TODO: a cleaner solution for this.
             self._name_remappings[-1][cond_out] = self._translate_onnx_var(cond_in)
         elif not use_iter_var and use_loop_cond:
-            rows.append(f"{sindent}while {py_cond}:")
+            rows.append(f"{sindent}while {py_cond}:{node_name}")
         elif use_iter_var and use_loop_cond:
             # TODO: This needs fixing
-            rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
+            rows.append(f"{sindent}for {iter_var} in range({n_iter}):{node_name}")
             rows.append(f"{sindent}{_SINGLE_INDENT}if not {py_cond}:")
             rows.append(f"{sindent}{_SINGLE_INDENT * 2}break")
         else:
