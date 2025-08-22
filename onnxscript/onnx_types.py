@@ -196,11 +196,13 @@ class FLOAT4E2M1(TensorType, dtype=ir.DataType.FLOAT4E2M1):
     pass
 
 
-def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
+def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto, *, reversible: bool = True) -> str:
     """Converts an onnx type into the string representation of the type in *onnxscript*.
 
     Args:
         onnx_type: an instance of onnx TypeProto
+        reversible: if True, the conversion produces only types that are
+            recognized by the onnxscript converter.
 
     Returns:
         The string representation of the type in onnxscript
@@ -224,6 +226,10 @@ def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
                 return name
             return f"{name}[{','.join(shape)}]"
         return f"{name}[...]"
+    if not reversible:
+        if onnx_type.HasField("sequence_type"):
+            elem_type = onnx_type.sequence_type.elem_type
+            return f"List[{onnx_type_to_onnxscript_repr(elem_type)}]"
     raise NotImplementedError(f"Unable to translate type {onnx_type!r} into onnxscript type.")
 
 
