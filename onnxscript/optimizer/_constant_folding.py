@@ -547,6 +547,47 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
+# Replaces Split operators with all constant inputs by a list of Constant
+# operators
+@register("Split")
+def split(node: ir.Node, op, _):
+    # Replace single output split by Identity(x)
+    if len(node.outputs) == 1:
+        return op.Identity(node.inputs[0])
+
+    # Skip non-constant inputs
+    if (x := ir.convenience.get_const_tensor(node.inputs[0])) is None:
+        return None
+
+    _split = None
+
+    # Option A: Sizes per split
+    if len(node.inputs) == 2:
+        # Skip non-constant splits
+        if (_split := ir.convenience.get_const_tensor(node.inputs[1])) is None:
+            return None
+        # Numpy expects splits as starting indices for each section
+        _split = np.cumsum(_split.numpy()[:-1])
+
+    # Option B: Number of (even) splits
+    if (num_outputs := node.attributes.get("num_outputs")) is not None:
+        # Numpy accepts single integer of (even) splits as well
+        _split = num_outputs.as_int()
+
+    # Hm, something must be terribly wrong...
+    if _split is None:
+        return None
+
+    # Default split axis is 0, according to ONNX operators reference:
+    #   https://onnx.ai/onnx/operators/onnx__Split.html
+    if (axis := node.attributes.get("axis")) is None:
+        axis = ir.Attr("axis", ir.AttributeType.INT, 0)
+
+    # Split constant tensor and wrap a list of Constant operators
+    splits = np.array_split(x.numpy(), _split, axis.as_int())
+    return [op.Constant(value=ir.tensor(x)) for x in splits]
+
+
 @register("Concat")
 def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Replace a Concat node with a single input by Identity"""
