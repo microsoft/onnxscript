@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import traceback
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 from onnx_ir import tape
@@ -14,6 +15,12 @@ if TYPE_CHECKING:
 
 # A type representing the domains/versions used in creating nodes in IR.
 UsedOpsets = set[tuple[str, Optional[int]]]
+
+
+def _get_stacktrace() -> str:
+    """Get the stack trace of the current execution context."""
+    stack = traceback.extract_stack()
+    return "".join(traceback.format_list(stack[:-3]))
 
 
 class Builder(tape.Tape):
@@ -32,9 +39,18 @@ class Builder(tape.Tape):
             assert isinstance(outputs, int)
             num_outputs = outputs
 
+        metadata_props = {
+            "pkg.onnxscript.rewriter.stacktrace": _get_stacktrace(),
+        }
+
         if num_outputs == 1:
             value = super().op(
-                op_type, inputs=inputs, attributes=kwargs, domain=domain, version=version
+                op_type,
+                inputs=inputs,
+                attributes=kwargs,
+                domain=domain,
+                version=version,
+                metadata_props=metadata_props,
             )
             if isinstance(outputs, Sequence):
                 value.name = outputs[0]
@@ -46,6 +62,7 @@ class Builder(tape.Tape):
             domain=domain,
             version=version,
             num_outputs=num_outputs,
+            metadata_props=metadata_props,
         )
         if isinstance(outputs, Sequence):
             for value, name in zip(values, outputs):
