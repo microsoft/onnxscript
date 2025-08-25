@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import ClassVar, Sequence
 
+import numpy as np
+
 from onnxscript import ir
 from onnxscript.rewriter import _ir_utils as ir_utils
 from onnxscript.rewriter._basics import MatchResult
@@ -123,16 +125,37 @@ class ReshapeReshape(RewriteRuleClassBase):
         return op.Reshape(op.Reshape(x, shape_ignored), shape)
 
     def rewrite(self, op, x: ir.Value, shape_ignored: ir.Value, shape: ir.Value):
-        return op.Reshape(x, shape)
+        new_shape = op.initializer(ir.Tensor(self._new_shape, name=shape.name))
+        return op.Reshape(x, new_shape, allowzero=self._allowzero)
 
     def check(self, context, x, shape_ignored, shape) -> MatchResult:
         check_result = MatchResult()
-        if shape_ignored.const_value is None:
-            return check_result.fail("Shape ignored is not a constant.")
-        if shape.const_value is None:
+
+        # Shape must be a constant.
+        if (np_shape := ir_utils.get_numpy_value(shape)) is None:
             return check_result.fail("Shape is not a constant.")
-        if shape.const_value.numpy().min() <= 0:
-            return check_result.fail("Shape has non-positive values.")
+        # Convert to array to support assignment destination.
+        self._new_shape = np.array(np_shape, np_shape.dtype)
+
+        # Try to replace {0,-1} values in shape if reshape output is known.
+        if (reshape_output := context.output_values[0].shape) is not None:
+            for i, dim in enumerate(reshape_output):
+                if isinstance(dim, int) and dim > 0:
+                    self._new_shape[i] = dim
+
+        # Constraints for shape.
+        self._allowzero = context.nodes[0].attributes.get_int("allowzero", 0)
+        if self._allowzero == 1 and any(self._new_shape == 0):
+            return check_result
+        if any(self._new_shape == 0) and any(self._new_shape < 0):
+            return check_result.fail("Shape cannot contain both 0 and -1 dimensions.")
+        elif np.count_nonzero(self._new_shape == 0) > 1:
+            return check_result.fail("Shape cannot contain more than one 0 dimension.")
+
+        # At this point, we can safely replace '0' with '-1'.
+        # Note allowzero is removed since at this point it does not have any effect.
+        self._allowzero = None
+        self._new_shape = np.where(self._new_shape == 0, -1, self._new_shape)
         return check_result
 
 
