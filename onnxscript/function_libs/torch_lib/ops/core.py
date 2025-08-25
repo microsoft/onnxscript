@@ -7732,7 +7732,7 @@ def aten_scalar_tensor_sym_number(
     return common_ops.cast_to(s, dtype=dtype)
 
 
-@torch_op("aten::scatter.value", trace_only=True)
+@torch_op(("aten::scatter.value", "aten::scatter.src"), trace_only=True)
 def aten_scatter(
     self: TReal,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute

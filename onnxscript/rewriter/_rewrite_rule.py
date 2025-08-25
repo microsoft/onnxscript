@@ -736,6 +736,18 @@ class RewriteRuleSet:
                 count += 1
                 break
 
+            # Apply rewrite rules to subgraphs of the node.
+            for attr in node.attributes.values():
+                if attr.type == ir.AttributeType.GRAPH:
+                    count += self._apply_to_graph_or_function(
+                        model, attr.value, verbose=verbose, tracer=tracer
+                    )
+                elif attr.type == ir.AttributeType.GRAPHS:
+                    for graph in attr.value:
+                        count += self._apply_to_graph_or_function(
+                            model, graph, verbose=verbose, tracer=tracer
+                        )
+
         for rule in self.rules:
             if rule.graph_post_visitor:
                 rule.graph_post_visitor()

@@ -55,7 +55,7 @@ class ExtractDim(pattern.RewriteRuleClassBase):
         transposed_dims = [dim0, dim2, dim1, dim3]
         sliced_result = transposed_dims[self._start_val : self._end_val]
         if len(sliced_result) == 0:
-            return op.Constant(value_ints=[])
+            return op.Constant(value_ints=ir.AttrInt64s("value_ints", []))
         if len(sliced_result) == 1:
             return op.Identity(sliced_result[0])
         return op.Concat(*sliced_result, axis=0)

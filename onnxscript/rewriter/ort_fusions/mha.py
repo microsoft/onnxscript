@@ -37,17 +37,11 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         self,
         name,
         *,
-        double_transpose: bool,
-        transpose_4d: bool,
-        pre_scale_q: bool,
         is_rotary: bool,
         has_past_present: bool,
         is_cross_attention: bool,
     ):
         super().__init__(name)
-        self._double_transpose = double_transpose
-        self._transpose_4d = transpose_4d
-        self._pre_scale_q = pre_scale_q
         self._is_rotary = is_rotary
         self._has_past_present = has_past_present
         self._is_cross_attention = is_cross_attention
@@ -63,12 +57,9 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         position_ids,
         cos,
         sin,
-        q_scale,
     ):
         # First, query, key, and value are reshaped+transposed from (B, S, D) to (B, H, S, D/H)
 
-        if self._pre_scale_q:
-            query_BSD = op.Mul(query_BSD, q_scale)
         # Reshape from (B, S, D) to (B, S, H, D/H)
         query_BSHDh = op.Reshape(query_BSD, pattern.ANY_VALUE, _outputs=["query_BSHDh"])
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
@@ -93,24 +84,12 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             value_BHSDh = value
 
         if self._is_rotary:
-            # This is workaround for examples where there is a duplication of Unsqueeze op
-            # to generate a 2D positions-ids from a 1D position-ids. This can be eliminated
-            # if we have CSE-optimization to eliminate the duplicate Unsqueeze ops.
-            # For now, same flag (transpose_4d) controls this variation. A different flag
-            # can be added if we see instances that mix the two.
-            if self._transpose_4d:
-                position_ids_q = op.Unsqueeze(position_ids, [0])
-                position_ids_k = op.Unsqueeze(position_ids, [0])
-            else:
-                position_ids_q = position_ids
-                position_ids_k = position_ids
-
             query_BHSDh_emb = op.RotaryEmbedding(
-                query_BHSDh, position_ids_q, cos, sin, _domain="com.microsoft"
+                query_BHSDh, position_ids, cos, sin, _domain="com.microsoft"
             )
             if not self._is_cross_attention:
                 key_BHSDh_emb = op.RotaryEmbedding(
-                    key, position_ids_k, cos, sin, _domain="com.microsoft"
+                    key, position_ids, cos, sin, _domain="com.microsoft"
                 )
             else:
                 key_BHSDh_emb = key
@@ -289,6 +268,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         else:
             self._use_mask_broadcast = False
 
+        self._scale = sdpa_node.attributes.get_float("scale", None)
         # TODO: verify Reshapes:
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
         # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
@@ -307,19 +287,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         position_ids,
         cos,
         sin,
-        q_scale=None,
         **_,
     ):
-        scale = _ir_utils.get_singleton_value(q_scale)
         num_heads = _ir_utils.get_dim(query_BSHDh, 2)
         if not isinstance(num_heads, int):
             return None
 
         # TODO: forward other attributes
-
-        if self._transpose_4d:
-            zero_1d = op.Constant(value_ints=[0])
-            position_ids = op.Unsqueeze(position_ids, zero_1d)
 
         if self._is_rotary:
             query_BSD_emb = op.RotaryEmbedding(
@@ -360,27 +334,19 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             past_key,
             past_value,
             num_heads=num_heads,
-            scale=scale,
             _domain="com.microsoft",
             _outputs=num_outputs,
+            scale=self._scale,
         )
 
 
 def _make_rule_set(has_past_present: bool):
     parameter_combinations = [
         {
-            "double_transpose": double_transpose,
-            "transpose_4d": transpose_4d,
-            "pre_scale_q": pre_scale_q,
             "is_rotary": is_rotary,
             "has_past_present": has_past_present,
             "is_cross_attention": is_cross_attention,
         }
-        for double_transpose in [False, True]
-        for transpose_4d in (
-            [False, True] if double_transpose else [False]
-        )  # Only generate patterns when double_transpose is True
-        for pre_scale_q in [True, False]
         for is_rotary in [False, True]
         for is_cross_attention in ([False] if has_past_present else [False, True])
     ]
@@ -389,9 +355,7 @@ def _make_rule_set(has_past_present: bool):
     mha_rules = pattern.RewriteRuleSet(
         [
             MultiHeadAttention.rule(
-                f"MHA_{'4D' if params['transpose_4d'] else '3D'}_Transpose"
-                f"{'_Twice' if params['double_transpose'] else ''}"
-                f"{'_PreScaleQ' if params['pre_scale_q'] else ''}"
+                f"MHA"
                 f"{'_Rotary' if params['is_rotary'] else ''}"
                 f"{'_Past' if params['has_past_present'] else ''}"
                 f"{'_CrossAttention' if params['is_cross_attention'] else ''}",
