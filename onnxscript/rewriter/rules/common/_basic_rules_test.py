@@ -414,7 +414,9 @@ class BasicRulesTest(unittest.TestCase):
 
 class ReshapeReshapeTest(unittest.TestCase):
     @staticmethod
-    def create_model(input_shape, shape1, shape2):
+    def create_model(
+        input_shape, shape1, shape2, allowzero1=0, allowzero2=0, infer_shape=False
+    ):
         def _convert_shape(shape, name):
             if isinstance(shape, np.ndarray):
                 shape = tape.initializer(ir.Tensor(shape, name=name))
@@ -430,20 +432,43 @@ class ReshapeReshapeTest(unittest.TestCase):
         tape = ir.tape.Tape(ir.Graph([x], [y], nodes=[], opset_imports={"": 20}))
 
         # Build the graph.
-        reshape = tape.op("Reshape", inputs=[x, _convert_shape(shape1, "shape_")])
-        tape.op("Reshape", inputs=[reshape, _convert_shape(shape2, "shape")], output=y)
+        reshape = tape.op(
+            "Reshape",
+            inputs=[x, _convert_shape(shape1, "shape_")],
+            attributes={"allowzero": allowzero1},
+        )
+        tape.op(
+            "Reshape",
+            inputs=[reshape, _convert_shape(shape2, "shape")],
+            attributes={"allowzero": allowzero2},
+            output=y,
+        )
         model = ir.Model(tape.graph_like, ir_version=10)
+
+        # Infer shapes.
+        if infer_shape:
+            model = ir.passes.common.ShapeInferencePass()(model).model
         return model
 
     @parameterized.parameterized.expand(
         [
             ((3, 4, 5), [4, 5, 3], [5, 4, 3]),
             ((3, 4, 5), [4, 5, 3], [5, 4, 3]),
+            ((3, 4, 8), [2, 0, 3, -1], [0, 3, 2, 8]),
+            ((3, 4, 8), [3, 4, -1], [-1, 12], 1),
+            ((3, 4, 2), [0, 4, -1], [12, -1], 0, 1),
+            ((3, 0, 8), [4, 2, 0, 0], [3, 0], 1, 1),
         ]
     )
-    def test_reshape_reshape_rule(self, input_shape, shape1, shape2):
+    def test_reshape_reshape_rule(
+        self, input_shape, shape1, shape2, allowzero1=0, allowzero2=0
+    ):
         model = self.create_model(
-            input_shape, np.array(shape1, dtype="int64"), np.array(shape2, dtype="int64")
+            input_shape,
+            np.array(shape1, dtype="int64"),
+            np.array(shape2, dtype="int64"),
+            allowzero1=allowzero1,
+            allowzero2=allowzero2,
         )
         updated_model = clone_model(model)
 
@@ -456,19 +481,64 @@ class ReshapeReshapeTest(unittest.TestCase):
         inputs = np.random.default_rng(10).random(input_shape, dtype="float32")
         testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
 
+    @parameterized.parameterized.expand([([3, 2, 3, 3, 3], 1), ([0, -1, 3, 2], 0)])
+    def test_reshape_dynamic_reshape_rule(self, shape1, allowzero1=0):
+        input_shape = (3, 6, 9)
+        shape1 = np.array(shape1, dtype="int64")
+        # Build the model with unknown shape1.
+        model = self.create_model(
+            input_shape,
+            (shape1.size,),
+            np.array((1, 6, 27), dtype="int64"),
+            allowzero1=allowzero1,
+        )
+        updated_model = clone_model(model)
+
+        # check rewrite approach.
+        count = _basic_rules.reshape_reshape_rule.apply_to_model(updated_model)
+        self.assertEqual(count, 1)
+        self.assertEqual(["Reshape"], [n.op_type for n in updated_model.graph])
+
+        # Check inference.
+        feeds = {
+            "X": np.random.default_rng(2).random(input_shape, dtype="float32"),
+            "shape_": shape1,
+        }
+        testing.assert_numerically_equal(model, updated_model, feeds, atol=0, rtol=0)
+
+    @parameterized.parameterized.expand(
+        [((3, 6, 9), [0, 3, 2, -1]), ((0, 6, 2), [0, 0, 3], 1)]
+    )
+    def test_reshape_reshape_dynamic_rule(self, input_shape, shape2, allowzero2=0):
+        # Note that shape inference is required for this test to be valid.
+        shape2 = np.array(shape2, dtype="int64")
+        model = self.create_model(
+            input_shape,
+            np.array((3, 2, -1), dtype="int64"),
+            shape2,
+            allowzero2=allowzero2,
+            infer_shape=True,
+        )
+        updated_model = clone_model(model)
+
+        # check rewrite approach.
+        count = _basic_rules.reshape_reshape_rule.apply_to_model(updated_model)
+        self.assertEqual(count, 1)
+        self.assertEqual(["Reshape"], [n.op_type for n in updated_model.graph])
+
+        # Check inference.
+        inputs = np.random.default_rng(7).random(input_shape, dtype="float32")
+        testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
+
     @parameterized.parameterized.expand(
         [
-            ((2,), np.array([1, 6], dtype="int64"), "ignored is not a constant"),
-            (np.array([1, 6], dtype="int64"), (3,), "is not a constant"),
-            (
-                np.array([1, 6], dtype="int64"),
-                np.array([0, 6], dtype="int64"),
-                "non-positive values",
-            ),
+            ((3,), "is not a constant"),
+            (np.array([0, -1], dtype="int64"), "both 0 and -1 dimensions"),
+            (np.array([0, 0, 3], dtype="int64"), "more than one 0 dimension"),
         ]
     )
-    def test_unsupported_reshape_reshape(self, shape1, shape2, error_msg):
-        model = self.create_model((1, 2, 3), shape1, shape2)
+    def test_unsupported_reshape_reshape(self, shape2, error_msg):
+        model = self.create_model((1, 2, 3), np.array([1, 6], dtype="int64"), shape2)
 
         # Check rewrite approach.
         tracer = MatchingTracer()
