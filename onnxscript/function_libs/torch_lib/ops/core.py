@@ -7292,12 +7292,152 @@ def aten_repeat(self: TTensor, repeats: Sequence[TInt]) -> TTensor:
     return op.Tile(self_expanded, repeats)
 
 
-def aten_repeat_interleave(
-    repeats: TensorType, output_size: Optional[int] = None
+@torch_op("aten::repeat_interleave.self_int", trace_only=True)
+def aten_repeat_interleave_int(
+    self: TensorType, repeats: int, dim: Optional[int]
 ) -> TensorType:
-    """repeat_interleave.Tensor(Tensor repeats, *, int? output_size=None) -> Tensor"""
+    """repeat_interleave.Tensor(Tensor repeats, *, int? output_size=None) -> Tensor
 
-    raise NotImplementedError()
+    The trick is to repeat in one direction orthogonal to reshape.
+
+    .. code-block:: python
+
+        x = torch.tensor([[0, 1, 2], [3, 4, 5]])
+        x.repeat_interleave(2, dim=0)
+
+    is equivalent to:
+
+    .. code-block:: python
+
+        x = torch.tensor([[0, 1, 2], [3, 4, 5]])
+        x.repeat((1, 2)).reshape((-1, t.shape[1]))
+    """
+    if dim is None:
+        raise NotImplementedError("No conversion available yet when dim is None.")
+
+    self_rank = len(self.shape)
+    pos_dim = (dim + self_rank) % self_rank
+    unsqueezed = op.Unsqueeze(self, [pos_dim + 1])
+    onehot = op.Concat(
+        op.ConstantOfShape(
+            op.Constant(value_ints=[self_rank]), value=ir.tensor([1], dtype=INT64.dtype)
+        ),
+        op.Constant(value_ints=[repeats]),
+        axis=0,
+    )
+    tiled = op.Tile(unsqueezed, onehot)
+
+    # tiled has no shape at this stage
+    # return aten_flatten(tiled, -2 if dim == -1 else dim, -1 if dim == -1 else (dim + 1))
+    if dim < -1:
+        dim += self_rank
+
+    if self_rank == 1:
+        return op.Identity(tiled)
+
+    start_dim, end_dim = -2 if dim == -1 else dim, -1 if dim == -1 else (dim + 1)
+    if start_dim == 1:
+        if end_dim in (-1, dim - 1):
+            return op.Flatten(tiled, axis=start_dim)
+    elif start_dim == 0:
+        if end_dim in (-2, dim - 2):
+            return op.Flatten(tiled, axis=end_dim + 1)
+    if end_dim < 0:
+        end_dim = dim + end_dim
+
+    input_size = op.Shape(tiled)
+    dim_head = op.Slice(
+        input_size,
+        op.Constant(value_ints=[0]),
+        op.Constant(value_ints=[start_dim]),
+        op.Constant(value_ints=[0]),
+    )
+    final_dims = [dim_head, op.Constant(value_ints=[-1])]
+    if end_dim < dim - 1:
+        dim_tail = op.Slice(
+            input_size,
+            op.Constant(value_ints=[end_dim + 1]),
+            op.Constant(value_ints=[dim]),
+            op.Constant(value_ints=[0]),
+        )
+        final_dims = [
+            dim_head,
+            op.Constant(value_ints=[-1]),
+            dim_tail,
+        ]
+
+    final_shape = op.Concat(*final_dims, axis=0)
+    return op.Reshape(tiled, final_shape)
+
+
+@torch_op("aten::repeat_interleave.Tensor", trace_only=True)
+def aten_repeat_interleave_Tensor(
+    self: TensorType, repeats: Optional[TensorType] = None, dim: Optional[int] = None
+) -> TensorType:
+    """repeat_interleave.Tensor(Tensor repeats, *, int? output_size=None) -> Tensor
+
+    When `repeats` is a tensor, each line is multiplied
+    by a different number.
+    There are multiple strategies. Here is one.
+
+    .. code-block:: python
+
+        import torch
+
+        x = torch.tensor([[0, 1, 2], [3, 4, 5]])
+        times = torch.tensor([2, 3], dtype=torch.int64)
+        y = x.repeat_interleave(times, dim=0)
+        print("repeat_interleave")
+        print(y)
+
+        ci = times.cumsum(dim=0)
+        rows = torch.arange(ci[-1], dtype=torch.int64) < ci.reshape((-1, 1))
+        srows = times.shape[0] - rows.to(torch.int64).sum(axis=0)
+        indices = srows.reshape((-1, ))
+        print("decomposed")
+        print(x[indices, :])
+    """
+    if repeats is None:
+        repeats = self
+        self = op.Range(0, op.Squeeze(op.Shape(repeats, start=-1), [0]), 1)
+    if dim is None:
+        # flatten
+        self = op.Reshape(self, [-1])
+        rk = 1
+    else:
+        rk = len(self.shape)
+
+    if rk > 2:
+        shape_x0 = op.Shape(self, start=0, end=1)
+        shape_x = op.Shape(self, start=1)
+        self = op.Reshape(self, op.Concat(shape_x0, [-1], axis=0))
+    elif rk == 1:
+        shape_x0 = None
+        shape_x = None
+        self = op.Reshape(self, [-1, 1])
+    else:
+        if rk != 2:
+            raise NotImplementedError(f"rank(self)={rk} not implemented for repeat_interleave")
+        shape_x = None
+
+    ci = op.CumSum(repeats, [0])
+    last_ci = op.Gather(ci, [-1])
+    trange = op.Range(0, op.Squeeze(last_ci, [0]), 1)
+    rows = op.Less(trange, op.Unsqueeze(ci, [-1]))
+    srows = op.Sub(
+        op.Shape(self, start=0, end=1),
+        op.ReduceSum(op.Cast(rows, to=INT64.dtype), [0]),
+    )
+    indices = op.Reshape(srows, [-1])
+    values = op.GatherND(self, op.Unsqueeze(indices, [-1]))
+    if rk == 2:
+        return values
+    # shape_x is None at this stage.
+    assert shape_x is None  # for mypy
+    return op.Reshape(
+        values,
+        op.Concat([-1], shape_x, axis=0) if shape_x else [-1],
+    )
 
 
 @torch_op("aten::reshape")
