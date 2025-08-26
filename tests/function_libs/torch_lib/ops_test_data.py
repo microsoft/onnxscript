@@ -1587,7 +1587,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ).xfail(
         # test is unstable on macosx
-        dtypes=(torch.int64,) if sys.platform != "darwin" else (torch.int64, torch.float32),
+        dtypes=(torch.int64,) if sys.platform == "linux" else (torch.int64, torch.float32),
         reason="fixme: ORT `LayerNormKernelImpl` not implemented for int64",
     ),
     TorchLibOpInfo("logit", core_ops.aten_logit, tolerance={torch.float16: (1e-1, 7e-4)}),
