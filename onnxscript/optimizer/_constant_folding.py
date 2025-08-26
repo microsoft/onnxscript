@@ -278,9 +278,20 @@ def _get_numpy_value(
         if size_limit is not None and const_value.size > size_limit:
             return None
         try:
-            # Reinterpret the array with `.view()` because some implementations of
-            # ir.TensorProtocol (e.g. PyTorch<=2.7) do not use ml_dtypes for bfloat16 etc.
-            array = const_value.numpy().view(const_value.dtype.numpy())
+            # Turn the constant value into a numpy array representation with the
+            # specifics of this conversion handled by the tensor type (might a
+            # yield result which needs to be reinterpreted)
+            array = const_value.numpy()
+            # Make sure strings are converted to object type first (might be
+            # some fixed width string representation which .view cannot
+            # convert, resulting in "TypeError: Cannot change data-type for
+            # array of references.")
+            if const_value.dtype == ir.DataType.STRING:
+                array = array.astype(np.object_)
+            # Reinterpret the array with `.view()` because some implementations
+            # of ir.TensorProtocol (e.g. PyTorch<=2.7) do not use ml_dtypes for
+            # bfloat16 etc.
+            array = array.view(const_value.dtype.numpy())
         except FileNotFoundError:
             # External data is not available.
             logger.warning(
