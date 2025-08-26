@@ -107,15 +107,25 @@ class TorchLibe2eTest(unittest.TestCase):
             def forward(self, x, ind):
                 return torch.repeat_interleave(x, ind)
 
-        onnx_program = torch.onnx.export(
-            Model(),
-            (
+        inputs = (
                 torch.arange(4, dtype=torch.float32).reshape((2, 2)),
                 torch.tensor([1, 2, 3, 2], dtype=torch.int64),
-            ),
+            )
+        onnx_program = torch.onnx.export(
+            Model(),
+            inputs,
             dynamo=True,
             optimize=False,
         )
+        onnx_program = torch.onnx.export(
+            Model(),
+            inputs,
+            input_names=["x", "ind"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
 
     def test_sdpa_with_bool_attn_mask(self):
         class ScaledDotProductAttention(torch.nn.Module):
