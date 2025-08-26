@@ -71,6 +71,14 @@ def _process_constant_node(node: ir.Node) -> None:
     if attr_value is None or not isinstance(attr_value, ir.Attr):
         return
 
+    # Even if this is an attribute, the value property might not be set, which
+    # happens e.g. in case of attribute references, i.e., ref_attr_name is set
+    if attr_value.value is None:
+        # For now reject this to prevent TypeError from accessing Nones below
+        # TODO: Is there a way to resolve references? Are references the only
+        #  reason for .value being None?
+        return
+
     const_value: ir.TensorProtocol
     if attr_name in {"value_float", "value_floats"}:
         const_value = ir.Tensor(
