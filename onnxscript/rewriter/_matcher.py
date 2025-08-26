@@ -174,7 +174,13 @@ class SimplePatternMatcher(PatternMatcher):
                 return False
 
         for i, output_value_pattern in enumerate(pattern_node.outputs):
-            if i >= len(node.outputs) or not self._match.bind_value(output_value_pattern, node.outputs[i]):
+            # When trying to bind more outputs (from the pattern) than there are
+            # actual outputs of the candidate node, reject the node before even
+            # trying to index into the list of node outputs.
+            if i >= len(node.outputs):
+                return False
+
+            if not self._match.bind_value(output_value_pattern, node.outputs[i]):
                 return False
 
         return True
