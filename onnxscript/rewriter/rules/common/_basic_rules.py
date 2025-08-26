@@ -302,6 +302,55 @@ class UnsqueezeUnsqueeze(RewriteRuleClassBase):
         return check_result
 
 
+class Flatten2Reshape(RewriteRuleClassBase):
+    """Convert ``Flatten(x)`` to Reshape."""
+
+    def pattern(self, op, x: ir.Value):
+        return op.Flatten(x)
+
+    def rewrite(self, op, x: ir.Value):
+        new_shape = op.initializer(ir.Tensor(self._new_shape, name=f"{x.name}/shape"))
+        return op.Reshape(x, new_shape)
+
+    def check(self, context, x: ir.Value) -> MatchResult:
+        check_result = MatchResult()
+        self._new_shape = np.array([-1, -1], "int64")
+
+        # Convert axis in a positive value if possible.
+        axis = context.root.attributes.get_int("axis", 1)
+        input_rank = None
+        if (input_shape := x.shape) is not None:
+            input_rank = len(input_shape)
+            if axis < 0:
+                axis += input_rank
+
+        # Compute reshape shape following axis attribute.
+        if axis == 0:
+            self._new_shape[0] = 1
+        elif axis == 1:
+            self._new_shape[0] = 0
+        elif axis == input_rank:
+            self._new_shape[1] = 1
+
+        # Try to update shape if output is known.
+        if (output_shape := context.output_values[0].shape) is not None:
+            for i, dim in enumerate(output_shape):
+                if isinstance(dim, int):
+                    self._new_shape[i] = dim
+
+        # Try to update shape if input is known.
+        if input_shape is not None:
+            if all(isinstance(dim, int) for dim in input_shape[:axis]):
+                self._new_shape[0] = np.prod(input_shape[:axis])
+            if all(isinstance(dim, int) for dim in input_shape[axis:]):
+                self._new_shape[1] = np.prod(input_shape[axis:])
+
+        # Verify if it is possible to apply rule.
+        if np.count_nonzero(self._new_shape == -1) > 1:
+            return check_result.fail("Impossible to compute new shape.")
+        return check_result
+
+
 # Create rule instances
 cast_cast_rule = CastCast.rule()
 no_op_cast_rule = CastIdentity.rule()
@@ -312,6 +361,7 @@ no_op_transpose_rule = TransposeIdentity.rule()
 transpose_transpose_rule = TransposeTranspose.rule()
 unsqueeze_unsqueeze_rule = UnsqueezeUnsqueeze.rule()
 squeeze_reshape_1d_rule = SqueezeReshape.rule()
+flatten_to_reshape_rule = Flatten2Reshape.rule()
 
 
 def basic_optimization_rules() -> RewriteRuleSet:
@@ -334,6 +384,8 @@ def basic_optimization_rules() -> RewriteRuleSet:
             cast_cast_rule,
             no_op_cast_rule,
             no_op_expand_rule,
+            # flatten_to_reshape_rule is order sensitive to reshape_reshape_rule
+            flatten_to_reshape_rule,
             reshape_reshape_rule,
             slice_split_rule,
             no_op_transpose_rule,

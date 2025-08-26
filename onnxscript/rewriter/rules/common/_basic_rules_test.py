@@ -551,5 +551,65 @@ class ReshapeReshapeTest(unittest.TestCase):
         self.assertRegex(tracer_match.match_result.reason, error_msg)
 
 
+class Flatten2ReshapeTest(unittest.TestCase):
+    @staticmethod
+    def create_model(input_shape, axis=1):
+        x = ir.Input("X", ir.Shape(input_shape), ir.TensorType(ir.DataType.FLOAT))
+        y = ir.Input("Y", type=ir.TensorType(ir.DataType.FLOAT))
+        tape = ir.tape.Tape(ir.Graph([x], [y], nodes=[], opset_imports={"": 20}))
+
+        # Build the graph.
+        tape.op("Flatten", inputs=[x], attributes={"axis": axis}, output=y)
+        model = ir.Model(tape.graph_like, ir_version=10)
+        return model
+
+    @parameterized.parameterized.expand(list(range(-5, 6)))
+    def test_flatten_to_reshape_rule(self, axis):
+        input_shape = (1, 4, 8, 7, 5)
+        model = self.create_model(input_shape=input_shape, axis=axis)
+        updated_model = clone_model(model)
+
+        # check rewrite approach.
+        count = _basic_rules.flatten_to_reshape_rule.apply_to_model(updated_model)
+        self.assertEqual(count, 1)
+        self.assertEqual(["Reshape"], [n.op_type for n in updated_model.graph])
+
+        # Check inference.
+        inputs = np.random.default_rng(13).random(input_shape, dtype="float32")
+        testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
+
+    @parameterized.parameterized.expand(list(range(-4, 5)))
+    def test_flatten_to_reshape_dynamic_input(self, axis):
+        model = self.create_model(input_shape=("N", "C1", "C2", "C3"), axis=axis)
+        # Rule is supported in all cases if the output shape is known for non-special cases.
+        input_shape = (1, 2, 3, 4)
+        if axis not in {-3, 0, 1, 4}:
+            out_shape = ir.Shape((np.prod(input_shape[:axis]), np.prod(input_shape[axis:])))
+            model.graph.outputs[0].shape = out_shape
+        updated_model = clone_model(model)
+
+        # check rewrite approach.
+        count = _basic_rules.flatten_to_reshape_rule.apply_to_model(updated_model)
+        self.assertEqual(count, 1)
+        self.assertEqual(["Reshape"], [n.op_type for n in updated_model.graph])
+
+        # Check inference.
+        inputs = np.random.default_rng(17).random(input_shape, dtype="float32")
+        testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
+
+    def test_unsupported_flatten_to_reshape(self):
+        model = self.create_model(input_shape=("N", "C1", "C2"), axis=2)
+
+        # Check rewrite approach.
+        tracer = MatchingTracer()
+        count = _basic_rules.flatten_to_reshape_rule.apply_to_model(model, tracer=tracer)
+        self.assertEqual(count, 0)
+
+        # Check that the error message is the expected one
+        tracer_match = tracer.best_matches_map[_basic_rules.flatten_to_reshape_rule][0]
+        self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
+        self.assertRegex(tracer_match.match_result.reason, "Impossible to compute new shape")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
