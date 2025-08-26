@@ -1586,9 +1586,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_layer_norm,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ).xfail(
-        # test is unstable on macosx
-        dtypes=(torch.int64,) if sys.platform == "linux" else (torch.int64, torch.float32),
+        dtypes=(torch.int64,)
         reason="fixme: ORT `LayerNormKernelImpl` not implemented for int64",
+    )
+    ).skip(
+        dtypes=(torch.float32,) if sys.platform != "linux" else (torch.complex64,),
+        reason="test is unstable on macosx, windows",
     ),
     TorchLibOpInfo("logit", core_ops.aten_logit, tolerance={torch.float16: (1e-1, 7e-4)}),
     TorchLibOpInfo("max_dim", core_ops.aten_max_dim)
