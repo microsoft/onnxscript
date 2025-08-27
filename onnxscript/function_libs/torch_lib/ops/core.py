@@ -8291,7 +8291,10 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
 @torch_op("aten::sym_size.int", trace_only=True)
 def aten_sym_size(self: TensorType, dim: int = 0) -> INT64:
     """sym_size.int(Tensor self, int dim) -> SymInt"""
-    return op.Reshape(op.Shape(self, end=dim + 1, start=dim), op.Constant(value_ints=[1]))
+    return op.Reshape(
+        op.Shape(self, end=dim + 1, start=dim),
+        op.Constant(value=ir.tensor([], dtype=ir.DataType.INT64)),
+    )
 
 
 def aten_symeig(
