@@ -419,7 +419,7 @@ def gather(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
-def propagate_shape_value(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+def _propagate_shape_value(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Propagates symbolic shape value of input 0 to output 0.
 
     Applies to ops like Reshape/Squeeze/Unsqueeze where the shape of the tensor may change
@@ -447,18 +447,18 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     shape_value = state.get_shape_value(shape)
 
     if shape_value is None or input_shape is None:
-        return propagate_shape_value(node, op, state)
+        return _propagate_shape_value(node, op, state)
 
     # No need to check for special values like -1, 0, etc. here
     if _same_shape(input_shape, shape_value):
         return op.Identity(input)
-    return propagate_shape_value(node, op, state)
+    return _propagate_shape_value(node, op, state)
 
 
 @register("Squeeze")
 def squeeze(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Propagate symbolic shape values."""
-    return propagate_shape_value(node, op, state)
+    return _propagate_shape_value(node, op, state)
 
 
 @register("Cast")
