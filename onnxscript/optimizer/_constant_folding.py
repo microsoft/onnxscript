@@ -291,7 +291,8 @@ def _get_numpy_value(
             # Reinterpret the array with `.view()` because some implementations
             # of ir.TensorProtocol (e.g. PyTorch<=2.7) do not use ml_dtypes for
             # bfloat16 etc.
-            array = array.view(const_value.dtype.numpy())
+            else:
+                array = array.view(const_value.dtype.numpy())
         except FileNotFoundError:
             # External data is not available.
             logger.warning(
