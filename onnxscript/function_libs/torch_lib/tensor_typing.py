@@ -26,7 +26,7 @@ from onnxscript import (
 )
 
 # NOTE: We do not care about unsigned types beyond UINT8 because PyTorch does not us them.
-# More detail can be found: https://pytorch.org/docs/stable/tensors.html
+# More detail can be found: https://docs.pytorch.org/stable/tensors.html
 
 _TensorType = Union[
     BFLOAT16,

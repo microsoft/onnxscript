@@ -243,7 +243,7 @@ def aten_addmm(
     alpha = float(alpha)
     beta = float(beta)
 
-    # addmm only accepts 2d tensors: https://pytorch.org/docs/stable/generated/torch.addmm.html
+    # addmm only accepts 2d tensors: https://docs.pytorch.org/stable/generated/torch.addmm.html
     return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
 
 
@@ -3710,7 +3710,7 @@ def aten_frac(self: TFloat) -> TFloat:
     Computes the fractional portion of each element in input.
     """
 
-    # https://pytorch.org/docs/stable/generated/torch.frac.html
+    # https://docs.pytorch.org/stable/generated/torch.frac.html
     return op.Sub(self, op.Mul(op.Floor(op.Abs(self)), op.Sign(self)))
 
 
@@ -6311,7 +6311,7 @@ def aten_native_layer_norm(
 ) -> Tuple[TReal, TReal, TReal]:
     """native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    # https://pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm
+    # https://docs.pytorch.org/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm
     # The mean and standard-deviation are calculated over the last D dimensions,
     # where D is the dimension of normalized_shape. For example, if normalized_shape is
     # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
@@ -7901,7 +7901,7 @@ def aten_slice_scatter(
     # And, 'end' also must be specified, and end-start must be equal to the size of 'src'
     # Assert(end-start == shape(src) > 0)
     # Try torch sample to get more information:
-    # https://pytorch.org/docs/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
+    # https://docs.pytorch.org/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
     # Take (torch.zeros(8, 8), torch.ones(2, 8), 0, 6, 64, 1) as example:
     # Step 1: get 1D tensor from 0 to dim_size-1, then Slice it using start, end and step.
     # We cannot use Range(start, end, step) directly as start or end may out of range.

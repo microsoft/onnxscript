@@ -92,7 +92,7 @@ intersphinx_mapping = {
     "onnx_ir": ("https://onnx.ai/ir-py/", None),
     "onnxruntime": ("https://onnxruntime.ai/docs/api/python/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
-    "torch": ("https://pytorch.org/docs/main/", None),
+    "torch": ("https://docs.pytorch.org/main/", None),
 }
 
 # -- Options for Sphinx Gallery ----------------------------------------------

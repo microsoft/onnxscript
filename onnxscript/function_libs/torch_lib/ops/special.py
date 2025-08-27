@@ -343,7 +343,7 @@ def aten_special_sinc(self: TFloat) -> TFloat:
     """special_sinc(Tensor self) -> Tensor"""
 
     # This computes the normalized sinc, where the input is multiplied by pi.
-    # https://pytorch.org/docs/stable/special.html#torch.special.sinc
+    # https://docs.pytorch.org/stable/special.html#torch.special.sinc
     pi_self = self * _MATH_PI
 
     return op.Where(self == 0.0, op.CastLike(1, self), op.Sin(pi_self) / pi_self)
@@ -365,7 +365,7 @@ def aten_special_xlog1py(self: TensorType, other: TensorType) -> TensorType:
 def aten_special_xlogy(self: TFloat, other: TFloat) -> TFloat:
     """special_xlogy(Tensor self, Tensor other) -> Tensor"""
 
-    # https://pytorch.org/docs/stable/special.html#torch.special.xlogy
+    # https://docs.pytorch.org/stable/special.html#torch.special.xlogy
     # out := {
     #     NaN if other == NaN
     #     0 if self == 0

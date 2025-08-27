@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D214, D402, D405, D411, D416
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -128,7 +127,7 @@ class Opset16(Opset15):
         They are used to interpolate output values of `Y[N, C, H_out, W_out]`.
 
         The GridSample operator is often used in doing grid generator and sampler in the [Spatial Transformer Networks](https://arxiv.org/abs/1506.02025).
-        See also in [torch.nn.functional.grid_sample](https://pytorch.org/docs/master/generated/torch.nn.functional.grid_sample.html#torch-nn-functional-grid-sample).
+        See also in [torch.nn.functional.grid_sample](https://docs.pytorch.org/master/generated/torch.nn.functional.grid_sample.html#torch-nn-functional-grid-sample).
 
 
         Args:
@@ -252,72 +251,7 @@ class Opset16(Opset15):
 
     B_If: TypeAlias = BOOL
 
-    V_If: TypeAlias = Union[
-        Optional[Sequence[BFLOAT16]],
-        Optional[Sequence[BOOL]],
-        Optional[Sequence[COMPLEX128]],
-        Optional[Sequence[COMPLEX64]],
-        Optional[Sequence[DOUBLE]],
-        Optional[Sequence[FLOAT]],
-        Optional[Sequence[FLOAT16]],
-        Optional[Sequence[INT16]],
-        Optional[Sequence[INT32]],
-        Optional[Sequence[INT64]],
-        Optional[Sequence[INT8]],
-        Optional[Sequence[STRING]],
-        Optional[Sequence[UINT16]],
-        Optional[Sequence[UINT32]],
-        Optional[Sequence[UINT64]],
-        Optional[Sequence[UINT8]],
-        Optional[BFLOAT16],
-        Optional[BOOL],
-        Optional[COMPLEX128],
-        Optional[COMPLEX64],
-        Optional[DOUBLE],
-        Optional[FLOAT],
-        Optional[FLOAT16],
-        Optional[INT16],
-        Optional[INT32],
-        Optional[INT64],
-        Optional[INT8],
-        Optional[STRING],
-        Optional[UINT16],
-        Optional[UINT32],
-        Optional[UINT64],
-        Optional[UINT8],
-        Sequence[BFLOAT16],
-        Sequence[BOOL],
-        Sequence[COMPLEX128],
-        Sequence[COMPLEX64],
-        Sequence[DOUBLE],
-        Sequence[FLOAT],
-        Sequence[FLOAT16],
-        Sequence[INT16],
-        Sequence[INT32],
-        Sequence[INT64],
-        Sequence[INT8],
-        Sequence[STRING],
-        Sequence[UINT16],
-        Sequence[UINT32],
-        Sequence[UINT64],
-        Sequence[UINT8],
-        BFLOAT16,
-        BOOL,
-        COMPLEX128,
-        COMPLEX64,
-        DOUBLE,
-        FLOAT,
-        FLOAT16,
-        INT16,
-        INT32,
-        INT64,
-        INT8,
-        STRING,
-        UINT16,
-        UINT32,
-        UINT64,
-        UINT8,
-    ]
+    V_If: TypeAlias = Union[None, Sequence[BFLOAT16], Sequence[BOOL], Sequence[COMPLEX128], Sequence[COMPLEX64], Sequence[DOUBLE], Sequence[FLOAT], Sequence[FLOAT16], Sequence[INT16], Sequence[INT32], Sequence[INT64], Sequence[INT8], Sequence[STRING], Sequence[UINT16], Sequence[UINT32], Sequence[UINT64], Sequence[UINT8], BFLOAT16, BOOL, COMPLEX128, COMPLEX64, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, STRING, UINT16, UINT32, UINT64, UINT8]
 
     def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
         r"""[🌐 If(16)](https://onnx.ai/onnx/operators/onnx__If.html#if-16 "Online Documentation")

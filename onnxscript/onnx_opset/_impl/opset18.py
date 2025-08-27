@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D402, D405
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -235,7 +234,7 @@ class Opset18(Opset17):
 
         The operator rearranges column blocks back into a multidimensional image
 
-        Col2Im behaves similarly to PyTorch's fold https://pytorch.org/docs/stable/generated/torch.nn.Fold.html,
+        Col2Im behaves similarly to PyTorch's fold https://docs.pytorch.org/stable/generated/torch.nn.Fold.html,
         but it only supports *batched* multi-dimensional image tensors.
         Another implementation in Python with N-dimension support can be found at https://github.com/f-dangel/unfoldNd/.
 

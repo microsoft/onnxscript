@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D402
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -60,7 +59,7 @@ class Opset20(Opset19):
 
 
         Generates a 2D or 3D flow field (sampling grid), given a batch of affine matrices theta
-        (https://pytorch.org/docs/stable/generated/torch.nn.functional.affine_grid.html).
+        (https://docs.pytorch.org/stable/generated/torch.nn.functional.affine_grid.html).
         An affine matrix `theta` is applied to a position tensor represented in its homogeneous expression. Here is an example in 3D:
         ::
 
@@ -304,7 +303,7 @@ class Opset20(Opset19):
 
         The GridSample operator is often used in doing grid generator and sampler in the
         [Spatial Transformer Networks](https://arxiv.org/abs/1506.02025).
-        See also in [torch.nn.functional.grid_sample](https://pytorch.org/docs/stable/generated/torch.nn.functional.grid_sample.html).
+        See also in [torch.nn.functional.grid_sample](https://docs.pytorch.org/stable/generated/torch.nn.functional.grid_sample.html).
 
 
         Args:

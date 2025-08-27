@@ -1754,7 +1754,7 @@ def aten_scaled_dot_product_attention(
 ) -> TFloat:
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None, bool enable_gqa=False) -> Tensor
 
-    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    Reference: https://docs.pytorch.org/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
 
     Equivalent to the PyTorch code::
         scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
@@ -1776,7 +1776,7 @@ def aten_scaled_dot_product_attention(
         "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
     )
 
-    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    # Reference: https://docs.pytorch.org/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
         scale = _attention_scale(query)
     scale = op.CastLike(scale, query)
@@ -1825,7 +1825,7 @@ def aten__scaled_dot_product_flash_attention(
     """_scaled_dot_product_flash_attention(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, bool return_debug_mask=False, *, float? scale=None) -> (Tensor output, Tensor logsumexp, Tensor cum_seq_q, Tensor cum_seq_k, int max_q, int max_k, Tensor philox_seed, Tensor philox_offset, Tensor debug_attn_mask)
 
     One of the implementations of scaled_dot_product_attention.
-    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    Reference: https://docs.pytorch.org/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
 
     NOTE: Currently, there are three implementations of nn.scaled_dot_product_attention in PyTorch due to optimization.
     However, it's the same implementation from ONNX perspective.
@@ -1964,7 +1964,7 @@ def aten_scaled_dot_product_attention_bool_mask(
 ) -> TFloat:
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None, bool enable_gqa=False) -> Tensor
 
-    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    Reference: https://docs.pytorch.org/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
 
     Equivalent to the PyTorch code::
         scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
