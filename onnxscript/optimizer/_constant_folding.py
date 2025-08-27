@@ -75,8 +75,6 @@ def _process_constant_node(node: ir.Node) -> None:
     # happens e.g. in case of attribute references, i.e., ref_attr_name is set
     if attr_value.value is None:
         # For now reject this to prevent TypeError from accessing Nones below
-        # TODO: Is there a way to resolve references? Are references the only
-        #  reason for .value being None?
         return
 
     const_value: ir.TensorProtocol
