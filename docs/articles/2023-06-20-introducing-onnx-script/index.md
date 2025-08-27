@@ -329,7 +329,7 @@ Finally, a _huge thank you_ to the wonderful engineering team at Microsoft that 
 [torch-onnx]: https://docs.pytorch.org/docs/stable/onnx.html
 [torch-ir]: https://docs.pytorch.org/docs/stable/ir.html
 [torch-dynamo]: https://docs.pytorch.org/docs/stable/dynamo/index.html
-[torch-onnx-dynamoexport]: https://docs.pytorch.org/main/onnx.html#preview-torch-onnx-torchdynamo-exporter
+[torch-onnx-dynamoexport]: https://docs.pytorch.org/docs/stable/onnx.html#preview-torch-onnx-torchdynamo-exporter
 [torch-onnx-customops]: https://docs.pytorch.org/docs/stable/onnx.html#onnx-script-functions
 [torch-chunk]: https://docs.pytorch.org/docs/stable/generated/torch.chunk.html
 [netron]: https://netron.app
