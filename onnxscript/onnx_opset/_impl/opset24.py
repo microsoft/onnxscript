@@ -18,7 +18,7 @@ from onnx import GraphProto, SparseTensorProto, TensorProto
 from onnx.defs import get_schema
 from typing_extensions import TypeAlias
 
-from onnxscript.onnx_opset._impl.opset22 import Opset22
+from onnxscript.onnx_opset._impl.opset23 import Opset23
 from onnxscript.onnx_types import (
     BFLOAT16,
     BOOL,
@@ -31,6 +31,7 @@ from onnxscript.onnx_types import (
     FLOAT8E4M3FNUZ,
     FLOAT8E5M2,
     FLOAT8E5M2FNUZ,
+    FLOAT8E8M0,
     FLOAT16,
     INT4,
     INT8,
@@ -47,9 +48,9 @@ from onnxscript.onnx_types import (
 from onnxscript.values import Op, Opset
 
 
-class Opset23(Opset22):
+class Opset24(Opset23):
     def __new__(cls):
-        return Opset.__new__(cls, "", 23)
+        return Opset.__new__(cls, "", 24)
 
     T1_Attention = TypeVar("T1_Attention", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
@@ -80,6 +81,7 @@ class Opset23(Opset22):
         attn_mask: Optional[U_Attention] = None,
         past_key: Optional[T1_Attention] = None,
         past_value: Optional[T2_Attention] = None,
+        nonpad_kv_seqlen: Optional[INT64] = None,
         *,
         is_causal: int = 0,
         kv_num_heads: Optional[int] = None,
@@ -89,7 +91,7 @@ class Opset23(Opset22):
         softcap: float = 0.0,
         softmax_precision: Optional[int] = None,
     ) -> Tuple[T1_Attention, T1_Attention, T2_Attention, T1_Attention]:
-        r"""[🌐 Attention(23)](https://onnx.ai/onnx/operators/onnx__Attention.html#attention-23 "Online Documentation")
+        r"""[🌐 Attention(24)](https://onnx.ai/onnx/operators/onnx__Attention.html#attention-24 "Online Documentation")
 
 
 
@@ -106,9 +108,23 @@ class Opset23(Opset22):
         2) Group-query Attention (GQA): Described in the paper https://arxiv.org/pdf/2305.13245, `q_num_heads > kv_num_heads`, `q_num_heads % kv_num_heads == 0`.
         3) Multi-query Attention (MQA): Described in the paper https://arxiv.org/pdf/1911.02150, `q_num_heads > kv_num_heads`, `kv_num_heads=1`.
 
-        Attention bias to be added is calculated based on `attn_mask` input and `is_causal attribute`, only one of which can be provided.
-        1) If `is_causal` is set to `1`, the attention masking is a lower triangular matrix when the mask is a square matrix. The attention masking has the form of the upper left causal bias due to the alignment.
-        2) `attn_mask`: A boolean mask where a value of `True` indicates that the element should take part in attention or a float mask of the same type as query, key, value that is added to the attention score.
+        Attention bias to be added is calculated based on `attn_mask` input and `is_causal` attribute:
+        1) `attn_mask`: A boolean mask where a value of `True` indicates that the element should take part in attention or a float mask of the same type as query, key, value that is added to the attention score.
+        2) If `is_causal` is set to `1`, attention scores above the diagonal are masked out, regardless of the `attn_mask` input.
+
+        With respect to KV cache update, this operator allows the following two use cases:
+
+        1) Cache update happens inside the Attention operator. In this case, the `K` and `V` inputs contain only the incoming
+        tokens for the current autoregressive step, and the four optional inputs/outputs past and present key and value are
+        all needed. The Attention op performs a Concat operation on the past and incoming key and value to form the present
+        key and value, respectively. Note that this only works correctly for the special case where the past key and value
+        do not contain padded tokens.
+        2) Cache update happens outside the Attention operator (for example, through the `TensorScatter` operator). In this
+        case, the `K` and `V` inputs correspond to the entire cache tensor, so the four optional inputs/outputs past and
+        present key and value should not be used. An additional input `nonpad_kv_seqlen` of shape (batch_size,) may be
+        provided to indicate the number of non-padding tokens in each sample of the batch to save unnecessary computation.
+        Here, the kv_sequence dimension of `attn_mask` can be shorter than `K` and `V`, but still needs to be at least as long
+        as the maximum value of `nonpad_kv_seqlen`.
 
         Both past and present state key/values are optional. They shall be used together, and not allowed to use only one of them.
         The following pattern is applied to the Q, K and V inputs after appropriate reshaping of K and V inputs based on sequence lengths and num heads provided:
@@ -154,19 +170,28 @@ class Opset23(Opset22):
                 kv_sequence_length, v_hidden_size)`. For cases with a 3D input tensor,
                 `v_hidden_size = kv_num_heads * v_head_size`
 
-            attn_mask: (optional) Attention mask. Shape must be broadcastable to 4D
-                tensor with shape `(batch_size, q_num_heads, q_sequence_length,
-                total_sequence_length)` where `total_sequence_length =
-                past_sequence_length + kv_sequence_length.` Two types of masks are
-                supported. A boolean mask where a value of `True` indicates that the
-                element should take part in attention. Also supports a float mask of the
-                same type as query, key, value that is added to the attention score.
+            attn_mask: (optional) Attention mask. Shape must be broadcastable to
+                `(batch_size, q_num_heads, q_sequence_length, total_sequence_length)`
+                where `total_sequence_length = past_sequence_length +
+                kv_sequence_length.` The last dimension can also be shorter than
+                `total_sequence_length` and will be padded to `total_sequence_length`
+                with negative infinity. Two types of masks are supported: a boolean mask
+                where a value of `True` indicates that the element should take part in
+                attention, or a float mask of the same type as query, key, value that is
+                added to the attention score.
 
             past_key: (optional) past state cache for key with shape `(batch_size,
                 kv_num_heads, past_sequence_length, head_size)`
 
             past_value: (optional) past state cache for value with shape `(batch_size,
                 kv_num_heads, past_sequence_length, v_head_size)`
+
+            nonpad_kv_seqlen: (optional) A vector of integers of shape `(batch_size,)`
+                that indicates the number of valid (ie, non-padding) tokens in each
+                sample. A padding mask can be derived from this. This should not be used
+                together with `past_key` and `past_value` inputs or `present_key` and
+                `present_value` outputs (See the KV cache use cases in the operator
+                description).
 
             is_causal: If set to `1`, the attention masking is a lower triangular matrix
                 when the mask is a square matrix. The attention masking has the form of
@@ -197,10 +222,12 @@ class Opset23(Opset22):
                 softmax (Q and K) is used.
         """
 
-        schema = get_schema("Attention", 23, "")
+        schema = get_schema("Attention", 24, "")
         op = Op(self, "Attention", schema)
         return op(
-            *self._prepare_inputs(schema, Q, K, V, attn_mask, past_key, past_value),
+            *self._prepare_inputs(
+                schema, Q, K, V, attn_mask, past_key, past_value, nonpad_kv_seqlen
+            ),
             is_causal=is_causal,
             kv_num_heads=kv_num_heads,
             q_num_heads=q_num_heads,
@@ -222,6 +249,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -246,6 +274,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -259,8 +288,10 @@ class Opset23(Opset22):
         UINT8,
     ]
 
-    def Cast(self, input: T1_Cast, *, saturate: int = 1, to: int) -> T2_Cast:
-        r"""[🌐 Cast(23)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-23 "Online Documentation")
+    def Cast(
+        self, input: T1_Cast, *, round_mode: str = "up", saturate: int = 1, to: int
+    ) -> T2_Cast:
+        r"""[🌐 Cast(24)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-24 "Online Documentation")
 
 
         The operator casts the elements of a given input tensor to a data type
@@ -300,7 +331,7 @@ class Opset23(Opset22):
           * fixed point: `{1, 0}`.
           * bool: no change.
 
-        Float 8 type were introduced to speed up the training of
+        Float 8 types (E4M3FN, E4M3FNUZ, E5M2, E5M2FNUZ) were introduced to speed up the training of
         deep models. By default the conversion of a float *x* obeys
         to the following rules. `[x]` means the value rounded to
         the target mantissa width.
@@ -310,8 +341,8 @@ class Opset23(Opset22):
         | 0                 | 0        | 0        | 0        | 0        |
         | -0                | -0       | 0        | -0       | 0        |
         | NaN               | NaN      | NaN      | NaN      | NaN      |
-        | Inf               | FLT_MAX  | NaN      | FLT_MAX  | NaN      |
-        | -Inf              | -FLT_MAX | NaN      | -FLT_MAX | NaN      |
+        | Inf               | FLT_MAX  | FLT_MAX  | FLT_MAX  | FLT_MAX  |
+        | -Inf              | -FLT_MAX | -FLT_MAX | -FLT_MAX | -FLT_MAX |
         | \[x\] > FLT_MAX   | FLT_MAX  | FLT_MAX  | FLT_MAX  | FLT_MAX  |
         | \[x\] \< -FLT_MAX | -FLT_MAX | -FLT_MAX | -FLT_MAX | -FLT_MAX |
         | else              | RNE      | RNE      | RNE      | RNE      |
@@ -331,23 +362,48 @@ class Opset23(Opset22):
         | \[x\] \< -FLT_MAX | NaN    | NaN      | -Inf | NaN      |
         | else              | RNE    | RNE      | RNE  | RNE      |
 
+        FLOAT8E8M0 type was introduced to enable [Microscaling (MX) formats](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf).
+        When casting to FLOAT8E8M0, the rounding behavior can be specified using the `round_mode` and `saturate` attributes.
+        The current CUDA behavior is to round up and saturate. Casting negative values to FLOAT8E8M0 gives undefined behavior.
+        The following table describes the casting behavior of special values to FLOAT8E8M0 in the two most common cases.
+
+        | x                 | saturate + up | non-saturate + nearest |
+        | ----------------- | ------------- | ---------------------  |
+        | 0                 | 0             | NaN                    |
+        | -0                | Unspecified   | Unspecified            |
+        | NaN               | NaN           | NaN                    |
+        | Inf               | E8M0_MAX      | NaN                    |
+        | x > E8M0_MAX      | E8M0_MAX      | NaN                    |
+        | x \< E8M0_MIN     | E8M0_MIN      | NaN                    |
+        | x \< 0            | Unspecified   | Unspecified            |
+
 
         Args:
             input: (differentiable) Input tensor to be cast.
 
+            round_mode: Rounding mode for conversion to float8e8m0. It only applies to
+                casting to float8e8m0 and is `up` by default. `up`: round to nearest
+                value away from zero, `down`: round to nearest value towards zero,
+                `nearest`: round to nearest value and ties round up.
+
             saturate: The parameter defines how the conversion behaves if an input value
                 is out of range of the destination type. It only applies for float 8
-                conversion (float8e4m3fn, float8e4m3fnuz, float8e5m2, float8e5m2fnuz).
-                It is true by default. All cases are fully described in two tables
-                inserted in the operator description.
+                conversion (float8e4m3fn, float8e4m3fnuz, float8e5m2, float8e5m2fnuz,
+                float8e8m0). It is true by default. All cases are fully described in the
+                tables inserted in the operator description.
 
             to: The data type to which the elements of the input tensor are cast.
                 Strictly must be one of the types from DataType enum in TensorProto
         """
 
-        schema = get_schema("Cast", 23, "")
+        schema = get_schema("Cast", 24, "")
         op = Op(self, "Cast", schema)
-        return op(*self._prepare_inputs(schema, input), saturate=saturate, to=to)
+        return op(
+            *self._prepare_inputs(schema, input),
+            round_mode=round_mode,
+            saturate=saturate,
+            to=to,
+        )
 
     T1_CastLike = TypeVar(
         "T1_CastLike",
@@ -361,6 +417,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -386,6 +443,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -400,9 +458,14 @@ class Opset23(Opset22):
     )
 
     def CastLike(
-        self, input: T1_CastLike, target_type: T2_CastLike, *, saturate: int = 1
+        self,
+        input: T1_CastLike,
+        target_type: T2_CastLike,
+        *,
+        round_mode: str = "up",
+        saturate: int = 1,
     ) -> T2_CastLike:
-        r"""[🌐 CastLike(23)](https://onnx.ai/onnx/operators/onnx__CastLike.html#castlike-23 "Online Documentation")
+        r"""[🌐 CastLike(24)](https://onnx.ai/onnx/operators/onnx__CastLike.html#castlike-24 "Online Documentation")
 
 
         The operator casts the elements of a given input tensor (the first input) to
@@ -416,16 +479,26 @@ class Opset23(Opset22):
             target_type: (non-differentiable) The (first) input tensor will be cast to
                 produce a tensor of the same type as this (second input) tensor.
 
+            round_mode: Rounding mode for conversion to float8e8m0. It only applies to
+                casting to float8e8m0 and is `up` by default. `up`: round to nearest
+                value away from zero, `down`: round to nearest value towards zero,
+                `nearest`: round to nearest value and ties round up. Please refer to
+                operator Cast description for further details.
+
             saturate: The parameter defines how the conversion behaves if an input value
                 is out of range of the destination type. It only applies for float 8
-                conversion (float8e4m3fn, float8e4m3fnuz, float8e5m2, float8e5m2fnuz).
-                It is true by default. Please refer to operator Cast description for
-                further details.
+                conversion (float8e4m3fn, float8e4m3fnuz, float8e5m2, float8e5m2fnuz,
+                float8e8m0). It is true by default. Please refer to operator Cast
+                description for further details.
         """
 
-        schema = get_schema("CastLike", 23, "")
+        schema = get_schema("CastLike", 24, "")
         op = Op(self, "CastLike", schema)
-        return op(*self._prepare_inputs(schema, input, target_type), saturate=saturate)
+        return op(
+            *self._prepare_inputs(schema, input, target_type),
+            round_mode=round_mode,
+            saturate=saturate,
+        )
 
     T_Constant: TypeAlias = Union[
         BFLOAT16,
@@ -440,6 +513,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -465,7 +539,7 @@ class Opset23(Opset22):
         value_string: Optional[str] = None,
         value_strings: Optional[Sequence[str]] = None,
     ) -> T_Constant:
-        r"""[🌐 Constant(23)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-23 "Online Documentation")
+        r"""[🌐 Constant(24)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-24 "Online Documentation")
 
 
         This operator produces a constant tensor. Exactly one of the provided attributes, either value, sparse_value,
@@ -496,7 +570,7 @@ class Opset23(Opset22):
                 tensor.
         """
 
-        schema = get_schema("Constant", 23, "")
+        schema = get_schema("Constant", 24, "")
         op = Op(self, "Constant", schema)
         return op(
             sparse_value=sparse_value,
@@ -522,6 +596,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -537,7 +612,7 @@ class Opset23(Opset22):
     def ConstantOfShape(
         self, input: T1_ConstantOfShape, *, value: Optional[TensorProto] = None
     ) -> T2_ConstantOfShape:
-        r"""[🌐 ConstantOfShape(23)](https://onnx.ai/onnx/operators/onnx__ConstantOfShape.html#constantofshape-23 "Online Documentation")
+        r"""[🌐 ConstantOfShape(24)](https://onnx.ai/onnx/operators/onnx__ConstantOfShape.html#constantofshape-24 "Online Documentation")
 
 
         Generate a tensor with given value and shape.
@@ -552,7 +627,7 @@ class Opset23(Opset22):
                 datatype float32
         """
 
-        schema = get_schema("ConstantOfShape", 23, "")
+        schema = get_schema("ConstantOfShape", 24, "")
         op = Op(self, "ConstantOfShape", schema)
         return op(*self._prepare_inputs(schema, input), value=value)
 
@@ -572,7 +647,7 @@ class Opset23(Opset22):
         UINT8,
     )
 
-    T2_DequantizeLinear = TypeVar("T2_DequantizeLinear", BFLOAT16, FLOAT, FLOAT16)
+    T2_DequantizeLinear = TypeVar("T2_DequantizeLinear", BFLOAT16, FLOAT, FLOAT16, FLOAT8E8M0)
 
     T3_DequantizeLinear: TypeAlias = Union[BFLOAT16, FLOAT, FLOAT16]
 
@@ -586,7 +661,7 @@ class Opset23(Opset22):
         block_size: int = 0,
         output_dtype: int = 0,
     ) -> T3_DequantizeLinear:
-        r"""[🌐 DequantizeLinear(23)](https://onnx.ai/onnx/operators/onnx__DequantizeLinear.html#dequantizelinear-23 "Online Documentation")
+        r"""[🌐 DequantizeLinear(24)](https://onnx.ai/onnx/operators/onnx__DequantizeLinear.html#dequantizelinear-24 "Online Documentation")
 
 
         The linear dequantization operator. It consumes a quantized tensor, a scale, and a zero point to compute the
@@ -629,7 +704,7 @@ class Opset23(Opset22):
                 data type is inferred from `x_scale` data type (`T2`)
         """
 
-        schema = get_schema("DequantizeLinear", 23, "")
+        schema = get_schema("DequantizeLinear", 24, "")
         op = Op(self, "DequantizeLinear", schema)
         return op(
             *self._prepare_inputs(schema, x, x_scale, x_zero_point),
@@ -652,6 +727,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -666,7 +742,7 @@ class Opset23(Opset22):
     )
 
     def Flatten(self, input: T_Flatten, *, axis: int = 1) -> T_Flatten:
-        r"""[🌐 Flatten(23)](https://onnx.ai/onnx/operators/onnx__Flatten.html#flatten-23 "Online Documentation")
+        r"""[🌐 Flatten(24)](https://onnx.ai/onnx/operators/onnx__Flatten.html#flatten-24 "Online Documentation")
 
 
         Flattens the input tensor into a 2D matrix. If input tensor has shape
@@ -685,7 +761,7 @@ class Opset23(Opset22):
                 tensor is (d_0, d_1, ... d_n).
         """
 
-        schema = get_schema("Flatten", 23, "")
+        schema = get_schema("Flatten", 24, "")
         op = Op(self, "Flatten", schema)
         return op(*self._prepare_inputs(schema, input), axis=axis)
 
@@ -748,6 +824,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -762,7 +839,7 @@ class Opset23(Opset22):
     )
 
     def Identity(self, input: V_Identity) -> V_Identity:
-        r"""[🌐 Identity(23)](https://onnx.ai/onnx/operators/onnx__Identity.html#identity-23 "Online Documentation")
+        r"""[🌐 Identity(24)](https://onnx.ai/onnx/operators/onnx__Identity.html#identity-24 "Online Documentation")
 
         Identity operator
 
@@ -770,7 +847,7 @@ class Opset23(Opset22):
             input: (differentiable) Input tensor
         """
 
-        schema = get_schema("Identity", 23, "")
+        schema = get_schema("Identity", 24, "")
         op = Op(self, "Identity", schema)
         return op(*self._prepare_inputs(schema, input))
 
@@ -806,6 +883,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -822,12 +900,13 @@ class Opset23(Opset22):
         Sequence[FLOAT8E4M3FNUZ],
         Sequence[FLOAT8E5M2],
         Sequence[FLOAT8E5M2FNUZ],
+        Sequence[FLOAT8E8M0],
         Sequence[INT4],
         Sequence[UINT4],
     ]
 
     def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
-        r"""[🌐 If(23)](https://onnx.ai/onnx/operators/onnx__If.html#if-23 "Online Documentation")
+        r"""[🌐 If(24)](https://onnx.ai/onnx/operators/onnx__If.html#if-24 "Online Documentation")
 
         If conditional
 
@@ -843,7 +922,7 @@ class Opset23(Opset22):
                 match the number of outputs in the else_branch.
         """
 
-        schema = get_schema("If", 23, "")
+        schema = get_schema("If", 24, "")
         op = Op(self, "If", schema)
         return op(
             *self._prepare_inputs(schema, cond),
@@ -885,6 +964,7 @@ class Opset23(Opset22):
         Optional[FLOAT8E4M3FNUZ],
         Optional[FLOAT8E5M2],
         Optional[FLOAT8E5M2FNUZ],
+        Optional[FLOAT8E8M0],
         Optional[INT16],
         Optional[INT32],
         Optional[INT4],
@@ -908,6 +988,7 @@ class Opset23(Opset22):
         Sequence[FLOAT8E4M3FNUZ],
         Sequence[FLOAT8E5M2],
         Sequence[FLOAT8E5M2FNUZ],
+        Sequence[FLOAT8E8M0],
         Sequence[INT16],
         Sequence[INT32],
         Sequence[INT4],
@@ -931,6 +1012,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -951,7 +1033,7 @@ class Opset23(Opset22):
         *v_initial: V_Loop,
         body: GraphProto,
     ) -> V_Loop:
-        r"""[🌐 Loop(23)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-23 "Online Documentation")
+        r"""[🌐 Loop(24)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-24 "Online Documentation")
 
 
         Generic Looping construct. This loop has multiple termination conditions:
@@ -1110,7 +1192,7 @@ class Opset23(Opset22):
                 iterations.
         """
 
-        schema = get_schema("Loop", 23, "")
+        schema = get_schema("Loop", 24, "")
         op = Op(self, "Loop", schema)
         return op(*self._prepare_inputs(schema, M, cond, *v_initial), body=body)
 
@@ -1128,6 +1210,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -1152,7 +1235,7 @@ class Opset23(Opset22):
         *,
         mode: str = "constant",
     ) -> T_Pad:
-        r"""[🌐 Pad(23)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-23 "Online Documentation")
+        r"""[🌐 Pad(24)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-24 "Online Documentation")
 
 
         Given a tensor containing the data to be padded (`data`), a tensor containing the number of start and end pad values for axis (`pads`), (optionally) a `mode`, and (optionally) `constant_value`,
@@ -1291,13 +1374,15 @@ class Opset23(Opset22):
             mode: Supported modes: `constant`(default), `reflect`, `edge`, `wrap`
         """
 
-        schema = get_schema("Pad", 23, "")
+        schema = get_schema("Pad", 24, "")
         op = Op(self, "Pad", schema)
         return op(*self._prepare_inputs(schema, data, pads, constant_value, axes), mode=mode)
 
     T1_QuantizeLinear = TypeVar("T1_QuantizeLinear", BFLOAT16, FLOAT, FLOAT16, INT32)
 
-    T2_QuantizeLinear = TypeVar("T2_QuantizeLinear", BFLOAT16, FLOAT, FLOAT16, INT32)
+    T2_QuantizeLinear = TypeVar(
+        "T2_QuantizeLinear", BFLOAT16, FLOAT, FLOAT16, FLOAT8E8M0, INT32
+    )
 
     T3_QuantizeLinear = TypeVar(
         "T3_QuantizeLinear",
@@ -1326,7 +1411,7 @@ class Opset23(Opset22):
         precision: int = 0,
         saturate: int = 1,
     ) -> T3_QuantizeLinear:
-        r"""[🌐 QuantizeLinear(23)](https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html#quantizelinear-23 "Online Documentation")
+        r"""[🌐 QuantizeLinear(24)](https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html#quantizelinear-24 "Online Documentation")
 
 
         The linear quantization operator consumes a high-precision tensor, a scale, and a zero point to compute the
@@ -1367,7 +1452,7 @@ class Opset23(Opset22):
                 input, except for one dimension in which blocking is performed.
 
             y_zero_point: (optional) Zero point for doing quantization to get `y`. Shape
-                must match `y_scale`.Default is uint8 with zero point of 0 if it's not
+                must match `y_scale`. Default is uint8 with zero point of 0 if it's not
                 specified.
 
             axis: (Optional) The axis of the dequantizing dimension of the input tensor.
@@ -1400,7 +1485,7 @@ class Opset23(Opset22):
                 inserted in the operator description.
         """
 
-        schema = get_schema("QuantizeLinear", 23, "")
+        schema = get_schema("QuantizeLinear", 24, "")
         op = Op(self, "QuantizeLinear", schema)
         return op(
             *self._prepare_inputs(schema, x, y_scale, y_zero_point),
@@ -1409,79 +1494,6 @@ class Opset23(Opset22):
             output_dtype=output_dtype,
             precision=precision,
             saturate=saturate,
-        )
-
-    T_RMSNormalization = TypeVar("T_RMSNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
-
-    V_RMSNormalization = TypeVar("V_RMSNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
-
-    def RMSNormalization(
-        self,
-        X: T_RMSNormalization,
-        scale: V_RMSNormalization,
-        *,
-        axis: int = -1,
-        epsilon: float = 9.999999747378752e-06,
-        stash_type: int = 1,
-    ) -> V_RMSNormalization:
-        r"""[🌐 RMSNormalization(23)](https://onnx.ai/onnx/operators/onnx__RMSNormalization.html#rmsnormalization-23 "Online Documentation")
-
-
-              This is RMS normalization defined in ONNX as function as described in the paper https://arxiv.org/pdf/1910.07467.
-              The overall computation can be split into two stages. The root mean squared norm is taken over the last D dimensions,
-              where D is the dimension of normalized_shape. For example, if normalized_shape is (3, 5) (a 2-dimensional shape),
-              the rms norm is computed over the last 2 dimensions of the input. The computation required by standardization can be
-              described by the following equations.
-              ```
-              XSquared = Mul(X, X)
-              XSquaredMean = ReduceMean<axes=normalized_axes>(XSquared)
-              MeanSquareEpsilon = Add(XSquaredMean, epsilon)
-              RMS = Sqrt(MeanSquareEpsilon)
-              Normalized = Div(X, RMS)
-              ```
-              where `normalized_axes` is `[axis, ..., rank of X - 1]`. The variables `RMS` stand for root mean square,
-              Depending on `stash_type` attribute, the actual computation
-              must happen in different floating-point precision.
-              For example, if `stash_type` is 1, this operator casts
-              all input variables to 32-bit float, perform the computation, and
-              finally cast `Normalized` back to the original type of `X`.
-              The second stage then scales the outcome of the first stage using:
-              ```
-              Y= Mul(Normalized, Scale)
-              ```
-              Let `d[i]` indicate the i-th dimension of `X`.
-              If `X`'s shape is `[d[0], ..., d[axis-1], d[axis], ..., d[rank-1]]`,
-              the shape of `RMS` is `[d[0], ..., d[axis-1], 1, ..., 1]`.
-              `Y` and `X` have the same shape. This operator supports unidirectional broadcasting
-              (`Scale` should be unidirectional broadcastable to tensor `X`);
-              for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
-
-
-        Args:
-            X: The input tensor to be normalized. In general, the shape is (D1, D2, ...
-                , Dn) for n-dimensional data, where the root mean squared norm is taken
-                over the last D dimensions, D is determined by the axis attribute.
-
-            scale: Scale tensor. Scale tensor shape should be broadcastable to the
-                normalized shape.
-
-            axis: The first normalization dimension. If rank(X) is r, axis' allowed
-                range is [-r, r). Negative value means counting dimensions from the
-                back.
-
-            epsilon: The epsilon value to use to avoid division by zero.
-
-            stash_type: The floating-point precision used in stage one of the
-                computation.
-        """
-
-        schema = get_schema("RMSNormalization", 23, "")
-        op = Op(self, "RMSNormalization", schema)
-        return op(
-            *self._prepare_inputs(schema, X, scale),
-            axis=axis,
-            epsilon=epsilon,
-            stash_type=stash_type,
         )
 
     T_Reshape = TypeVar(
@@ -1498,6 +1510,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -1512,7 +1525,7 @@ class Opset23(Opset22):
     )
 
     def Reshape(self, data: T_Reshape, shape: INT64, *, allowzero: int = 0) -> T_Reshape:
-        r"""[🌐 Reshape(23)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-23 "Online Documentation")
+        r"""[🌐 Reshape(24)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-24 "Online Documentation")
 
 
         Reshape the input tensor similar to numpy.reshape.
@@ -1542,164 +1555,9 @@ class Opset23(Opset22):
                 NumPy.
         """
 
-        schema = get_schema("Reshape", 23, "")
+        schema = get_schema("Reshape", 24, "")
         op = Op(self, "Reshape", schema)
         return op(*self._prepare_inputs(schema, data, shape), allowzero=allowzero)
-
-    T_RotaryEmbedding = TypeVar("T_RotaryEmbedding", BFLOAT16, FLOAT, FLOAT16)
-
-    M_RotaryEmbedding: TypeAlias = INT64
-
-    def RotaryEmbedding(
-        self,
-        X: T_RotaryEmbedding,
-        cos_cache: T_RotaryEmbedding,
-        sin_cache: T_RotaryEmbedding,
-        position_ids: Optional[M_RotaryEmbedding] = None,
-        *,
-        interleaved: int = 0,
-        num_heads: Optional[int] = None,
-        rotary_embedding_dim: int = 0,
-    ) -> T_RotaryEmbedding:
-        r"""[🌐 RotaryEmbedding(23)](https://onnx.ai/onnx/operators/onnx__RotaryEmbedding.html#rotaryembedding-23 "Online Documentation")
-
-
-        RotaryEmbedding is the implementation of rotary positional embeddings (RoPE) based on the paper https://arxiv.org/pdf/2104.09864.
-        The key advantage of RoPE is that it allows the model to understand both the absolute position of a token and the relative distances
-        between tokens. This is achieved through a rotational mechanism where the extent of rotation is computed based on the token's absolute position (position_ids).
-
-        The rotational mechanism is defined by sine and cosine functions that are used to represent the rotation angles.
-        For each token in the sequence, its positional embedding is computed by rotating its embedding vector. This is done by splitting the
-        embedding vector either into two halves or interleaving every alternate token and applying the rotation matrix to each half of the embedding vector.
-        The rotation matrix is parameterized by the token's position in the sequence. The rotated halves of the embedding vector are concatenated
-        to form the final positional embedding for each token. The rotated positional embeddings are used in the self-attention mechanism.
-        The rotation ensures that the model captures both absolute and relative positional information.
-
-        Rotary embeddings are defined using the following algorithm:
-
-        ::
-
-            def compute_rotary_embedding(
-                input,
-                position_ids,
-                sin_cache,
-                cos_cache,
-                interleaved=0,
-                rotary_embedding_dim=0,
-                num_heads=0,
-            ):
-                # First ensure input to be processed has shape [batch_size, seq_len, num_heads, head_size]
-                if len(input.shape) == 4:
-                    input = np.transpose(input, (0, 2, 1, 3))
-                batch_size = input.shape[0]
-                sequence_length = input.shape[1]
-                if len(input.shape) == 3:
-                    hidden_size = input.shape[2]
-                    assert num_heads != 0
-                    head_size = int(hidden_size / num_heads)
-                    new_shape = [batch_size, sequence_length, num_heads, head_size]
-                    input = np.reshape(input, new_shape)
-                assert len(input.shape) == 4
-                head_size = input.shape[3]
-
-                # Fully or partially perform rotation on input based on rotary_embedding_dim attribute
-                if rotary_embedding_dim == 0:
-                    # If rotary_embedding_dim not provided, perform full rotation by using head_size
-                    rotary_embedding_dim = head_size
-                x_rotate = input[:, :, :, :rotary_embedding_dim]
-                x_not_rotate = input[:, :, :, rotary_embedding_dim:]
-                rotary_embedding_dim_half = int(rotary_embedding_dim / 2)
-
-                # Retrieve sin and cos caches using position ids
-                if position_ids is not None:
-                    cos = cos_cache[position_ids]  # Shape: [batch_size, sequence_length, head_size/2]
-                    sin = sin_cache[position_ids]  # Shape: [batch_size, sequence_length, head_size/2]
-                else:
-                    cos = cos_cache
-                    sin = sin_cache
-                cos = cos[:, :, :rotary_embedding_dim_half]  # Shape: [batch_size, sequence_length, rotary_embedding_dim/2]
-                sin = sin[:, :, :rotary_embedding_dim_half]  # Shape: [batch_size, sequence_length, rotary_embedding_dim/2]
-                cos = np.expand_dims(cos, axis=2)  # Shape: [batch_size, sequence_length, 1, rotary_embedding_dim/2]
-                sin = np.expand_dims(sin, axis=2)  # Shape: [batch_size, sequence_length, 1, rotary_embedding_dim/2]
-
-                # Either divide the input in halves or interleave (based on interleaved attribute)
-                if interleaved:
-                    x1 = x_rotate[:, :, :, 0::2]
-                    x2 = x_rotate[:, :, :, 1::2]
-                else:
-                    x1, x2 = np.split(x_rotate, 2, axis=-1)
-
-                # Calculate real and imaginary values
-                real = cos * x1 - sin * x2
-                imag = sin * x1 + cos * x2
-
-                # Inserted rotated embeddings back to the original input
-                if interleaved:
-                    # x_rotate[:, :, :, 0::2] = real
-                    # x_rotate[:, :, :, 1::2] = imag
-                    real = np.expand_dims(real, axis=-1)
-                    imag = np.expand_dims(imag, axis=-1)
-                    x_rotate_concat = np.concatenate((real, imag), axis=-1)
-                    x_rotate = np.reshape(x_rotate_concat, x_rotate.shape)
-                else:
-                    x_rotate = np.concatenate((real, imag), axis=-1)
-                output = np.concatenate((x_rotate, x_not_rotate), axis=-1)
-                if len(original_input_shape) == 3:
-                    output = np.reshape(output, input.shape)
-                else:
-                    output = np.transpose(output, (0, 2, 1, 3))
-                return output
-
-
-
-
-        Args:
-            X: The input tensor representing the token embeddings. 4D tensor with shape
-                `(batch_size, num_heads, sequence_length, head_size)` or 3D tensor with
-                shape `(batch_size, sequence_length, hidden_size)`. For cases with a 4D
-                input tensor, `head_size` has to be even. For cases with a 3D input
-                tensor, `num_heads` attribute must be provided and `hidden_size` must be
-                an even multiple of `num_heads` where `hidden_size = num_heads *
-                head_size`
-
-            cos_cache: The cosine values for the rotation. 2D tensor with shape
-                `(max_position_id_plus_1, head_size / 2)` for full rotation or
-                `(max_position_id_plus_1, rotary_embedding_dim / 2)` for partial
-                rotation when `position_ids` are provided. 3D tensor with shape
-                `(batch_size, sequence_length, head_size / 2)` for full rotation or
-                `(batch_size, sequence_length, rotary_embedding_dim / 2)` for partial
-                rotation when `position_ids` are not provided. `max_position_id_plus_1`
-                is a parameter to the model.
-
-            sin_cache: The sine values for the rotation. 2D tensor with shape
-                `(max_position_id_plus_1, head_size / 2)` for full rotation or
-                `(max_position_id_plus_1, rotary_embedding_dim / 2)` for partial
-                rotation when `position_ids` are provided. 3D tensor with shape
-                `(batch_size, sequence_length, head_size / 2)` for full rotation or
-                `(batch_size, sequence_length, rotary_embedding_dim / 2)` for partial
-                rotation when `position_ids` are not provided. `max_position_id_plus_1`
-                is a parameter to the model.
-
-            position_ids: (optional) The position indices for the tokens. 2D tensor with
-                shape `(batch_size, sequence_length)`
-
-            interleaved: Rotate using interleaved pattern. Default value is 0 (False).
-
-            num_heads: Number of attention heads. Must be provided when input is a 3D
-                tensor.
-
-            rotary_embedding_dim: Rotary embedding dimension used to apply partial
-                rotary embeddings.
-        """
-
-        schema = get_schema("RotaryEmbedding", 23, "")
-        op = Op(self, "RotaryEmbedding", schema)
-        return op(
-            *self._prepare_inputs(schema, X, cos_cache, sin_cache, position_ids),
-            interleaved=interleaved,
-            num_heads=num_heads,
-            rotary_embedding_dim=rotary_embedding_dim,
-        )
 
     V_Scan = TypeVar(
         "V_Scan",
@@ -1715,6 +1573,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -1738,7 +1597,7 @@ class Opset23(Opset22):
         scan_output_axes: Optional[Sequence[int]] = None,
         scan_output_directions: Optional[Sequence[int]] = None,
     ) -> V_Scan:
-        r"""[🌐 Scan(23)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-23 "Online Documentation")
+        r"""[🌐 Scan(24)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-24 "Online Documentation")
 
 
         Scan can be used to iterate over one or more scan_input tensors,
@@ -1903,7 +1762,7 @@ class Opset23(Opset22):
                 in each iteration.
         """
 
-        schema = get_schema("Scan", 23, "")
+        schema = get_schema("Scan", 24, "")
         op = Op(self, "Scan", schema)
         return op(
             *self._prepare_inputs(schema, *initial_state_and_scan_inputs),
@@ -1929,6 +1788,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -1945,7 +1805,7 @@ class Opset23(Opset22):
     T1_Shape: TypeAlias = INT64
 
     def Shape(self, data: T_Shape, *, end: Optional[int] = None, start: int = 0) -> T1_Shape:
-        r"""[🌐 Shape(23)](https://onnx.ai/onnx/operators/onnx__Shape.html#shape-23 "Online Documentation")
+        r"""[🌐 Shape(24)](https://onnx.ai/onnx/operators/onnx__Shape.html#shape-24 "Online Documentation")
 
 
         Takes a tensor as input and outputs an 1D int64 tensor containing the shape of the input tensor.
@@ -2007,7 +1867,7 @@ class Opset23(Opset22):
                 0.Negative value means counting dimensions from the back.
         """
 
-        schema = get_schema("Shape", 23, "")
+        schema = get_schema("Shape", 24, "")
         op = Op(self, "Shape", schema)
         return op(*self._prepare_inputs(schema, data), end=end, start=start)
 
@@ -2025,6 +1885,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -2041,7 +1902,7 @@ class Opset23(Opset22):
     T1_Size: TypeAlias = INT64
 
     def Size(self, data: T_Size) -> T1_Size:
-        r"""[🌐 Size(23)](https://onnx.ai/onnx/operators/onnx__Size.html#size-23 "Online Documentation")
+        r"""[🌐 Size(24)](https://onnx.ai/onnx/operators/onnx__Size.html#size-24 "Online Documentation")
 
 
         Takes a tensor as input and outputs a int64 scalar that equals to the total number of elements of the input tensor.
@@ -2051,9 +1912,93 @@ class Opset23(Opset22):
             data: (non-differentiable) An input tensor.
         """
 
-        schema = get_schema("Size", 23, "")
+        schema = get_schema("Size", 24, "")
         op = Op(self, "Size", schema)
         return op(*self._prepare_inputs(schema, data))
+
+    T_SplitToSequence = TypeVar(
+        "T_SplitToSequence",
+        BFLOAT16,
+        BOOL,
+        COMPLEX128,
+        COMPLEX64,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    )
+
+    I_SplitToSequence = TypeVar("I_SplitToSequence", INT32, INT64)
+
+    S_SplitToSequence: TypeAlias = Union[
+        Sequence[BFLOAT16],
+        Sequence[BOOL],
+        Sequence[COMPLEX128],
+        Sequence[COMPLEX64],
+        Sequence[DOUBLE],
+        Sequence[FLOAT],
+        Sequence[FLOAT16],
+        Sequence[INT16],
+        Sequence[INT32],
+        Sequence[INT64],
+        Sequence[INT8],
+        Sequence[STRING],
+        Sequence[UINT16],
+        Sequence[UINT32],
+        Sequence[UINT64],
+        Sequence[UINT8],
+    ]
+
+    def SplitToSequence(
+        self,
+        input: T_SplitToSequence,
+        split: Optional[I_SplitToSequence] = None,
+        *,
+        axis: int = 0,
+        keepdims: int = 1,
+    ) -> S_SplitToSequence:
+        r"""[🌐 SplitToSequence(24)](https://onnx.ai/onnx/operators/onnx__SplitToSequence.html#splittosequence-24 "Online Documentation")
+
+
+        Split a tensor into a sequence of tensors, along the specified 'axis'.
+        Lengths of the parts can be specified using the optional argument 'split'.
+        If the argument `split' is not specified, a default scalar value of 1
+        is used as the value of `split'.
+        'split' must contain only positive numbers.
+        'split' is either a scalar (tensor of empty shape), or a 1-D tensor.
+        If 'split' is a scalar, then 'input' will be split into chunks all of size 'split'
+        if possible. The last chunk alone may be smaller than 'split' if the 'input' size
+        along the given axis 'axis' is not divisible by 'split'.
+        If 'split' is a 1-dimensional tensor, the input tensor is split into 'size(split)' chunks,
+        with lengths of the parts on 'axis' specified in 'split'. In this scenario, the sum of entries
+        in 'split' must be equal to the dimension size of input tensor on 'axis'.
+
+
+        Args:
+            input: The tensor to split
+
+            split: (optional) Length of each output. It can be either a scalar(tensor of
+                empty shape), or a 1-D tensor. All values must be >= 0.
+
+            axis: Which axis to split on. A negative value means counting dimensions
+                from the back. Accepted range is [-rank, rank-1].
+
+            keepdims: Keep the split dimension or not. Default 1, which means we keep
+                split dimension. If input 'split' is specified, this attribute is
+                ignored.
+        """
+
+        schema = get_schema("SplitToSequence", 24, "")
+        op = Op(self, "SplitToSequence", schema)
+        return op(*self._prepare_inputs(schema, input, split), axis=axis, keepdims=keepdims)
 
     T_Squeeze = TypeVar(
         "T_Squeeze",
@@ -2069,6 +2014,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -2083,7 +2029,7 @@ class Opset23(Opset22):
     )
 
     def Squeeze(self, data: T_Squeeze, axes: Optional[INT64] = None) -> T_Squeeze:
-        r"""[🌐 Squeeze(23)](https://onnx.ai/onnx/operators/onnx__Squeeze.html#squeeze-23 "Online Documentation")
+        r"""[🌐 Squeeze(24)](https://onnx.ai/onnx/operators/onnx__Squeeze.html#squeeze-24 "Online Documentation")
 
 
         Remove single-dimensional entries from the shape of a tensor.
@@ -2100,9 +2046,193 @@ class Opset23(Opset22):
                 back. Accepted range is [-r, r-1] where r = rank(data).
         """
 
-        schema = get_schema("Squeeze", 23, "")
+        schema = get_schema("Squeeze", 24, "")
         op = Op(self, "Squeeze", schema)
         return op(*self._prepare_inputs(schema, data, axes))
+
+    T_Swish = TypeVar("T_Swish", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+
+    def Swish(self, X: T_Swish, *, alpha: float = 1.0) -> T_Swish:
+        r"""[🌐 Swish(24)](https://onnx.ai/onnx/operators/onnx__Swish.html#swish-24 "Online Documentation")
+
+
+        Swish function takes one input data (Tensor<T>) and produces one output data (Tensor<T>) of the same shape,
+        where $Swish(x) = x * sigmoid(alpha * x)$.
+
+
+        Args:
+            X: (differentiable) Input tensor
+
+            alpha: Coefficient to multiply with input before sigmoid.
+        """
+
+        schema = get_schema("Swish", 24, "")
+        op = Op(self, "Swish", schema)
+        return op(*self._prepare_inputs(schema, X), alpha=alpha)
+
+    T_TensorScatter = TypeVar(
+        "T_TensorScatter",
+        BFLOAT16,
+        BOOL,
+        COMPLEX128,
+        COMPLEX64,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        FLOAT4E2M1,
+        FLOAT8E4M3FN,
+        FLOAT8E4M3FNUZ,
+        FLOAT8E5M2,
+        FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
+        INT16,
+        INT32,
+        INT4,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT4,
+        UINT64,
+        UINT8,
+    )
+
+    def TensorScatter(
+        self,
+        past_cache: T_TensorScatter,
+        update: T_TensorScatter,
+        write_indices: Optional[INT64] = None,
+        *,
+        axis: int = -2,
+        mode: str = "linear",
+    ) -> T_TensorScatter:
+        r"""[🌐 TensorScatter(24)](https://onnx.ai/onnx/operators/onnx__TensorScatter.html#tensorscatter-24 "Online Documentation")
+
+
+        TensorScatter is a generic tensor update operation, motivated by the requirements for KV cache updates for Attention
+        ops commonly found in LLMs. It is a functional operation that models an in-place update to a KV cache buffer.
+
+        The past and present cache tensors have the same shape (batch_size, D1, D2, ..., max_sequence_length, ..., Dn), with
+        the sequence dimension (indicated by the `axis` attribute) being max_sequence_length, so the sizes of these tensors do
+        not need to grow between iterations. The `update` tensor's shape only differs from the cache tensors in the sequence
+        dimension: (batch_size, D1, D2, ..., sequence_length, ..., Dn), where sequence_length <= max_sequence_length.
+
+        The optional `write_indices` input indicates the write index for each sample in the batch, assumed to be zero
+        if not provided. When the `mode` attribute is set to "circular", the write index is modulo max_sequence_length.
+        The operation can be described using the following pseudocode:
+
+        ::
+
+            for prefix_idx in np.ndindex(past_cache.shape[:axis]):
+                batch_idx = prefix_idx[0]
+                for sequence_idx in range(sequence_length):
+                    cache_idx = (*prefix_idx, write_indices[batch_idx] + sequence_idx)
+                    if mode == "circular":
+                        cache_idx = tuple(np.mod(np.asarray(cache_idx), max_sequence_length))
+                    update_idx = (*prefix_idx, sequence_idx)
+                    present_cache[cache_idx] = update[update_idx]
+
+
+
+        During the prefill phase of attention, only the first two inputs are needed. During the decode phase, `write_indices`
+        is also needed so that the incoming key or value update can be appended after the last valid token for each sample
+        in the batch.
+
+
+        Args:
+            past_cache: (differentiable) Past state cache for key or value with shape
+                `(batch_size, D1, D2, ..., max_sequence_length, ..., Dn)`.
+
+            update: (differentiable) New update tensor with shape `(batch_size, D1, D2,
+                ..., sequence_length, ..., Dn)`.
+
+            write_indices: (optional, non-differentiable) Write indices for the incoming
+                update tensor in the cache. Shape is `(batch_size,)`. Assumed to be all
+                zeros if not provided.
+
+            axis: Sequence dimension of the `past_cache` and `update` tensors. It cannot
+                be 0 (the batch dimension). Default is -2.
+
+            mode: Write mode of cache update. Supported modes include `linear` and
+                `circular`. `linear` mode requires
+                write_indices+sequence_length<=max_sequence_length. For `circular` mode,
+                the updates happen in wrap-around fashion, ie, the update index is
+                modulo `max_sequence_length`
+        """
+
+        schema = get_schema("TensorScatter", 24, "")
+        op = Op(self, "TensorScatter", schema)
+        return op(
+            *self._prepare_inputs(schema, past_cache, update, write_indices),
+            axis=axis,
+            mode=mode,
+        )
+
+    T_TopK = TypeVar(
+        "T_TopK",
+        BFLOAT16,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    )
+
+    I_TopK: TypeAlias = INT64
+
+    def TopK(
+        self, X: T_TopK, K: INT64, *, axis: int = -1, largest: int = 1, sorted: int = 1
+    ) -> Tuple[T_TopK, I_TopK]:
+        r"""[🌐 TopK(24)](https://onnx.ai/onnx/operators/onnx__TopK.html#topk-24 "Online Documentation")
+
+
+        Retrieve the top-K largest or smallest elements along a specified axis. Given an input tensor of
+        shape [a_0, a_1, ..., a_{n-1}] and integer argument k, return two outputs:
+
+        * Value tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}]
+          which contains the values of the top k elements along the specified axis
+        * Index tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}] which
+          contains the indices of the top k elements (original indices from the input
+          tensor).
+
+        * If "largest" is 1 (the default value) then the k largest elements are returned.
+        * If "sorted" is 1 (the default value) then the resulting k elements will be sorted.
+        * If "sorted" is 0, order of returned 'Values' and 'Indices' are undefined.
+
+        Given two equivalent values, this operator uses the indices along the axis as
+        a tiebreaker. That is, the element with the lower index will appear first.
+
+
+        Args:
+            X: (differentiable) Tensor of shape [a_0, a_1, ..., a_{n-1}]
+
+            K: (non-differentiable) A 1-D tensor containing a single positive value
+                corresponding to the number of top elements to retrieve
+
+            axis: Dimension on which to do the sort. Negative value means counting
+                dimensions from the back. Accepted range is [-r, r-1] where r =
+                rank(input).
+
+            largest: Whether to return the top-K largest or smallest elements.
+
+            sorted: Whether to return the elements in sorted order.
+        """
+
+        schema = get_schema("TopK", 24, "")
+        op = Op(self, "TopK", schema)
+        return op(
+            *self._prepare_inputs(schema, X, K),
+            axis=axis,
+            largest=largest,
+            sorted=sorted,
+        )
 
     T_Transpose = TypeVar(
         "T_Transpose",
@@ -2118,6 +2248,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -2134,7 +2265,7 @@ class Opset23(Opset22):
     def Transpose(
         self, data: T_Transpose, *, perm: Optional[Sequence[int]] = None
     ) -> T_Transpose:
-        r"""[🌐 Transpose(23)](https://onnx.ai/onnx/operators/onnx__Transpose.html#transpose-23 "Online Documentation")
+        r"""[🌐 Transpose(24)](https://onnx.ai/onnx/operators/onnx__Transpose.html#transpose-24 "Online Documentation")
 
 
         Transpose the input tensor similar to numpy.transpose. For example, when
@@ -2150,7 +2281,7 @@ class Opset23(Opset22):
                 to the rank of the input.
         """
 
-        schema = get_schema("Transpose", 23, "")
+        schema = get_schema("Transpose", 24, "")
         op = Op(self, "Transpose", schema)
         return op(*self._prepare_inputs(schema, data), perm=perm)
 
@@ -2168,6 +2299,7 @@ class Opset23(Opset22):
         FLOAT8E4M3FNUZ,
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
+        FLOAT8E8M0,
         INT16,
         INT32,
         INT4,
@@ -2182,7 +2314,7 @@ class Opset23(Opset22):
     )
 
     def Unsqueeze(self, data: T_Unsqueeze, axes: INT64) -> T_Unsqueeze:
-        r"""[🌐 Unsqueeze(23)](https://onnx.ai/onnx/operators/onnx__Unsqueeze.html#unsqueeze-23 "Online Documentation")
+        r"""[🌐 Unsqueeze(24)](https://onnx.ai/onnx/operators/onnx__Unsqueeze.html#unsqueeze-24 "Online Documentation")
 
 
         Insert single-dimensional entries to the shape of an input tensor (`data`).
@@ -2205,6 +2337,6 @@ class Opset23(Opset22):
                 Accepted range is [-r, r-1] where r = rank(expanded).
         """
 
-        schema = get_schema("Unsqueeze", 23, "")
+        schema = get_schema("Unsqueeze", 24, "")
         op = Op(self, "Unsqueeze", schema)
         return op(*self._prepare_inputs(schema, data, axes))

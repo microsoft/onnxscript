@@ -7,8 +7,6 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -40,6 +38,7 @@ from onnxscript.onnx_opset._impl.opset20 import Opset20
 from onnxscript.onnx_opset._impl.opset21 import Opset21
 from onnxscript.onnx_opset._impl.opset22 import Opset22
 from onnxscript.onnx_opset._impl.opset23 import Opset23
+from onnxscript.onnx_opset._impl.opset24 import Opset24
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml1 import Opset_ai_onnx_ml1
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml2 import Opset_ai_onnx_ml2
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml3 import Opset_ai_onnx_ml3
@@ -75,6 +74,7 @@ __all__ = [
     "opset21",
     "opset22",
     "opset23",
+    "opset24",
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
@@ -113,6 +113,7 @@ opset20 = Opset20()
 opset21 = Opset21()
 opset22 = Opset22()
 opset23 = Opset23()
+opset24 = Opset24()
 opset_ai_onnx_ml1 = Opset_ai_onnx_ml1()
 opset_ai_onnx_ml2 = Opset_ai_onnx_ml2()
 opset_ai_onnx_ml3 = Opset_ai_onnx_ml3()
@@ -212,6 +213,10 @@ all_opsets: Mapping[Tuple[str, int], Opset] = {
         "",
         23,
     ): opset23,
+    (
+        "",
+        24,
+    ): opset24,
     (
         "ai.onnx.ml",
         1,

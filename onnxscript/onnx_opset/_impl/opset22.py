@@ -7,8 +7,8 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: E741
+# ruff: noqa: D402, D405
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -276,7 +276,11 @@ class Opset22(Opset21):
     ]
 
     def Bernoulli(
-        self, input: T1_Bernoulli, *, dtype: Optional[int] = None, seed: Optional[float] = None
+        self,
+        input: T1_Bernoulli,
+        *,
+        dtype: Optional[int] = None,
+        seed: Optional[float] = None,
     ) -> T2_Bernoulli:
         r"""[🌐 Bernoulli(22)](https://onnx.ai/onnx/operators/onnx__Bernoulli.html#bernoulli-22 "Online Documentation")
 
@@ -706,11 +710,10 @@ class Opset22(Opset21):
             data: (differentiable) The input data as Tensor.
 
             ratio: (optional, non-differentiable) The ratio of random dropout, with
-                value in [0, 1). If this input was not set, or if it was set to 0, the
-                output would be a simple copy of the input. If it's non-zero, output
-                will be a random dropout of the scaled input, which is typically the
-                case during training. It is an optional value, if not specified it will
-                default to 0.5.
+                value in [0, 1). If set to 0, the output would be a simple copy of the
+                input. If it's non-zero, output will be a random dropout of the scaled
+                input, which is typically the case during training. It is an optional
+                value, if not specified it will default to 0.5.
 
             training_mode: (optional, non-differentiable) If set to true then it
                 indicates dropout is being used for training. It is an optional value
@@ -740,7 +743,7 @@ class Opset22(Opset21):
 
 
         Args:
-            X: (differentiable) 1D input tensor
+            X: (differentiable) Input tensor
 
             alpha: Coefficient of ELU.
         """
@@ -801,8 +804,7 @@ class Opset22(Opset21):
             input: 2D input tensor to copy shape, and optionally, type information from.
 
             dtype: (Optional) The data type for the elements of the output tensor. If
-                not specified,the data type of the input tensor T1 is used. If input
-                tensor T1 is also notspecified, then type defaults to 'float'.
+                not specified, the data type of the input tensor T1 is used.
 
             k: (Optional) Index of the diagonal to be populated with ones. Default is 0.
                 If T2 is the output, this op sets T2[i, i+k] = 1. k = 0 populates the
@@ -2327,7 +2329,11 @@ class Opset22(Opset21):
         schema = get_schema("RandomUniformLike", 22, "")
         op = Op(self, "RandomUniformLike", schema)
         return op(
-            *self._prepare_inputs(schema, input), dtype=dtype, high=high, low=low, seed=seed
+            *self._prepare_inputs(schema, input),
+            dtype=dtype,
+            high=high,
+            low=low,
+            seed=seed,
         )
 
     T1_RoiAlign = TypeVar("T1_RoiAlign", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -2523,7 +2529,7 @@ class Opset22(Opset21):
 
 
         Args:
-            X: (differentiable) 1D input tensor
+            X: (differentiable) Input tensor
         """
 
         schema = get_schema("Softplus", 22, "")

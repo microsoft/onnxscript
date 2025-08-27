@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D402
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -60,7 +59,12 @@ class Opset12(Opset11):
     )
 
     def ArgMax(
-        self, data: T_ArgMax, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
+        self,
+        data: T_ArgMax,
+        *,
+        axis: int = 0,
+        keepdims: int = 1,
+        select_last_index: int = 0,
     ) -> INT64:
         r"""[🌐 ArgMax(12)](https://onnx.ai/onnx/operators/onnx__ArgMax.html#argmax-12 "Online Documentation")
 
@@ -111,7 +115,12 @@ class Opset12(Opset11):
     )
 
     def ArgMin(
-        self, data: T_ArgMin, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
+        self,
+        data: T_ArgMin,
+        *,
+        axis: int = 0,
+        keepdims: int = 1,
+        select_last_index: int = 0,
     ) -> INT64:
         r"""[🌐 ArgMin(12)](https://onnx.ai/onnx/operators/onnx__ArgMin.html#argmin-12 "Online Documentation")
 
@@ -938,7 +947,11 @@ class Opset12(Opset11):
     )
 
     def ReduceMax(
-        self, data: T_ReduceMax, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceMax,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceMax:
         r"""[🌐 ReduceMax(12)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-12 "Online Documentation")
 
@@ -970,7 +983,11 @@ class Opset12(Opset11):
     )
 
     def ReduceMin(
-        self, data: T_ReduceMin, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceMin,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceMin:
         r"""[🌐 ReduceMin(12)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-12 "Online Documentation")
 

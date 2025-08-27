@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D402, D405
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -785,18 +784,20 @@ class Opset18(Opset17):
             data: (differentiable) An input tensor.
 
             axes: (optional, non-differentiable) Optional input list of integers, along
-                which to reduce. The default is to reduce over all the dimensions of the
-                input tensor if 'noop_with_empty_axes' is false, else act as an Identity
-                op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
-                where r = rank(data).
+                which to reduce. The default is to reduce over empty axes. When axes is
+                empty (either not provided or explicitly empty), behavior depends on
+                'noop_with_empty_axes': reduction over all axes if
+                'noop_with_empty_axes' is false, or no reduction is applied if
+                'noop_with_empty_axes' is true (but other operations will be performed).
+                Accepted range is [-r, r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
-                with 'false' is to reduce all axes. When axes is empty and this
-                attribute is set to true, input tensor will not be reduced,and the
-                output tensor would be equivalent to input tensor.
+            noop_with_empty_axes: Defines behavior when axes is not provided or is
+                empty. If false (default), reduction happens over all axes. If true, no
+                reduction is applied, but other operations will be performed. For
+                example, ReduceSumSquare acts as a vanilla Square.
         """
 
         schema = get_schema("ReduceL1", 18, "")
@@ -835,18 +836,20 @@ class Opset18(Opset17):
             data: (differentiable) An input tensor.
 
             axes: (optional, non-differentiable) Optional input list of integers, along
-                which to reduce. The default is to reduce over all the dimensions of the
-                input tensor if 'noop_with_empty_axes' is false, else act as an Identity
-                op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
-                where r = rank(data).
+                which to reduce. The default is to reduce over empty axes. When axes is
+                empty (either not provided or explicitly empty), behavior depends on
+                'noop_with_empty_axes': reduction over all axes if
+                'noop_with_empty_axes' is false, or no reduction is applied if
+                'noop_with_empty_axes' is true (but other operations will be performed).
+                Accepted range is [-r, r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
-                with 'false' is to reduce all axes. When axes is empty and this
-                attribute is set to true, input tensor will not be reduced,and the
-                output tensor would be equivalent to input tensor.
+            noop_with_empty_axes: Defines behavior when axes is not provided or is
+                empty. If false (default), reduction happens over all axes. If true, no
+                reduction is applied, but other operations will be performed. For
+                example, ReduceSumSquare acts as a vanilla Square.
         """
 
         schema = get_schema("ReduceL2", 18, "")
@@ -885,18 +888,20 @@ class Opset18(Opset17):
             data: (differentiable) An input tensor.
 
             axes: (optional, non-differentiable) Optional input list of integers, along
-                which to reduce. The default is to reduce over all the dimensions of the
-                input tensor if 'noop_with_empty_axes' is false, else act as an Identity
-                op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
-                where r = rank(data).
+                which to reduce. The default is to reduce over empty axes. When axes is
+                empty (either not provided or explicitly empty), behavior depends on
+                'noop_with_empty_axes': reduction over all axes if
+                'noop_with_empty_axes' is false, or no reduction is applied if
+                'noop_with_empty_axes' is true (but other operations will be performed).
+                Accepted range is [-r, r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
-                with 'false' is to reduce all axes. When axes is empty and this
-                attribute is set to true, input tensor will not be reduced,and the
-                output tensor would be equivalent to input tensor.
+            noop_with_empty_axes: Defines behavior when axes is not provided or is
+                empty. If false (default), reduction happens over all axes. If true, no
+                reduction is applied, but other operations will be performed. For
+                example, ReduceSumSquare acts as a vanilla Square.
         """
 
         schema = get_schema("ReduceLogSum", 18, "")
@@ -908,7 +913,15 @@ class Opset18(Opset17):
         )
 
     T_ReduceLogSumExp = TypeVar(
-        "T_ReduceLogSumExp", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+        "T_ReduceLogSumExp",
+        BFLOAT16,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT32,
+        INT64,
+        UINT32,
+        UINT64,
     )
 
     def ReduceLogSumExp(
@@ -935,18 +948,20 @@ class Opset18(Opset17):
             data: (differentiable) An input tensor.
 
             axes: (optional, non-differentiable) Optional input list of integers, along
-                which to reduce. The default is to reduce over all the dimensions of the
-                input tensor if 'noop_with_empty_axes' is false, else act as an Identity
-                op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
-                where r = rank(data).
+                which to reduce. The default is to reduce over empty axes. When axes is
+                empty (either not provided or explicitly empty), behavior depends on
+                'noop_with_empty_axes': reduction over all axes if
+                'noop_with_empty_axes' is false, or no reduction is applied if
+                'noop_with_empty_axes' is true (but other operations will be performed).
+                Accepted range is [-r, r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
-                with 'false' is to reduce all axes. When axes is empty and this
-                attribute is set to true, input tensor will not be reduced,and the
-                output tensor would be equivalent to input tensor.
+            noop_with_empty_axes: Defines behavior when axes is not provided or is
+                empty. If false (default), reduction happens over all axes. If true, no
+                reduction is applied, but other operations will be performed. For
+                example, ReduceSumSquare acts as a vanilla Square.
         """
 
         schema = get_schema("ReduceLogSumExp", 18, "")
@@ -995,18 +1010,20 @@ class Opset18(Opset17):
             data: (differentiable) An input tensor.
 
             axes: (optional, non-differentiable) Optional input list of integers, along
-                which to reduce. The default is to reduce over all the dimensions of the
-                input tensor if 'noop_with_empty_axes' is false, else act as an Identity
-                op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
-                where r = rank(data).
+                which to reduce. The default is to reduce over empty axes. When axes is
+                empty (either not provided or explicitly empty), behavior depends on
+                'noop_with_empty_axes': reduction over all axes if
+                'noop_with_empty_axes' is false, or no reduction is applied if
+                'noop_with_empty_axes' is true (but other operations will be performed).
+                Accepted range is [-r, r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
-                with 'false' is to reduce all axes. When axes is empty and this
-                attribute is set to true, input tensor will not be reduced,and the
-                output tensor would be equivalent to input tensor.
+            noop_with_empty_axes: Defines behavior when axes is not provided or is
+                empty. If false (default), reduction happens over all axes. If true, no
+                reduction is applied, but other operations will be performed. For
+                example, ReduceSumSquare acts as a vanilla Square.
         """
 
         schema = get_schema("ReduceMax", 18, "")
@@ -1045,18 +1062,20 @@ class Opset18(Opset17):
             data: (differentiable) An input tensor.
 
             axes: (optional, non-differentiable) Optional input list of integers, along
-                which to reduce. The default is to reduce over all the dimensions of the
-                input tensor if 'noop_with_empty_axes' is false, else act as an Identity
-                op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
-                where r = rank(data).
+                which to reduce. The default is to reduce over empty axes. When axes is
+                empty (either not provided or explicitly empty), behavior depends on
+                'noop_with_empty_axes': reduction over all axes if
+                'noop_with_empty_axes' is false, or no reduction is applied if
+                'noop_with_empty_axes' is true (but other operations will be performed).
+                Accepted range is [-r, r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
-                with 'false' is to reduce all axes. When axes is empty and this
-                attribute is set to true, input tensor will not be reduced,and the
-                output tensor would be equivalent to input tensor.
+            noop_with_empty_axes: Defines behavior when axes is not provided or is
+                empty. If false (default), reduction happens over all axes. If true, no
+                reduction is applied, but other operations will be performed. For
+                example, ReduceSumSquare acts as a vanilla Square.
         """
 
         schema = get_schema("ReduceMean", 18, "")
@@ -1105,18 +1124,20 @@ class Opset18(Opset17):
             data: (differentiable) An input tensor.
 
             axes: (optional, non-differentiable) Optional input list of integers, along
-                which to reduce. The default is to reduce over all the dimensions of the
-                input tensor if 'noop_with_empty_axes' is false, else act as an Identity
-                op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
-                where r = rank(data).
+                which to reduce. The default is to reduce over empty axes. When axes is
+                empty (either not provided or explicitly empty), behavior depends on
+                'noop_with_empty_axes': reduction over all axes if
+                'noop_with_empty_axes' is false, or no reduction is applied if
+                'noop_with_empty_axes' is true (but other operations will be performed).
+                Accepted range is [-r, r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
-                with 'false' is to reduce all axes. When axes is empty and this
-                attribute is set to true, input tensor will not be reduced,and the
-                output tensor would be equivalent to input tensor.
+            noop_with_empty_axes: Defines behavior when axes is not provided or is
+                empty. If false (default), reduction happens over all axes. If true, no
+                reduction is applied, but other operations will be performed. For
+                example, ReduceSumSquare acts as a vanilla Square.
         """
 
         schema = get_schema("ReduceMin", 18, "")
@@ -1155,18 +1176,20 @@ class Opset18(Opset17):
             data: (differentiable) An input tensor.
 
             axes: (optional, non-differentiable) Optional input list of integers, along
-                which to reduce. The default is to reduce over all the dimensions of the
-                input tensor if 'noop_with_empty_axes' is false, else act as an Identity
-                op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
-                where r = rank(data).
+                which to reduce. The default is to reduce over empty axes. When axes is
+                empty (either not provided or explicitly empty), behavior depends on
+                'noop_with_empty_axes': reduction over all axes if
+                'noop_with_empty_axes' is false, or no reduction is applied if
+                'noop_with_empty_axes' is true (but other operations will be performed).
+                Accepted range is [-r, r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
-                with 'false' is to reduce all axes. When axes is empty and this
-                attribute is set to true, input tensor will not be reduced,and the
-                output tensor would be equivalent to input tensor.
+            noop_with_empty_axes: Defines behavior when axes is not provided or is
+                empty. If false (default), reduction happens over all axes. If true, no
+                reduction is applied, but other operations will be performed. For
+                example, ReduceSumSquare acts as a vanilla Square.
         """
 
         schema = get_schema("ReduceProd", 18, "")
@@ -1178,7 +1201,15 @@ class Opset18(Opset17):
         )
 
     T_ReduceSumSquare = TypeVar(
-        "T_ReduceSumSquare", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+        "T_ReduceSumSquare",
+        BFLOAT16,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT32,
+        INT64,
+        UINT32,
+        UINT64,
     )
 
     def ReduceSumSquare(
@@ -1205,18 +1236,20 @@ class Opset18(Opset17):
             data: (differentiable) An input tensor.
 
             axes: (optional, non-differentiable) Optional input list of integers, along
-                which to reduce. The default is to reduce over all the dimensions of the
-                input tensor if 'noop_with_empty_axes' is false, else act as an Identity
-                op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
-                where r = rank(data).
+                which to reduce. The default is to reduce over empty axes. When axes is
+                empty (either not provided or explicitly empty), behavior depends on
+                'noop_with_empty_axes': reduction over all axes if
+                'noop_with_empty_axes' is false, or no reduction is applied if
+                'noop_with_empty_axes' is true (but other operations will be performed).
+                Accepted range is [-r, r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
-                with 'false' is to reduce all axes. When axes is empty and this
-                attribute is set to true, input tensor will not be reduced,and the
-                output tensor would be equivalent to input tensor.
+            noop_with_empty_axes: Defines behavior when axes is not provided or is
+                empty. If false (default), reduction happens over all axes. If true, no
+                reduction is applied, but other operations will be performed. For
+                example, ReduceSumSquare acts as a vanilla Square.
         """
 
         schema = get_schema("ReduceSumSquare", 18, "")
@@ -1381,13 +1414,13 @@ class Opset18(Opset17):
                 keeping the original aspect ratio: <br/>
         `scale = Min(sizes[i] /
                 in_size[d])` <br/>
-        `out_size[d] = round_int(scale * in_size[i])` <br/>
+        `out_size[d] = round_int(scale * in_size[d])` <br/>
                 If `keep_aspect_ratio_policy` is `"not_smaller"`, the sizes are adjusted
                 so that no extent of the output is smaller than the specified size,
                 while keeping the original aspect ratio: <br/>
         `scale = Max(sizes[i] /
                 in_size[d])` <br/>
-        `out_size[d] = round_int(scale * in_size[i])` <br/>
+        `out_size[d] = round_int(scale * in_size[d])` <br/>
                 For non-resizable axes (those not specified in `axes`), the output size
                 will be equal to the input size.
 
@@ -1746,5 +1779,7 @@ class Opset18(Opset17):
         schema = get_schema("Split", 18, "")
         op = Op(self, "Split", schema)
         return op(
-            *self._prepare_inputs(schema, input, split), axis=axis, num_outputs=num_outputs
+            *self._prepare_inputs(schema, input, split),
+            axis=axis,
+            num_outputs=num_outputs,
         )

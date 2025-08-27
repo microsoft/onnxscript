@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D214, D402, D405, D411, D412, D416
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -245,28 +244,31 @@ class Opset19(Opset18):
         to the following rules. `[x]` means the value rounded to
         the target mantissa width.
 
-        | x | E4M3FN | E4M3FNUZ | E5M2 | E5M2FNUZ |
-        |------|----|----|----|----|
-        | 0 | 0 | 0 | 0 | 0 |
-        |-0 | -0 | 0 | -0 | 0 |
-        | NaN | NaN | NaN | NaN | NaN |
-        | +/- Inf | +/- FLT_MAX | NaN | FLT_MAX | NaN |
-        | [x] > FLT_MAX | FLT_MAX | FLT_MAX | FLT_MAX | FLT_MAX |
-        | [x] < -FLT_MAX | -FLT_MAX | -FLT_MAX | -FLT_MAX | -FLT_MAX |
-        | else | RNE | RNE | RNE | RNE |
+        | x                 | E4M3FN   | E4M3FNUZ | E5M2     | E5M2FNUZ |
+        | ----------------- | -------- | -------- | -------- | -------- |
+        | 0                 | 0        | 0        | 0        | 0        |
+        | -0                | -0       | 0        | -0       | 0        |
+        | NaN               | NaN      | NaN      | NaN      | NaN      |
+        | Inf               | FLT_MAX  | NaN      | FLT_MAX  | NaN      |
+        | -Inf              | -FLT_MAX | NaN      | -FLT_MAX | NaN      |
+        | \[x\] > FLT_MAX   | FLT_MAX  | FLT_MAX  | FLT_MAX  | FLT_MAX  |
+        | \[x\] \< -FLT_MAX | -FLT_MAX | -FLT_MAX | -FLT_MAX | -FLT_MAX |
+        | else              | RNE      | RNE      | RNE      | RNE      |
 
         The behavior changes if the parameter 'saturate' is set to False.
         The rules then become:
 
-        | x | E4M3FN | E4M3FNUZ | E5M2 | E5M2FNUZ |
-        |------|----|----|----|----|
-        | 0 | 0 | 0 | 0 | 0 |
-        |-0 | -0 | 0 | -0 | 0 |
-        | NaN | NaN | NaN | NaN | NaN |
-        | +/- Inf | NaN | NaN | +/- Inf | NaN |
-        | [x] > FLT_MAX | NaN | NaN | Inf | NaN |
-        | [x] < -FLT_MAX | NaN | NaN | -Inf | NaN |
-        | else | RNE | RNE | RNE | RNE |
+        | x                 | E4M3FN | E4M3FNUZ | E5M2 | E5M2FNUZ |
+        | ----------------- | ------ | -------- | ---- | -------- |
+        | 0                 | 0      | 0        | 0    | 0        |
+        | -0                | -0     | 0        | -0   | 0        |
+        | NaN               | NaN    | NaN      | NaN  | NaN      |
+        | -NaN              | -NaN   | NaN      | -NaN | NaN      |
+        | Inf               | NaN    | NaN      | Inf  | NaN      |
+        | -Inf              | -NaN   | NaN      | -Inf | NaN      |
+        | \[x\] > FLT_MAX   | NaN    | NaN      | Inf  | NaN      |
+        | \[x\] \< -FLT_MAX | NaN    | NaN      | -Inf | NaN      |
+        | else              | RNE    | RNE      | RNE  | RNE      |
 
 
         Args:
@@ -701,42 +703,7 @@ class Opset19(Opset18):
     B_If: TypeAlias = BOOL
 
     V_If: TypeAlias = Union[
-        Optional[Sequence[BFLOAT16]],
-        Optional[Sequence[BOOL]],
-        Optional[Sequence[COMPLEX128]],
-        Optional[Sequence[COMPLEX64]],
-        Optional[Sequence[DOUBLE]],
-        Optional[Sequence[FLOAT]],
-        Optional[Sequence[FLOAT16]],
-        Optional[Sequence[INT16]],
-        Optional[Sequence[INT32]],
-        Optional[Sequence[INT64]],
-        Optional[Sequence[INT8]],
-        Optional[Sequence[STRING]],
-        Optional[Sequence[UINT16]],
-        Optional[Sequence[UINT32]],
-        Optional[Sequence[UINT64]],
-        Optional[Sequence[UINT8]],
-        Optional[BFLOAT16],
-        Optional[BOOL],
-        Optional[COMPLEX128],
-        Optional[COMPLEX64],
-        Optional[DOUBLE],
-        Optional[FLOAT],
-        Optional[FLOAT16],
-        Optional[FLOAT8E4M3FN],
-        Optional[FLOAT8E4M3FNUZ],
-        Optional[FLOAT8E5M2],
-        Optional[FLOAT8E5M2FNUZ],
-        Optional[INT16],
-        Optional[INT32],
-        Optional[INT64],
-        Optional[INT8],
-        Optional[STRING],
-        Optional[UINT16],
-        Optional[UINT32],
-        Optional[UINT64],
-        Optional[UINT8],
+        None,
         Sequence[BFLOAT16],
         Sequence[BOOL],
         Sequence[COMPLEX128],
@@ -744,10 +711,6 @@ class Opset19(Opset18):
         Sequence[DOUBLE],
         Sequence[FLOAT],
         Sequence[FLOAT16],
-        Sequence[FLOAT8E4M3FN],
-        Sequence[FLOAT8E4M3FNUZ],
-        Sequence[FLOAT8E5M2],
-        Sequence[FLOAT8E5M2FNUZ],
         Sequence[INT16],
         Sequence[INT32],
         Sequence[INT64],
@@ -777,6 +740,10 @@ class Opset19(Opset18):
         UINT32,
         UINT64,
         UINT8,
+        Sequence[FLOAT8E4M3FN],
+        Sequence[FLOAT8E4M3FNUZ],
+        Sequence[FLOAT8E5M2],
+        Sequence[FLOAT8E5M2FNUZ],
     ]
 
     def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
@@ -889,7 +856,11 @@ class Opset19(Opset18):
     )
 
     def Loop(
-        self, M: Optional[I_Loop], cond: Optional[B_Loop], *v_initial: V_Loop, body: GraphProto
+        self,
+        M: Optional[I_Loop],
+        cond: Optional[B_Loop],
+        *v_initial: V_Loop,
+        body: GraphProto,
     ) -> V_Loop:
         r"""[🌐 Loop(19)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-19 "Online Documentation")
 
@@ -1547,7 +1518,7 @@ class Opset19(Opset18):
         ```
         scale = Min(sizes[i] /
                 in_size[d])
-        out_size[d] = round_int(scale * in_size[i])
+        out_size[d] = round_int(scale * in_size[d])
         ```
 
         If
@@ -1557,7 +1528,7 @@ class Opset19(Opset18):
         ```
         scale = Max(sizes[i] /
                 in_size[d])
-        out_size[d] = round_int(scale * in_size[i])
+        out_size[d] = round_int(scale * in_size[d])
         ```
 
         For
@@ -1843,11 +1814,11 @@ class Opset19(Opset18):
         The end axis, if specified, is exclusive (and the returned value will not include the size of that axis).
         If the end axis is omitted, the axes upto the last one will be included.
         Negative axes indicate counting back from the last axis.
-        Note that axes will be clamped to the range [0, r-1], where r is the
+        Note that axes will be clamped to the range [0, r], where r is the
         rank of the input tensor if they are out-of-range (after adding r in the case of
         negative axis). Thus, specifying any end value > r is equivalent to specifying an end
         value of r, and specifying any start value < -r is equivalent to specifying a start
-        value of 0.
+        value of 0. If start > end, the result will be an empty shape.
 
         Examples:
 

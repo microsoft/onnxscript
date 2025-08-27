@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D214, D402, D405, D411, D416, D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -116,7 +115,12 @@ class Opset13(Opset12):
     )
 
     def ArgMax(
-        self, data: T_ArgMax, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
+        self,
+        data: T_ArgMax,
+        *,
+        axis: int = 0,
+        keepdims: int = 1,
+        select_last_index: int = 0,
     ) -> INT64:
         r"""[🌐 ArgMax(13)](https://onnx.ai/onnx/operators/onnx__ArgMax.html#argmax-13 "Online Documentation")
 
@@ -168,7 +172,12 @@ class Opset13(Opset12):
     )
 
     def ArgMin(
-        self, data: T_ArgMin, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
+        self,
+        data: T_ArgMin,
+        *,
+        axis: int = 0,
+        keepdims: int = 1,
+        select_last_index: int = 0,
     ) -> INT64:
         r"""[🌐 ArgMin(13)](https://onnx.ai/onnx/operators/onnx__ArgMin.html#argmin-13 "Online Documentation")
 
@@ -1479,7 +1488,11 @@ class Opset13(Opset12):
         schema = get_schema("LRN", 13, "")
         op = Op(self, "LRN", schema)
         return op(
-            *self._prepare_inputs(schema, X), alpha=alpha, beta=beta, bias=bias, size=size
+            *self._prepare_inputs(schema, X),
+            alpha=alpha,
+            beta=beta,
+            bias=bias,
+            size=size,
         )
 
     T_Less = TypeVar(
@@ -1606,7 +1619,11 @@ class Opset13(Opset12):
     )
 
     def Loop(
-        self, M: Optional[I_Loop], cond: Optional[B_Loop], *v_initial: V_Loop, body: GraphProto
+        self,
+        M: Optional[I_Loop],
+        cond: Optional[B_Loop],
+        *v_initial: V_Loop,
+        body: GraphProto,
     ) -> V_Loop:
         r"""[🌐 Loop(13)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-13 "Online Documentation")
 
@@ -1625,7 +1642,7 @@ class Opset13(Opset12):
         This table summarizes the operating modes of this operator with equivalent
         C-style code:
 
-            Operator inputs defined as (max_trip_count, condition_var).
+        Operator inputs defined as (max_trip_count, condition_var).
 
             input ("", ""):
                 for (int i=0; ; ++i) {
@@ -1924,19 +1941,23 @@ class Opset13(Opset12):
         r"""[🌐 Mod(13)](https://onnx.ai/onnx/operators/onnx__Mod.html#mod-13 "Online Documentation")
 
 
-          Performs element-wise binary modulus (with Numpy-style broadcasting support).
-          The sign of the remainder is the same as that of the Divisor.
+        Performs an element-wise binary modulo operation.
+        The semantics and supported data types depend on the value of the `fmod` attribute which must be `0` (default), or `1`.
 
-          Mod operator can also behave like C fmod() or numpy.fmod. In this case, the sign of the remainder however, will be the same as the Dividend
-          (in contrast to integer mod). To force a behavior like numpy.fmod() an 'fmod' Attribute is provided.
-          This attribute is set to 0 by default causing the behavior to be like integer mod.
-          Setting this attribute to 1 causes the remainder to be calculated similar to that of numpy.fmod().
+        If the `fmod` attribute is set to `0`, `T` is constrained to integer data types and the semantics follow that of the Python `%`-operator.
+        The sign of the result is that of the divisor.
 
-          If the input type is floating point, then `fmod` attribute must be set to 1.
+        If `fmod` is set to `1`, the behavior of this operator follows that of the `fmod` function in C and `T` is constrained to floating point data types.
+        The result of this operator is the remainder of the division operation `x / y` where `x` and `y` are respective elements of `A` and `B`. The result is exactly the value `x - n * y`, where `n` is `x / y` with its fractional part truncated.
+        The returned value has the same sign as `x` (except if `x` is `-0`) and is less or equal to `|y|` in magnitude.
+        The following special cases apply when `fmod` is set to `1`:
+        - If `x` is `-0` and `y` is greater than zero, either `+0` or `-0` may be returned.
+        - If `x` is `±∞` and `y` is not `NaN`, `NaN` is returned.
+        - If `y` is `±0` and `x` is not `NaN`, `NaN` should be returned.
+        - If `y` is `±∞` and `x` is finite, `x` is returned.
+        - If either argument is `NaN`, `NaN` is returned.
 
-          In case of dividend being zero, the results will be platform dependent.
-
-          This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
+        This operator supports **multidirectional (i.e., NumPy-style) broadcasting**; for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
 
 
         Args:
@@ -2431,7 +2452,11 @@ class Opset13(Opset12):
     )
 
     def ReduceL1(
-        self, data: T_ReduceL1, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceL1,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceL1:
         r"""[🌐 ReduceL1(13)](https://onnx.ai/onnx/operators/onnx__ReduceL1.html#reducel1-13 "Online Documentation")
 
@@ -2465,7 +2490,11 @@ class Opset13(Opset12):
     )
 
     def ReduceL2(
-        self, data: T_ReduceL2, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceL2,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceL2:
         r"""[🌐 ReduceL2(13)](https://onnx.ai/onnx/operators/onnx__ReduceL2.html#reducel2-13 "Online Documentation")
 
@@ -2499,7 +2528,11 @@ class Opset13(Opset12):
     )
 
     def ReduceLogSum(
-        self, data: T_ReduceLogSum, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceLogSum,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceLogSum:
         r"""[🌐 ReduceLogSum(13)](https://onnx.ai/onnx/operators/onnx__ReduceLogSum.html#reducelogsum-13 "Online Documentation")
 
@@ -2529,7 +2562,15 @@ class Opset13(Opset12):
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceLogSumExp = TypeVar(
-        "T_ReduceLogSumExp", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+        "T_ReduceLogSumExp",
+        BFLOAT16,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT32,
+        INT64,
+        UINT32,
+        UINT64,
     )
 
     def ReduceLogSumExp(
@@ -2581,7 +2622,11 @@ class Opset13(Opset12):
     )
 
     def ReduceMax(
-        self, data: T_ReduceMax, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceMax,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceMax:
         r"""[🌐 ReduceMax(13)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-13 "Online Documentation")
 
@@ -2615,7 +2660,11 @@ class Opset13(Opset12):
     )
 
     def ReduceMean(
-        self, data: T_ReduceMean, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceMean,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceMean:
         r"""[🌐 ReduceMean(13)](https://onnx.ai/onnx/operators/onnx__ReduceMean.html#reducemean-13 "Online Documentation")
 
@@ -2659,7 +2708,11 @@ class Opset13(Opset12):
     )
 
     def ReduceMin(
-        self, data: T_ReduceMin, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceMin,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceMin:
         r"""[🌐 ReduceMin(13)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-13 "Online Documentation")
 
@@ -2693,7 +2746,11 @@ class Opset13(Opset12):
     )
 
     def ReduceProd(
-        self, data: T_ReduceProd, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceProd,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceProd:
         r"""[🌐 ReduceProd(13)](https://onnx.ai/onnx/operators/onnx__ReduceProd.html#reduceprod-13 "Online Documentation")
 
@@ -2750,18 +2807,20 @@ class Opset13(Opset12):
             data: (differentiable) An input tensor.
 
             axes: (optional, non-differentiable) Optional input list of integers, along
-                which to reduce. The default is to reduce over all the dimensions of the
-                input tensor if 'noop_with_empty_axes' is false, else act as an Identity
-                op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
-                where r = rank(data).
+                which to reduce. The default is to reduce over empty axes. When axes is
+                empty (either not provided or explicitly empty), behavior depends on
+                'noop_with_empty_axes': reduction over all axes if
+                'noop_with_empty_axes' is false, or no reduction is applied if
+                'noop_with_empty_axes' is true (but other operations will be performed).
+                Accepted range is [-r, r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
-                with 'false' is to reduce all axes. When axes is empty and this
-                attribute is set to true, input tensor will not be reduced,and the
-                output tensor would be equivalent to input tensor.
+            noop_with_empty_axes: Defines behavior when axes is not provided or is
+                empty. If false (default), reduction happens over all axes. If true, no
+                reduction is applied, but other operations will be performed. For
+                example, ReduceSumSquare acts as a vanilla Square.
         """
 
         schema = get_schema("ReduceSum", 13, "")
@@ -2773,7 +2832,15 @@ class Opset13(Opset12):
         )
 
     T_ReduceSumSquare = TypeVar(
-        "T_ReduceSumSquare", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+        "T_ReduceSumSquare",
+        BFLOAT16,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT32,
+        INT64,
+        UINT32,
+        UINT64,
     )
 
     def ReduceSumSquare(

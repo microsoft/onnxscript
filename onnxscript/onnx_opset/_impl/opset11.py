@@ -7,8 +7,8 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: E741
+# ruff: noqa: D214, D402, D405, D411, D416
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -1465,7 +1465,11 @@ class Opset11(Opset10):
     )
 
     def Loop(
-        self, M: Optional[I_Loop], cond: Optional[B_Loop], *v_initial: V_Loop, body: GraphProto
+        self,
+        M: Optional[I_Loop],
+        cond: Optional[B_Loop],
+        *v_initial: V_Loop,
+        body: GraphProto,
     ) -> V_Loop:
         r"""[🌐 Loop(11)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-11 "Online Documentation")
 
@@ -1484,7 +1488,7 @@ class Opset11(Opset10):
         This table summarizes the operating modes of this operator with equivalent
         C-style code:
 
-            Operator inputs defined as (max_trip_count, condition_var).
+        Operator inputs defined as (max_trip_count, condition_var).
 
             input ("", ""):
                 for (int i=0; ; ++i) {
@@ -2238,7 +2242,11 @@ class Opset11(Opset10):
     T_ReduceL1 = TypeVar("T_ReduceL1", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceL1(
-        self, data: T_ReduceL1, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceL1,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceL1:
         r"""[🌐 ReduceL1(11)](https://onnx.ai/onnx/operators/onnx__ReduceL1.html#reducel1-11 "Online Documentation")
 
@@ -2268,7 +2276,11 @@ class Opset11(Opset10):
     T_ReduceL2 = TypeVar("T_ReduceL2", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceL2(
-        self, data: T_ReduceL2, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceL2,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceL2:
         r"""[🌐 ReduceL2(11)](https://onnx.ai/onnx/operators/onnx__ReduceL2.html#reducel2-11 "Online Documentation")
 
@@ -2300,7 +2312,11 @@ class Opset11(Opset10):
     )
 
     def ReduceLogSum(
-        self, data: T_ReduceLogSum, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceLogSum,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceLogSum:
         r"""[🌐 ReduceLogSum(11)](https://onnx.ai/onnx/operators/onnx__ReduceLogSum.html#reducelogsum-11 "Online Documentation")
 
@@ -2366,7 +2382,11 @@ class Opset11(Opset10):
     T_ReduceMax = TypeVar("T_ReduceMax", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMax(
-        self, data: T_ReduceMax, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceMax,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceMax:
         r"""[🌐 ReduceMax(11)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-11 "Online Documentation")
 
@@ -2399,7 +2419,11 @@ class Opset11(Opset10):
     )
 
     def ReduceMean(
-        self, data: T_ReduceMean, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceMean,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceMean:
         r"""[🌐 ReduceMean(11)](https://onnx.ai/onnx/operators/onnx__ReduceMean.html#reducemean-11 "Online Documentation")
 
@@ -2429,7 +2453,11 @@ class Opset11(Opset10):
     T_ReduceMin = TypeVar("T_ReduceMin", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMin(
-        self, data: T_ReduceMin, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceMin,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceMin:
         r"""[🌐 ReduceMin(11)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-11 "Online Documentation")
 
@@ -2462,7 +2490,11 @@ class Opset11(Opset10):
     )
 
     def ReduceProd(
-        self, data: T_ReduceProd, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceProd,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceProd:
         r"""[🌐 ReduceProd(11)](https://onnx.ai/onnx/operators/onnx__ReduceProd.html#reduceprod-11 "Online Documentation")
 
@@ -2492,7 +2524,11 @@ class Opset11(Opset10):
     T_ReduceSum = TypeVar("T_ReduceSum", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceSum(
-        self, data: T_ReduceSum, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self,
+        data: T_ReduceSum,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceSum:
         r"""[🌐 ReduceSum(11)](https://onnx.ai/onnx/operators/onnx__ReduceSum.html#reducesum-11 "Online Documentation")
 
@@ -3314,7 +3350,9 @@ class Opset11(Opset10):
     I_SequenceErase = TypeVar("I_SequenceErase", INT32, INT64)
 
     def SequenceErase(
-        self, input_sequence: S_SequenceErase, position: Optional[I_SequenceErase] = None
+        self,
+        input_sequence: S_SequenceErase,
+        position: Optional[I_SequenceErase] = None,
     ) -> S_SequenceErase:
         r"""[🌐 SequenceErase(11)](https://onnx.ai/onnx/operators/onnx__SequenceErase.html#sequenceerase-11 "Online Documentation")
 
@@ -3798,7 +3836,10 @@ class Opset11(Opset10):
         schema = get_schema("TopK", 11, "")
         op = Op(self, "TopK", schema)
         return op(
-            *self._prepare_inputs(schema, X, K), axis=axis, largest=largest, sorted=sorted
+            *self._prepare_inputs(schema, X, K),
+            axis=axis,
+            largest=largest,
+            sorted=sorted,
         )
 
     T_Unique = TypeVar(
