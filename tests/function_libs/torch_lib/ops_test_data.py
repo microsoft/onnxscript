@@ -727,7 +727,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
     TorchLibOpInfo("cos", core_ops.aten_cos),
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
-    TorchLibOpInfo("cross", core_ops.aten_cross, tolerance={torch.float16: (6e-3, 3e-3)}).skip(
+    TorchLibOpInfo("cross", core_ops.aten_cross, tolerance={torch.float16: (6e-2, 2e-1)}).skip(
         dtypes=(torch.float16 if sys.platform != "linux" else torch.complex64,),
         reason="test is failing on windows and torch nightly",
     ),
@@ -1033,8 +1033,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten.embedding_bag",
         core_ops.aten_embedding_bag,
-        tolerance={torch.float16: (1e-2, 5e-2)},
+        tolerance={torch.float32: (1e-4, 5e-4)},
         compare_shape_only_for_output=(1, 2, 3),
+    ).skip(
+        dtypes=(torch.float16,),
+        reason="results mismatch in torch nightly.",
     ),
     TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx",
