@@ -347,22 +347,23 @@ def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> 
 @register("Add")
 def add(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Propagate symbolic dim values."""
+
     def get_dim_value(input_index):
         input = _get_input(node, input_index)
         if input is None:
             return None
-        shape_value : ir.Shape | None = state.get_shape_value(input)
+        shape_value: ir.Shape | None = state.get_shape_value(input)
         if shape_value is None or len(shape_value) != 1:
             return None
-        dim : int | ir.SymbolicDim = shape_value[0]
+        dim: int | ir.SymbolicDim = shape_value[0]
         return dim if isinstance(dim, int) else dim.value
-    
+
     dim0 = get_dim_value(0)
     dim1 = get_dim_value(1)
     if dim0 is None or dim1 is None:
         return None
     if isinstance(dim0, int) and isinstance(dim1, int):
-        result_dim_value : int | ir.SymbolicDim = dim0 + dim1
+        result_dim_value: int | ir.SymbolicDim = dim0 + dim1
     else:
         result_dim_value = ir.SymbolicDim(f"{dim0}+{dim1}")
     output = _get_output(node, 0)
@@ -417,18 +418,20 @@ def gather(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return op.Constant(value_ints=ir.AttrInt64s("value_ints", gathered))
     return None
 
+
 def propagate_shape_value(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
-    """ Propagates symbolic shape value of input 0 to output 0.
-    
+    """Propagates symbolic shape value of input 0 to output 0.
+
     Applies to ops like Reshape/Squeeze/Unsqueeze where the shape of the tensor may change
     but the values in the tensor remain the same.
     """
-    input = _get_input(node, 0)   
+    input = _get_input(node, 0)
     input_shape_value = state.get_shape_value(input)
     output = _get_output(node, 0)
     if output is not None and input_shape_value is not None:
         state.set_sym_value(output, input_shape_value)
     return None
+
 
 @register("Reshape")
 def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
@@ -454,8 +457,9 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 
 @register("Squeeze")
 def squeeze(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
-    "Propagate symbolic shape values."
+    """Propagate symbolic shape values."""
     return propagate_shape_value(node, op, state)
+
 
 @register("Cast")
 def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
@@ -862,6 +866,7 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
         if dim1.value is None:
             return dim2
         return dim1
+
     if shape1 is None:
         return shape2
     if shape2 is None:
