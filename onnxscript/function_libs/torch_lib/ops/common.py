@@ -83,7 +83,7 @@ def constant(
 
 
 def merge_dims(dims: Sequence[int | INT64]) -> INT64:
-    """Merge consecutive constant dimensions."""
+    """Concatenate dimensions into a single value."""
 
     if not dims:
         return op.Constant(value_ints=ir.AttrInt64s("value_ints", []))
