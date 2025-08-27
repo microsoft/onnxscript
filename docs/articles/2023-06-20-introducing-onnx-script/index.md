@@ -326,12 +326,12 @@ Finally, a _huge thank you_ to the wonderful engineering team at Microsoft that 
 [onnx-expand-operator]: https://onnx.ai/onnx/operators/onnx__Expand.html#expand-13
 [onnxscript-pypi]: https://pypi.org/project/onnxscript
 [onnxscript-github]: https://github.com/microsoft/onnxscript
-[torch-onnx]: https://docs.pytorch.org/stable/onnx.html
-[torch-ir]: https://docs.pytorch.org/stable/ir.html
-[torch-dynamo]: https://docs.pytorch.org/stable/dynamo/index.html
+[torch-onnx]: https://docs.pytorch.org/docs/stable/onnx.html
+[torch-ir]: https://docs.pytorch.org/docs/stable/ir.html
+[torch-dynamo]: https://docs.pytorch.org/docs/stable/dynamo/index.html
 [torch-onnx-dynamoexport]: https://docs.pytorch.org/main/onnx.html#preview-torch-onnx-torchdynamo-exporter
-[torch-onnx-customops]: https://docs.pytorch.org/stable/onnx.html#onnx-script-functions
-[torch-chunk]: https://docs.pytorch.org/stable/generated/torch.chunk.html
+[torch-onnx-customops]: https://docs.pytorch.org/docs/stable/onnx.html#onnx-script-functions
+[torch-chunk]: https://docs.pytorch.org/docs/stable/generated/torch.chunk.html
 [netron]: https://netron.app
 [numpy]: https://numpy.org
 [pdb]: https://docs.python.org/3/library/pdb.html

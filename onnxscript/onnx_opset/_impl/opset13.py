@@ -2057,7 +2057,7 @@ class Opset13(Opset12):
 
         If "reduction" attribute is set to "sum", the output is a scalar: `sum(loss)`.
 
-        See also https://docs.pytorch.org/stable/nn.html#torch.nn.NLLLoss.
+        See also https://docs.pytorch.org/docs/stable/nn.html#torch.nn.NLLLoss.
 
         Example 1:
 

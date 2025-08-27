@@ -101,7 +101,7 @@ class TorchLibOpInfo:
             return tolerance
 
         # Use the PyTorch default if not specified
-        # https://docs.pytorch.org/stable/testing.html
+        # https://docs.pytorch.org/docs/stable/testing.html
         return (None, None)
 
     def skip(

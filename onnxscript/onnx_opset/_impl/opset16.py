@@ -251,7 +251,41 @@ class Opset16(Opset15):
 
     B_If: TypeAlias = BOOL
 
-    V_If: TypeAlias = Union[None, Sequence[BFLOAT16], Sequence[BOOL], Sequence[COMPLEX128], Sequence[COMPLEX64], Sequence[DOUBLE], Sequence[FLOAT], Sequence[FLOAT16], Sequence[INT16], Sequence[INT32], Sequence[INT64], Sequence[INT8], Sequence[STRING], Sequence[UINT16], Sequence[UINT32], Sequence[UINT64], Sequence[UINT8], BFLOAT16, BOOL, COMPLEX128, COMPLEX64, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, STRING, UINT16, UINT32, UINT64, UINT8]
+    V_If: TypeAlias = Union[
+        None,
+        Sequence[BFLOAT16],
+        Sequence[BOOL],
+        Sequence[COMPLEX128],
+        Sequence[COMPLEX64],
+        Sequence[DOUBLE],
+        Sequence[FLOAT],
+        Sequence[FLOAT16],
+        Sequence[INT16],
+        Sequence[INT32],
+        Sequence[INT64],
+        Sequence[INT8],
+        Sequence[STRING],
+        Sequence[UINT16],
+        Sequence[UINT32],
+        Sequence[UINT64],
+        Sequence[UINT8],
+        BFLOAT16,
+        BOOL,
+        COMPLEX128,
+        COMPLEX64,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    ]
 
     def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
         r"""[🌐 If(16)](https://onnx.ai/onnx/operators/onnx__If.html#if-16 "Online Documentation")

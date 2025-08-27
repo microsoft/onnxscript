@@ -173,7 +173,7 @@ class Opset22(Opset21):
          subset of the input tensor according to the kernel size and downsampling the
          data into the output tensor Y for further processing. The output spatial shape is calculated differently
          depending on whether explicit padding is used, where pads is employed, or auto padding is used, where auto_pad is utilized.
-         With explicit padding (https://docs.pytorch.org/stable/generated/torch.nn.MaxPool2d.html?highlight=maxpool#torch.nn.MaxPool2d):
+         With explicit padding (https://docs.pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html?highlight=maxpool#torch.nn.MaxPool2d):
          ```
          output_spatial_shape[i] = floor((input_spatial_shape[i] + pad_shape[i] - dilation[i] * (kernel_shape[i] - 1) - 1) / strides_spatial_shape[i] + 1)
          ```
@@ -1086,7 +1086,7 @@ class Opset22(Opset21):
 
         The GridSample operator is often used in doing grid generator and sampler in the
         [Spatial Transformer Networks](https://arxiv.org/abs/1506.02025).
-        See also in [torch.nn.functional.grid_sample](https://docs.pytorch.org/stable/generated/torch.nn.functional.grid_sample.html).
+        See also in [torch.nn.functional.grid_sample](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.grid_sample.html).
 
 
         Args:
@@ -1534,7 +1534,7 @@ class Opset22(Opset21):
          subset of the input tensor according to the kernel size and downsampling the
          data into the output tensor Y for further processing. The output spatial shape is calculated differently
          depending on whether explicit padding is used, where pads is employed, or auto padding is used, where auto_pad is utilized.
-         With explicit padding (https://docs.pytorch.org/stable/generated/torch.nn.MaxPool2d.html?highlight=maxpool#torch.nn.MaxPool2d):
+         With explicit padding (https://docs.pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html?highlight=maxpool#torch.nn.MaxPool2d):
          ```
          output_spatial_shape[i] = floor((input_spatial_shape[i] + pad_shape[i] - dilation[i] * (kernel_shape[i] - 1) - 1) / strides_spatial_shape[i] + 1)
          ```
@@ -1879,7 +1879,7 @@ class Opset22(Opset21):
 
         If "reduction" attribute is set to "sum", the output is a scalar: `sum(loss)`.
 
-        See also https://docs.pytorch.org/stable/nn.html#torch.nn.NLLLoss.
+        See also https://docs.pytorch.org/docs/stable/nn.html#torch.nn.NLLLoss.
 
         Example 1:
 

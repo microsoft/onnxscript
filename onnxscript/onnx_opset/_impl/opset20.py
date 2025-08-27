@@ -59,7 +59,7 @@ class Opset20(Opset19):
 
 
         Generates a 2D or 3D flow field (sampling grid), given a batch of affine matrices theta
-        (https://docs.pytorch.org/stable/generated/torch.nn.functional.affine_grid.html).
+        (https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.affine_grid.html).
         An affine matrix `theta` is applied to a position tensor represented in its homogeneous expression. Here is an example in 3D:
         ::
 
@@ -303,7 +303,7 @@ class Opset20(Opset19):
 
         The GridSample operator is often used in doing grid generator and sampler in the
         [Spatial Transformer Networks](https://arxiv.org/abs/1506.02025).
-        See also in [torch.nn.functional.grid_sample](https://docs.pytorch.org/stable/generated/torch.nn.functional.grid_sample.html).
+        See also in [torch.nn.functional.grid_sample](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.grid_sample.html).
 
 
         Args:

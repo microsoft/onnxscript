@@ -243,7 +243,7 @@ def aten_addmm(
     alpha = float(alpha)
     beta = float(beta)
 
-    # addmm only accepts 2d tensors: https://docs.pytorch.org/stable/generated/torch.addmm.html
+    # addmm only accepts 2d tensors: https://docs.pytorch.org/docs/stable/generated/torch.addmm.html
     return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
 
 
@@ -3710,7 +3710,7 @@ def aten_frac(self: TFloat) -> TFloat:
     Computes the fractional portion of each element in input.
     """
 
-    # https://docs.pytorch.org/stable/generated/torch.frac.html
+    # https://docs.pytorch.org/docs/stable/generated/torch.frac.html
     return op.Sub(self, op.Mul(op.Floor(op.Abs(self)), op.Sign(self)))
 
 
@@ -6311,7 +6311,7 @@ def aten_native_layer_norm(
 ) -> Tuple[TReal, TReal, TReal]:
     """native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    # https://docs.pytorch.org/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm
+    # https://docs.pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm
     # The mean and standard-deviation are calculated over the last D dimensions,
     # where D is the dimension of normalized_shape. For example, if normalized_shape is
     # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed

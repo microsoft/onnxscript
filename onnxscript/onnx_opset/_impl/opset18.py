@@ -234,7 +234,7 @@ class Opset18(Opset17):
 
         The operator rearranges column blocks back into a multidimensional image
 
-        Col2Im behaves similarly to PyTorch's fold https://docs.pytorch.org/stable/generated/torch.nn.Fold.html,
+        Col2Im behaves similarly to PyTorch's fold https://docs.pytorch.org/docs/stable/generated/torch.nn.Fold.html,
         but it only supports *batched* multi-dimensional image tensors.
         Another implementation in Python with N-dimension support can be found at https://github.com/f-dangel/unfoldNd/.
 

@@ -71,7 +71,7 @@ class Opset19(Opset18):
          subset of the input tensor according to the kernel size and downsampling the
          data into the output tensor Y for further processing. The output spatial shape is calculated differently
          depending on whether explicit padding is used, where pads is employed, or auto padding is used, where auto_pad is utilized.
-         With explicit padding (https://docs.pytorch.org/stable/generated/torch.nn.MaxPool2d.html?highlight=maxpool#torch.nn.MaxPool2d):
+         With explicit padding (https://docs.pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html?highlight=maxpool#torch.nn.MaxPool2d):
          ```
          output_spatial_shape[i] = floor((input_spatial_shape[i] + pad_shape[i] - dilation[i] * (kernel_shape[i] - 1) - 1) / strides_spatial_shape[i] + 1)
          ```
@@ -699,7 +699,49 @@ class Opset19(Opset18):
 
     B_If: TypeAlias = BOOL
 
-    V_If: TypeAlias = Union[None, Sequence[BFLOAT16], Sequence[BOOL], Sequence[COMPLEX128], Sequence[COMPLEX64], Sequence[DOUBLE], Sequence[FLOAT], Sequence[FLOAT16], Sequence[INT16], Sequence[INT32], Sequence[INT64], Sequence[INT8], Sequence[STRING], Sequence[UINT16], Sequence[UINT32], Sequence[UINT64], Sequence[UINT8], BFLOAT16, BOOL, COMPLEX128, COMPLEX64, DOUBLE, FLOAT, FLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ, INT16, INT32, INT64, INT8, STRING, UINT16, UINT32, UINT64, UINT8, Sequence[FLOAT8E4M3FN], Sequence[FLOAT8E4M3FNUZ], Sequence[FLOAT8E5M2], Sequence[FLOAT8E5M2FNUZ]]
+    V_If: TypeAlias = Union[
+        None,
+        Sequence[BFLOAT16],
+        Sequence[BOOL],
+        Sequence[COMPLEX128],
+        Sequence[COMPLEX64],
+        Sequence[DOUBLE],
+        Sequence[FLOAT],
+        Sequence[FLOAT16],
+        Sequence[INT16],
+        Sequence[INT32],
+        Sequence[INT64],
+        Sequence[INT8],
+        Sequence[STRING],
+        Sequence[UINT16],
+        Sequence[UINT32],
+        Sequence[UINT64],
+        Sequence[UINT8],
+        BFLOAT16,
+        BOOL,
+        COMPLEX128,
+        COMPLEX64,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        FLOAT8E4M3FN,
+        FLOAT8E4M3FNUZ,
+        FLOAT8E5M2,
+        FLOAT8E5M2FNUZ,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+        Sequence[FLOAT8E4M3FN],
+        Sequence[FLOAT8E4M3FNUZ],
+        Sequence[FLOAT8E5M2],
+        Sequence[FLOAT8E5M2FNUZ],
+    ]
 
     def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
         r"""[🌐 If(19)](https://onnx.ai/onnx/operators/onnx__If.html#if-19 "Online Documentation")
