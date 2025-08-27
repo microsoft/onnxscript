@@ -9,9 +9,9 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Annotated, Any, Iterable, Optional, Set, TextIO
 
+import onnx
 import pygen as cg
 from onnx.defs import (
-    AttributeProto,
     OpSchema,
     get_all_schemas_with_history,
     onnx_opset_version,
@@ -677,33 +677,33 @@ def parse_input_output_type(onnx_type: str) -> cg.TypeRef:
 
 
 def parse_attr_type(type) -> cg.TypeRef:
-    if type == AttributeProto.FLOAT:
+    if type == onnx.AttributeProto.FLOAT:
         return cg.FloatTypeRef()
-    if type == AttributeProto.INT:
+    if type == onnx.AttributeProto.INT:
         return cg.IntTypeRef()
-    if type == AttributeProto.STRING:
+    if type == onnx.AttributeProto.STRING:
         return cg.StrTypeRef()
-    if type == AttributeProto.TENSOR:
+    if type == onnx.AttributeProto.TENSOR:
         return cg.TypeRef(MODULE_ONNX, "TensorProto")
-    if type == AttributeProto.SPARSE_TENSOR:
+    if type == onnx.AttributeProto.SPARSE_TENSOR:
         return cg.TypeRef(MODULE_ONNX, "SparseTensorProto")
-    if type == AttributeProto.GRAPH:
+    if type == onnx.AttributeProto.GRAPH:
         return cg.TypeRef(MODULE_ONNX, "GraphProto")
-    if type == AttributeProto.TYPE_PROTO:
+    if type == onnx.AttributeProto.TYPE_PROTO:
         return cg.TypeRef(MODULE_ONNX, "TypeProto")
-    if type == AttributeProto.FLOATS:
+    if type == onnx.AttributeProto.FLOATS:
         return cg.TypingRefs.Sequence(cg.FloatTypeRef())
-    if type == AttributeProto.INTS:
+    if type == onnx.AttributeProto.INTS:
         return cg.TypingRefs.Sequence(cg.IntTypeRef())
-    if type == AttributeProto.STRINGS:
+    if type == onnx.AttributeProto.STRINGS:
         return cg.TypingRefs.Sequence(cg.StrTypeRef())
-    if type == AttributeProto.TENSORS:
+    if type == onnx.AttributeProto.TENSORS:
         return cg.TypingRefs.Sequence(cg.TypeRef(MODULE_ONNX, "TensorProto"))
-    if type == AttributeProto.SPARSE_TENSORS:
+    if type == onnx.AttributeProto.SPARSE_TENSORS:
         return cg.TypingRefs.Sequence(cg.TypeRef(MODULE_ONNX, "SparseTensorProto"))
-    if type == AttributeProto.GRAPHS:
+    if type == onnx.AttributeProto.GRAPHS:
         return cg.TypingRefs.Sequence(cg.TypeRef(MODULE_ONNX, "GraphProto"))
-    if type == AttributeProto.TYPE_PROTOS:
+    if type == onnx.AttributeProto.TYPE_PROTOS:
         return cg.TypingRefs.Sequence(cg.TypeRef(MODULE_ONNX, "TypeProto"))
     raise NotImplementedError(f"attribute type not implemented: {type}")
 
