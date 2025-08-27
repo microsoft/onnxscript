@@ -9049,7 +9049,7 @@ def aten_view(self: TTensor, size: Sequence[INT64]) -> TTensor:
     return op.Reshape(self, size, allowzero=True)
 
 
-@torch_op(("aten::view", "aten::_unsafe_view"), complex=True)
+@torch_op(("aten::view", "aten::_unsafe_view"), complex=True, trace_only=True)
 def aten_view_complex(self: TTensor, size: Sequence[INT64]) -> TTensor:
     """view(Tensor(a) self, SymInt[] size) -> Tensor(a)"""
 
@@ -9057,7 +9057,7 @@ def aten_view_complex(self: TTensor, size: Sequence[INT64]) -> TTensor:
     return op.Reshape(self, complex_size, allowzero=True)
 
 
-@torch_op("aten::view_as")
+@torch_op("aten::view_as", trace_only=True)
 def aten_view_as(self: TTensor, other: TTensor2) -> TTensor:
     """view_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
 
@@ -9101,7 +9101,7 @@ def aten_view_as_real_copy(self: TTensor) -> TTensor:
     return op.Identity(self)
 
 
-@torch_op("aten::view_copy")
+@torch_op("aten::view_copy", trace_only=True)
 def aten_view_copy(self: TTensor, size: IntType) -> TTensor:
     """view_copy(Tensor self, SymInt[] size) -> Tensor"""
 
@@ -9133,7 +9133,8 @@ def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
         "aten::where.ScalarSelf",
         "aten::where.ScalarOther",
         "aten::where.self",
-    )
+    ),
+    trace_only=True,
 )
 def aten_where(condition: BOOL, self: TTensor, other: TTensor) -> TTensor:
     """where.self(Tensor condition, Tensor self, Tensor other) -> Tensor"""
