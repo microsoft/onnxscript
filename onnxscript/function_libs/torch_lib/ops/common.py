@@ -104,4 +104,8 @@ def merge_dims(dims: Sequence[int | INT64]) -> INT64:
             result_dims.append(current_dim)
     if len(result_dims) == 1:
         return result_dims[0]
-    return op.Concat(result_dims, axis=0)
+
+    # Set the output type to INT64 so op.Concat can be used
+    for dim in result_dims:
+        dim.dtype = ir.DataType.INT64
+    return op.Concat(*result_dims, axis=0)
