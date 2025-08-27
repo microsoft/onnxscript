@@ -1523,7 +1523,7 @@ def aten_broadcast_tensors(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::broadcast_to")
+@torch_op("aten::broadcast_to", trace_only=True)
 def aten_broadcast_to(self: TTensor, size: Sequence[INT64]) -> TTensor:
     """broadcast_to(Tensor(a) self, SymInt[] size) -> Tensor(a)"""
     size = common_ops.merge_dims(size)
@@ -7299,7 +7299,7 @@ def aten_repeat_interleave(
     raise NotImplementedError()
 
 
-@torch_op("aten::reshape")
+@torch_op("aten::reshape", trace_only=True)
 def aten_reshape(self: TTensor, shape: Sequence[INT64]) -> TTensor:
     """reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)"""
     shape = common_ops.merge_dims(shape)
