@@ -1,8 +1,9 @@
-# --------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
+"""Main entry point for generating the onnx_opset modules.
 
+Example Usage: python opgen --exclude ai.onnx.preview.training/1
+"""
 import argparse
 import shutil
 import subprocess
