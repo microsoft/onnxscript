@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D214, D402, D405, D411, D416, D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -19,9 +18,23 @@ from onnx import GraphProto, TensorProto
 from onnx.defs import get_schema
 from typing_extensions import TypeAlias
 
-from onnxscript.onnx_types import (BOOL, COMPLEX64, COMPLEX128, DOUBLE, FLOAT,
-                                   FLOAT16, INT8, INT16, INT32, INT64, STRING,
-                                   UINT8, UINT16, UINT32, UINT64)
+from onnxscript.onnx_types import (
+    BOOL,
+    COMPLEX64,
+    COMPLEX128,
+    DOUBLE,
+    FLOAT,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    STRING,
+    UINT8,
+    UINT16,
+    UINT32,
+    UINT64,
+)
 from onnxscript.values import Op, Opset
 
 
@@ -31,9 +44,7 @@ class Opset1(Opset):
 
     T_Abs = TypeVar("T_Abs", DOUBLE, FLOAT, FLOAT16)
 
-    def Abs(
-        self, X: T_Abs, *, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Abs:
+    def Abs(self, X: T_Abs, *, consumed_inputs: Optional[Sequence[int]] = None) -> T_Abs:
         r"""[🌐 Abs(1)](https://onnx.ai/onnx/operators/onnx__Abs.html#abs-1 "Online Documentation")
 
 
@@ -424,9 +435,7 @@ class Opset1(Opset):
 
     T_Ceil = TypeVar("T_Ceil", DOUBLE, FLOAT, FLOAT16)
 
-    def Ceil(
-        self, X: T_Ceil, *, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Ceil:
+    def Ceil(self, X: T_Ceil, *, consumed_inputs: Optional[Sequence[int]] = None) -> T_Ceil:
         r"""[🌐 Ceil(1)](https://onnx.ai/onnx/operators/onnx__Ceil.html#ceil-1 "Online Documentation")
 
 
@@ -903,9 +912,7 @@ class Opset1(Opset):
 
     T_Exp = TypeVar("T_Exp", DOUBLE, FLOAT, FLOAT16)
 
-    def Exp(
-        self, input: T_Exp, *, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Exp:
+    def Exp(self, input: T_Exp, *, consumed_inputs: Optional[Sequence[int]] = None) -> T_Exp:
         r"""[🌐 Exp(1)](https://onnx.ai/onnx/operators/onnx__Exp.html#exp-1 "Online Documentation")
 
 
@@ -949,9 +956,7 @@ class Opset1(Opset):
 
     T_Floor = TypeVar("T_Floor", DOUBLE, FLOAT, FLOAT16)
 
-    def Floor(
-        self, X: T_Floor, *, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Floor:
+    def Floor(self, X: T_Floor, *, consumed_inputs: Optional[Sequence[int]] = None) -> T_Floor:
         r"""[🌐 Floor(1)](https://onnx.ai/onnx/operators/onnx__Floor.html#floor-1 "Online Documentation")
 
 
@@ -1153,9 +1158,7 @@ class Opset1(Opset):
 
     Tind_Gather = TypeVar("Tind_Gather", INT32, INT64)
 
-    def Gather(
-        self, data: T_Gather, indices: Tind_Gather, *, axis: int = 0
-    ) -> T_Gather:
+    def Gather(self, data: T_Gather, indices: Tind_Gather, *, axis: int = 0) -> T_Gather:
         r"""[🌐 Gather(1)](https://onnx.ai/onnx/operators/onnx__Gather.html#gather-1 "Online Documentation")
 
 
@@ -1507,9 +1510,7 @@ class Opset1(Opset):
         UINT8,
     ]
 
-    def If(
-        self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto
-    ) -> V_If:
+    def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
         r"""[🌐 If(1)](https://onnx.ai/onnx/operators/onnx__If.html#if-1 "Online Documentation")
 
         If conditional
@@ -1807,9 +1808,7 @@ class Opset1(Opset):
         schema = get_schema("LSTM", 1, "")
         op = Op(self, "LSTM", schema)
         return op(
-            *self._prepare_inputs(
-                schema, X, W, R, B, sequence_lens, initial_h, initial_c, P
-            ),
+            *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h, initial_c, P),
             activation_alpha=activation_alpha,
             activation_beta=activation_beta,
             activations=activations,
@@ -1887,9 +1886,7 @@ class Opset1(Opset):
 
     T_Log = TypeVar("T_Log", DOUBLE, FLOAT, FLOAT16)
 
-    def Log(
-        self, input: T_Log, *, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Log:
+    def Log(self, input: T_Log, *, consumed_inputs: Optional[Sequence[int]] = None) -> T_Log:
         r"""[🌐 Log(1)](https://onnx.ai/onnx/operators/onnx__Log.html#log-1 "Online Documentation")
 
 
@@ -2220,9 +2217,7 @@ class Opset1(Opset):
 
     T_Max = TypeVar("T_Max", DOUBLE, FLOAT, FLOAT16)
 
-    def Max(
-        self, *data_0: T_Max, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Max:
+    def Max(self, *data_0: T_Max, consumed_inputs: Optional[Sequence[int]] = None) -> T_Max:
         r"""[🌐 Max(1)](https://onnx.ai/onnx/operators/onnx__Max.html#max-1 "Online Documentation")
 
 
@@ -2238,9 +2233,7 @@ class Opset1(Opset):
 
         schema = get_schema("Max", 1, "")
         op = Op(self, "Max", schema)
-        return op(
-            *self._prepare_inputs(schema, *data_0), consumed_inputs=consumed_inputs
-        )
+        return op(*self._prepare_inputs(schema, *data_0), consumed_inputs=consumed_inputs)
 
     T_MaxPool = TypeVar("T_MaxPool", DOUBLE, FLOAT, FLOAT16)
 
@@ -2364,9 +2357,7 @@ class Opset1(Opset):
 
     T_Mean = TypeVar("T_Mean", DOUBLE, FLOAT, FLOAT16)
 
-    def Mean(
-        self, *data_0: T_Mean, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Mean:
+    def Mean(self, *data_0: T_Mean, consumed_inputs: Optional[Sequence[int]] = None) -> T_Mean:
         r"""[🌐 Mean(1)](https://onnx.ai/onnx/operators/onnx__Mean.html#mean-1 "Online Documentation")
 
 
@@ -2382,15 +2373,11 @@ class Opset1(Opset):
 
         schema = get_schema("Mean", 1, "")
         op = Op(self, "Mean", schema)
-        return op(
-            *self._prepare_inputs(schema, *data_0), consumed_inputs=consumed_inputs
-        )
+        return op(*self._prepare_inputs(schema, *data_0), consumed_inputs=consumed_inputs)
 
     T_Min = TypeVar("T_Min", DOUBLE, FLOAT, FLOAT16)
 
-    def Min(
-        self, *data_0: T_Min, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Min:
+    def Min(self, *data_0: T_Min, consumed_inputs: Optional[Sequence[int]] = None) -> T_Min:
         r"""[🌐 Min(1)](https://onnx.ai/onnx/operators/onnx__Min.html#min-1 "Online Documentation")
 
 
@@ -2406,9 +2393,7 @@ class Opset1(Opset):
 
         schema = get_schema("Min", 1, "")
         op = Op(self, "Min", schema)
-        return op(
-            *self._prepare_inputs(schema, *data_0), consumed_inputs=consumed_inputs
-        )
+        return op(*self._prepare_inputs(schema, *data_0), consumed_inputs=consumed_inputs)
 
     T_Mul = TypeVar("T_Mul", DOUBLE, FLOAT, FLOAT16)
 
@@ -2470,9 +2455,7 @@ class Opset1(Opset):
 
     T_Neg = TypeVar("T_Neg", DOUBLE, FLOAT, FLOAT16)
 
-    def Neg(
-        self, X: T_Neg, *, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Neg:
+    def Neg(self, X: T_Neg, *, consumed_inputs: Optional[Sequence[int]] = None) -> T_Neg:
         r"""[🌐 Neg(1)](https://onnx.ai/onnx/operators/onnx__Neg.html#neg-1 "Online Documentation")
 
 
@@ -2512,9 +2495,7 @@ class Opset1(Opset):
 
     T1_Or: TypeAlias = BOOL
 
-    def Or(
-        self, A: T_Or, B: T_Or, *, axis: Optional[int] = None, broadcast: int = 0
-    ) -> T1_Or:
+    def Or(self, A: T_Or, B: T_Or, *, axis: Optional[int] = None, broadcast: int = 0) -> T1_Or:
         r"""[🌐 Or(1)](https://onnx.ai/onnx/operators/onnx__Or.html#or-1 "Online Documentation")
 
 
@@ -2570,9 +2551,7 @@ class Opset1(Opset):
 
         schema = get_schema("PRelu", 1, "")
         op = Op(self, "PRelu", schema)
-        return op(
-            *self._prepare_inputs(schema, X, slope), consumed_inputs=consumed_inputs
-        )
+        return op(*self._prepare_inputs(schema, X, slope), consumed_inputs=consumed_inputs)
 
     T_Pad = TypeVar("T_Pad", DOUBLE, FLOAT, FLOAT16)
 
@@ -3064,9 +3043,7 @@ class Opset1(Opset):
         op = Op(self, "Reciprocal", schema)
         return op(*self._prepare_inputs(schema, X), consumed_inputs=consumed_inputs)
 
-    T_ReduceL1 = TypeVar(
-        "T_ReduceL1", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
-    )
+    T_ReduceL1 = TypeVar("T_ReduceL1", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceL1(
         self,
@@ -3100,9 +3077,7 @@ class Opset1(Opset):
         op = Op(self, "ReduceL1", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T_ReduceL2 = TypeVar(
-        "T_ReduceL2", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
-    )
+    T_ReduceL2 = TypeVar("T_ReduceL2", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceL2(
         self,
@@ -3208,9 +3183,7 @@ class Opset1(Opset):
         op = Op(self, "ReduceLogSumExp", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T_ReduceMax = TypeVar(
-        "T_ReduceMax", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
-    )
+    T_ReduceMax = TypeVar("T_ReduceMax", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMax(
         self,
@@ -3280,9 +3253,7 @@ class Opset1(Opset):
         op = Op(self, "ReduceMean", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T_ReduceMin = TypeVar(
-        "T_ReduceMin", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
-    )
+    T_ReduceMin = TypeVar("T_ReduceMin", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMin(
         self,
@@ -3352,9 +3323,7 @@ class Opset1(Opset):
         op = Op(self, "ReduceProd", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T_ReduceSum = TypeVar(
-        "T_ReduceSum", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
-    )
+    T_ReduceSum = TypeVar("T_ReduceSum", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceSum(
         self,
@@ -3426,9 +3395,7 @@ class Opset1(Opset):
 
     T_Relu = TypeVar("T_Relu", DOUBLE, FLOAT, FLOAT16)
 
-    def Relu(
-        self, X: T_Relu, *, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Relu:
+    def Relu(self, X: T_Relu, *, consumed_inputs: Optional[Sequence[int]] = None) -> T_Relu:
         r"""[🌐 Relu(1)](https://onnx.ai/onnx/operators/onnx__Relu.html#relu-1 "Online Documentation")
 
 
@@ -3692,9 +3659,7 @@ class Opset1(Opset):
 
         schema = get_schema("Slice", 1, "")
         op = Op(self, "Slice", schema)
-        return op(
-            *self._prepare_inputs(schema, data), axes=axes, ends=ends, starts=starts
-        )
+        return op(*self._prepare_inputs(schema, data), axes=axes, ends=ends, starts=starts)
 
     T_Softmax = TypeVar("T_Softmax", DOUBLE, FLOAT, FLOAT16)
 
@@ -3839,9 +3804,7 @@ class Opset1(Opset):
 
     T_Sqrt = TypeVar("T_Sqrt", DOUBLE, FLOAT, FLOAT16)
 
-    def Sqrt(
-        self, X: T_Sqrt, *, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Sqrt:
+    def Sqrt(self, X: T_Sqrt, *, consumed_inputs: Optional[Sequence[int]] = None) -> T_Sqrt:
         r"""[🌐 Sqrt(1)](https://onnx.ai/onnx/operators/onnx__Sqrt.html#sqrt-1 "Online Documentation")
 
 
@@ -3879,9 +3842,7 @@ class Opset1(Opset):
         UINT8,
     )
 
-    def Squeeze(
-        self, data: T_Squeeze, *, axes: Optional[Sequence[int]] = None
-    ) -> T_Squeeze:
+    def Squeeze(self, data: T_Squeeze, *, axes: Optional[Sequence[int]] = None) -> T_Squeeze:
         r"""[🌐 Squeeze(1)](https://onnx.ai/onnx/operators/onnx__Squeeze.html#squeeze-1 "Online Documentation")
 
 
@@ -3961,9 +3922,7 @@ class Opset1(Opset):
 
     T_Sum = TypeVar("T_Sum", DOUBLE, FLOAT, FLOAT16)
 
-    def Sum(
-        self, *data_0: T_Sum, consumed_inputs: Optional[Sequence[int]] = None
-    ) -> T_Sum:
+    def Sum(self, *data_0: T_Sum, consumed_inputs: Optional[Sequence[int]] = None) -> T_Sum:
         r"""[🌐 Sum(1)](https://onnx.ai/onnx/operators/onnx__Sum.html#sum-1 "Online Documentation")
 
 
@@ -3979,9 +3938,7 @@ class Opset1(Opset):
 
         schema = get_schema("Sum", 1, "")
         op = Op(self, "Sum", schema)
-        return op(
-            *self._prepare_inputs(schema, *data_0), consumed_inputs=consumed_inputs
-        )
+        return op(*self._prepare_inputs(schema, *data_0), consumed_inputs=consumed_inputs)
 
     T_Tanh = TypeVar("T_Tanh", DOUBLE, FLOAT, FLOAT16)
 

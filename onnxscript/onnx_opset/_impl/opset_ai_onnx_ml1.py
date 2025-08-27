@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: N801, D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -816,9 +815,7 @@ class Opset_ai_onnx_ml1(Opset):
             post_transform=post_transform,
         )
 
-    T_TreeEnsembleRegressor = TypeVar(
-        "T_TreeEnsembleRegressor", DOUBLE, FLOAT, INT32, INT64
-    )
+    T_TreeEnsembleRegressor = TypeVar("T_TreeEnsembleRegressor", DOUBLE, FLOAT, INT32, INT64)
 
     def TreeEnsembleRegressor(
         self,
@@ -936,9 +933,7 @@ class Opset_ai_onnx_ml1(Opset):
             target_weights=target_weights,
         )
 
-    T_ZipMap: TypeAlias = Union[
-        Sequence[Mapping[int, FLOAT]], Sequence[Mapping[str, FLOAT]]
-    ]
+    T_ZipMap: TypeAlias = Union[Sequence[Mapping[int, FLOAT]], Sequence[Mapping[str, FLOAT]]]
 
     def ZipMap(
         self,

@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D402
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -18,9 +17,23 @@ from typing import TypeVar
 from onnx.defs import get_schema
 
 from onnxscript.onnx_opset._impl.opset3 import Opset3
-from onnxscript.onnx_types import (BOOL, COMPLEX64, COMPLEX128, DOUBLE, FLOAT,
-                                   FLOAT16, INT8, INT16, INT32, INT64, STRING,
-                                   UINT8, UINT16, UINT32, UINT64)
+from onnxscript.onnx_types import (
+    BOOL,
+    COMPLEX64,
+    COMPLEX128,
+    DOUBLE,
+    FLOAT,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    STRING,
+    UINT8,
+    UINT16,
+    UINT32,
+    UINT64,
+)
 from onnxscript.values import Op, Opset
 
 

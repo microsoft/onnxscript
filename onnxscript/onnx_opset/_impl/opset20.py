@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D402
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -20,11 +19,28 @@ from onnx.defs import get_schema
 from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset19 import Opset19
-from onnxscript.onnx_types import (BFLOAT16, BOOL, COMPLEX64, COMPLEX128,
-                                   DOUBLE, FLOAT, FLOAT8E4M3FN, FLOAT8E4M3FNUZ,
-                                   FLOAT8E5M2, FLOAT8E5M2FNUZ, FLOAT16, INT8,
-                                   INT16, INT32, INT64, STRING, UINT8, UINT16,
-                                   UINT32, UINT64)
+from onnxscript.onnx_types import (
+    BFLOAT16,
+    BOOL,
+    COMPLEX64,
+    COMPLEX128,
+    DOUBLE,
+    FLOAT,
+    FLOAT8E4M3FN,
+    FLOAT8E4M3FNUZ,
+    FLOAT8E5M2,
+    FLOAT8E5M2FNUZ,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    STRING,
+    UINT8,
+    UINT16,
+    UINT32,
+    UINT64,
+)
 from onnxscript.values import Op, Opset
 
 
@@ -91,9 +107,7 @@ class Opset20(Opset19):
 
         schema = get_schema("AffineGrid", 20, "")
         op = Op(self, "AffineGrid", schema)
-        return op(
-            *self._prepare_inputs(schema, theta, size), align_corners=align_corners
-        )
+        return op(*self._prepare_inputs(schema, theta, size), align_corners=align_corners)
 
     T1_ConstantOfShape: TypeAlias = INT64
 
@@ -387,9 +401,7 @@ class Opset20(Opset19):
 
         schema = get_schema("ImageDecoder", 20, "")
         op = Op(self, "ImageDecoder", schema)
-        return op(
-            *self._prepare_inputs(schema, encoded_stream), pixel_format=pixel_format
-        )
+        return op(*self._prepare_inputs(schema, encoded_stream), pixel_format=pixel_format)
 
     T1_IsInf = TypeVar(
         "T1_IsInf",
@@ -663,6 +675,4 @@ class Opset20(Opset19):
 
         schema = get_schema("StringSplit", 20, "")
         op = Op(self, "StringSplit", schema)
-        return op(
-            *self._prepare_inputs(schema, X), delimiter=delimiter, maxsplit=maxsplit
-        )
+        return op(*self._prepare_inputs(schema, X), delimiter=delimiter, maxsplit=maxsplit)

@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D402, D405
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -19,10 +18,24 @@ from onnx.defs import get_schema
 from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset13 import Opset13
-from onnxscript.onnx_types import (BFLOAT16, BOOL, COMPLEX64, COMPLEX128,
-                                   DOUBLE, FLOAT, FLOAT16, INT8, INT16, INT32,
-                                   INT64, STRING, UINT8, UINT16, UINT32,
-                                   UINT64)
+from onnxscript.onnx_types import (
+    BFLOAT16,
+    BOOL,
+    COMPLEX64,
+    COMPLEX128,
+    DOUBLE,
+    FLOAT,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    STRING,
+    UINT8,
+    UINT16,
+    UINT32,
+    UINT64,
+)
 from onnxscript.values import Op, Opset
 
 
@@ -67,13 +80,9 @@ class Opset14(Opset13):
         op = Op(self, "Add", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    T_BatchNormalization = TypeVar(
-        "T_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16
-    )
+    T_BatchNormalization = TypeVar("T_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
-    U_BatchNormalization = TypeVar(
-        "U_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16
-    )
+    U_BatchNormalization = TypeVar("U_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
     def BatchNormalization(
         self,
@@ -222,9 +231,7 @@ class Opset14(Opset13):
 
         schema = get_schema("CumSum", 14, "")
         op = Op(self, "CumSum", schema)
-        return op(
-            *self._prepare_inputs(schema, x, axis), exclusive=exclusive, reverse=reverse
-        )
+        return op(*self._prepare_inputs(schema, x, axis), exclusive=exclusive, reverse=reverse)
 
     T_Div = TypeVar(
         "T_Div",
@@ -639,9 +646,7 @@ class Opset14(Opset13):
         schema = get_schema("LSTM", 14, "")
         op = Op(self, "LSTM", schema)
         return op(
-            *self._prepare_inputs(
-                schema, X, W, R, B, sequence_lens, initial_h, initial_c, P
-            ),
+            *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h, initial_c, P),
             activation_alpha=activation_alpha,
             activation_beta=activation_beta,
             activations=activations,
@@ -828,9 +833,7 @@ class Opset14(Opset13):
             layout=layout,
         )
 
-    T_Relu = TypeVar(
-        "T_Relu", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8
-    )
+    T_Relu = TypeVar("T_Relu", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8)
 
     def Relu(self, X: T_Relu) -> T_Relu:
         r"""[🌐 Relu(14)](https://onnx.ai/onnx/operators/onnx__Relu.html#relu-14 "Online Documentation")
@@ -869,9 +872,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Reshape(
-        self, data: T_Reshape, shape: INT64, *, allowzero: int = 0
-    ) -> T_Reshape:
+    def Reshape(self, data: T_Reshape, shape: INT64, *, allowzero: int = 0) -> T_Reshape:
         r"""[🌐 Reshape(14)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-14 "Online Documentation")
 
 
@@ -963,9 +964,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Trilu(
-        self, input: T_Trilu, k: Optional[INT64] = None, *, upper: int = 1
-    ) -> T_Trilu:
+    def Trilu(self, input: T_Trilu, k: Optional[INT64] = None, *, upper: int = 1) -> T_Trilu:
         r"""[🌐 Trilu(14)](https://onnx.ai/onnx/operators/onnx__Trilu.html#trilu-14 "Online Documentation")
 
 

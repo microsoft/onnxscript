@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D402, D405
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -19,10 +18,24 @@ from onnx.defs import get_schema
 from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset17 import Opset17
-from onnxscript.onnx_types import (BFLOAT16, BOOL, COMPLEX64, COMPLEX128,
-                                   DOUBLE, FLOAT, FLOAT16, INT8, INT16, INT32,
-                                   INT64, STRING, UINT8, UINT16, UINT32,
-                                   UINT64)
+from onnxscript.onnx_types import (
+    BFLOAT16,
+    BOOL,
+    COMPLEX64,
+    COMPLEX128,
+    DOUBLE,
+    FLOAT,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    STRING,
+    UINT8,
+    UINT16,
+    UINT32,
+    UINT64,
+)
 from onnxscript.values import Op, Opset
 
 
@@ -741,9 +754,7 @@ class Opset18(Opset17):
 
         schema = get_schema("Pad", 18, "")
         op = Op(self, "Pad", schema)
-        return op(
-            *self._prepare_inputs(schema, data, pads, constant_value, axes), mode=mode
-        )
+        return op(*self._prepare_inputs(schema, data, pads, constant_value, axes), mode=mode)
 
     T_ReduceL1 = TypeVar(
         "T_ReduceL1", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
@@ -1712,9 +1723,7 @@ class Opset18(Opset17):
 
         schema = get_schema("ScatterND", 18, "")
         op = Op(self, "ScatterND", schema)
-        return op(
-            *self._prepare_inputs(schema, data, indices, updates), reduction=reduction
-        )
+        return op(*self._prepare_inputs(schema, data, indices, updates), reduction=reduction)
 
     T_Split = TypeVar(
         "T_Split",

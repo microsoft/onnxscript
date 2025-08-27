@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: E741, D402, D405
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -19,11 +18,28 @@ from onnx.defs import get_schema
 from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset21 import Opset21
-from onnxscript.onnx_types import (BFLOAT16, BOOL, COMPLEX64, COMPLEX128,
-                                   DOUBLE, FLOAT, FLOAT8E4M3FN, FLOAT8E4M3FNUZ,
-                                   FLOAT8E5M2, FLOAT8E5M2FNUZ, FLOAT16, INT8,
-                                   INT16, INT32, INT64, STRING, UINT8, UINT16,
-                                   UINT32, UINT64)
+from onnxscript.onnx_types import (
+    BFLOAT16,
+    BOOL,
+    COMPLEX64,
+    COMPLEX128,
+    DOUBLE,
+    FLOAT,
+    FLOAT8E4M3FN,
+    FLOAT8E4M3FNUZ,
+    FLOAT8E5M2,
+    FLOAT8E5M2FNUZ,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    STRING,
+    UINT8,
+    UINT16,
+    UINT32,
+    UINT64,
+)
 from onnxscript.values import Op, Opset
 
 
@@ -952,9 +968,7 @@ class Opset22(Opset21):
             linear_before_reset=linear_before_reset,
         )
 
-    T_GlobalAveragePool = TypeVar(
-        "T_GlobalAveragePool", BFLOAT16, DOUBLE, FLOAT, FLOAT16
-    )
+    T_GlobalAveragePool = TypeVar("T_GlobalAveragePool", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
     def GlobalAveragePool(self, X: T_GlobalAveragePool) -> T_GlobalAveragePool:
         r"""[🌐 GlobalAveragePool(22)](https://onnx.ai/onnx/operators/onnx__GlobalAveragePool.html#globalaveragepool-22 "Online Documentation")
@@ -1368,9 +1382,7 @@ class Opset22(Opset21):
         schema = get_schema("LSTM", 22, "")
         op = Op(self, "LSTM", schema)
         return op(
-            *self._prepare_inputs(
-                schema, X, W, R, B, sequence_lens, initial_h, initial_c, P
-            ),
+            *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h, initial_c, P),
             activation_alpha=activation_alpha,
             activation_beta=activation_beta,
             activations=activations,
@@ -1806,9 +1818,7 @@ class Opset22(Opset21):
         "T_NegativeLogLikelihoodLoss", BFLOAT16, DOUBLE, FLOAT, FLOAT16
     )
 
-    Tind_NegativeLogLikelihoodLoss = TypeVar(
-        "Tind_NegativeLogLikelihoodLoss", INT32, INT64
-    )
+    Tind_NegativeLogLikelihoodLoss = TypeVar("Tind_NegativeLogLikelihoodLoss", INT32, INT64)
 
     def NegativeLogLikelihoodLoss(
         self,

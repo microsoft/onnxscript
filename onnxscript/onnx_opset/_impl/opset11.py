@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: E741, D214, D402, D405, D411, D416
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -20,9 +19,23 @@ from onnx.defs import get_schema
 from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset10 import Opset10
-from onnxscript.onnx_types import (BOOL, COMPLEX64, COMPLEX128, DOUBLE, FLOAT,
-                                   FLOAT16, INT8, INT16, INT32, INT64, STRING,
-                                   UINT8, UINT16, UINT32, UINT64)
+from onnxscript.onnx_types import (
+    BOOL,
+    COMPLEX64,
+    COMPLEX128,
+    DOUBLE,
+    FLOAT,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    STRING,
+    UINT8,
+    UINT16,
+    UINT32,
+    UINT64,
+)
 from onnxscript.values import Op, Opset
 
 
@@ -420,9 +433,7 @@ class Opset11(Opset10):
 
         schema = get_schema("ConcatFromSequence", 11, "")
         op = Op(self, "ConcatFromSequence", schema)
-        return op(
-            *self._prepare_inputs(schema, input_sequence), axis=axis, new_axis=new_axis
-        )
+        return op(*self._prepare_inputs(schema, input_sequence), axis=axis, new_axis=new_axis)
 
     T_Constant: TypeAlias = Union[
         BOOL,
@@ -719,9 +730,7 @@ class Opset11(Opset10):
 
         schema = get_schema("CumSum", 11, "")
         op = Op(self, "CumSum", schema)
-        return op(
-            *self._prepare_inputs(schema, x, axis), exclusive=exclusive, reverse=reverse
-        )
+        return op(*self._prepare_inputs(schema, x, axis), exclusive=exclusive, reverse=reverse)
 
     T_DepthToSpace = TypeVar(
         "T_DepthToSpace",
@@ -966,9 +975,7 @@ class Opset11(Opset10):
 
     Tind_Gather = TypeVar("Tind_Gather", INT32, INT64)
 
-    def Gather(
-        self, data: T_Gather, indices: Tind_Gather, *, axis: int = 0
-    ) -> T_Gather:
+    def Gather(self, data: T_Gather, indices: Tind_Gather, *, axis: int = 0) -> T_Gather:
         r"""[🌐 Gather(11)](https://onnx.ai/onnx/operators/onnx__Gather.html#gather-11 "Online Documentation")
 
 
@@ -1372,9 +1379,7 @@ class Opset11(Opset10):
         UINT8,
     ]
 
-    def If(
-        self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto
-    ) -> V_If:
+    def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
         r"""[🌐 If(11)](https://onnx.ai/onnx/operators/onnx__If.html#if-11 "Online Documentation")
 
         If conditional
@@ -2233,9 +2238,7 @@ class Opset11(Opset10):
         op = Op(self, "Range", schema)
         return op(*self._prepare_inputs(schema, start, limit, delta))
 
-    T_ReduceL1 = TypeVar(
-        "T_ReduceL1", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
-    )
+    T_ReduceL1 = TypeVar("T_ReduceL1", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceL1(
         self,
@@ -2269,9 +2272,7 @@ class Opset11(Opset10):
         op = Op(self, "ReduceL1", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T_ReduceL2 = TypeVar(
-        "T_ReduceL2", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
-    )
+    T_ReduceL2 = TypeVar("T_ReduceL2", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceL2(
         self,
@@ -2377,9 +2378,7 @@ class Opset11(Opset10):
         op = Op(self, "ReduceLogSumExp", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T_ReduceMax = TypeVar(
-        "T_ReduceMax", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
-    )
+    T_ReduceMax = TypeVar("T_ReduceMax", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMax(
         self,
@@ -2450,9 +2449,7 @@ class Opset11(Opset10):
         op = Op(self, "ReduceMean", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T_ReduceMin = TypeVar(
-        "T_ReduceMin", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
-    )
+    T_ReduceMin = TypeVar("T_ReduceMin", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMin(
         self,
@@ -2523,9 +2520,7 @@ class Opset11(Opset10):
         op = Op(self, "ReduceProd", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T_ReduceSum = TypeVar(
-        "T_ReduceSum", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
-    )
+    T_ReduceSum = TypeVar("T_ReduceSum", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceSum(
         self,
@@ -3222,9 +3217,7 @@ class Opset11(Opset10):
         UINT8,
     ]
 
-    def SequenceAt(
-        self, input_sequence: S_SequenceAt, position: I_SequenceAt
-    ) -> T_SequenceAt:
+    def SequenceAt(self, input_sequence: S_SequenceAt, position: I_SequenceAt) -> T_SequenceAt:
         r"""[🌐 SequenceAt(11)](https://onnx.ai/onnx/operators/onnx__SequenceAt.html#sequenceat-11 "Online Documentation")
 
 
@@ -3741,9 +3734,7 @@ class Opset11(Opset10):
 
         schema = get_schema("SplitToSequence", 11, "")
         op = Op(self, "SplitToSequence", schema)
-        return op(
-            *self._prepare_inputs(schema, input, split), axis=axis, keepdims=keepdims
-        )
+        return op(*self._prepare_inputs(schema, input, split), axis=axis, keepdims=keepdims)
 
     T_Squeeze = TypeVar(
         "T_Squeeze",
@@ -3764,9 +3755,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Squeeze(
-        self, data: T_Squeeze, *, axes: Optional[Sequence[int]] = None
-    ) -> T_Squeeze:
+    def Squeeze(self, data: T_Squeeze, *, axes: Optional[Sequence[int]] = None) -> T_Squeeze:
         r"""[🌐 Squeeze(11)](https://onnx.ai/onnx/operators/onnx__Squeeze.html#squeeze-11 "Online Documentation")
 
 

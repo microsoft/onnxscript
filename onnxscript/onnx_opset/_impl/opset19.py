@@ -7,8 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036
-# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D214, D402, D405, D411, D412, D416
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -20,11 +19,28 @@ from onnx.defs import get_schema
 from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset18 import Opset18
-from onnxscript.onnx_types import (BFLOAT16, BOOL, COMPLEX64, COMPLEX128,
-                                   DOUBLE, FLOAT, FLOAT8E4M3FN, FLOAT8E4M3FNUZ,
-                                   FLOAT8E5M2, FLOAT8E5M2FNUZ, FLOAT16, INT8,
-                                   INT16, INT32, INT64, STRING, UINT8, UINT16,
-                                   UINT32, UINT64)
+from onnxscript.onnx_types import (
+    BFLOAT16,
+    BOOL,
+    COMPLEX64,
+    COMPLEX128,
+    DOUBLE,
+    FLOAT,
+    FLOAT8E4M3FN,
+    FLOAT8E4M3FNUZ,
+    FLOAT8E5M2,
+    FLOAT8E5M2FNUZ,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    STRING,
+    UINT8,
+    UINT16,
+    UINT32,
+    UINT64,
+)
 from onnxscript.values import Op, Opset
 
 
@@ -687,42 +703,7 @@ class Opset19(Opset18):
     B_If: TypeAlias = BOOL
 
     V_If: TypeAlias = Union[
-        Optional[Sequence[BFLOAT16]],
-        Optional[Sequence[BOOL]],
-        Optional[Sequence[COMPLEX128]],
-        Optional[Sequence[COMPLEX64]],
-        Optional[Sequence[DOUBLE]],
-        Optional[Sequence[FLOAT]],
-        Optional[Sequence[FLOAT16]],
-        Optional[Sequence[INT16]],
-        Optional[Sequence[INT32]],
-        Optional[Sequence[INT64]],
-        Optional[Sequence[INT8]],
-        Optional[Sequence[STRING]],
-        Optional[Sequence[UINT16]],
-        Optional[Sequence[UINT32]],
-        Optional[Sequence[UINT64]],
-        Optional[Sequence[UINT8]],
-        Optional[BFLOAT16],
-        Optional[BOOL],
-        Optional[COMPLEX128],
-        Optional[COMPLEX64],
-        Optional[DOUBLE],
-        Optional[FLOAT],
-        Optional[FLOAT16],
-        Optional[FLOAT8E4M3FN],
-        Optional[FLOAT8E4M3FNUZ],
-        Optional[FLOAT8E5M2],
-        Optional[FLOAT8E5M2FNUZ],
-        Optional[INT16],
-        Optional[INT32],
-        Optional[INT64],
-        Optional[INT8],
-        Optional[STRING],
-        Optional[UINT16],
-        Optional[UINT32],
-        Optional[UINT64],
-        Optional[UINT8],
+        None,
         Sequence[BFLOAT16],
         Sequence[BOOL],
         Sequence[COMPLEX128],
@@ -730,10 +711,6 @@ class Opset19(Opset18):
         Sequence[DOUBLE],
         Sequence[FLOAT],
         Sequence[FLOAT16],
-        Sequence[FLOAT8E4M3FN],
-        Sequence[FLOAT8E4M3FNUZ],
-        Sequence[FLOAT8E5M2],
-        Sequence[FLOAT8E5M2FNUZ],
         Sequence[INT16],
         Sequence[INT32],
         Sequence[INT64],
@@ -763,11 +740,13 @@ class Opset19(Opset18):
         UINT32,
         UINT64,
         UINT8,
+        Sequence[FLOAT8E4M3FN],
+        Sequence[FLOAT8E4M3FNUZ],
+        Sequence[FLOAT8E5M2],
+        Sequence[FLOAT8E5M2FNUZ],
     ]
 
-    def If(
-        self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto
-    ) -> V_If:
+    def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
         r"""[🌐 If(19)](https://onnx.ai/onnx/operators/onnx__If.html#if-19 "Online Documentation")
 
         If conditional
@@ -1218,9 +1197,7 @@ class Opset19(Opset18):
 
         schema = get_schema("Pad", 19, "")
         op = Op(self, "Pad", schema)
-        return op(
-            *self._prepare_inputs(schema, data, pads, constant_value, axes), mode=mode
-        )
+        return op(*self._prepare_inputs(schema, data, pads, constant_value, axes), mode=mode)
 
     T1_QuantizeLinear = TypeVar("T1_QuantizeLinear", BFLOAT16, FLOAT, FLOAT16, INT32)
 
@@ -1312,9 +1289,7 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    def Reshape(
-        self, data: T_Reshape, shape: INT64, *, allowzero: int = 0
-    ) -> T_Reshape:
+    def Reshape(self, data: T_Reshape, shape: INT64, *, allowzero: int = 0) -> T_Reshape:
         r"""[🌐 Reshape(19)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-19 "Online Documentation")
 
 
@@ -1829,9 +1804,7 @@ class Opset19(Opset18):
 
     T1_Shape: TypeAlias = INT64
 
-    def Shape(
-        self, data: T_Shape, *, end: Optional[int] = None, start: int = 0
-    ) -> T1_Shape:
+    def Shape(self, data: T_Shape, *, end: Optional[int] = None, start: int = 0) -> T1_Shape:
         r"""[🌐 Shape(19)](https://onnx.ai/onnx/operators/onnx__Shape.html#shape-19 "Online Documentation")
 
 
