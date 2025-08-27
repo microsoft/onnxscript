@@ -30,7 +30,7 @@ fp_float_types = frozenset([ir.DataType.FLOAT, ir.DataType.DOUBLE])
 
 
 class RmsNormFusion(pattern.RewriteRuleClassBase):
-    def __init__(self, name:str, mul_order: bool):
+    def __init__(self, name: str, mul_order: bool):
         super().__init__(name)
         self._mul_order = mul_order
 
