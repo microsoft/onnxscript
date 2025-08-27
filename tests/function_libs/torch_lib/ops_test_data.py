@@ -728,7 +728,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("cos", core_ops.aten_cos),
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
     TorchLibOpInfo("cross", core_ops.aten_cross, tolerance={torch.float16: (6e-3, 3e-3)}).skip(
-        dtypes=(torch.float16 if sys.platform == "windows" else torch.complex64,),
+        dtypes=(torch.float16 if sys.platform != "linux" else torch.complex64,),
         reason="test is failing on windows and torch nightly",
     ),
     TorchLibOpInfo("deg2rad", core_ops.aten_deg2rad),
@@ -1595,6 +1595,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .xfail(
         dtypes=(torch.int64,),
         reason="fixme: ORT `LayerNormKernelImpl` not implemented for int64",
+    )
+    .skip(
+        matcher=lambda sample: sample.input.shape[-1] <= 1,
+        reason="onnxruntime fail when no reduction is needed",
     )
     .skip(
         dtypes=(torch.float32 if sys.platform != "linux" else torch.complex64,),
