@@ -353,6 +353,33 @@ def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> 
     return default
 
 
+@register("Add")
+def add(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Propagate symbolic dim values."""
+
+    def get_dim_value(input_index):
+        input = _get_input(node, input_index)
+        if input is None:
+            return None
+        shape_value: ir.Shape | None = state.get_shape_value(input)
+        if shape_value is None or len(shape_value) != 1:
+            return None
+        dim: int | ir.SymbolicDim = shape_value[0]
+        return dim if isinstance(dim, int) else dim.value
+
+    dim0 = get_dim_value(0)
+    dim1 = get_dim_value(1)
+    if dim0 is None or dim1 is None:
+        return None
+    if isinstance(dim0, int) and isinstance(dim1, int):
+        result_dim_value: int | ir.SymbolicDim = dim0 + dim1
+    else:
+        result_dim_value = ir.SymbolicDim(f"{dim0}+{dim1}")
+    output = _get_output(node, 0)
+    if output is not None:
+        state.set_sym_value(output, ir.Shape([result_dim_value]))
+
+
 @register("Abs")
 def abs(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Replace an Abs node by Identity when applicable.
@@ -401,9 +428,26 @@ def gather(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
+def _propagate_shape_value(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Propagates symbolic shape value of input 0 to output 0.
+
+    Applies to ops like Reshape/Squeeze/Unsqueeze where the shape of the tensor may change
+    but the values in the tensor remain the same.
+    """
+    input = _get_input(node, 0)
+    input_shape_value = state.get_shape_value(input)
+    output = _get_output(node, 0)
+    if output is not None and input_shape_value is not None:
+        state.set_sym_value(output, input_shape_value)
+    return None
+
+
 @register("Reshape")
 def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
-    """Replace a Reshape node by Identity when applicable."""
+    """Replace a Reshape node by Identity when applicable.
+
+    Also propagate symbolic shape values.
+    """
     input = _get_input(node, 0)
     shape = _get_input(node, 1)
     if input is None or shape is None:
@@ -413,12 +457,18 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     shape_value = state.get_shape_value(shape)
 
     if shape_value is None or input_shape is None:
-        return None
+        return _propagate_shape_value(node, op, state)
 
     # No need to check for special values like -1, 0, etc. here
     if _same_shape(input_shape, shape_value):
         return op.Identity(input)
-    return None
+    return _propagate_shape_value(node, op, state)
+
+
+@register("Squeeze")
+def squeeze(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Propagate symbolic shape values."""
+    return _propagate_shape_value(node, op, state)
 
 
 @register("Cast")
