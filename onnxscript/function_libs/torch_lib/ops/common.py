@@ -5,6 +5,8 @@
 # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy.typing as npt
 import onnx
 
@@ -78,3 +80,28 @@ def constant(
         A constant node.
     """
     return op.Constant(value=ir.tensor(array, dtype=ir.DataType(dtype)))
+
+
+def merge_dims(dims: Sequence[int | INT64]) -> INT64:
+    """Merge consecutive constant dimensions."""
+
+    if not dims:
+        return op.Constant(value_ints=[])
+
+    remaining_dims = list(dims)
+    result_dims = []
+
+    while remaining_dims:
+        current_dim = remaining_dims.pop(0)
+        if isinstance(current_dim, int):
+            merged_dims = [current_dim]
+            # Merge consecutive constant dimensions into a constant node
+            while remaining_dims and isinstance(remaining_dims[0], int):
+                merged_dims.append(remaining_dims.pop(0))
+            result_dims.append(op.Constant(value_ints=merged_dims))
+        else:
+            # A dynamic dimension, just append it
+            result_dims.append(current_dim)
+    if len(result_dims) == 1:
+        return result_dims[0]
+    return op.Concat(result_dims, axis=0)
