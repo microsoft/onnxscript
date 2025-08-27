@@ -1586,7 +1586,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_layer_norm,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ).xfail(
-        dtypes=(torch.int64,)
+        dtypes=(torch.int64,),
         reason="fixme: ORT `LayerNormKernelImpl` not implemented for int64",
     )
     ).skip(
