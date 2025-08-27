@@ -3337,6 +3337,7 @@ def aten_empty_strided(
     size: Sequence[INT64],
     stride: INT64,
     layout: str = "",
+    dtype: int = FLOAT.dtype,
     device: str = "",
     pin_memory: bool = False,
 ) -> TTensor:  # type: ignore[type-var]
@@ -3396,7 +3397,7 @@ def aten_expand(self: TTensor, size: Sequence[INT64], implicit: bool = False) ->
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
     # NOTE: PyTorch supports `not changing dim` by -1, but ONNX supports `not changing dim` by 1.
     # To support -1 dim, we need to convert -1 to 1.
-    size = [1 if s == -1 else s for s in size]
+    size = [1 if isinstance(s, int) and s == -1 else s for s in size]
     return op.Expand(self, common_ops.merge_dims(size))
 
 
@@ -9102,7 +9103,7 @@ def aten_view_as_real_copy(self: TTensor) -> TTensor:
 
 
 @torch_op("aten::view_copy", trace_only=True)
-def aten_view_copy(self: TTensor, size: IntType) -> TTensor:
+def aten_view_copy(self: TTensor, size: Sequence[INT64]) -> TTensor:
     """view_copy(Tensor self, SymInt[] size) -> Tensor"""
 
     size = common_ops.merge_dims(size)

@@ -86,7 +86,7 @@ def merge_dims(dims: Sequence[int | INT64]) -> INT64:
     """Merge consecutive constant dimensions."""
 
     if not dims:
-        return op.Constant(value_ints=ir.AttrInt64([]))
+        return op.Constant(value_ints=ir.AttrInt64("value_ints", []))
 
     remaining_dims = list(dims)
     result_dims = []
@@ -101,7 +101,9 @@ def merge_dims(dims: Sequence[int | INT64]) -> INT64:
             result_dims.append(op.Constant(value_ints=merged_dims))
         else:
             # A dynamic dimension, unsqueeze and append it
-            current_dim = op.Reshape(current_dim, op.Constant(value_ints=ir.AttrInt64([])))
+            current_dim = op.Reshape(
+                current_dim, op.Constant(value_ints=ir.AttrInt64("value_ints", []))
+            )
             result_dims.append(current_dim)
     if len(result_dims) == 1:
         return result_dims[0]
