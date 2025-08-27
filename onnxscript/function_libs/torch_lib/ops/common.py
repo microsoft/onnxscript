@@ -91,10 +91,8 @@ def merge_dims(dims: Sequence[int | INT64]) -> INT64:
     one_1d = op.Constant(value_ints=ir.AttrInt64s("value_ints", [1]))
 
     dims = [
-        op.Constant(value_ints=[current_dim])
-        if isinstance(current_dim, int)
-        else op.Reshape(current_dim, one_1d)
-        for current_dim in dims
+        op.Constant(value_ints=[d]) if isinstance(d, int) else op.Reshape(d, one_1d)
+        for d in dims
     ]
 
     # Set the output type to INT64 so op.Concat can be used
