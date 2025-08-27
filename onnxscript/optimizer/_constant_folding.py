@@ -436,6 +436,7 @@ def _propagate_shape_value(node: ir.Node, op, state: OptimizerState) -> ReturnVa
 @register("Reshape")
 def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Replace a Reshape node by Identity when applicable.
+
     Also propagate symbolic shape values.
     """
     input = _get_input(node, 0)
