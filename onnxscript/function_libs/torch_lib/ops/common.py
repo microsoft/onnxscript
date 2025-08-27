@@ -100,7 +100,8 @@ def merge_dims(dims: Sequence[int | INT64]) -> INT64:
                 merged_dims.append(remaining_dims.pop(0))
             result_dims.append(op.Constant(value_ints=merged_dims))
         else:
-            # A dynamic dimension, just append it
+            # A dynamic dimension, unsqueeze and append it
+            current_dim = op.Reshape(current_dim, op.Constant(value_ints=[]))
             result_dims.append(current_dim)
     if len(result_dims) == 1:
         return result_dims[0]
