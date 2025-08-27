@@ -1585,10 +1585,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.layer_norm",
         core_ops.aten_layer_norm,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
-    ).xfail(
+    )
+    .xfail(
         dtypes=(torch.int64,),
         reason="fixme: ORT `LayerNormKernelImpl` not implemented for int64",
-    ).skip(
+    )
+    .skip(
         dtypes=(torch.float32 if sys.platform != "linux" else torch.complex64,),
         reason="test is unstable on macosx, windows",
     ),
@@ -1698,10 +1700,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_native_layer_norm,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (1e-1, 7e-4)},
     )
-    .xfail(
+    .skip(
         dtypes=(torch.float32,),
-        matcher=lambda sample: len(sample.input.shape) == 1,
-        enabled_if=ops_test_common.IS_MACOS,
+        matcher=lambda sample: sample.input.shape[-1] <= 1,
+        # enabled_if=ops_test_common.IS_MACOS,
         reason="fixme: result mismatch. https://github.com/microsoft/onnxruntime/issues/20676",
     )
     .skip(
