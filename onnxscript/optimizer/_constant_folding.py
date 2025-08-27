@@ -317,12 +317,6 @@ def _get_output(node: ir.Node, index: int) -> ir.Value | None:
     return None
 
 
-def _update_type(value: ir.Value, type: ir.TypeProtocol | None) -> None:
-    if type is not None:
-        # TODO: merge types
-        value.type = type
-
-
 def _get_input_element_type(node: ir.Node, index: int) -> int:
     input = _get_input(node, index)
     if input is not None and input.type is not None:
@@ -409,6 +403,49 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     # No need to check for special values like -1, 0, etc. here
     if _same_shape(input_shape, shape_value):
         return op.Identity(input)
+
+    # A refinement of ONNX's shape-inference for Reshape:
+    input_sym_dims : set[str] = set()
+    input_non_sym_size = 1
+    for d in input_shape:
+        if isinstance(d, ir.SymbolicDim):
+            if d.value is None:
+                return None
+            input_sym_dims.add(d.value)
+        elif isinstance(d, int):
+            input_non_sym_size *= d
+        else:
+            # Error: should not happen
+            return None
+    target_sym_dims : set[str] = set()
+    target_non_sym_size = 1
+    num_neg_ones = 0
+    for d in shape_value:
+        if isinstance(d, ir.SymbolicDim):
+            if d.value is None:
+                return None
+            target_sym_dims.add(d.value)
+        elif isinstance(d, int):
+            if d == -1:
+                num_neg_ones += 1
+            else:
+                target_non_sym_size *= d
+        else:
+            # Error: should not happen
+            return None
+    if (num_neg_ones == 1) and (target_non_sym_size != 0) and (input_non_sym_size != 0):
+        if input_sym_dims == target_sym_dims:
+            if input_non_sym_size % target_non_sym_size == 0:
+                inferred_dim = input_non_sym_size // target_non_sym_size
+                inferred_dims = [
+                    d if d != -1 else inferred_dim for d in shape_value
+                ]
+                inferred_shape = ir.Shape(inferred_dims)
+                output = _get_output(node, 0)
+                if output is None:
+                    return None
+                output.shape = _merge_shapes(output.shape, inferred_shape)
+
     return None
 
 

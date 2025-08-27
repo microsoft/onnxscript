@@ -59,6 +59,37 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
             x, cos, sin, interleaved=0, num_heads=num_heads, _domain="ai.onnxruntime._fusion"
         )
 
+class SplitRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
+    def __init__(self):
+        super().__init__(name="SplitRotaryEmbedding", as_function=True)
+
+    def pattern(self, op, x, cos, sin):
+        real, imag = op.Split(x, axis=3, num_outputs=2, _outputs=2)
+        real_rotated = real*cos - imag*sin
+        imag_rotated = imag*cos + real*sin
+        x_rotated = op.Concat(real_rotated, imag_rotated, axis=-1)
+        return x_rotated
+
+    def check(self, context, x, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
+        check_result = pattern.MatchResult()
+        # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)
+        if x is None or x.shape is None or len(x.shape) != 4:
+            return check_result.fail("Input is not a 4D tensor.", x)
+        if not isinstance(x.shape[1], int):
+            return check_result.fail("Input dimension 1 is not an integer.", x)
+        head_size = x.shape[3]
+        if not isinstance(head_size, int):
+            return check_result.fail("Head size is not an integer.", x)
+        if head_size % 2 != 0:
+            return check_result.fail("Head size is not even.", x)
+        return check_result
+
+    def rewrite(self, op, x, cos, sin, **_):
+        num_heads = x.shape[1]
+        return op.RotaryEmbedding(
+            x, cos, sin, interleaved=0, num_heads=num_heads, _domain="ai.onnxruntime._fusion"
+        )
+    
 class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
     def pattern(self, op, x, end1, start2):
         x_part_1 = op.Slice(x, [0], end1, [3], [1])
@@ -110,10 +141,11 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
 
 
 _rule = RotaryEmbeddingFusion.rule()
+_split_based_rule = SplitRotaryEmbeddingFusion.rule()
 
 _partial_embedding_rule = PartialRotaryEmbeddingFusion.rule()
 
-rotary_embedding_rules = pattern.RewriteRuleSet([_rule])
+rotary_embedding_rules = pattern.RewriteRuleSet([_split_based_rule])
 
 partial_embedding_rules = pattern.RewriteRuleSet([_partial_embedding_rule])
 
