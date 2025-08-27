@@ -88,25 +88,14 @@ def merge_dims(dims: Sequence[int | INT64]) -> INT64:
     if not dims:
         return op.Constant(value_ints=ir.AttrInt64s("value_ints", []))
 
-    remaining_dims = list(dims)
-    result_dims = []
+    one_1d = op.Constant(value_ints=ir.AttrInt64s("value_ints", [1]))
 
-    while remaining_dims:
-        current_dim = remaining_dims.pop(0)
-        if isinstance(current_dim, int):
-            merged_dims = [current_dim]
-            # Merge consecutive constant dimensions into a constant node
-            while remaining_dims and isinstance(remaining_dims[0], int):
-                merged_dims.append(remaining_dims.pop(0))
-            result_dims.append(op.Constant(value_ints=merged_dims))
-        else:
-            # A dynamic dimension, unsqueeze and append it
-            current_dim = op.Reshape(
-                current_dim, op.Constant(value_ints=ir.AttrInt64s("value_ints", [1]))
-            )
-            result_dims.append(current_dim)
-    if len(result_dims) == 1:
-        return result_dims[0]
+    dims = [
+        op.Constant(value_ints=[current_dim])
+        if isinstance(current_dim, int)
+        else op.Reshape(current_dim, one_1d)
+        for current_dim in dims
+    ]
 
     # Set the output type to INT64 so op.Concat can be used
     for dim in result_dims:
