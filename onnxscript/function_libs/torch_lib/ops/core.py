@@ -3298,7 +3298,7 @@ def aten_empty(
         dtype = FLOAT.dtype
 
     # using Zeros to simulate empty()
-    zero = op.Constant(value=ir.tensor(0, dtype=dtype))
+    zero = op.Constant(value=ir.tensor(0, dtype=ir.DataType(dtype)))
     size = common_ops.merge_dims(size)
 
     return op.Expand(zero, size)
@@ -3344,7 +3344,7 @@ def aten_empty_strided(
     # empty_strided(SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     # using Zeros to simulate empty()
-    zero = op.Constant(value=ir.tensor(0, dtype=dtype))
+    zero = op.Constant(value=ir.tensor(0, dtype=ir.DataType(dtype)))
     size = common_ops.merge_dims(size)
 
     return op.Expand(zero, size)
