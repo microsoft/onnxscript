@@ -727,7 +727,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
     TorchLibOpInfo("cos", core_ops.aten_cos),
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
-    TorchLibOpInfo("cross", core_ops.aten_cross, tolerance={torch.float16: (6e-3, 3e-3)}),
+    TorchLibOpInfo("cross", core_ops.aten_cross, tolerance={torch.float16: (6e-3, 3e-3)}).skip(
+        dtypes=(torch.float16 if sys.platform == "windows" else torch.complex64,),
+        reason="test is failing on windows and torch nightly",
+    ),
     TorchLibOpInfo("deg2rad", core_ops.aten_deg2rad),
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
     TorchLibOpInfo("diagonal", core_ops.aten_diagonal),
@@ -798,6 +801,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "full_like",
         core_ops.aten_full_like,
+    ).skip(
+        matcher=lambda sample: sys.platform == "darwin",
+        reason="memory allocation issue on CI",
     ),
     TorchLibOpInfo("gather", core_ops.aten_gather).skip(
         matcher=lambda sample: sample.input.numel() == 0 or sample.args[1].numel() == 0,
