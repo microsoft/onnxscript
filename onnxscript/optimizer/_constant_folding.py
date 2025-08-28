@@ -563,18 +563,18 @@ def split(node: ir.Node, op, _):
     # Option A: Sizes per split
     if len(node.inputs) == 2:
         # Skip non-constant splits
-        if (_split := ir.convenience.get_const_tensor(node.inputs[1])) is None:
+        if (split_ := ir.convenience.get_const_tensor(node.inputs[1])) is None:
             return None
         # Numpy expects splits as starting indices for each section
-        _split = np.cumsum(_split.numpy()[:-1])
+        split_ = np.cumsum(split_.numpy()[:-1])
 
     # Option B: Number of (even) splits
     elif (num_outputs := node.attributes.get("num_outputs")) is not None:
         # Numpy accepts single integer of (even) splits as well
-        _split = num_outputs.as_int()
+        split_ = num_outputs.as_int()
 
     # Unable to determine split configuration, skip optimization
-    if _split is None:
+    if split_ is None:
         return None
 
     # Default split axis is 0, according to ONNX operators reference:
@@ -583,7 +583,7 @@ def split(node: ir.Node, op, _):
         axis = ir.Attr("axis", ir.AttributeType.INT, 0)
 
     # Split constant tensor and wrap a list of Constant operators
-    splits = np.array_split(x.numpy(), _split, axis.as_int())
+    splits = np.array_split(x.numpy(), split_, axis.as_int())
     return [op.Constant(value=ir.tensor(x)) for x in splits]
 
 
