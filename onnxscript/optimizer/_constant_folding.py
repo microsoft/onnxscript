@@ -1135,7 +1135,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                         )
                     return None
         else:
-            logger.debug(
+            logger.info(
                 "Constant folding node %r because should_fold returned True",
                 node.name,
             )
