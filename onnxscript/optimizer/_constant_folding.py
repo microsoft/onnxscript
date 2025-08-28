@@ -558,7 +558,7 @@ def split(node: ir.Node, op, _):
     if (x := ir.convenience.get_const_tensor(node.inputs[0])) is None:
         return None
 
-    _split = None
+    split_ = None
 
     # Option A: Sizes per split
     if len(node.inputs) == 2:
