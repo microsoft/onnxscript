@@ -3397,6 +3397,8 @@ def aten_expand(self: TTensor, size: Sequence[INT64], implicit: bool = False) ->
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
     # NOTE: PyTorch supports `not changing dim` by -1, but ONNX supports `not changing dim` by 1.
     # To support -1 dim, we need to convert -1 to 1.
+    # Even though in theory a dynamic dim can still be -1, in practice it is very unlikely
+    # and isn't expected to appear from correct usages of SymInt.
     size = [1 if isinstance(s, int) and s == -1 else s for s in size]
     return op.Expand(self, common_ops.merge_dims(size))
 
