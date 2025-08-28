@@ -1605,7 +1605,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         dtypes=(torch.float32 if sys.platform != "linux" else torch.complex64,),
-        reason="test is unstable on macosx, windows",
+        reason="fixme: test is unstable on macosx, windows",
     ),
     TorchLibOpInfo("logit", core_ops.aten_logit, tolerance={torch.float16: (1e-1, 7e-4)}),
     TorchLibOpInfo("max_dim", core_ops.aten_max_dim)
