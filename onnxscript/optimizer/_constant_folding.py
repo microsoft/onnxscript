@@ -19,7 +19,7 @@ import onnx_ir as ir
 import onnxscript.utils.utils as utils
 from onnxscript.ir import _tape
 
-DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 512
+DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 8192
 
 DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 512 * 512
 
