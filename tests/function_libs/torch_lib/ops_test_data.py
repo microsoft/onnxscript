@@ -803,7 +803,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_full_like,
     ).skip(
         matcher=lambda sample: sys.platform == "darwin",
-        reason="memory allocation issue on CI",
+        reason="fixme: memory allocation issue on CI",
     ),
     TorchLibOpInfo("gather", core_ops.aten_gather).skip(
         matcher=lambda sample: sample.input.numel() == 0 or sample.args[1].numel() == 0,
