@@ -1601,7 +1601,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: sample.input.shape[-1] <= 1,
-        reason="onnxruntime fail when no reduction is needed",
+        reason="fixme: onnxruntime fail when no reduction is needed",
     )
     .skip(
         dtypes=(torch.float32 if sys.platform != "linux" else torch.complex64,),
