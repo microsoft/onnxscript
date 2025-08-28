@@ -1037,7 +1037,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         compare_shape_only_for_output=(1, 2, 3),
     ).skip(
         dtypes=(torch.float16,),
-        reason="results mismatch in torch nightly.",
+        reason="fixme: results mismatch in torch nightly.",
     ),
     TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx",
