@@ -7296,7 +7296,7 @@ def aten_repeat(self: TTensor, repeats: Sequence[TInt]) -> TTensor:
 def aten_repeat_interleave_self_int(
     self: TensorType, repeats: int, dim: Optional[int] = None
 ) -> TensorType:
-    """repeat_interleave.Tensor(Tensor repeats, *, int? output_size=None) -> Tensor
+    """repeat_interleave.self_int(Tensor self, SymInt repeats, int? dim=None, *, SymInt? output_size=None) -> Tensor
 
     The trick is to repeat in one direction orthogonal to reshape.
 
