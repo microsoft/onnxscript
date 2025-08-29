@@ -108,9 +108,9 @@ class TorchLibe2eTest(unittest.TestCase):
                 return torch.repeat_interleave(x, ind)
 
         inputs = (
-                torch.arange(4, dtype=torch.float32).reshape((2, 2)),
-                torch.tensor([1, 2, 3, 2], dtype=torch.int64),
-            )
+            torch.arange(4, dtype=torch.float32).reshape((2, 2)),
+            torch.tensor([1, 2, 3, 2], dtype=torch.int64),
+        )
         onnx_program = torch.onnx.export(
             Model(),
             inputs,

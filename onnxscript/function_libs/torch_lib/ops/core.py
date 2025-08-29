@@ -7293,7 +7293,7 @@ def aten_repeat(self: TTensor, repeats: Sequence[TInt]) -> TTensor:
 
 
 @torch_op("aten::repeat_interleave.self_int", trace_only=True)
-def aten_repeat_interleave_int(
+def aten_repeat_interleave_self_int(
     self: TensorType, repeats: int, dim: Optional[int]
 ) -> TensorType:
     """repeat_interleave.Tensor(Tensor repeats, *, int? output_size=None) -> Tensor
