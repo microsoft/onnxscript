@@ -15,12 +15,12 @@ from onnxscript.rewriter import (
     RewriteRule,
     testing,
 )
+from onnxscript.rewriter.rules import fuse_relus_clips
 from onnxscript.rewriter.rules.fuse_relus_clips import (
     fuse_successive_clip_relu_rule,
     fuse_successive_clip_rule,
     fuse_successive_relu_clip_rule,
 )
-from onnxscript.rewriter.rules import fuse_relus_clips
 
 
 class _FuseReluClipTestBase(unittest.TestCase):
