@@ -110,7 +110,6 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
         Returns:
             True if we need to replace the pattern, False otherwise.
         """
-        del context  # Unused
         check_result = orp.MatchResult()
         pad_node = pad.producer()
         if x.shape is None:
@@ -143,10 +142,10 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
             axes_list = list(range(x_rank))
 
         # Pad constraints: values
-        self._pads_list = fill_pads_with_axes(pads.const_value.numpy(), axes_list, x_rank)
-        if np.any(self._pads_list[:2] + self._pads_list[x_rank : x_rank + 2]):
-            self._pads_list = None
+        pads_list = fill_pads_with_axes(pads.const_value.numpy(), axes_list, x_rank)
+        if np.any(pads_list[:2] + pads_list[x_rank : x_rank + 2]):
             return check_result.fail(f"{pads.name} must be zero in non-spatial dimensions.")
+        context.cache["pads_list"] = pads_list
 
         return check_result
 

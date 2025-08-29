@@ -374,6 +374,7 @@ class MatchContext:
         self._graph_or_function = graph_or_function
         self._root = root
         self._match_result = match_result
+        self._cache = {}
 
     @property
     def model(self) -> ir.Model:
@@ -399,6 +400,11 @@ class MatchContext:
     def nodes(self) -> Sequence[ir.Node]:
         """All the nodes of the matching subgraph."""
         return self._match_result.nodes
+
+    @property
+    def cache(self) -> dict[str, Any]:
+        """A cache dictionary for storing arbitrary user provided data."""
+        return self._cache
 
     def display(self, *, in_graph_order: bool = True) -> None:
         """Display the nodes in the pattern match context.
