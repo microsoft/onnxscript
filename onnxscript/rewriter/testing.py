@@ -6,6 +6,7 @@ from typing import Any
 
 import numpy as np
 import onnx
+import onnx.reference
 import onnxruntime as ort
 
 from onnxscript import ir
@@ -32,10 +33,11 @@ def generate_random_inputs(model: onnx.ModelProto) -> dict[str, Any]:
 def assert_numerically_equal(
     original_model_proto: onnx.ModelProto | ir.Model,
     rewritten_model_proto: onnx.ModelProto | ir.Model,
-    args: tuple[Any, ...] | dict[str, Any],
+    args: tuple[Any, ...] | dict[str, Any] | None = None,
     ort_optimization_level: ort.GraphOptimizationLevel = ort.GraphOptimizationLevel.ORT_ENABLE_ALL,
     rtol: float = 1,
     atol: float = 1e-3,
+    use_reference: bool = False,
 ):
     """Assert that the two models are numerically equal.
 
@@ -46,6 +48,7 @@ def assert_numerically_equal(
         ort_optimization_level: Onnxruntime optimization level.
         rtol: Relative tolerance.
         atol: Absolute tolerance.
+        use_reference: If True, use ONNX reference implementation instead of ONNXRuntime.
     """
 
     if isinstance(original_model_proto, ir.Model):
@@ -53,7 +56,10 @@ def assert_numerically_equal(
     if isinstance(rewritten_model_proto, ir.Model):
         rewritten_model_proto = ir.serde.serialize_model(rewritten_model_proto)
 
-    if isinstance(args, dict):
+    if args is None:
+        original_proto_ort_inputs = generate_random_inputs(original_model_proto)
+        the_rewritten_proto_ort_inputs = original_proto_ort_inputs
+    elif isinstance(args, dict):
         original_proto_ort_inputs = args
         the_rewritten_proto_ort_inputs = args
     else:
@@ -64,21 +70,39 @@ def assert_numerically_equal(
             k.name: v for k, v in zip(rewritten_model_proto.graph.input, args)
         }
 
-    original_proto_ort_inference_session = _ort_session_initializer(
-        original_model_proto.SerializeToString(), ort_optimization_level
-    )
-    run_options = ort.RunOptions()
-    run_options.log_severity_level = 3  # 3: Error
-    original_outputs = original_proto_ort_inference_session.run(
-        None, original_proto_ort_inputs, run_options=run_options
-    )
+    if use_reference:
+        # Use ONNX reference implementation
+        original_evaluator = _reference_session(
+            original_model_proto.SerializeToString(), ort_optimization_level
+        )
+        original_outputs = original_evaluator.run(None, original_proto_ort_inputs)
 
-    the_rewritten_proto_ort_inference_session = _ort_session_initializer(
-        rewritten_model_proto.SerializeToString(), ort_optimization_level
-    )
-    the_rewritten_outputs = the_rewritten_proto_ort_inference_session.run(
-        None, the_rewritten_proto_ort_inputs, run_options=run_options
-    )
+        rewritten_evaluator = _reference_session(
+            rewritten_model_proto.SerializeToString(), ort_optimization_level
+        )
+        the_rewritten_outputs = rewritten_evaluator.run(None, the_rewritten_proto_ort_inputs)
+    else:
+        # Use ONNXRuntime
+        original_proto_ort_inference_session = _ort_session_initializer(
+            original_model_proto.SerializeToString(), ort_optimization_level
+        )
+        run_options = ort.RunOptions()
+        run_options.log_severity_level = 3  # 3: Error
+        original_outputs = original_proto_ort_inference_session.run(
+            None, original_proto_ort_inputs, run_options=run_options
+        )
+
+        the_rewritten_proto_ort_inference_session = _ort_session_initializer(
+            rewritten_model_proto.SerializeToString(), ort_optimization_level
+        )
+        the_rewritten_outputs = the_rewritten_proto_ort_inference_session.run(
+            None, the_rewritten_proto_ort_inputs, run_options=run_options
+        )
+
+    for i, (orig, rewritten) in enumerate(zip(original_outputs, the_rewritten_outputs)):
+        print(f"==== Output {i} ====")
+        diff = np.abs(orig - rewritten)
+        print(diff)
 
     np.testing.assert_allclose(
         original_outputs, the_rewritten_outputs, rtol=rtol, atol=atol, equal_nan=True
@@ -103,3 +127,18 @@ def _ort_session_initializer(
         provider for provider in possible_providers if provider in available_providers
     ]
     return ort.InferenceSession(model, providers=providers, sess_options=session_options)
+
+
+def _reference_session(
+    model: str | bytes, ort_optimization_level: ort.GraphOptimizationLevel
+) -> onnx.reference.ReferenceEvaluator:
+    """Initialize an ONNX reference evaluator with the specified model."""
+    # Parse the model from bytes if needed
+    if isinstance(model, (str, bytes)):
+        model_proto = onnx.load_from_string(model)
+    else:
+        model_proto = model
+
+    # Note: ort_optimization_level is ignored for reference implementation
+    # as it doesn't have equivalent optimization levels
+    return onnx.reference.ReferenceEvaluator(model_proto)
