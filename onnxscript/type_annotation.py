@@ -10,7 +10,6 @@ from typing import Optional, Sequence, Union
 import onnx
 
 from onnxscript import onnx_types
-from onnxscript._internal import version_utils
 
 # TypeAnnotationValue represents the (value of) valid type-annotations recognized
 # by ONNX Script. TODO: Flesh out a formal definition. Currently, it supports
@@ -71,10 +70,12 @@ ALL_TENSOR_TYPE_STRINGS = tuple(
         # TODO(after onnx requirement bump): Remove this check
         if (
             not (
-                version_utils.onnx_older_than("1.18") and tensor_type == onnx_types.FLOAT4E2M1
+                hasattr(onnx.TensorProto, "FLOAT4E2M1")
+                and tensor_type == onnx_types.FLOAT4E2M1
             )
             and not (
-                version_utils.onnx_older_than("1.19") and tensor_type == onnx_types.FLOAT8E8M0
+                hasattr(onnx.TensorProto, "FLOAT8E8M0")
+                and tensor_type == onnx_types.FLOAT8E8M0
             )
         )
     )
