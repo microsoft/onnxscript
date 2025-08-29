@@ -142,7 +142,6 @@ def optimize_for_ort(
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
 
     passes = ir.passes.Sequential(
-        # TODO(exporter team): Fold transpose into initializers
         # Apply the ORT optimization passes.
         # https://github.com/microsoft/onnxruntime/blob/74dcf7e296639095dfa55d31336998b6f719ed76/onnxruntime/python/tools/transformers/dynamo_onnx_helper.py#L172
         common_passes.ClearMetadataAndDocStringPass(),
