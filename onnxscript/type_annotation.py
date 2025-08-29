@@ -70,11 +70,11 @@ ALL_TENSOR_TYPE_STRINGS = tuple(
         # TODO(after onnx requirement bump): Remove this check
         if (
             not (
-                hasattr(onnx.TensorProto, "FLOAT4E2M1")
+                not hasattr(onnx.TensorProto, "FLOAT4E2M1")
                 and tensor_type == onnx_types.FLOAT4E2M1
             )
             and not (
-                hasattr(onnx.TensorProto, "FLOAT8E8M0")
+                not hasattr(onnx.TensorProto, "FLOAT8E8M0")
                 and tensor_type == onnx_types.FLOAT8E8M0
             )
         )
