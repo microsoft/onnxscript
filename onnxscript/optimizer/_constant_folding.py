@@ -1113,7 +1113,15 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         elif should_fold is None:
             # Use default rules to decide whether to fold the node:
-            # If the any tensor input size exceeds the input_size_limit, skip folding the node.
+            # - ConstantOfShape is preserved to avoid increasing model size unnecessarily
+            # - If the any tensor input size exceeds the input_size_limit, skip folding the node
+            if _is_onnx_op(node, "ConstantOfShape"):
+                logger.info(
+                    "Skipping constant folding for node %r because ConstantOfShape is preserved by default",
+                    node.name,
+                )
+                return None
+
             input_tensors = [x.const_value if x is not None else None for x in node.inputs]
             large_inputs = [
                 tensor is not None and tensor.size > self.input_size_limit
@@ -1128,7 +1136,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     if input is not None
                 ):
                     # If the op is in _DEFAULT_ALWAYS_FOLD_OPS and all large inputs are used only by this node,
-                    # we can still fold it even if the input size exceeds the limit.
+                    # we can still fold it even if the input size exceeds the limit
                     pass
                 else:
                     # Skip folding large tensors
