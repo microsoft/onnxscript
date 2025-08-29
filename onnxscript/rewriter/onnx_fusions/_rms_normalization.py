@@ -30,6 +30,10 @@ fp_float_types = frozenset([ir.DataType.FLOAT, ir.DataType.DOUBLE])
 
 
 class RmsNormFusion(pattern.RewriteRuleClassBase):
+    def __init__(self, name: str, mul_order: bool):
+        super().__init__(name)
+        self._mul_order = mul_order
+
     def pattern(self, op, x, scale, epsilon, compute_dtype, target_dtype):
         x = pattern.OrValue([op.Cast(x, to=compute_dtype), x])
         x_square = op.Pow(x, 2.0)
@@ -39,7 +43,11 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
         reciprocal_rms = op.Reciprocal(rms)
         normalized = op.Mul(x, reciprocal_rms)
         normalized = pattern.OrValue([op.Cast(normalized, to=target_dtype), normalized])
-        return op.Mul(scale, normalized)
+        # Workaround: limitation in pattern matcher doesn't support OrValue for return value (last node in pattern)
+        if self._mul_order:
+            return op.Mul(normalized, scale)
+        else:
+            return op.Mul(scale, normalized)
 
     def check(
         self, op, x, scale, epsilon, compute_dtype, target_dtype, **_
@@ -76,9 +84,11 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
         )
 
 
-_rule = RmsNormFusion.rule()
-rms_normalization_rules = [_rule]
-rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)
+_rule1 = RmsNormFusion.rule("RmsNormFusion1", mul_order=True)
+_rule2 = RmsNormFusion.rule("RmsNormFusion2", mul_order=False)
 
+rms_normalization_rules = [_rule1, _rule2]
+
+rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)
 
 fuse_rms_normalization = _fusion_utils.apply_fusion_rules(rms_normalization_ruleset)

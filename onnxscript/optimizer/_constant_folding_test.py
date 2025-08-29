@@ -597,6 +597,22 @@ func (float[1,3] x) => (float[1,3] return_val) {
         )
         self.assertEqual([input.name for input in optimized.graph.inputs], ["x"])
 
+    # This should not be constant-foldable as the constant references an
+    # attribute and thus the shape cannot be resolved. At the same time it
+    # should not fail due to the attribute value being None in
+    # _process_constant_node
+    def test_attribute_reference(self):
+        model = """
+            <ir_version: 7, opset_import: ["" : 17]>
+            agraph () => (int64[N] z) {
+                x = Constant <value_ints: ints = @attr> ()
+                z = Shape (x)
+            }
+        """
+
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
