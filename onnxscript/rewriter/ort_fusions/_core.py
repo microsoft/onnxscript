@@ -33,7 +33,7 @@ from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
     fuse_skip_rms_normalization,
 )
-from onnxscript.rewriter.rules import gemm_to_matmul_add
+from onnxscript.rewriter.rules.common import gemm_to_matmul_add
 
 ORT_PATTERN_REWRITE_RULES = [
     *softmax.rules.rules,
