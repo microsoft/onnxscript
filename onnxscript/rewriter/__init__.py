@@ -22,17 +22,7 @@ import onnx
 import onnx_ir.passes.common as common_passes
 
 from onnxscript import ir
-from onnxscript.rewriter import (
-    basic_rules,
-    broadcast_to_matmul,
-    cast_constant_of_shape,
-    collapse_slices,
-    fuse_pad_into_conv,
-    fuse_relus_clips,
-    no_op,
-    pattern,
-    redundant_scatter_nd,
-)
+from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchContext, MatchingTracer, MatchResult, MatchStatus
 from onnxscript.rewriter._rewrite_rule import (
     RewriterContext,
@@ -40,17 +30,25 @@ from onnxscript.rewriter._rewrite_rule import (
     RewriteRuleClassBase,
     RewriteRuleSet,
 )
+from onnxscript.rewriter.rules.common import basic_rules as _basic_rules
+from onnxscript.rewriter.rules.common import broadcast_to_matmul as _broadcast_to_matmul
+from onnxscript.rewriter.rules.common import cast_constant_of_shape as _cast_constant_of_shape
+from onnxscript.rewriter.rules.common import collapse_slices as _collapse_slices
+from onnxscript.rewriter.rules.common import fuse_pad_into_conv as _fuse_pad_into_conv
+from onnxscript.rewriter.rules.common import fuse_relus_clips as _fuse_relus_clips
+from onnxscript.rewriter.rules.common import no_op as _no_op
+from onnxscript.rewriter.rules.common import redundant_scatter_nd as _redundant_scatter_nd
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
-    *no_op.rules.rules,  # TODO: merge this rule into constant folding?
-    *broadcast_to_matmul.rules.rules,
-    *cast_constant_of_shape.rules.rules,
-    *collapse_slices.rules.rules,
-    *fuse_relus_clips.fuse_relus_clips_rules().rules,
-    *basic_rules.basic_optimization_rules().rules,
-    *redundant_scatter_nd.rules.rules,
-    *fuse_pad_into_conv.fuse_pad_into_conv_rule_set().rules,
+    *_no_op.rules.rules,  # TODO: merge this rule into constant folding?
+    *_broadcast_to_matmul.rules.rules,
+    *_cast_constant_of_shape.rules.rules,
+    *_collapse_slices.rules.rules,
+    *_fuse_relus_clips.fuse_relus_clips_rules().rules,
+    *_basic_rules.basic_optimization_rules().rules,
+    *_redundant_scatter_nd.rules.rules,
+    *_fuse_pad_into_conv.fuse_pad_into_conv_rule_set().rules,
 )
 
 

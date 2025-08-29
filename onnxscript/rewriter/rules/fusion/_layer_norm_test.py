@@ -10,7 +10,7 @@ import onnxscript.optimizer
 import onnxscript.rewriter.testing
 from onnxscript import FLOAT, OnnxFunction, script
 from onnxscript import opset18 as op
-from onnxscript.rewriter.onnx_fusions._layer_norm import fuse_layer_normalization
+from onnxscript.rewriter.rules.fusion._layer_norm import fuse_layer_normalization
 
 
 @script()

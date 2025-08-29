@@ -13,10 +13,10 @@ from onnxscript.rewriter import (
     MatchingTracer,
     MatchStatus,
     RewriteRule,
-    fuse_relus_clips,
     testing,
 )
-from onnxscript.rewriter.fuse_relus_clips import (
+from onnxscript.rewriter.rules import fuse_relus_clips
+from onnxscript.rewriter.rules.common.fuse_relus_clips import (
     fuse_successive_clip_relu_rule,
     fuse_successive_clip_rule,
     fuse_successive_relu_clip_rule,

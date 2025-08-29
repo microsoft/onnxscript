@@ -13,7 +13,7 @@ from onnx_ir.passes.common import CheckerPass, ShapeInferencePass
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
-from onnxscript.rewriter import redundant_scatter_nd
+from onnxscript.rewriter.rules import redundant_scatter_nd
 
 shape_inference = ShapeInferencePass()
 onnx_check = CheckerPass(True)
