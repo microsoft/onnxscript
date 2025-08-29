@@ -581,6 +581,33 @@ func (float[1,3] x) => (float[1,3] return_val) {
         ops = [node.op_type for node in optimized.graph]
         self.assertEqual(ops, ["Constant"])
 
+    def test_node_is_folded_if_specified_as_should_fold(self):
+        model_text = """
+            <ir_version: 10, opset_import: [ "" : 20]>
+            agraph (float[M, 256] x) => (float[42, 42] z)
+            <int64[2] w = {42, 42}>
+            {
+                z = ConstantOfShape <value: tensor = int64[1] {1}> (w)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+
+        # ConstantOfShape is not folded by default
+        optimized = self._fold(model)
+        ops = [node.op_type for node in optimized.graph]
+        self.assertEqual(ops, ["ConstantOfShape"])
+
+        # But ConstantOfShape is folded when specified in should_fold
+        optimized = self._fold(
+            model, should_fold=lambda node: node.op_type == "ConstantOfShape"
+        )
+        ops = [node.op_type for node in optimized.graph]
+        self.assertEqual(ops, ["Constant"])
+        np.testing.assert_array_equal(
+            optimized.graph.node(0).attributes["value"].as_tensor().numpy(),
+            np.ones((42, 42), dtype=np.int64),
+        )
+
     def test_multi_graph_identity_output_preserves_output_name(self):
         model = """
             <ir_version: 10, opset_import: ["" : 20]>
