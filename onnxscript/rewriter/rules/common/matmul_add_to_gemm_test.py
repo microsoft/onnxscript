@@ -11,7 +11,7 @@ from parameterized import parameterized
 from onnxscript import ir
 from onnxscript.rewriter import MatchingTracer, MatchStatus, testing
 from onnxscript.rewriter.rules import matmul_add_to_gemm
-from onnxscript.rewriter.rules.matmul_add_to_gemm import matmul_add_to_gemm_rule
+from onnxscript.rewriter.rules.common.matmul_add_to_gemm import matmul_add_to_gemm_rule
 
 
 class _MatMulAddToGemmTestBase(unittest.TestCase):

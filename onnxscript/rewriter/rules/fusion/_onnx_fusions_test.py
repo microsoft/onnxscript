@@ -8,7 +8,7 @@ import onnx_ir as ir
 from parameterized import parameterized
 
 import onnxscript
-import onnxscript.rewriter.onnx_fusions as onnx_fusions
+import onnxscript.rewriter.rules.fusion as onnx_fusions
 from onnxscript.rewriter.models import _rotary_embedding_models
 
 
