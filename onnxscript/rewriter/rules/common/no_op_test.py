@@ -5,7 +5,7 @@ import unittest
 import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter.rules import no_op
+from onnxscript.rewriter.rules.common import no_op
 
 
 class NoOpTest(unittest.TestCase):
