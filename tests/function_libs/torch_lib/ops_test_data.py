@@ -1250,8 +1250,40 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_remainder,
     ),
     TorchLibOpInfo("repeat", core_ops.aten_repeat),
-    TorchLibOpInfo("repeat_interleave.self_int", core_ops.aten_repeat_interleave_self_int),
-    TorchLibOpInfo("repeat_interleave.Tensor", core_ops.aten_repeat_interleave_Tensor),
+    TorchLibOpInfo("repeat_interleave", core_ops.aten_repeat_interleave_self_int)
+    .skip(
+        matcher=lambda sample: not isinstance(sample.kwargs.get("repeats", None), int),
+        reason=("ignore cases when repeasts is a Tensor"),
+    )
+    .skip(
+        dtypes=(torch.bool,),
+        reason="bool not supported",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("dim") is None,
+        reason="fixme: conversion not implemented if dim is None",
+    )
+    .skip(
+        matcher=lambda sample: sample.input.numel() == 0,
+        reason="fixme: conversion not implemented when input tensor is empty",
+    ),
+    TorchLibOpInfo("repeat_interleave", core_ops.aten_repeat_interleave_Tensor)
+    .skip(
+        matcher=lambda sample: isinstance(sample.kwargs.get("repeats", None), int),
+        reason=("ignore cases when repeasts is an int"),
+    )
+    .skip(
+        dtypes=(torch.bool,),
+        reason="bool not supported",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("dim") is None,
+        reason="fixme: conversion not implemented if dim is None",
+    )
+    .skip(
+        matcher=lambda sample: sample.input.numel() == 0,
+        reason="fixme: conversion not implemented when input tensor is empty",
+    ),
     TorchLibOpInfo("reshape", core_ops.aten_reshape),
     TorchLibOpInfo("resolve_conj", core_ops.aten_resolve_conj),
     TorchLibOpInfo("resolve_neg", core_ops.aten_resolve_neg),

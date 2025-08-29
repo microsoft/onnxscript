@@ -7294,7 +7294,7 @@ def aten_repeat(self: TTensor, repeats: Sequence[TInt]) -> TTensor:
 
 @torch_op("aten::repeat_interleave.self_int", trace_only=True)
 def aten_repeat_interleave_self_int(
-    self: TensorType, repeats: int, dim: Optional[int]
+    self: TensorType, repeats: int, dim: Optional[int] = None
 ) -> TensorType:
     """repeat_interleave.Tensor(Tensor repeats, *, int? output_size=None) -> Tensor
 
@@ -7318,55 +7318,18 @@ def aten_repeat_interleave_self_int(
     self_rank = len(self.shape)
     pos_dim = (dim + self_rank) % self_rank
     unsqueezed = op.Unsqueeze(self, [pos_dim + 1])
-    onehot = op.Concat(
-        op.ConstantOfShape(
-            op.Constant(value_ints=[self_rank]), value=ir.tensor([1], dtype=INT64.dtype)
-        ),
-        op.Constant(value_ints=[repeats]),
-        axis=0,
-    )
-    tiled = op.Tile(unsqueezed, onehot)
-
-    # tiled has no shape at this stage
-    # return aten_flatten(tiled, -2 if dim == -1 else dim, -1 if dim == -1 else (dim + 1))
-    if dim < -1:
-        dim += self_rank
-
+    tiles = [1] * (self_rank + 1)
+    tiles[pos_dim + 1] = repeats
+    tile_repeat = op.Constant(value=ir.tensor(tiles, dtype=INT64.dtype))
+    tiled = op.Tile(unsqueezed, tile_repeat)
     if self_rank == 1:
         return op.Identity(tiled)
-
-    start_dim, end_dim = -2 if dim == -1 else dim, -1 if dim == -1 else (dim + 1)
-    if start_dim == 1:
-        if end_dim in (-1, dim - 1):
-            return op.Flatten(tiled, axis=start_dim)
-    elif start_dim == 0:
-        if end_dim in (-2, dim - 2):
-            return op.Flatten(tiled, axis=end_dim + 1)
-    if end_dim < 0:
-        end_dim = dim + end_dim
-
-    input_size = op.Shape(tiled)
-    dim_head = op.Slice(
-        input_size,
-        op.Constant(value_ints=[0]),
-        op.Constant(value_ints=[start_dim]),
-        op.Constant(value_ints=[0]),
+    final_shape = op.Concat(
+        op.Shape(self, start=0, end=dim),
+        op.Constant(value_ints=[-1]),
+        op.Shape(self, start=dim + 1),
+        axis=0,
     )
-    final_dims = [dim_head, op.Constant(value_ints=[-1])]
-    if end_dim < dim - 1:
-        dim_tail = op.Slice(
-            input_size,
-            op.Constant(value_ints=[end_dim + 1]),
-            op.Constant(value_ints=[dim]),
-            op.Constant(value_ints=[0]),
-        )
-        final_dims = [
-            dim_head,
-            op.Constant(value_ints=[-1]),
-            dim_tail,
-        ]
-
-    final_shape = op.Concat(*final_dims, axis=0)
     return op.Reshape(tiled, final_shape)
 
 
@@ -7412,7 +7375,6 @@ def aten_repeat_interleave_Tensor(
         shape_x = op.Shape(self, start=1)
         self = op.Reshape(self, op.Concat(shape_x0, [-1], axis=0))
     elif rk == 1:
-        shape_x0 = None
         shape_x = None
         self = op.Reshape(self, [-1, 1])
     else:

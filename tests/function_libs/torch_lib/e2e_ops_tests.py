@@ -76,13 +76,23 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-    def test_repeat_interleave_integer(self):
+    def test_repeat_interleave_integer_1(self):
         class Model(torch.nn.Module):
             def forward(self, x):
                 return torch.repeat_interleave(x, 3, dim=1)
 
         onnx_program = torch.onnx.export(
             Model(), (torch.randn(2, 3),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_repeat_interleave_integer_2(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.repeat_interleave(x, 3, dim=1)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(2, 3, 4),), dynamo=True, optimize=False
         )
         _testing.assert_onnx_program(onnx_program)
 
