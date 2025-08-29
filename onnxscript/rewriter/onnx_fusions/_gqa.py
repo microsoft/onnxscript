@@ -24,7 +24,6 @@ class OnnxGroupQueryAttention(pattern.RewriteRuleClassBase):
         value_BHkvSD,
         past_key_BHkvSpD,
         past_value_BHkvSpD,
-        mask,
     ):
         # Concatenate past_key cache and current key, expand across heads
         # that share key/value.
@@ -49,7 +48,7 @@ class OnnxGroupQueryAttention(pattern.RewriteRuleClassBase):
             query_BHSD,
             present_key_BHStD,
             present_value_BHStD,
-            mask,
+            pattern.Var("mask", can_match_none=True),
             _outputs=["attention_BHSDh"],
         )
 
