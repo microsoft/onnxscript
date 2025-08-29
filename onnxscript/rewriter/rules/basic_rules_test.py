@@ -12,7 +12,7 @@ import parameterized
 
 import onnxscript
 import onnxscript.onnx_types as ot
-import onnxscript.rewriter.basic_rules as basic_rules
+import onnxscript.rewriter.rules.basic_rules as basic_rules
 from onnxscript import ir
 from onnxscript.onnx_opset import opset18
 

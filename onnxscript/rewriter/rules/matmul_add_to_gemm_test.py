@@ -9,8 +9,9 @@ from onnx_ir.passes.common import onnx_checker, shape_inference
 from parameterized import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter import MatchingTracer, MatchStatus, matmul_add_to_gemm, testing
-from onnxscript.rewriter.matmul_add_to_gemm import matmul_add_to_gemm_rule
+from onnxscript.rewriter import MatchingTracer, MatchStatus, testing
+from onnxscript.rewriter.rules.matmul_add_to_gemm import matmul_add_to_gemm_rule
+from onnxscript.rewriter.rules import matmul_add_to_gemm
 
 
 class _MatMulAddToGemmTestBase(unittest.TestCase):

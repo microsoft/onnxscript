@@ -8,7 +8,8 @@ import onnx.parser
 import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter import fuse_batchnorm, testing
+from onnxscript.rewriter import testing
+from onnxscript.rewriter.rules import fuse_batchnorm
 
 
 class FuseBatchnormTest(unittest.TestCase):

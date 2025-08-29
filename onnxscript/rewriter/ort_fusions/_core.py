@@ -8,7 +8,7 @@ import onnx_ir.passes.common as common_passes
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.optimizer import optimize
-from onnxscript.rewriter import gemm_to_matmul_add, rewrite
+from onnxscript.rewriter import rewrite
 from onnxscript.rewriter.ort_fusions import (
     instance_to_group_normalization,
     softmax,
@@ -33,6 +33,7 @@ from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
     fuse_skip_rms_normalization,
 )
+from onnxscript.rewriter.rules import gemm_to_matmul_add
 
 ORT_PATTERN_REWRITE_RULES = [
     *softmax.rules.rules,

@@ -9,7 +9,7 @@ import onnx.shape_inference
 import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter import broadcast_to_matmul
+from onnxscript.rewriter.rules import broadcast_to_matmul
 
 
 def _infer_shapes(model: ir.Model) -> ir.Model:

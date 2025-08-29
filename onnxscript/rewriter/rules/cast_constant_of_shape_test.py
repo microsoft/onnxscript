@@ -6,7 +6,7 @@ import onnx.checker
 import onnx.parser
 
 from onnxscript import ir
-from onnxscript.rewriter import cast_constant_of_shape
+from onnxscript.rewriter.rules import cast_constant_of_shape
 
 
 class CastConstantOfShapeTest(unittest.TestCase):

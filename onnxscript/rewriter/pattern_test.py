@@ -12,7 +12,8 @@ import onnx.parser
 import onnxscript.optimizer
 from onnxscript import FLOAT, ir, script
 from onnxscript import opset17 as op
-from onnxscript.rewriter import cast_constant_of_shape, pattern
+from onnxscript.rewriter import pattern
+from onnxscript.rewriter.rules import cast_constant_of_shape
 
 logger = logging.getLogger(__name__)
 

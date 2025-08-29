@@ -9,7 +9,8 @@ import onnx.parser
 import onnx.shape_inference
 
 from onnxscript import ir
-from onnxscript.rewriter import collapse_slices, testing
+from onnxscript.rewriter import testing
+from onnxscript.rewriter.rules import collapse_slices
 
 _INT64_MAX = 9223372036854775807
 
