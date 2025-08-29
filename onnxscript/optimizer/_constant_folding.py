@@ -9,7 +9,7 @@ import dataclasses
 import logging
 import math
 import typing
-from typing import Any, Callable, Collection, Iterable, Sequence, Union
+from typing import Any, Callable, Iterable, Sequence, Union
 
 import numpy as np
 import onnx
@@ -34,9 +34,11 @@ _NON_DETERMINISTIC_OPS = frozenset(
     }
 )
 
+# A list of ops to always fold regardless of their input size limits, as long as
+# they are the single consumer of the large input tensors
 _DEFAULT_ALWAYS_FOLD_OPS = frozenset(
     {
-        "Transpose",
+        ("", "Transpose"),
     }
 )
 
