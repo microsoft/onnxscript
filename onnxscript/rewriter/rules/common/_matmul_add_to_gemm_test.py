@@ -101,7 +101,9 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
 
         updated_model = self.clone_model(base_model)
         tracer = MatchingTracer()
-        count = _matmul_add_to_gemm.matmul_add_to_gemm_rule.apply_to_model(updated_model, tracer=tracer)
+        count = _matmul_add_to_gemm.matmul_add_to_gemm_rule.apply_to_model(
+            updated_model, tracer=tracer
+        )
 
         # Check that the model is unchanged
         self.assertEqual(count, 0)
