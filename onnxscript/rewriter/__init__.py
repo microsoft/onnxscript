@@ -43,14 +43,14 @@ from onnxscript.rewriter.rules.common import (
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
-    *_no_op.rules.rules,  # TODO: merge this rule into constant folding?
-    *_broadcast_to_matmul.rules.rules,
-    *_cast_constant_of_shape.rules.rules,
-    *_collapse_slices.rules.rules,
-    *_fuse_relus_clips.fuse_relus_clips_rules().rules,
-    *_basic_rules.basic_optimization_rules().rules,
-    *_redundant_scatter_nd.rules.rules,
-    *_fuse_pad_into_conv.fuse_pad_into_conv_rule_set().rules,
+    *_no_op.rules,  # TODO: merge this rule into constant folding?
+    *_broadcast_to_matmul.rules,
+    *_cast_constant_of_shape.rules,
+    *_collapse_slices.rules,
+    *_fuse_relus_clips.fuse_relus_clips_rules(),
+    *_basic_rules.basic_optimization_rules(),
+    *_redundant_scatter_nd.rules,
+    *_fuse_pad_into_conv.fuse_pad_into_conv_rule_set(),
 )
 
 
