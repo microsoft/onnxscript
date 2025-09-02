@@ -8620,7 +8620,7 @@ def aten_type_as(self: TTensor, other: TTensor2) -> TTensor2:
 def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
     """unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]"""
 
-    return op.SplitToSequence(self, None, axis=dim, keepdims=False)
+    return op.SplitToSequence(self, axis=dim, keepdims=False)
 
 
 @torch_op("aten::unflatten.int", trace_only=True)
