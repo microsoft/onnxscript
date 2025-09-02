@@ -6,11 +6,10 @@ import unittest
 
 import numpy as np
 import onnx.parser
-import onnx.shape_inference
 
 from onnxscript import ir
 from onnxscript.rewriter import testing
-from onnxscript.rewriter.rules import collapse_slices
+from onnxscript.rewriter.rules.common import _collapse_slices
 
 _INT64_MAX = 9223372036854775807
 
@@ -31,7 +30,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = collapse_slices.rules.apply_to_model(model)
+        count = _collapse_slices.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 5)
         self.assertIn("Identity", [node.op_type for node in model.graph])
@@ -56,7 +55,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = collapse_slices.rules.apply_to_model(model)
+        count = _collapse_slices.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 5)
         self.assertIn("Identity", [node.op_type for node in model.graph])
@@ -81,7 +80,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = collapse_slices.rules.apply_to_model(model)
+        count = _collapse_slices.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
     def test_slice_equal_dynamic_shape(self):
@@ -99,7 +98,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = collapse_slices.rules.apply_to_model(model)
+        count = _collapse_slices.rules.apply_to_model(model)
         self.assertEqual(count, 1)
 
     def test_slice_equal_dynamic_shape_but_step_reverse(self):
@@ -117,6 +116,6 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = collapse_slices.rules.apply_to_model(model)
+        count = _collapse_slices.rules.apply_to_model(model)
         # Should not change the output shape if we did not use the default step of 1
         self.assertEqual(count, 0)

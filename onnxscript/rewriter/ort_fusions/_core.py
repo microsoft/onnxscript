@@ -33,7 +33,7 @@ from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
     fuse_skip_rms_normalization,
 )
-from onnxscript.rewriter.rules.common import gemm_to_matmul_add
+from onnxscript.rewriter.rules.common import _gemm_to_matmul_add
 
 ORT_PATTERN_REWRITE_RULES = [
     *softmax.rules.rules,
@@ -134,7 +134,7 @@ def optimize_for_ort(
         - The optimized `ir.Model` after applying transformer-specific fusions.
         - A dictionary with a count of each of the fusions applied.
     """
-    rewrite(model, [gemm_to_matmul_add.rule])
+    rewrite(model, [_gemm_to_matmul_add.rule])
     model, fusion_count = fuse_xformers(
         model,
         debug=debug,

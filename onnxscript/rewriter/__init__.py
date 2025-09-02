@@ -30,14 +30,16 @@ from onnxscript.rewriter._rewrite_rule import (
     RewriteRuleClassBase,
     RewriteRuleSet,
 )
-from onnxscript.rewriter.rules.common import basic_rules as _basic_rules
-from onnxscript.rewriter.rules.common import broadcast_to_matmul as _broadcast_to_matmul
-from onnxscript.rewriter.rules.common import cast_constant_of_shape as _cast_constant_of_shape
-from onnxscript.rewriter.rules.common import collapse_slices as _collapse_slices
-from onnxscript.rewriter.rules.common import fuse_pad_into_conv as _fuse_pad_into_conv
-from onnxscript.rewriter.rules.common import fuse_relus_clips as _fuse_relus_clips
-from onnxscript.rewriter.rules.common import no_op as _no_op
-from onnxscript.rewriter.rules.common import redundant_scatter_nd as _redundant_scatter_nd
+from onnxscript.rewriter.rules.common import (
+    _basic_rules,
+    _broadcast_to_matmul,
+    _cast_constant_of_shape,
+    _collapse_slices,
+    _fuse_pad_into_conv,
+    _fuse_relus_clips,
+    _no_op,
+    _redundant_scatter_nd,
+)
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (

@@ -10,8 +10,7 @@ from parameterized import parameterized
 
 from onnxscript import ir
 from onnxscript.rewriter import MatchingTracer, MatchStatus, testing
-from onnxscript.rewriter.rules import matmul_add_to_gemm
-from onnxscript.rewriter.rules.common.matmul_add_to_gemm import matmul_add_to_gemm_rule
+from onnxscript.rewriter.rules.common import _matmul_add_to_gemm
 
 
 class _MatMulAddToGemmTestBase(unittest.TestCase):
@@ -102,13 +101,13 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
 
         updated_model = self.clone_model(base_model)
         tracer = MatchingTracer()
-        count = matmul_add_to_gemm_rule.apply_to_model(updated_model, tracer=tracer)
+        count = _matmul_add_to_gemm.matmul_add_to_gemm_rule.apply_to_model(updated_model, tracer=tracer)
 
         # Check that the model is unchanged
         self.assertEqual(count, 0)
 
         # Check that the error message is the expected one
-        tracer_match = tracer.best_matches_map[matmul_add_to_gemm_rule][0]
+        tracer_match = tracer.best_matches_map[_matmul_add_to_gemm.matmul_add_to_gemm_rule][0]
         self.assertEqual(tracer_match.status.value, MatchStatus.CONDITION_FAILED)
         self.assertRegex(
             tracer_match.match_result.reason, "Rank of input_a and input_b must be 2"
@@ -130,7 +129,7 @@ class MatMulAddToGemmTest(_MatMulAddToGemmTestBase):
             bias_as_inputs=bias_as_inputs,
         )
         updated_model = self.clone_model(base_model)
-        count = matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
+        count = _matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
 
         # Check MatMul + Add are fused into Gemm
         self.assertEqual(count, 1)
@@ -177,7 +176,7 @@ class TransAMatMulAddToGemmTest(_MatMulAddToGemmTestBase):
             transA=True,
         )
         updated_model = self.clone_model(base_model)
-        count = matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
+        count = _matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
 
         # Check MatMul(Transpose, W) + Add are fused into Gemm
         self.assertEqual(count, 1)
@@ -226,7 +225,7 @@ class TransBMatMulAddToGemmTest(_MatMulAddToGemmTestBase):
             transB=True,
         )
         updated_model = self.clone_model(base_model)
-        count = matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
+        count = _matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
 
         # Check MatMul(X, Transpose) + Add are fused into Gemm
         self.assertEqual(count, 1)
@@ -276,7 +275,7 @@ class TransABMatMulAddToGemmTest(_MatMulAddToGemmTestBase):
             transB=True,
         )
         updated_model = self.clone_model(base_model)
-        count = matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
+        count = _matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
 
         # Check MatMul(Transpose, Transpose) + Add are fused into Gemm
         self.assertEqual(count, 1)

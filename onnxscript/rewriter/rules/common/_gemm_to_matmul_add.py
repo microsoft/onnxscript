@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 from onnxscript.rewriter._rewrite_rule import RewriteRule
-from onnxscript.rewriter.rules.common.broadcast_to_matmul import check_if_not_need_reshape
+from onnxscript.rewriter.rules.common._broadcast_to_matmul import check_if_not_need_reshape
 
 
 # Pattern to match against

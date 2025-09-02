@@ -6,7 +6,7 @@ import onnx.checker
 import onnx.parser
 
 from onnxscript import ir
-from onnxscript.rewriter.rules import cast_constant_of_shape
+from onnxscript.rewriter.rules.common import _cast_constant_of_shape
 
 
 class CastConstantOfShapeTest(unittest.TestCase):
@@ -23,7 +23,7 @@ class CastConstantOfShapeTest(unittest.TestCase):
         )
         onnx.checker.check_model(input_model_proto, True)
         model = ir.serde.deserialize_model(input_model_proto)
-        count = cast_constant_of_shape.rules.apply_to_model(model)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 1)
         self.assertEqual(model.graph[0].attributes["value"].value.dtype, 10)
@@ -42,7 +42,7 @@ class CastConstantOfShapeTest(unittest.TestCase):
             """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = cast_constant_of_shape.rules.apply_to_model(model)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 1)
         self.assertEqual(model.graph[0].attributes["value"].value.dtype, 10)

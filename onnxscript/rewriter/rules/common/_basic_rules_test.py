@@ -12,9 +12,9 @@ import parameterized
 
 import onnxscript
 import onnxscript.onnx_types as ot
-import onnxscript.rewriter.rules.common.basic_rules as basic_rules
 from onnxscript import ir
 from onnxscript.onnx_opset import opset18
+from onnxscript.rewriter.rules.common import _basic_rules
 
 FLOAT = onnx.TensorProto.FLOAT
 
@@ -98,7 +98,7 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_basic_optimization_rules_identity(self, _: str, model: ir.Model):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -126,7 +126,7 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_basic_optimization_rules_transpose_transpose(self, _: str, model: ir.Model):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -153,7 +153,7 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_cast_cast_rule(self, _: str, type1, type2, type3):
-        rule = basic_rules.cast_cast_rule
+        rule = _basic_rules.cast_cast_rule
         model_proto = self._double_cast_model(type1, type2, type3)
         model = ir.serde.deserialize_model(model_proto)
         rule.apply_to_model(model)
@@ -172,7 +172,7 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_cast_identity_rule(self, _: str, model: ir.Model):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -228,7 +228,7 @@ class BasicRulesTest(unittest.TestCase):
     def test_expand_identity_rule(
         self, _: str, model: ir.Model, expected_nodes: tuple[str, ...]
     ):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -310,7 +310,7 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_unsqueeze_unsqueeze_rule(self, _: str, model: ir.Model):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -369,7 +369,7 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_reshape_reshape_rule(self, _: str, model: ir.Model):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -420,7 +420,7 @@ class BasicRulesTest(unittest.TestCase):
     def test_slices_split_rule(self):
         for model_proto in self._slices_split_models():
             ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = basic_rules.basic_optimization_rules()
+            rule_set = _basic_rules.basic_optimization_rules()
             rule_set.apply_to_model(ir_model)
             rewritten_model = ir.serde.serialize_model(ir_model)
 
@@ -428,7 +428,7 @@ class BasicRulesTest(unittest.TestCase):
             self._check_model(model_proto, rewritten_model)
 
     def test_squeeze_reshape_1d_rule(self):
-        rule = basic_rules.squeeze_reshape_1d_rule
+        rule = _basic_rules.squeeze_reshape_1d_rule
 
         def check(model_script, expected_count) -> None:
             model_proto = model_script.to_model_proto()

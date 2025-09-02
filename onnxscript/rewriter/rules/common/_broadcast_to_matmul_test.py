@@ -9,7 +9,7 @@ import onnx.shape_inference
 import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter.rules import broadcast_to_matmul
+from onnxscript.rewriter.rules.common import _broadcast_to_matmul
 
 
 def _infer_shapes(model: ir.Model) -> ir.Model:
@@ -38,7 +38,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
 

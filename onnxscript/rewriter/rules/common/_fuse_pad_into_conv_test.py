@@ -12,7 +12,7 @@ from onnx_ir.passes.common import onnx_checker, shape_inference
 
 from onnxscript.rewriter import pattern as orp
 from onnxscript.rewriter import testing
-from onnxscript.rewriter.rules.common.fuse_pad_into_conv import (
+from onnxscript.rewriter.rules.common._fuse_pad_into_conv import (
     fuse_pad_into_conv,
     fuse_pad_into_conv_rule_set,
     normalize_pad_format_conv,
