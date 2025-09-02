@@ -12,10 +12,10 @@ from onnx_ir.passes.common import onnx_checker, shape_inference
 
 from onnxscript.rewriter import pattern as orp
 from onnxscript.rewriter import testing
+from onnxscript.rewriter.rules.common import _fuse_pad_into_conv
 from onnxscript.rewriter.rules.common._fuse_pad_into_conv import (
-    fuse_pad_into_conv,
-    fuse_pad_into_conv_rule_set,
-    normalize_pad_format_conv,
+    fuse_pad_into_conv_rule,
+    normalize_pad_format_conv_rule,
 )
 
 
@@ -118,7 +118,7 @@ class FuseConvPadTest(FuseConvPadBaseTest):
         updated_model = _clone_model(base_model)
 
         # Apply rule
-        count = fuse_pad_into_conv_rule_set().apply_to_model(updated_model)
+        count = _fuse_pad_into_conv.rules.apply_to_model(updated_model)
 
         # Check that Pad was fused
         self.assertEqual(count, 1 if conv_auto_pad is None else 2)
@@ -209,11 +209,11 @@ class FuseConvPadTest(FuseConvPadBaseTest):
 
         # Apply rule and check it was not applied
         tracer = orp.MatchingTracer()
-        count = fuse_pad_into_conv.apply_to_model(base_model, tracer=tracer)
+        count = fuse_pad_into_conv_rule.apply_to_model(base_model, tracer=tracer)
         self.assertEqual(count, 0)
 
         # Check that the error message is the expected one
-        tracer_match = tracer.best_matches_map[fuse_pad_into_conv][0]
+        tracer_match = tracer.best_matches_map[fuse_pad_into_conv_rule][0]
         self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
         self.assertRegex(tracer_match.match_result.reason, err_msg)
 
@@ -255,7 +255,7 @@ class FuseConvIntegerPadTest(FuseConvPadBaseTest):
         updated_model = _clone_model(base_model)
 
         # Apply rule
-        count = fuse_pad_into_conv_rule_set().apply_to_model(updated_model)
+        count = _fuse_pad_into_conv.rules.apply_to_model(updated_model)
 
         # Check that Pad was fused
         self.assertEqual(count, 1 if conv_auto_pad is None else 2)
@@ -344,7 +344,7 @@ class NormalizePadFormatTest(FuseConvPadBaseTest):
         updated_model = _clone_model(base_model)
 
         # Apply rule
-        count = fuse_pad_into_conv_rule_set().apply_to_model(updated_model)
+        count = _fuse_pad_into_conv.rules.apply_to_model(updated_model)
         onnx_checker.CheckerPass(True)(updated_model)
 
         # Check conv has changed
@@ -372,11 +372,11 @@ class NormalizePadFormatTest(FuseConvPadBaseTest):
 
         # Apply rule and check it was not applied
         tracer = orp.MatchingTracer()
-        count = normalize_pad_format_conv.apply_to_model(base_model, tracer=tracer)
+        count = normalize_pad_format_conv_rule.apply_to_model(base_model, tracer=tracer)
         self.assertEqual(count, 0)
 
         # Check that the error message is the expected one
-        tracer_match = tracer.best_matches_map[normalize_pad_format_conv][0]
+        tracer_match = tracer.best_matches_map[normalize_pad_format_conv_rule][0]
         self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
         self.assertRegex(tracer_match.match_result.reason, error_msg)
 
@@ -393,11 +393,11 @@ class NormalizePadFormatTest(FuseConvPadBaseTest):
 
         # Apply rule and check it was not applied
         tracer = orp.MatchingTracer()
-        count = normalize_pad_format_conv.apply_to_model(base_model, tracer=tracer)
+        count = normalize_pad_format_conv_rule.apply_to_model(base_model, tracer=tracer)
         self.assertEqual(count, 0)
 
         # Check that the error message is the expected one
-        tracer_match = tracer.best_matches_map[normalize_pad_format_conv][0]
+        tracer_match = tracer.best_matches_map[normalize_pad_format_conv_rule][0]
         self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
         self.assertRegex(tracer_match.match_result.reason, "same length than kernel_shape")
 
