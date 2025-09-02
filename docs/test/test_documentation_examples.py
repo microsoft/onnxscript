@@ -6,6 +6,11 @@ import subprocess
 import sys
 import unittest
 
+import torch
+
+from onnxscript import evaluator
+from onnxscript.function_libs.torch_lib import ops
+
 
 class TestDocumentationExample(unittest.TestCase):
     def do_test_folder(self, folder):
@@ -22,8 +27,7 @@ class TestDocumentationExample(unittest.TestCase):
                 with subprocess.Popen(
                     cmds, stdout=subprocess.PIPE, stderr=subprocess.PIPE
                 ) as p:
-                    res = p.communicate()
-                    _, err = res
+                    _, err = p.communicate()
                     st = err.decode("ascii", errors="ignore")
                     if len(st) > 0 and "Traceback" in st:
                         raise RuntimeError(  # pylint: disable=W0707
@@ -54,28 +58,18 @@ class TestDocumentationExample(unittest.TestCase):
         test("..", "..", "docs", "tutorial", "rewriter", "examples")
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
-
-#changed code
-import torch
-from onnxscript.function_libs.torch_lib import ops
-from onnxscript import evaluator
-
 def test_unbind_matches_torch():
     x_torch = torch.randn(3, 4)
     y_torch = torch.unbind(x_torch, dim=1)
 
-    # Convert input to NumPy for ONNXScript
     x_np = x_torch.detach().cpu().numpy()
-
-    # Run in eager mode
     eager = evaluator.default()
     y_onnx = eager.eval_function(ops.core.aten_unbind, (x_np,), {"dim": 1})
 
-    # Compare number of outputs
     assert len(y_torch) == len(y_onnx)
-
-    # Compare shapes
     for a, b in zip(y_torch, y_onnx):
         assert a.shape == tuple(b.shape), f"Shape mismatch: {a.shape} vs {b.shape}"
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

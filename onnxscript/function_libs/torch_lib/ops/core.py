@@ -8618,11 +8618,11 @@ def aten_type_as(self: TTensor, other: TTensor2) -> TTensor2:
 
 @torch_op("aten::unbind.int")
 def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
-    # Use opset18 so keepdims=False works properly
-    shape = op.Shape(self)
-    dim_size = op.Gather(shape, op.Constant(value_int=dim), axis=0)
+    """unbind(Tensor self, int dim=0) -> Tensor[]
 
-    # Split into slices of size 1 along `dim`, dropping the axis
+    Splits a tensor into multiple tensors along the given dimension without keeping the dimension.
+    Matches the behavior of torch.unbind.
+    """
     split_size = op.Constant(value_int=1)
     return op.SplitToSequence(self, split_size, axis=dim, keepdims=False)
 
