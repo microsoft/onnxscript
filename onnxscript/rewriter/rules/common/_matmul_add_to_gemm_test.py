@@ -129,7 +129,7 @@ class MatMulAddToGemmTest(_MatMulAddToGemmTestBase):
             bias_as_inputs=bias_as_inputs,
         )
         updated_model = self.clone_model(base_model)
-        count = _matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
+        count = _matmul_add_to_gemm.rules.apply_to_model(updated_model)
 
         # Check MatMul + Add are fused into Gemm
         self.assertEqual(count, 1)
@@ -176,7 +176,7 @@ class TransAMatMulAddToGemmTest(_MatMulAddToGemmTestBase):
             transA=True,
         )
         updated_model = self.clone_model(base_model)
-        count = _matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
+        count = _matmul_add_to_gemm.rules.apply_to_model(updated_model)
 
         # Check MatMul(Transpose, W) + Add are fused into Gemm
         self.assertEqual(count, 1)
@@ -225,7 +225,7 @@ class TransBMatMulAddToGemmTest(_MatMulAddToGemmTestBase):
             transB=True,
         )
         updated_model = self.clone_model(base_model)
-        count = _matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
+        count = _matmul_add_to_gemm.rules.apply_to_model(updated_model)
 
         # Check MatMul(X, Transpose) + Add are fused into Gemm
         self.assertEqual(count, 1)
@@ -275,7 +275,7 @@ class TransABMatMulAddToGemmTest(_MatMulAddToGemmTestBase):
             transB=True,
         )
         updated_model = self.clone_model(base_model)
-        count = _matmul_add_to_gemm.gemm_rule_set().apply_to_model(updated_model)
+        count = _matmul_add_to_gemm.rules.apply_to_model(updated_model)
 
         # Check MatMul(Transpose, Transpose) + Add are fused into Gemm
         self.assertEqual(count, 1)

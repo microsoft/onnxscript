@@ -134,7 +134,7 @@ def optimize_for_ort(
         - The optimized `ir.Model` after applying transformer-specific fusions.
         - A dictionary with a count of each of the fusions applied.
     """
-    rewrite(model, [_gemm_to_matmul_add.rule])
+    rewrite(model, [_gemm_to_matmul_add.gemm_to_matmul_add_rule])
     model, fusion_count = fuse_xformers(
         model,
         debug=debug,

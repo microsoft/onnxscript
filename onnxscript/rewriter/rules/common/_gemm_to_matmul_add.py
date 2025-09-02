@@ -18,4 +18,4 @@ def matmul_add(op, input_a, input_b, input_c, **_):
     return op.Add(matmul, input_c)
 
 
-rule = RewriteRule(reshape_gemm_reshape_pattern, matmul_add, check_if_not_need_reshape)
+gemm_to_matmul_add_rule = RewriteRule(reshape_gemm_reshape_pattern, matmul_add, check_if_not_need_reshape)

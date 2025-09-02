@@ -281,11 +281,11 @@ class UnsqueezeUnsqueeze(RewriteRuleClassBase):
 
 # Create rule instances
 cast_cast_rule = CastCast.rule()
-cast_identity_rule = CastIdentity.rule()
-expand_identity_rule = ExpandIdentity.rule()
+no_op_cast_rule = CastIdentity.rule()
+no_op_expand_rule = ExpandIdentity.rule()
 reshape_reshape_rule = ReshapeReshape.rule()
 slice_split_rule = SlicesSplit.rule()
-transpose_identity_rule = TransposeIdentity.rule()
+no_op_transpose_rule = TransposeIdentity.rule()
 transpose_transpose_rule = TransposeTranspose.rule()
 unsqueeze_unsqueeze_rule = UnsqueezeUnsqueeze.rule()
 squeeze_reshape_1d_rule = SqueezeReshape.rule()
@@ -309,11 +309,11 @@ def basic_optimization_rules() -> RewriteRuleSet:
     return RewriteRuleSet(
         [
             cast_cast_rule,
-            cast_identity_rule,
-            expand_identity_rule,
+            no_op_cast_rule,
+            no_op_expand_rule,
             reshape_reshape_rule,
             slice_split_rule,
-            transpose_identity_rule,
+            no_op_transpose_rule,
             transpose_transpose_rule,
             unsqueeze_unsqueeze_rule,
             squeeze_reshape_1d_rule,
