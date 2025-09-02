@@ -56,3 +56,26 @@ class TestDocumentationExample(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+#changed code
+import torch
+from onnxscript.function_libs.torch_lib import ops
+from onnxscript import evaluator
+
+def test_unbind_matches_torch():
+    x_torch = torch.randn(3, 4)
+    y_torch = torch.unbind(x_torch, dim=1)
+
+    # Convert input to NumPy for ONNXScript
+    x_np = x_torch.detach().cpu().numpy()
+
+    # Run in eager mode
+    eager = evaluator.default()
+    y_onnx = eager.eval_function(ops.core.aten_unbind, (x_np,), {"dim": 1})
+
+    # Compare number of outputs
+    assert len(y_torch) == len(y_onnx)
+
+    # Compare shapes
+    for a, b in zip(y_torch, y_onnx):
+        assert a.shape == tuple(b.shape), f"Shape mismatch: {a.shape} vs {b.shape}"
