@@ -902,8 +902,8 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         output_size_limit: Maximum size of output tensors to fold.
         should_fold: An optional function that takes a node and returns True if
             the node should be considered for folding.
-            The function should return (1) True to fold the node, (2) False to
-            avoid folding the node, (3) None to use the default rules.
+            The function should return True/False value to indicate if this particular
+            node should be folded, or None to use the default folding rules.
     """
 
     def __init__(
