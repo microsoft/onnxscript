@@ -5,13 +5,13 @@ import unittest
 import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter import no_op
+from onnxscript.rewriter.rules.common import _no_op
 
 
 class NoOpTest(unittest.TestCase):
     def _check(self, model_text: str) -> None:
         model = ir.from_onnx_text(model_text)
-        count = no_op.rules.apply_to_model(model)
+        count = _no_op.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(model.graph[-1].op_type, "Identity")
 

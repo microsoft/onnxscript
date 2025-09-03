@@ -167,21 +167,14 @@ class FuseBatchNormIntoGemm(_FuseBatchNormBase):
 
 
 fuse_batchnorm_into_conv_rule = FuseBatchNormIntoConv().rule()
-fuse_batchnorm_into_convtranspose_rule = FuseBatchNormIntoConvTranspose().rule()
+fuse_batchnorm_into_conv_transpose_rule = FuseBatchNormIntoConvTranspose().rule()
 fuse_batchnorm_into_gemm_rule = FuseBatchNormIntoGemm().rule()
 
 
-def fuse_batchnorm_rule_set() -> RewriteRuleSet:
-    """Returns a set of rewrite rules that fuse BatchNormalization nodes
-    into preceding nodes such as Conv, ConvTranspose, and Gemm.
-
-    Returns:
-        RewriteRuleSet
-    """
-    return RewriteRuleSet(
-        [
-            fuse_batchnorm_into_conv_rule,
-            fuse_batchnorm_into_convtranspose_rule,
-            fuse_batchnorm_into_gemm_rule,
-        ]
-    )
+rules = RewriteRuleSet(
+    [
+        fuse_batchnorm_into_conv_rule,
+        fuse_batchnorm_into_conv_transpose_rule,
+        fuse_batchnorm_into_gemm_rule,
+    ]
+)

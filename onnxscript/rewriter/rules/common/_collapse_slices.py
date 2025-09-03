@@ -89,13 +89,13 @@ def _same_shape(op, data: ir.Value, slice_output: ir.Value, steps: ir.Value, **_
 
 
 # Register the rewrite rules
-remove_redundant_slice = RewriteRule(
+collapse_slice_rule = RewriteRule(
     _potential_redundant_slice,
     _identity_to_itself,
     _check_if_redundant_slice,
 )
 
-remove_redundant_slice2 = RewriteRule(
+collapse_slice2_rule = RewriteRule(
     _potential_redundant_slice,
     _identity_to_itself,
     _same_shape,
@@ -104,4 +104,4 @@ remove_redundant_slice2 = RewriteRule(
 # NOTE: The second rule subsumes the first one. So, we may be able to remove the first one,
 # provided shape-inference is run before the rewriter and computes the shape of the slice output.
 
-rules = RewriteRuleSet([remove_redundant_slice, remove_redundant_slice2])
+rules = RewriteRuleSet([collapse_slice_rule, collapse_slice2_rule])

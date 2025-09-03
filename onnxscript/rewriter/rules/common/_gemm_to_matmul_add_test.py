@@ -5,7 +5,7 @@ import unittest
 import onnx.parser
 
 from onnxscript import ir
-from onnxscript.rewriter import gemm_to_matmul_add
+from onnxscript.rewriter.rules.common import _gemm_to_matmul_add
 
 
 class ReshapeGemmReshapeTest(unittest.TestCase):
@@ -25,7 +25,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         )
 
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
 
@@ -70,7 +70,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         )
 
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.functions), 1)
         self.assertEqual(len(model.functions[("pkg.custom", "afunction", "")]), 4)
@@ -94,7 +94,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 5)
 
@@ -115,7 +115,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 5)
 
@@ -136,7 +136,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
         self.assertEqual(model.graph[2].op_type, "MatMul")
@@ -159,7 +159,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
         self.assertEqual(model.graph[2].op_type, "MatMul")
@@ -182,7 +182,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 5)
 
@@ -203,7 +203,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
         self.assertEqual(model.graph[2].op_type, "MatMul")
@@ -226,7 +226,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 5)
 
@@ -247,7 +247,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        replacement_count = gemm_to_matmul_add.rule.apply_to_model(model)
+        replacement_count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(replacement_count, 1)
         self.assertEqual(len(model.graph), 4)
 
@@ -268,7 +268,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 5)
 
@@ -289,7 +289,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 5)
 
