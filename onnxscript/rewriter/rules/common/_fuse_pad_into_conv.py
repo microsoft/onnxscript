@@ -327,25 +327,17 @@ class NormalizePadFormatConvInteger(NormalizePadFormatConv):
         return op.ConvInteger(x, _allow_other_inputs=True, _outputs=["conv"])
 
 
-normalize_pad_format_conv = NormalizePadFormatConv.rule()
-normalize_pad_format_conv_integer = NormalizePadFormatConvInteger.rule()
-fuse_pad_into_conv = FuseConvPad.rule()
-fuse_pad_into_conv_integer = FuseConvIntegerPad.rule()
+normalize_pad_format_conv_rule = NormalizePadFormatConv.rule()
+normalize_pad_format_conv_integer_rule = NormalizePadFormatConvInteger.rule()
+fuse_pad_into_conv_rule = FuseConvPad.rule()
+fuse_pad_into_conv_integer_rule = FuseConvIntegerPad.rule()
 
 
-def fuse_pad_into_conv_rule_set() -> orp.RewriteRuleSet:
-    """Returns a set of rewrite rules that fuse Pad nodes into preceding:
-    - Conv
-    - ConvInteger
-
-    Returns:
-        RewriteRuleSet
-    """
-    return orp.RewriteRuleSet(
-        [
-            normalize_pad_format_conv,
-            normalize_pad_format_conv_integer,
-            fuse_pad_into_conv,
-            fuse_pad_into_conv_integer,
-        ]
-    )
+rules = orp.RewriteRuleSet(
+    [
+        normalize_pad_format_conv_rule,
+        normalize_pad_format_conv_integer_rule,
+        fuse_pad_into_conv_rule,
+        fuse_pad_into_conv_integer_rule,
+    ]
+)

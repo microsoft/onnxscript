@@ -12,7 +12,8 @@ import onnx.parser
 import onnxscript.optimizer
 from onnxscript import FLOAT, ir, script
 from onnxscript import opset17 as op
-from onnxscript.rewriter import cast_constant_of_shape, pattern
+from onnxscript.rewriter import pattern
+from onnxscript.rewriter.rules.common import _cast_constant_of_shape
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +307,7 @@ class RewriteRuleTest(unittest.TestCase):
             """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = cast_constant_of_shape.rules.apply_to_model(model)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
         self.assertEqual(count, 2)
         self.assertEqual(len(model.graph), 2)
         self.assertEqual(model.graph[0].attributes["value"].value.dtype, 10)

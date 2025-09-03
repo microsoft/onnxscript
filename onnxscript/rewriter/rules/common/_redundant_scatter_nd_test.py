@@ -13,7 +13,7 @@ from onnx_ir.passes.common import CheckerPass, ShapeInferencePass
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
-from onnxscript.rewriter import redundant_scatter_nd
+from onnxscript.rewriter.rules.common import _redundant_scatter_nd
 
 shape_inference = ShapeInferencePass()
 onnx_check = CheckerPass(True)
@@ -48,7 +48,7 @@ class RedundantScatterNdTest(unittest.TestCase):
         onnx_check(model)
         shape_inference(model)
         onnxscript.optimizer.fold_constants(model)
-        count = redundant_scatter_nd.rules.apply_to_model(model)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         onnx_check(model)
         optimized_model_proto = ir.serde.serialize_model(model)
@@ -94,7 +94,7 @@ class RedundantScatterNdTest(unittest.TestCase):
         model.graph.initializers["indices"] = indices_value
         original_model_proto = ir.serde.serialize_model(model)
 
-        count = redundant_scatter_nd.rules.apply_to_model(model)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 1)
         self.assertIn("Identity", [node.op_type for node in model.graph])
