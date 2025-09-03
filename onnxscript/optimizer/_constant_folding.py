@@ -19,7 +19,7 @@ import onnx_ir as ir
 import onnxscript.utils.utils as utils
 from onnxscript.ir import _tape
 
-DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 512
+DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 8192
 
 DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 512 * 512
 
@@ -69,6 +69,12 @@ def _process_constant_node(node: ir.Node) -> None:
     ir_value = node.outputs[0]
 
     if attr_value is None or not isinstance(attr_value, ir.Attr):
+        return
+
+    # Even if this is an attribute, the value property might not be set, which
+    # happens e.g. in case of attribute references, i.e., ref_attr_name is set
+    if attr_value.value is None:
+        # For now reject this to prevent TypeError from accessing Nones below
         return
 
     const_value: ir.TensorProtocol
