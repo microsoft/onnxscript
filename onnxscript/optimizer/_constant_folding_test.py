@@ -599,7 +599,7 @@ func (float[1,3] x) => (float[1,3] return_val) {
 
         # But ConstantOfShape is folded when specified in should_fold
         optimized = self._fold(
-            model, should_fold=lambda node: node.op_type == "ConstantOfShape"
+            model, should_fold=lambda node: node.op_type == "ConstantOfShape" or None
         )
         ops = [node.op_type for node in optimized.graph]
         self.assertEqual(ops, ["Constant"])
