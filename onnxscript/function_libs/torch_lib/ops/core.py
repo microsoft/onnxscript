@@ -6711,7 +6711,7 @@ def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
     return op.Reshape(depth_to_space, output_shape, allowzero=True)
 
 
-@torch_op("aten::pixel_unshuffle")
+@torch_op("aten::pixel_unshuffle" trace_only=True)
 def aten_pixel_unshuffle(self: TReal, downscale_factor: int) -> TReal:
     """pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor"""
     if len(self.shape) == 4:
