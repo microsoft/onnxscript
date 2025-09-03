@@ -88,10 +88,10 @@ def merge_dims(dims: Sequence[int | INT64]) -> INT64:
     if not dims:
         return op.Constant(value_ints=ir.AttrInt64s("value_ints", []))
 
-    one_1d = op.Constant(value_ints=ir.AttrInt64s("value_ints", [1]))
+    neg_one_1d = op.Constant(value_ints=ir.AttrInt64s("value_ints", [-1]))
 
     result_dims = [
-        op.Constant(value_ints=[d]) if isinstance(d, int) else op.Reshape(d, one_1d)
+        op.Constant(value_ints=[d]) if isinstance(d, int) else op.Reshape(d, neg_one_1d)
         for d in dims
     ]
 
