@@ -6726,7 +6726,7 @@ def aten_pixel_unshuffle(self: TReal, downscale_factor: int) -> TReal:
         self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0)
     )
     space_to_depth = op.SpaceToDepth(reshaped_self, blocksize=downscale_factor)
-    final_dims = op.Slice(op.Shape(depth_to_space), starts=[1], ends=[_INT64_MAX], axes=[0])
+    final_dims = op.Slice(op.Shape(space_to_depth), starts=[1], ends=[_INT64_MAX], axes=[0])
     output_shape = op.Concat(batch_dims, final_dims, axis=0)
     return op.Reshape(space_to_depth, output_shape, allowzero=True)
 
