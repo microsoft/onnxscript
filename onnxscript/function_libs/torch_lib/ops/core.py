@@ -6699,14 +6699,15 @@ def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
 
     # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
     self_shape = op.Shape(self)
-    batch_dims = self_shape[:-3]
-    chw_in_dims = self_shape[-3:]
+    batch_dims = op.Slice(self_shape, starts=[0], ends=[-3], axes=[0])
+    chw_in_dims = op.Slice(self_shape, starts=[-3], ends=[_INT64_MAX], axes=[0])
 
     reshaped_self = op.Reshape(
         self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0)
     )
     depth_to_space = op.DepthToSpace(reshaped_self, blocksize=upscale_factor, mode="CRD")
-    output_shape = op.Concat(batch_dims, op.Shape(depth_to_space)[1:], axis=0)
+    final_dims = op.Slice(op.Shape(depth_to_space), starts=[1], ends=[_INT64_MAX], axes=[0])
+    output_shape = op.Concat(batch_dims, final_dims, axis=0)
     return op.Reshape(depth_to_space, output_shape, allowzero=True)
 
 
@@ -6718,14 +6719,15 @@ def aten_pixel_unshuffle(self: TReal, downscale_factor: int) -> TReal:
 
     # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
     self_shape = op.Shape(self)
-    batch_dims = self_shape[:-3]
-    chw_in_dims = self_shape[-3:]
+    batch_dims = op.Slice(self_shape, starts=[0], ends=[-3], axes=[0])
+    chw_in_dims = op.Slice(self_shape, starts=[-3], ends=[_INT64_MAX], axes=[0])
 
     reshaped_self = op.Reshape(
         self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0)
     )
     space_to_depth = op.SpaceToDepth(reshaped_self, blocksize=downscale_factor)
-    output_shape = op.Concat(batch_dims, op.Shape(space_to_depth)[1:], axis=0)
+    final_dims = op.Slice(op.Shape(depth_to_space), starts=[1], ends=[_INT64_MAX], axes=[0])
+    output_shape = op.Concat(batch_dims, final_dims, axis=0)
     return op.Reshape(space_to_depth, output_shape, allowzero=True)
 
 
