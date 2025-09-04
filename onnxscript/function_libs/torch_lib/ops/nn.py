@@ -1503,7 +1503,7 @@ def _process_padding(padding: Sequence[INT64 | int], rank: int) -> INT64:
         paddings = [*paddings, *zeros]
         # Interleave the padding values
         paddings = paddings[-2::-2] + paddings[-1::-2]
-        return op.Concat(paddings, axis=0)
+        return op.Concat(*paddings, axis=0)
 
 
 @torch_op("aten::pad", trace_only=True)
