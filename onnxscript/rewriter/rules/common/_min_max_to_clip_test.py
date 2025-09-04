@@ -311,8 +311,7 @@ class TestMaxMinToClip(_TestMinMaxToClipBase):
             """)
         self.run_test(base_model, expected_op_types=["Clip"])
 
-    def test_failure_max_min_to_clip_invalid_bounds(self):
-        """Min node should have the max value and Max node should have the min value."""
+    def test_successful_max_min_to_clip_check_bounds(self):
         base_model = ir.from_onnx_text("""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14, 17] X) => (float [N, ?, ?, ?] Y)
@@ -322,9 +321,7 @@ class TestMaxMinToClip(_TestMinMaxToClipBase):
                 Y = Min(x1, min)
             }
         """)
-        self.run_failed_condition_test(
-            base_model, fuse_successive_max_min_rule, "Invalid bounds:"
-        )
+        self.run_test(base_model, expected_op_types=["Clip"])
 
     def test_failure_fuse_max_min_to_clip_non_constant(self):
         model = ir.from_onnx_text("""
