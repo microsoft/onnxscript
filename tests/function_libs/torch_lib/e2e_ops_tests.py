@@ -159,6 +159,21 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_dynamic_paddings(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                height = x.size(2)  # height is SymInt
+                x = torch.nn.functional.pad(x, (0, 0, 0, height), mode="replicate")
+                return x
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.rand(1, 1, 1, 1),),
+            dynamo=True,
+            dynamic_shapes=({2: torch.export.Dim("H")},),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
