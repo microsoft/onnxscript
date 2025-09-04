@@ -173,20 +173,21 @@ class TestFuseSuccessiveMinOrMax(_TestMinMaxToClipBase):
 
     @parameterized.expand(
         [
-            ("min_graph_input", "Min", fuse_successive_min_rule),
-            ("max_graph_input", "Max", fuse_successive_max_rule),
+            ("min_graph_input", "Min"),
+            ("max_graph_input", "Max"),
         ]
     )
-    def test_failure_fuse_successive_min_or_max_graph_inputs(self, _, op_type, rewrite_rule):
+    def test_successful_fuse_successive_min_or_max_graph_inputs_as_constants(self, _, op_type):
         base_model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14, 17] X, float[1] cst1, float[1] cst2) => (float[N, ?, ?, ?] Y)
+            <float[1] cst1 = {{1.0}}, float[1] cst2 = {{6}}>
             {{
                 x1 = {op_type}(X, cst1)
                 Y = {op_type}(x1, cst2)
             }}
         """)
-        self.run_failed_condition_test(base_model, rewrite_rule, "is a graph input")
+        self.run_test(base_model, expected_op_types=[op_type])
 
 
 class TestMinMaxToClip(_TestMinMaxToClipBase):
@@ -214,6 +215,18 @@ class TestMinMaxToClip(_TestMinMaxToClipBase):
             }
         """)
         self.run_test(base_model, expected_op_types=["Constant", "Clip"])
+
+    def test_successful_min_max_to_clip_graph_inputs_as_constants(self):
+        base_model = ir.from_onnx_text("""
+            < ir_version: 10, opset_import: ["" : 20] >
+            test_model (float[N, 32, 14, 17] X, float[1] min, float[1] max) => (float [N, ?, ?, ?] Y)
+            <float[1] min = {12.0}, float[1] max = {6.0}>
+            {
+                x1 = Min(X, min)
+                Y = Max(x1, max)
+            }
+        """)
+        self.run_test(base_model, expected_op_types=["Clip"])
 
     def test_failure_min_max_to_clip_invalid_bounds(self):
         """Min node should have the max value and Max node should have the min value."""
@@ -243,19 +256,6 @@ class TestMinMaxToClip(_TestMinMaxToClipBase):
         """)
         self.run_failed_condition_test(
             model, fuse_successive_min_max_rule, "is not a constant."
-        )
-
-    def test_failure_min_max_to_clip_graph_inputs(self):
-        base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 20] >
-            test_model (float[N, 32, 14, 17] X, float[1] min, float[1] max) => (float [N, ?, ?, ?] Y)
-            {
-                x1 = Min(X, min)
-                Y = Max(x1, max)
-            }
-        """)
-        self.run_failed_condition_test(
-            base_model, fuse_successive_min_max_rule, "is a graph input"
         )
 
     def test_failure_min_max_to_clip_need_scalars(self):
@@ -299,6 +299,18 @@ class TestMaxMinToClip(_TestMinMaxToClipBase):
         """)
         self.run_test(base_model, expected_op_types=["Constant", "Clip"])
 
+    def test_successful_max_min_to_clip_graph_inputs_as_constants(self):
+        base_model = ir.from_onnx_text("""
+                < ir_version: 10, opset_import: ["" : 20] >
+                test_model (float[N, 32, 14, 17] X, float[1] min, float[1] max) => (float [N, ?, ?, ?] Y)
+                <float[1] min = {12.0}, float[1] max = {6.0}>
+                {
+                    x1 = Max(X, max)
+                    Y = Min(x1, min)
+                }
+            """)
+        self.run_test(base_model, expected_op_types=["Clip"])
+
     def test_failure_max_min_to_clip_invalid_bounds(self):
         """Min node should have the max value and Max node should have the min value."""
         base_model = ir.from_onnx_text("""
@@ -327,19 +339,6 @@ class TestMaxMinToClip(_TestMinMaxToClipBase):
         """)
         self.run_failed_condition_test(
             model, fuse_successive_max_min_rule, "is not a constant."
-        )
-
-    def test_failure_max_min_to_clip_graph_inputs(self):
-        base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 20] >
-            test_model (float[N, 32, 14, 17] X, float[1] max, float[1] min) => (float [N, ?, ?, ?] Y)
-            {
-                x1 = Max(X, max)
-                Y = Min(x1, min)
-            }
-        """)
-        self.run_failed_condition_test(
-            base_model, fuse_successive_max_min_rule, "is a graph input"
         )
 
     def test_failure_max_min_to_clip_need_scalars(self):

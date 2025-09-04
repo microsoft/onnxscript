@@ -89,9 +89,6 @@ class _FuseMinMaxBase(RewriteRuleClassBase, abc.ABC):
 
         # Ensure all inputs except the first are constants
         for input_ in first_node.inputs[1:] + second_node.inputs[1:]:
-            if input_.is_graph_input():
-                return check_result.fail(f"{input_.name} is a graph input.")
-
             if ir.convenience.get_const_tensor(input_) is None:
                 return check_result.fail(f"{input_.name} is not a constant.")
 
