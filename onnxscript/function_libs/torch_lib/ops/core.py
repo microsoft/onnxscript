@@ -8135,10 +8135,9 @@ def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> Tensor
     raise NotImplementedError()
 
 
-@torch_op("aten::split_with_sizes")
+@torch_op("aten::split_with_sizes", trace_only=True)
 def aten_split_with_sizes(self: TTensor, split_sizes: INT64, dim: int = 0) -> TTensor:
     """split_with_sizes(Tensor(a -> *) self, SymInt[] split_sizes, int dim=0) -> Tensor(a)[]"""
-
     return op.SplitToSequence(self, split_sizes, axis=dim)
 
 
