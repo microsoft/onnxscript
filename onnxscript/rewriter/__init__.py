@@ -37,6 +37,7 @@ from onnxscript.rewriter.rules.common import (
     _collapse_slices,
     _fuse_pad_into_conv,
     _fuse_relus_clips,
+    _min_max_to_clip,
     _no_op,
     _redundant_scatter_nd,
 )
@@ -47,6 +48,7 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *_broadcast_to_matmul.rules,
     *_cast_constant_of_shape.rules,
     *_collapse_slices.rules,
+    *_min_max_to_clip.rules,
     *_fuse_relus_clips.rules,
     *_basic_rules.basic_optimization_rules(),
     *_redundant_scatter_nd.rules,
