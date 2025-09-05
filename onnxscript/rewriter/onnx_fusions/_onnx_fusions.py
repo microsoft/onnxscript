@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import onnx_ir as ir
 
-from onnxscript.rewriter.onnx_fusions import _rms_normalization, _rotary_embedding
+from onnxscript.rewriter.rules.fusion import _rms_normalization, _rotary_embedding
 
 
 def _get_onnx_opset_version(model: ir.Model) -> int | None:

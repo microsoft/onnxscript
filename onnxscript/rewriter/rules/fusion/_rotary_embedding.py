@@ -30,7 +30,7 @@ def _rotate_half_pattern(op, x, start1, end1, start2, end2):
 
 class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
     def __init__(self):
-        super().__init__(name="RotaryEmbedding23", as_function=True)
+        super().__init__(name="RotaryEmbedding23")
 
     def pattern(self, op, x, cos, sin, start1, end1, start2, end2):
         return x * cos + _rotate_half_pattern(op, x, start1, end1, start2, end2) * sin

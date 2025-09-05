@@ -107,7 +107,7 @@ class ScatterAllStatic(RewriteRuleClassBase):
         return op.Identity(updates)
 
 
-rule = ScatterAllDynamic.rule()
-static_rule = ScatterAllStatic.rule()
+no_op_dynamic_scatter_nd_rule = ScatterAllDynamic.rule()
+no_op_static_scatter_nd_rule = ScatterAllStatic.rule()
 
-rules = RewriteRuleSet([rule, static_rule])
+rules = RewriteRuleSet([no_op_dynamic_scatter_nd_rule, no_op_static_scatter_nd_rule])

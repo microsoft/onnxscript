@@ -8,7 +8,8 @@ import onnx.parser
 import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter import fuse_batchnorm, testing
+from onnxscript.rewriter import testing
+from onnxscript.rewriter.rules.common import _fuse_batchnorm
 
 
 class FuseBatchnormTest(unittest.TestCase):
@@ -73,7 +74,7 @@ class FuseBatchnormTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
 
         # Apply rule
-        count = fuse_batchnorm.fuse_batchnorm_rule_set().apply_to_model(model)
+        count = _fuse_batchnorm.rules.apply_to_model(model)
 
         # Check that BatchNorm was fused
         self.assertEqual(count, 1)
@@ -132,7 +133,7 @@ class FuseBatchnormTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
 
         # Apply rule
-        count = fuse_batchnorm.fuse_batchnorm_rule_set().apply_to_model(model)
+        count = _fuse_batchnorm.rules.apply_to_model(model)
 
         # Check that BatchNorm was fused
         self.assertEqual(count, 1)
@@ -196,7 +197,7 @@ class FuseBatchnormTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
 
         # Apply rule
-        count = fuse_batchnorm.fuse_batchnorm_rule_set().apply_to_model(model)
+        count = _fuse_batchnorm.rules.apply_to_model(model)
 
         # Check that BatchNorm was fused
         self.assertEqual(count, 1)
@@ -223,7 +224,7 @@ class FuseBatchnormTest(unittest.TestCase):
         """)
         onnx.checker.check_model(model_proto, True)
         model = ir.serde.deserialize_model(model_proto)
-        count = fuse_batchnorm.fuse_batchnorm_rule_set().apply_to_model(model)
+        count = _fuse_batchnorm.rules.apply_to_model(model)
 
         # No changes were applied
         self.assertEqual(count, 0)
@@ -247,7 +248,7 @@ class FuseBatchnormTest(unittest.TestCase):
         onnx.checker.check_model(model_proto, True)
 
         model = ir.serde.deserialize_model(model_proto)
-        count = fuse_batchnorm.fuse_batchnorm_rule_set().apply_to_model(model)
+        count = _fuse_batchnorm.rules.apply_to_model(model)
 
         # No changes were applied as W is a graph input
         self.assertEqual(count, 0)

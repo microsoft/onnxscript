@@ -9,7 +9,7 @@ import onnx.shape_inference
 import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter import broadcast_to_matmul
+from onnxscript.rewriter.rules.common import _broadcast_to_matmul
 
 
 def _infer_shapes(model: ir.Model) -> ir.Model:
@@ -38,7 +38,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
 
@@ -108,7 +108,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 7)
         model = _infer_shapes(model)
@@ -151,7 +151,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             )
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.functions), 1)
         self.assertEqual(len(model.functions[("pkg.custom", "afunction", "")]), 4)
@@ -178,7 +178,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 7)
 
@@ -202,7 +202,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         )
         model_proto = onnx.shape_inference.infer_shapes(model_proto)
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         # subset pattern matched
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 5)
@@ -226,7 +226,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
 
@@ -249,7 +249,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
 
@@ -272,7 +272,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
 
@@ -295,7 +295,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 7)
 
@@ -318,7 +318,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
 
@@ -342,7 +342,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         )
         model_proto = onnx.shape_inference.infer_shapes(model_proto)
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         # subset pattern matched
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 5)
@@ -366,7 +366,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 7)
 
@@ -387,7 +387,7 @@ class OneReshapeMatMulReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = broadcast_to_matmul.rules.apply_to_model(model)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         # The constant nodes are not removed. They should be removed by a subsequent DCE in optimizer.
         self.assertEqual(len(model.graph), 3)

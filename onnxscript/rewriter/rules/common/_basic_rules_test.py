@@ -12,9 +12,11 @@ import parameterized
 
 import onnxscript
 import onnxscript.onnx_types as ot
-import onnxscript.rewriter.basic_rules as basic_rules
 from onnxscript import ir
 from onnxscript.onnx_opset import opset18
+from onnxscript.rewriter import MatchingTracer, testing
+from onnxscript.rewriter import pattern as orp
+from onnxscript.rewriter.rules.common import _basic_rules
 
 FLOAT = onnx.TensorProto.FLOAT
 
@@ -27,6 +29,10 @@ def cast_identity_model(x: ot.FLOAT["a", "b", "c"]) -> ot.FLOAT["a", "b", "c"]: 
 
 def _make_model(*args, **kwargs) -> ir.Model:
     return ir.serde.deserialize_model(onnx.helper.make_model(*args, **kwargs))
+
+
+def clone_model(model: ir.Model) -> ir.Model:
+    return ir.from_proto(ir.to_proto(model))
 
 
 class BasicRulesTest(unittest.TestCase):
@@ -98,7 +104,7 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_basic_optimization_rules_identity(self, _: str, model: ir.Model):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -126,7 +132,7 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_basic_optimization_rules_transpose_transpose(self, _: str, model: ir.Model):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -153,7 +159,7 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_cast_cast_rule(self, _: str, type1, type2, type3):
-        rule = basic_rules.cast_cast_rule
+        rule = _basic_rules.cast_cast_rule
         model_proto = self._double_cast_model(type1, type2, type3)
         model = ir.serde.deserialize_model(model_proto)
         rule.apply_to_model(model)
@@ -172,7 +178,7 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_cast_identity_rule(self, _: str, model: ir.Model):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -228,7 +234,7 @@ class BasicRulesTest(unittest.TestCase):
     def test_expand_identity_rule(
         self, _: str, model: ir.Model, expected_nodes: tuple[str, ...]
     ):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -310,71 +316,12 @@ class BasicRulesTest(unittest.TestCase):
         ]
     )
     def test_unsqueeze_unsqueeze_rule(self, _: str, model: ir.Model):
-        rule_set = basic_rules.basic_optimization_rules()
+        rule_set = _basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
 
         self.assertEqual(["Constant", "Unsqueeze"], [n.op_type for n in model.graph])
-        self._check_model(model_proto, rewritten_model)
-
-    @parameterized.parameterized.expand(
-        [
-            (
-                "double_reshape_1",
-                _make_model(
-                    onnx.helper.make_graph(
-                        [
-                            onnx.helper.make_node("Reshape", ["X", "shape_"], ["Xu"]),
-                            onnx.helper.make_node("Reshape", ["Xu", "shape"], ["Y"]),
-                        ],
-                        "name",
-                        [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
-                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [5, 4, 3])],
-                        [
-                            onnx.numpy_helper.from_array(
-                                np.array([4, 5, 3], dtype=np.int64), name="shape_"
-                            ),
-                            onnx.numpy_helper.from_array(
-                                np.array([5, 4, 3], dtype=np.int64), name="shape"
-                            ),
-                        ],
-                    ),
-                    opset_imports=[onnx.helper.make_opsetid("", 18)],
-                ),
-            ),
-            (
-                "double_reshape_2",
-                _make_model(
-                    onnx.helper.make_graph(
-                        [
-                            onnx.helper.make_node("Reshape", ["X", "shape_"], ["Xu"]),
-                            onnx.helper.make_node("Reshape", ["Xu", "shape"], ["Y"]),
-                        ],
-                        "name",
-                        [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
-                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [5, 4, 3])],
-                        [
-                            onnx.numpy_helper.from_array(
-                                np.array([-1], dtype=np.int64), name="shape_"
-                            ),
-                            onnx.numpy_helper.from_array(
-                                np.array([5, 4, 3], dtype=np.int64), name="shape"
-                            ),
-                        ],
-                    ),
-                    opset_imports=[onnx.helper.make_opsetid("", 18)],
-                ),
-            ),
-        ]
-    )
-    def test_reshape_reshape_rule(self, _: str, model: ir.Model):
-        rule_set = basic_rules.basic_optimization_rules()
-        model_proto = ir.serde.serialize_model(model)
-        rule_set.apply_to_model(model)
-        rewritten_model = ir.serde.serialize_model(model)
-
-        self.assertEqual(["Reshape"], [n.op_type for n in model.graph])
         self._check_model(model_proto, rewritten_model)
 
     @classmethod
@@ -420,7 +367,7 @@ class BasicRulesTest(unittest.TestCase):
     def test_slices_split_rule(self):
         for model_proto in self._slices_split_models():
             ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = basic_rules.basic_optimization_rules()
+            rule_set = _basic_rules.basic_optimization_rules()
             rule_set.apply_to_model(ir_model)
             rewritten_model = ir.serde.serialize_model(ir_model)
 
@@ -428,7 +375,7 @@ class BasicRulesTest(unittest.TestCase):
             self._check_model(model_proto, rewritten_model)
 
     def test_squeeze_reshape_1d_rule(self):
-        rule = basic_rules.squeeze_reshape_1d_rule
+        rule = _basic_rules.squeeze_reshape_1d_rule
 
         def check(model_script, expected_count) -> None:
             model_proto = model_script.to_model_proto()
@@ -463,6 +410,205 @@ class BasicRulesTest(unittest.TestCase):
             return op.Reshape(op.Squeeze(X), [-1])
 
         check(model3, 0)
+
+
+class ReshapeReshapeTest(unittest.TestCase):
+    @staticmethod
+    def create_model(
+        input_shape, shape1, shape2, allowzero1=0, allowzero2=0, infer_shape=False
+    ):
+        def _convert_shape(shape, name):
+            if isinstance(shape, np.ndarray):
+                shape = tape.initializer(ir.Tensor(shape, name=name))
+            elif isinstance(shape, (list, tuple)):
+                shape = ir.Input(name, ir.Shape(shape), ir.TensorType(ir.DataType.INT64))
+                tape.graph_like.inputs.append(shape)
+            else:
+                raise TypeError(f"Unsupported type {type(shape)} for shape.")
+            return shape
+
+        x = ir.Input("X", ir.Shape(input_shape), ir.TensorType(ir.DataType.FLOAT))
+        y = ir.Input("Y", type=ir.TensorType(ir.DataType.FLOAT))
+        tape = ir.tape.Tape(ir.Graph([x], [y], nodes=[], opset_imports={"": 20}))
+
+        # Build the graph.
+        reshape = tape.op(
+            "Reshape",
+            inputs=[x, _convert_shape(shape1, "shape_")],
+            attributes={"allowzero": allowzero1},
+        )
+        tape.op(
+            "Reshape",
+            inputs=[reshape, _convert_shape(shape2, "shape")],
+            attributes={"allowzero": allowzero2},
+            output=y,
+        )
+        model = ir.Model(tape.graph_like, ir_version=10)
+
+        # Infer shapes.
+        if infer_shape:
+            model = ir.passes.common.ShapeInferencePass()(model).model
+        return model
+
+    @parameterized.parameterized.expand(
+        [
+            ((3, 4, 5), [4, 5, 3], [5, 4, 3]),
+            ((3, 4, 5), [4, 5, 3], [5, 4, 3]),
+            ((3, 4, 8), [2, 0, 3, -1], [0, 3, 2, 8]),
+            ((3, 4, 8), [3, 4, -1], [-1, 12], 1),
+            ((3, 4, 2), [0, 4, -1], [12, -1], 0, 1),
+            ((3, 0, 8), [4, 2, 0, 0], [3, 0], 1, 1),
+        ]
+    )
+    def test_reshape_reshape_rule(
+        self, input_shape, shape1, shape2, allowzero1=0, allowzero2=0
+    ):
+        model = self.create_model(
+            input_shape,
+            np.array(shape1, dtype="int64"),
+            np.array(shape2, dtype="int64"),
+            allowzero1=allowzero1,
+            allowzero2=allowzero2,
+        )
+        updated_model = clone_model(model)
+
+        # check rewrite approach.
+        count = _basic_rules.reshape_reshape_rule.apply_to_model(updated_model)
+        self.assertEqual(count, 1)
+        self.assertEqual(["Reshape"], [n.op_type for n in updated_model.graph])
+
+        # Check inference.
+        inputs = np.random.default_rng(10).random(input_shape, dtype="float32")
+        testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
+
+    @parameterized.parameterized.expand([([3, 2, 3, 3, 3], 1), ([0, -1, 3, 2], 0)])
+    def test_reshape_dynamic_reshape_rule(self, shape1, allowzero1=0):
+        input_shape = (3, 6, 9)
+        shape1 = np.array(shape1, dtype="int64")
+        # Build the model with unknown shape1.
+        model = self.create_model(
+            input_shape,
+            (shape1.size,),
+            np.array((1, 6, 27), dtype="int64"),
+            allowzero1=allowzero1,
+        )
+        updated_model = clone_model(model)
+
+        # check rewrite approach.
+        count = _basic_rules.reshape_reshape_rule.apply_to_model(updated_model)
+        self.assertEqual(count, 1)
+        self.assertEqual(["Reshape"], [n.op_type for n in updated_model.graph])
+
+        # Check inference.
+        feeds = {
+            "X": np.random.default_rng(2).random(input_shape, dtype="float32"),
+            "shape_": shape1,
+        }
+        testing.assert_numerically_equal(model, updated_model, feeds, atol=0, rtol=0)
+
+    @parameterized.parameterized.expand(
+        [((3, 6, 9), [0, 3, 2, -1]), ((0, 6, 2), [0, 0, 3], 1)]
+    )
+    def test_reshape_reshape_dynamic_rule(self, input_shape, shape2, allowzero2=0):
+        # Note that shape inference is required for this test to be valid.
+        shape2 = np.array(shape2, dtype="int64")
+        model = self.create_model(
+            input_shape,
+            np.array((3, 2, -1), dtype="int64"),
+            shape2,
+            allowzero2=allowzero2,
+            infer_shape=True,
+        )
+        updated_model = clone_model(model)
+
+        # check rewrite approach.
+        count = _basic_rules.reshape_reshape_rule.apply_to_model(updated_model)
+        self.assertEqual(count, 1)
+        self.assertEqual(["Reshape"], [n.op_type for n in updated_model.graph])
+
+        # Check inference.
+        inputs = np.random.default_rng(7).random(input_shape, dtype="float32")
+        testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
+
+    @parameterized.parameterized.expand(
+        [
+            ((3,), "is not a constant"),
+            (np.array([0, -1], dtype="int64"), "both 0 and -1 dimensions"),
+            (np.array([0, 0, 3], dtype="int64"), "more than one 0 dimension"),
+        ]
+    )
+    def test_unsupported_reshape_reshape(self, shape2, error_msg):
+        model = self.create_model((1, 2, 3), np.array([1, 6], dtype="int64"), shape2)
+
+        # Check rewrite approach.
+        tracer = MatchingTracer()
+        count = _basic_rules.reshape_reshape_rule.apply_to_model(model, tracer=tracer)
+        self.assertEqual(count, 0)
+
+        # Check that the error message is the expected one
+        tracer_match = tracer.best_matches_map[_basic_rules.reshape_reshape_rule][0]
+        self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
+        self.assertRegex(tracer_match.match_result.reason, error_msg)
+
+
+class Flatten2ReshapeTest(unittest.TestCase):
+    @staticmethod
+    def create_model(input_shape, axis=1):
+        x = ir.Input("X", ir.Shape(input_shape), ir.TensorType(ir.DataType.FLOAT))
+        y = ir.Input("Y", type=ir.TensorType(ir.DataType.FLOAT))
+        tape = ir.tape.Tape(ir.Graph([x], [y], nodes=[], opset_imports={"": 20}))
+
+        # Build the graph.
+        tape.op("Flatten", inputs=[x], attributes={"axis": axis}, output=y)
+        model = ir.Model(tape.graph_like, ir_version=10)
+        return model
+
+    @parameterized.parameterized.expand(list(range(-5, 6)))
+    def test_flatten_to_reshape_rule(self, axis):
+        input_shape = (1, 4, 8, 7, 5)
+        model = self.create_model(input_shape=input_shape, axis=axis)
+        updated_model = clone_model(model)
+
+        # check rewrite approach.
+        count = _basic_rules.flatten_to_reshape_rule.apply_to_model(updated_model)
+        self.assertEqual(count, 1)
+        self.assertEqual(["Reshape"], [n.op_type for n in updated_model.graph])
+
+        # Check inference.
+        inputs = np.random.default_rng(13).random(input_shape, dtype="float32")
+        testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
+
+    @parameterized.parameterized.expand(list(range(-4, 5)))
+    def test_flatten_to_reshape_dynamic_input(self, axis):
+        model = self.create_model(input_shape=("N", "C1", "C2", "C3"), axis=axis)
+        # Rule is supported in all cases if the output shape is known for non-special cases.
+        input_shape = (1, 2, 3, 4)
+        if axis not in {-3, 0, 1, 4}:
+            out_shape = ir.Shape((np.prod(input_shape[:axis]), np.prod(input_shape[axis:])))
+            model.graph.outputs[0].shape = out_shape
+        updated_model = clone_model(model)
+
+        # check rewrite approach.
+        count = _basic_rules.flatten_to_reshape_rule.apply_to_model(updated_model)
+        self.assertEqual(count, 1)
+        self.assertEqual(["Reshape"], [n.op_type for n in updated_model.graph])
+
+        # Check inference.
+        inputs = np.random.default_rng(17).random(input_shape, dtype="float32")
+        testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
+
+    def test_unsupported_flatten_to_reshape(self):
+        model = self.create_model(input_shape=("N", "C1", "C2"), axis=2)
+
+        # Check rewrite approach.
+        tracer = MatchingTracer()
+        count = _basic_rules.flatten_to_reshape_rule.apply_to_model(model, tracer=tracer)
+        self.assertEqual(count, 0)
+
+        # Check that the error message is the expected one
+        tracer_match = tracer.best_matches_map[_basic_rules.flatten_to_reshape_rule][0]
+        self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
+        self.assertRegex(tracer_match.match_result.reason, "Impossible to compute new shape")
 
 
 if __name__ == "__main__":
