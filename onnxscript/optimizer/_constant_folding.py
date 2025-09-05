@@ -818,9 +818,10 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if split_value is None and split_shape is None:
         return None
 
-    if split_shape is not None:
+    if isinstance(split_shape, tuple) and len(split_shape) == 1:
         # If split_shape is known, we can use it to determine the number of outputs.
         split_dimension_size = split_shape[0]
+        assert isinstance(split_dimension_size, int)
         num_outputs = split_dimension_size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
         split_values = op.Split(input, split, axis=axis, _outputs=split_outputs)
