@@ -381,7 +381,7 @@ func (float[2,N] x, int64[4] split) => (float[2,N] return_val) {
    ir_version: 8,
    opset_import: ["" : 18]
 >
-func (float[1,M] x, int64[M] split) => (float[1,M] return_val) {
+func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
    splits = SplitToSequence <axis: int = 1, keepdims: int = 0> (x, split)
    i0 = Constant <value: tensor = int64 i0 {0}> ()
    s0 = SequenceAt (splits, i0)
