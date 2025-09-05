@@ -801,27 +801,45 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         axis = axis + rank
     if axis < 0 or axis >= rank:
         return None
-    split_dimension_size = shape[axis]
-    if not isinstance(split_dimension_size, int):
-        return None
 
+    # NOTE: Split needs to either be a scalar or a 1-D tensor. We need to
+    # calculate the number of outputs for Split.
+    # If split is a scalar, we split into chunks of size 'split' if possible.
+    #   * the split dimension size and split_value has to be known.
+    # If split is a 1-D tensor, we split into 'size(split)' chunks
+    #   * Get the size from split_value if it's numpy array.
+    #   * Get the size from symbolic shape if split_value is not available.
     split_value = _get_numpy_value(split)
-    if split_value is None:
-        return None
-    assert isinstance(split_value, np.ndarray)
+    split_shape = (
+        split.shape.numpy() if split.shape is not None and split.shape.is_static() else None
+    )
 
-    if split_value.ndim == 0:
-        # split into chunks all of size 'split' if possible.
-        num_outputs = math.ceil(split_dimension_size / split_value.item())
+    # No information about split value or shape.
+    if split_value is None and split_shape is None:
+        return None
+
+    if isinstance(split_shape, tuple) and len(split_shape) == 1:
+        # If split_shape is known, we can use it to determine the number of outputs.
+        split_dimension_size = split_shape[0]
+        assert isinstance(split_dimension_size, int)
+        num_outputs = split_dimension_size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
-        split_values = op.Split(
-            input, axis=axis, num_outputs=num_outputs, _outputs=split_outputs
-        )
+        split_values = op.Split(input, split, axis=axis, _outputs=split_outputs)
     elif split_value.ndim == 1:
         # split into 'size(split)' chunks
         num_outputs = split_value.size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
         split_values = op.Split(input, split, axis=axis, _outputs=split_outputs)
+    elif split_value.ndim == 0:
+        # split into chunks all of size 'split' if possible.
+        split_dimension_size = shape[axis]
+        if not isinstance(split_dimension_size, int):
+            return None
+        num_outputs = math.ceil(split_dimension_size / split_value.item())
+        split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
+        split_values = op.Split(
+            input, axis=axis, num_outputs=num_outputs, _outputs=split_outputs
+        )
     else:
         return None
 

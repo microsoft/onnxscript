@@ -346,6 +346,60 @@ func (float[1,3] x) => (float[1,3] return_val) {
         self.assertEqual(len(optimized.graph), 7)
         self.assertEqual(optimized.graph[6].op_type, "Concat")
 
+    def test_dynamic_split_to_sequence_list_shape_rewrite(self):
+        # split is a graph input with known 1-D static shape [4]; values unknown (not constant)
+        # Ensures the branch: if isinstance(split_shape, tuple) and len(split_shape) == 1
+        model = """
+<
+   ir_version: 8,
+   opset_import: ["" : 18]
+>
+func (float[2,N] x, int64[4] split) => (float[2,N] return_val) {
+   splits = SplitToSequence <axis: int = 1> (x, split)
+   i0 = Constant <value: tensor = int64 i0 {0}> ()
+   s0 = SequenceAt (splits, i0)
+   i1 = Constant <value: tensor = int64 i1 {1}> ()
+   s1 = SequenceAt (splits, i1)
+   i2 = Constant <value: tensor = int64 i2 {2}> ()
+   s2 = SequenceAt (splits, i2)
+   i3 = Constant <value: tensor = int64 i3 {3}> ()
+   s3 = SequenceAt (splits, i3)
+   return_val = Concat <axis: int = 1> (s0, s1, s2, s3)
+}"""
+        optimized = self._fold(model)
+        # Expect: Split + Concat (index constants & SequenceAt removed)
+        split_nodes = [n for n in optimized.graph if n.op_type == "Split"]
+        self.assertEqual(len(split_nodes), 1)
+        self.assertEqual(len(split_nodes[0].outputs), 4)
+        self.assertEqual(split_nodes[0].op_type, "Split")
+        self.assertTrue(all(n.op_type != "SequenceAt" for n in optimized.graph))
+
+    def test_dynamic_split_to_sequence_list_shape_no_keepdims(self):
+        # keepdims=0 path with dynamic (non-constant) splits input; triggers squeeze logic.
+        model = """
+<
+   ir_version: 8,
+   opset_import: ["" : 18]
+>
+func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
+   splits = SplitToSequence <axis: int = 1, keepdims: int = 0> (x, split)
+   i0 = Constant <value: tensor = int64 i0 {0}> ()
+   s0 = SequenceAt (splits, i0)
+   i1 = Constant <value: tensor = int64 i1 {1}> ()
+   s1 = SequenceAt (splits, i1)
+   i2 = Constant <value: tensor = int64 i2 {2}> ()
+   s2 = SequenceAt (splits, i2)
+   return_val = Concat <axis: int = 1> (s0, s1, s2)
+}"""
+        optimized = self._fold(model)
+        split_nodes = [n for n in optimized.graph if n.op_type == "Split"]
+        self.assertEqual(len(split_nodes), 1)
+        self.assertEqual(len(split_nodes[0].outputs), 3)
+        self.assertTrue(all(n.op_type != "SequenceAt" for n in optimized.graph))
+        # Each split output should have a corresponding Squeeze (keepdims=0 branch)
+        squeeze_nodes = [n for n in optimized.graph if n.op_type == "Squeeze"]
+        self.assertEqual(len(squeeze_nodes), 3)
+
     def test_initializer_input_not_folded(self):
         model_text = """
             <ir_version: 7, opset_import: [ "" : 18]>
