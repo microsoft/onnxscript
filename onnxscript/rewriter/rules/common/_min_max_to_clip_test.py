@@ -11,10 +11,10 @@ from parameterized import parameterized
 
 from onnxscript.rewriter import MatchingTracer, MatchStatus, RewriteRule, testing
 from onnxscript.rewriter.rules.common._min_max_to_clip import (
-    fuse_successive_max_min_rule,
-    fuse_successive_max_rule,
-    fuse_successive_min_max_rule,
-    fuse_successive_min_rule,
+    max_max_rule,
+    max_min_rule,
+    min_max_rule,
+    min_min_rule,
     rules,
 )
 
@@ -154,8 +154,8 @@ class TestFuseSuccessiveMinOrMax(_TestMinMaxToClipBase):
 
     @parameterized.expand(
         [
-            ("min_nonconst", "Min", fuse_successive_min_rule),
-            ("max_nonconst", "Max", fuse_successive_max_rule),
+            ("min_nonconst", "Min", min_min_rule),
+            ("max_nonconst", "Max", max_max_rule),
         ]
     )
     def test_failure_fuse_successive_min_or_max_non_constant(self, _, op_type, rewrite_rule):
@@ -239,9 +239,7 @@ class TestMinMaxToClip(_TestMinMaxToClipBase):
                 Y = Max(x1, max)
             }
         """)
-        self.run_failed_condition_test(
-            base_model, fuse_successive_min_max_rule, "Invalid bounds:"
-        )
+        self.run_failed_condition_test(base_model, min_max_rule, "Invalid bounds:")
 
     def test_failure_fuse_min_max_to_clip_non_constant(self):
         model = ir.from_onnx_text("""
@@ -254,9 +252,7 @@ class TestMinMaxToClip(_TestMinMaxToClipBase):
                 Y = Max(x1, max)
             }
         """)
-        self.run_failed_condition_test(
-            model, fuse_successive_min_max_rule, "is not a constant."
-        )
+        self.run_failed_condition_test(model, min_max_rule, "is not a constant.")
 
     def test_failure_min_max_to_clip_need_scalars(self):
         base_model = ir.from_onnx_text("""
@@ -268,9 +264,7 @@ class TestMinMaxToClip(_TestMinMaxToClipBase):
                 Y = Max(x1, max)
             }
         """)
-        self.run_failed_condition_test(
-            base_model, fuse_successive_min_max_rule, "is not a scalar"
-        )
+        self.run_failed_condition_test(base_model, min_max_rule, "is not a scalar")
 
 
 class TestMaxMinToClip(_TestMinMaxToClipBase):
@@ -334,9 +328,7 @@ class TestMaxMinToClip(_TestMinMaxToClipBase):
                 Y = Min(x1, min)
             }
         """)
-        self.run_failed_condition_test(
-            model, fuse_successive_max_min_rule, "is not a constant."
-        )
+        self.run_failed_condition_test(model, max_min_rule, "is not a constant.")
 
     def test_failure_max_min_to_clip_need_scalars(self):
         base_model = ir.from_onnx_text("""
@@ -348,9 +340,7 @@ class TestMaxMinToClip(_TestMinMaxToClipBase):
                 Y = Min(x1, max)
             }
         """)
-        self.run_failed_condition_test(
-            base_model, fuse_successive_max_min_rule, "is not a scalar"
-        )
+        self.run_failed_condition_test(base_model, max_min_rule, "is not a scalar")
 
 
 class TestIntegrationMinMaxToClip(_TestMinMaxToClipBase):

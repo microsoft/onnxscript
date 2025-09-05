@@ -15,10 +15,10 @@ __all__ = [
     "fuse_batchnorm_into_gemm_rule",
     "fuse_pad_into_conv_integer_rule",
     "fuse_pad_into_conv_rule",
-    "fuse_successive_min_rule",
-    "fuse_successive_max_rule",
-    "fuse_successive_min_max_rule",
-    "fuse_successive_max_min_rule",
+    "min_min_rule",
+    "max_max_rule",
+    "min_max_rule",
+    "max_min_rule",
     "gemm_to_matmul_add_rule",
     "matmul_add_to_gemm_rule",
     "mul_by_1_rule",
@@ -94,10 +94,10 @@ from onnxscript.rewriter.rules.common._matmul_add_to_gemm import (
     transpose_b_matmul_add_to_gemm_rule,
 )
 from onnxscript.rewriter.rules.common._min_max_to_clip import (
-    fuse_successive_max_min_rule,
-    fuse_successive_max_rule,
-    fuse_successive_min_max_rule,
-    fuse_successive_min_rule,
+    max_max_rule,
+    max_min_rule,
+    min_max_rule,
+    min_min_rule,
 )
 from onnxscript.rewriter.rules.common._no_op import (
     add_0_rule,

@@ -237,17 +237,17 @@ class FuseMinMaxToClip(_FuseMinMaxBase):
         )
 
 
-fuse_successive_min_rule = FuseSuccessiveMin().rule()
-fuse_successive_max_rule = FuseSuccessiveMax().rule()
-fuse_successive_min_max_rule = FuseMinMaxToClip().rule()
-fuse_successive_max_min_rule = FuseMaxMinToClip().rule()
+min_min_rule = FuseSuccessiveMin().rule()
+max_max_rule = FuseSuccessiveMax().rule()
+min_max_rule = FuseMinMaxToClip().rule()
+max_min_rule = FuseMaxMinToClip().rule()
 
 
 rules = RewriteRuleSet(
     [
-        fuse_successive_min_rule,
-        fuse_successive_max_rule,
-        fuse_successive_min_max_rule,
-        fuse_successive_max_min_rule,
+        min_min_rule,
+        max_max_rule,
+        min_max_rule,
+        max_min_rule,
     ]
 )
