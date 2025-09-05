@@ -10,6 +10,7 @@ __all__ = [
     "div_by_1_rule",
     "dropout_inference_rule",
     "dropout_zero_rule",
+    "flatten_to_reshape_rule",
     "fuse_batchnorm_into_conv_rule",
     "fuse_batchnorm_into_conv_transpose_rule",
     "fuse_batchnorm_into_gemm_rule",
@@ -48,6 +49,7 @@ __all__ = [
 
 from onnxscript.rewriter.rules.common._basic_rules import (
     cast_cast_rule,
+    flatten_to_reshape_rule,
     no_op_cast_rule,
     no_op_expand_rule,
     no_op_transpose_rule,
