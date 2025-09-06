@@ -6,7 +6,7 @@ import numpy as np
 
 from onnxscript import ir
 from onnxscript.rewriter import rewrite, testing
-from onnxscript.rewriter.fuse_conv_affine import (
+from onnxscript.rewriter.rules.common import (
     affine_conv_fusion_rule,
     conv_affine_fusion_rule,
 )
@@ -95,7 +95,6 @@ class FuseConvAffineTest(unittest.TestCase):
             ),
             ir_version=8,
         )
-        model.display()
         rewritten_model = self.clone_model(model)
         rewritten_model = rewrite(
             rewritten_model,

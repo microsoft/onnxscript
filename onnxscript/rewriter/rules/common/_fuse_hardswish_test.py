@@ -10,7 +10,7 @@ from onnx_ir.passes.common import onnx_checker, shape_inference
 
 from onnxscript import optimizer
 from onnxscript.rewriter import testing
-from onnxscript.rewriter.fuse_hardswish import fuse_hardswish_rules
+from onnxscript.rewriter.rules.common import fuse_hardswish_rules
 
 
 class FuseHardSwishTest(unittest.TestCase):
