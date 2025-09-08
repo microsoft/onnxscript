@@ -3101,27 +3101,44 @@ def aten_embedding_bag_padding_idx(
     sparse: bool = False,
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
-    padding_idx: int = -1,
+    padding_idx: Optional[int] = None,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
     """embedding_bag.padding_idx(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq, int mode, bool sparse, Tensor? per_sample_weights, bool include_last_offset, int? padding_idx) -> (Tensor, Tensor, Tensor, Tensor)
 
     We add default values for the attributes to accommodate _embedding_bag as well:
     _embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False, int padding_idx=-1)
     """
-    assert padding_idx is not None, (
-        "padding_idx must not be None. This is likely a dispatcher error"
-    )
 
     if per_sample_weights is None:
         per_sample_weights = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(indices))
         per_sample_weights = op.CastLike(per_sample_weights, weight)
 
-    # Change padding_idx to positive value, -1 means the last index
-    if padding_idx < 0:
-        padding_idx = weight.shape[0] + padding_idx
+    if padding_idx is not None:
+        # Call the existing function for handling padding_idx
+        result, offset2bag, bag_size, max_indices =_aten_embedding_bag_1d_padding_idx_onnx(
+            weight,
+            indices,
+            offsets,
+            scale_grad_by_freq,
+            mode,
+            sparse,
+            per_sample_weights,
+            include_last_offset,
+            padding_idx,
+        )
 
-    result, offset2bag, bag_size, max_indices = _aten_embedding_bag_1d_padding_idx_onnx(
-        weight, indices, offsets, mode, per_sample_weights, include_last_offset, padding_idx
+        return result, offset2bag, bag_size, max_indices
+
+    # When padding_idx is None, use the standard embedding_bag implementation
+    result, offset2bag, bag_size, max_indices = _aten_embedding_bag_onnx(
+        weight,
+        indices,
+        offsets,
+        scale_grad_by_freq,
+        mode,
+        sparse,
+        per_sample_weights,
+        include_last_offset,
     )
 
     return result, offset2bag, bag_size, max_indices
