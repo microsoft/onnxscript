@@ -784,6 +784,9 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     This allows downstream `SequenceAt` users to be replaced by `split_x` accordingly.
     """
     input = node.inputs[0]
+    if len(node.inputs) == 1:
+        # split is not provided
+        return None
     split = node.inputs[1]
     output = node.outputs[0]
 
