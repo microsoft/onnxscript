@@ -203,26 +203,6 @@ def _embedding_bag_input_wrangler(
 
     return args, kwargs
 
-
-def _embedding_bag_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # ONNX attributes cannot be None; omit padding_idx if it's None.
-    if "padding_idx" in kwargs:
-        padding_idx = kwargs.pop("padding_idx")
-        if padding_idx is not None:
-            kwargs["padding_idx"] = int(padding_idx)
-
-    # Ensure indices/offsets are int64 (positional: weight, indices, offsets, ...)
-    if len(args) >= 3:
-        if isinstance(args[1], torch.Tensor):
-            args[1] = args[1].to(torch.long)
-        if isinstance(args[2], torch.Tensor):
-            args[2] = args[2].to(torch.long)
-
-    return args, kwargs
-
-
 def _amin_amax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
