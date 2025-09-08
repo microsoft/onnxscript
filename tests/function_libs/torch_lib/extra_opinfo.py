@@ -2211,6 +2211,44 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "test_embedding_bag_with_padding_idx_none",
+        op=torch.nn.functional.embedding_bag,
+        dtypes=(torch.float32,),
+        sample_inputs_func=lambda op_info, device, dtype, requires_grad: [
+            opinfo_core.SampleInput(
+                torch.tensor(
+                    [[1.0, 1.0, 1.0], [2.0, 2.0, 2.0], [3.0, 3.0, 3.0], [4.0, 4.0, 4.0]],
+                    dtype=dtype,
+                    device=device,
+                ),
+                args=(
+                    torch.tensor([0, 1, 2, 3], dtype=torch.int64, device=device),
+                    torch.tensor([0, 2], dtype=torch.int64, device=device),
+                ),
+                kwargs={"padding_idx": None},
+            )
+        ],
+    ),
+    opinfo_core.OpInfo(
+        "test_embedding_bag_with_padding_idx_int",
+        op=torch.nn.functional.embedding_bag,
+        dtypes=(torch.float32,),
+        sample_inputs_func=lambda op_info, device, dtype, requires_grad: [
+            opinfo_core.SampleInput(
+                torch.tensor(
+                    [[1.0, 1.0, 1.0], [2.0, 2.0, 2.0], [3.0, 3.0, 3.0]],
+                    dtype=dtype,
+                    device=device,
+                ),
+                args=(
+                    torch.tensor([0, 1, 2], dtype=torch.int64, device=device),
+                    torch.tensor([0, 2], dtype=torch.int64, device=device),
+                ),
+                kwargs={"padding_idx": 0},
+            )
+        ],
+    ),
+    opinfo_core.OpInfo(
         "ops.aten.embedding_renorm",
         aten_name="embedding_renorm",
         dtypes=common_dtype.floating_types_and_half(),

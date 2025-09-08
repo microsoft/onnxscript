@@ -185,6 +185,24 @@ class TorchLibOpInfo:
 # Modify this section ##########################################################
 
 
+def _embedding_bag_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # ONNX attributes cannot be None; omit padding_idx if it’s None.
+    padding_idx = kwargs.pop("padding_idx", "___MISSING___")
+    if padding_idx is not "___MISSING___":
+        if padding_idx is not None:
+            kwargs["padding_idx"] = int(padding_idx)
+
+    # Ensure indices/offsets are int64 (positional: weight, indices, offsets, ...)
+    if len(args) >= 3:
+        if isinstance(args[1], torch.Tensor):
+            args[1] = args[1].to(torch.long)
+        if isinstance(args[2], torch.Tensor):
+            args[2] = args[2].to(torch.long)
+
+    return args, kwargs
+
 def _amin_amax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -1035,15 +1053,38 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_embedding_bag,
         tolerance={torch.float32: (1e-4, 5e-4)},
         compare_shape_only_for_output=(1, 2, 3),
+        input_wrangler=_embedding_bag_input_wrangler,
     ).skip(
         dtypes=(torch.float16,),
         reason="fixme: results mismatch in torch nightly.",
     ),
     TorchLibOpInfo(
+        "test_embedding_bag_with_padding_idx_none",
+        core_ops.aten_embedding_bag,
+        input_wrangler=_embedding_bag_input_wrangler,
+    ),
+    TorchLibOpInfo(
+        "test_embedding_bag_with_padding_idx_int",
+        core_ops.aten_embedding_bag,
+        input_wrangler=_embedding_bag_input_wrangler,
+    ),
+
+    TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx",
         core_ops.aten_embedding_bag_padding_idx,
         tolerance={torch.float16: (1e-2, 1e-2)},
         compare_shape_only_for_output=(1, 2, 3),
+        input_wrangler=_embedding_bag_input_wrangler,
+    ),
+    TorchLibOpInfo(
+        "test_embedding_bag_with_padding_idx_none",
+        core_ops.aten_embedding_bag,
+        input_wrangler=_embedding_bag_input_wrangler,
+    ),
+    TorchLibOpInfo(
+        "test_embedding_bag_with_padding_idx_int",
+        core_ops.aten_embedding_bag,
+        input_wrangler=_embedding_bag_input_wrangler,
     ),
     TorchLibOpInfo(
         "ops.aten.embedding_renorm",
