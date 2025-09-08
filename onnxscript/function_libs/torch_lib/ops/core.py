@@ -3115,11 +3115,21 @@ def aten_embedding_bag_padding_idx(
 
     if padding_idx is not None:
         # Call the existing function for handling padding_idx
+<<<<<<< HEAD
         result, offset2bag, bag_size, max_indices = _aten_embedding_bag_1d_padding_idx_onnx(
             weight,
             indices,
             offsets,
             mode,
+=======
+        result, offset2bag, bag_size, max_indices =_aten_embedding_bag_1d_padding_idx_onnx(
+            weight,
+            indices,
+            offsets,
+            scale_grad_by_freq,
+            mode,
+            sparse,
+>>>>>>> 6b232d90 (added fixed function logic)
             per_sample_weights,
             include_last_offset,
             padding_idx,
@@ -3132,7 +3142,13 @@ def aten_embedding_bag_padding_idx(
         weight,
         indices,
         offsets,
+<<<<<<< HEAD
         mode,
+=======
+        scale_grad_by_freq,
+        mode,
+        sparse,
+>>>>>>> 6b232d90 (added fixed function logic)
         per_sample_weights,
         include_last_offset,
     )
