@@ -79,6 +79,11 @@ from onnxscript.rewriter.rules.common._fuse_batchnorm import (
     fuse_batchnorm_into_conv_transpose_rule,
     fuse_batchnorm_into_gemm_rule,
 )
+from onnxscript.rewriter.rules.common._fuse_conv_affine import (
+    affine_conv_fusion_rule,
+    conv_affine_fusion_rule,
+)
+from onnxscript.rewriter.rules.common._fuse_hardswish import fuse_hardswish_rules
 from onnxscript.rewriter.rules.common._fuse_pad_into_conv import (
     fuse_pad_into_conv_integer_rule,
     fuse_pad_into_conv_rule,
@@ -116,8 +121,3 @@ from onnxscript.rewriter.rules.common._redundant_scatter_nd import (
     no_op_dynamic_scatter_nd_rule,
     no_op_static_scatter_nd_rule,
 )
-from onnxscript.rewriter.rules.common._fuse_conv_affine import (
-    affine_conv_fusion_rule,
-    conv_affine_fusion_rule,
-)
-from onnxscript.rewriter.rules.common._fuse_hardswish import fuse_hardswish_rules
