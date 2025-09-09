@@ -15,7 +15,7 @@ Approach:
 """
 
 from abc import ABC, abstractmethod
-from typing import Mapping
+from typing import ClassVar, Mapping
 
 import numpy as np
 
@@ -32,16 +32,6 @@ def _reshape_for_broadcast(x: np.ndarray, rank: int, axis: int = 1) -> np.ndarra
 
 class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
     """Interface for BatchNormalization nodes fusion."""
-
-    def __init__(
-        self,
-        op_type: str,
-        name: str | None = None,
-        remove_nodes: bool = True,
-        as_function: bool = False,
-    ) -> None:
-        super().__init__(name=name, remove_nodes=remove_nodes, as_function=as_function)
-        self.op_type = op_type
 
     @abstractmethod
     def get_filters_axis(self, attributes: Mapping[str, ir.Attr]) -> int:
@@ -116,8 +106,7 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
 class FuseBatchNormIntoConv(_FuseBatchNormBase):
     """Replaces ``BatchNormalization(Conv(x))`` with ``Conv(x)``."""
 
-    def __init__(self):
-        super().__init__("Conv")
+    op_type: ClassVar = "Conv"
 
     def get_filters_axis(self, attributes: Mapping[str, ir.Attr]) -> int:
         return 0
@@ -133,8 +122,7 @@ class FuseBatchNormIntoConv(_FuseBatchNormBase):
 class FuseBatchNormIntoConvTranspose(_FuseBatchNormBase):
     """Replaces ``BatchNormalization(ConvTranspose(x))`` with ``ConvTranspose(x)``."""
 
-    def __init__(self):
-        super().__init__("ConvTranspose")
+    op_type: ClassVar = "ConvTranspose"
 
     def get_filters_axis(self, attributes: Mapping[str, ir.Attr]) -> int:
         return 1
@@ -150,8 +138,7 @@ class FuseBatchNormIntoConvTranspose(_FuseBatchNormBase):
 class FuseBatchNormIntoGemm(_FuseBatchNormBase):
     """Replaces ``BatchNormalization(Gemm(x))`` with ``Gemm(x)``."""
 
-    def __init__(self):
-        super().__init__("Gemm")
+    op_type: ClassVar = "Gemm"
 
     def get_filters_axis(self, attributes: Mapping[str, ir.Attr]) -> int:
         return (
