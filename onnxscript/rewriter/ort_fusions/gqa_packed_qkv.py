@@ -84,7 +84,7 @@ class PackedQKVForGQAFusion(pattern.RewriteRuleClassBase):
         self.bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _fusion_utils._check_shape(self.bindings, val, dims)
+            return not _fusion_utils.check_shape_bool(self.bindings, val, dims)
 
         # Check that if x is being split into q, k, v correctly
         # based on hidden sizes
