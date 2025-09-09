@@ -79,7 +79,7 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
             # Check that last two dimensions are swapped
             expected_perm = list(range(len(perm)))
             expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
-            if perm != expected_perm:
+            if list(perm) != expected_perm:
                 return check_result.fail("Permutation values for Transpose are not correct.")
         elif (self._pos == 1 and not _ir_utils.has_rank(x, 2)) or (
             self._pos == 2 and not _ir_utils.has_rank(y, 2)
@@ -296,7 +296,7 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
         if _ir_utils.has_rank(x, 2) and _ir_utils.has_rank(y, 2):
             if perm:
                 # Check that the two dimensions are swapped
-                if perm != [1, 0]:
+                if tuple(perm) != (1, 0):
                     return check_result.fail(
                         "Permutation values for Transpose are not correct."
                     )
