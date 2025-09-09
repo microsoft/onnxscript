@@ -123,10 +123,17 @@ class AttrConstantPattern(AttrPattern):
 
     def __init__(self, value: SupportedAttrTypes):
         super().__init__(None)
+        if isinstance(value, Sequence):
+            value = tuple(value)
         self._value = value
 
     def matches(self, attr: ir.Attr) -> bool:
-        return isinstance(attr, ir.Attr) and attr.value == self._value
+        if not isinstance(attr, ir.Attr):
+            return False
+        if attr.type in {ir.AttributeType.INTS, ir.AttributeType.FLOATS, ir.AttributeType.STRINGS}:
+            # Since the type of attr.value is Sequence, we need to convert to the same type for comparison.
+            return tuple(attr.value) == self._value
+        return attr.value == self._value
 
     def __str__(self) -> str:
         return str(self._value)
