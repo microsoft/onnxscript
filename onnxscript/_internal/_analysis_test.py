@@ -6,7 +6,7 @@ import ast
 import unittest
 from typing import Any
 
-from onnxscript._internal import analysis, ast_utils
+from onnxscript._internal import _analysis, ast_utils
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.sourceinfo import formatter
 
@@ -30,7 +30,7 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
 class TestLivenessAnalysis(unittest.TestCase):
     def analyze(self, fun):
         source, parse_tree = ast_utils.get_src_and_ast(fun)
-        analysis.do_liveness_analysis(parse_tree, formatter(source))
+        _analysis.do_liveness_analysis(parse_tree, formatter(source))
         visitor = AnalysisResultsVisitor()
         visitor.visit(parse_tree)
         return visitor.results
@@ -113,7 +113,7 @@ class TestLivenessAnalysis(unittest.TestCase):
 class TestExposedUses(unittest.TestCase):
     def assertUses(self, f, expected):
         source, parse_tree = ast_utils.get_src_and_ast(f)
-        result = analysis.exposed_uses(parse_tree.body, formatter(source))
+        result = _analysis.exposed_uses(parse_tree.body, formatter(source))
         self.assertEqual(result, set(expected))
 
     def test_basic(self):
@@ -190,7 +190,7 @@ class TestExposedUses(unittest.TestCase):
 class TestAssignedVarAnalysis(unittest.TestCase):
     def assert_assigned_vars(self, f, expected: set[str]):
         source, parse_tree = ast_utils.get_src_and_ast(f)
-        result = analysis.assigned_vars(parse_tree.body, formatter(source))
+        result = _analysis.assigned_vars(parse_tree.body, formatter(source))
         self.assertEqual(result, expected)
 
     def test_basic_defs(self):
