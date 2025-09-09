@@ -26,7 +26,7 @@ import onnxscript.testing
 from onnxscript import ir
 
 
-def test_model(model_info: hub.ModelInfo) -> float:
+def validate_model(model_info: hub.ModelInfo) -> float:
     model_name = model_info.model
     with tempfile.TemporaryDirectory() as temp_dir, contextlib.redirect_stdout(None):
         # For parallel testing, this must be in a separate process because hub.set_dir
@@ -58,7 +58,7 @@ def run_one_test(model_info: hub.ModelInfo) -> tuple[str, str | None]:
     model_path = model_info.model_path
     message = f"\n----Testing: {model_name} @ {model_path}----"
     try:
-        time_passed = test_model(model_info)
+        time_passed = validate_model(model_info)
         message += green(f"\n[PASS]: {model_name} roundtrip test passed.")
     except Exception as e:  # pylint: disable=broad-exception-caught
         time_passed = -1

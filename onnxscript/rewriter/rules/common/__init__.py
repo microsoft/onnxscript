@@ -31,6 +31,10 @@ __all__ = [
     "normalize_pad_format_conv_integer_rule",
     "normalize_pad_format_conv_rule",
     "one_reshape_matmul_reshape_rule",
+    "remove_zero_bias_from_conv_rule",
+    "remove_zero_bias_from_conv_transpose_rule",
+    "remove_zero_bias_from_qlinear_conv_rule",
+    "remove_zero_bias_from_gemm_rule",
     "reshape_reshape_rule",
     "slice_split_rule",
     "squeeze_reshape_1d_rule",
@@ -112,4 +116,10 @@ from onnxscript.rewriter.rules.common._no_op import (
 from onnxscript.rewriter.rules.common._redundant_scatter_nd import (
     no_op_dynamic_scatter_nd_rule,
     no_op_static_scatter_nd_rule,
+)
+from onnxscript.rewriter.rules.common._remove_zero_bias import (
+    remove_zero_bias_from_conv_rule,
+    remove_zero_bias_from_conv_transpose_rule,
+    remove_zero_bias_from_gemm_rule,
+    remove_zero_bias_from_qlinear_conv_rule,
 )

@@ -33,7 +33,12 @@ from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
     fuse_skip_rms_normalization,
 )
-from onnxscript.rewriter.rules.common import _gemm_to_matmul_add
+from onnxscript.rewriter.rules.common import (
+    _fuse_batchnorm,
+    _fuse_pad_into_conv,
+    _gemm_to_matmul_add,
+    _remove_zero_bias,
+)
 
 ORT_PATTERN_REWRITE_RULES = [
     *softmax.rules.rules,
@@ -41,6 +46,10 @@ ORT_PATTERN_REWRITE_RULES = [
     # NOTE: group normalization merge silu should be applied after instance to group normalization
     # *group_normalization_merge_silu.rules.rules,
     *fused_matmul_rule_sets.fused_matmul_rule_sets(),
+    # Add Conv fusion rules for better ORT optimization
+    *_fuse_batchnorm.rules.rules,
+    *_fuse_pad_into_conv.rules.rules,
+    *_remove_zero_bias.rules.rules,
 ]
 
 
