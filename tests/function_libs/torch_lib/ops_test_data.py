@@ -189,8 +189,8 @@ def _embedding_bag_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # ONNX attributes cannot be None; omit padding_idx if it's None.
-    padding_idx = kwargs.pop("padding_idx", "___MISSING___")
-    if padding_idx != "___MISSING___":
+    if "padding_idx" in kwargs:
+        padding_idx = kwargs.pop("padding_idx")
         if padding_idx is not None:
             kwargs["padding_idx"] = int(padding_idx)
 
