@@ -188,7 +188,7 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
         trans_batch_property = "transBatchA" if self._pos == 1 else "transBatchB"
         trans_batch = fused_node.attributes.get_int(trans_batch_property, 0)
         transposed_node = _get_node(transposed, "Transpose")
-        perm = transposed_node.attributes["perm"].as_ints()
+        perm = list(transposed_node.attributes["perm"].as_ints())
         if not perm:
             return check_result.fail("Permutation values for Transpose are not correct.")
 
