@@ -46,10 +46,10 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
         bias_shape = weight_shape[0] if transB else weight_shape[-1]
         output_shape = ir.Shape(("?",) * input_shape.rank())
 
-        x = ir.Input("X", shape=input_shape, type=ir.TensorType(ir.DataType.FLOAT))
+        x = ir.val("X", shape=input_shape, type=ir.TensorType(ir.DataType.FLOAT))
 
         if weight_as_inputs:
-            w = ir.Input("W", shape=weight_shape, type=ir.TensorType(ir.DataType.FLOAT))
+            w = ir.val("W", shape=weight_shape, type=ir.TensorType(ir.DataType.FLOAT))
             inputs.append(w)
         else:
             w = ir.tensor(
@@ -58,7 +58,7 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
             w = tape.initializer(w)
 
         if bias_as_inputs:
-            b = ir.Input(
+            b = ir.val(
                 "B", shape=ir.Shape([bias_shape]), type=ir.TensorType(ir.DataType.FLOAT)
             )
             inputs.append(b)
@@ -77,7 +77,7 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
         y = tape.op(
             "Add",
             inputs=[y, b],
-            output=ir.Input("Y", shape=output_shape, type=ir.TensorType(ir.DataType.FLOAT)),
+            output=ir.val("Y", shape=output_shape, type=ir.TensorType(ir.DataType.FLOAT)),
         )
 
         # Build the model
