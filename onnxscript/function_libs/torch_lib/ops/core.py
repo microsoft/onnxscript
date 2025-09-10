@@ -7339,7 +7339,7 @@ def aten_repeat_interleave_self_int(
             op.Constant(value=ir.tensor([1] * (self_rank - pos_dim), dtype=INT64.dtype)),
             axis=0,
         )
-    tiled = op.Tile(unsqueezed, tile_repeat)
+    tiled = op.Expand(unsqueezed, tile_repeat)
     if self_rank == 1:
         return op.Identity(tiled)
     final_shape = op.Concat(
