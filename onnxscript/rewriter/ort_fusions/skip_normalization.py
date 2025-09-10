@@ -60,7 +60,7 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _fusion_utils._check_shape(bindings, val, dims)
+            return not _fusion_utils.check_shape_bool(bindings, val, dims)
 
         if no_match(input, ["B", "S", "D"]):
             return check_result.fail(
@@ -184,7 +184,7 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _fusion_utils._check_shape(bindings, val, dims)
+            return not _fusion_utils.check_shape_bool(bindings, val, dims)
 
         if no_match(input, ["B", "S", "D"]):
             return check_result.fail(
