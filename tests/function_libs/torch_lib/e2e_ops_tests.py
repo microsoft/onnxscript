@@ -76,6 +76,104 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_repeat_interleave_integer_1(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.repeat_interleave(x, 3, dim=1)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(2, 3),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_repeat_interleave_integer_2(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.repeat_interleave(x, 3, dim=1)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(2, 3, 4),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_repeat_interleave_tensor(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, ind):
+                return torch.repeat_interleave(x, ind, dim=0)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (
+                torch.arange(6, dtype=torch.float32).reshape((2, 3)),
+                torch.tensor([1, 2], dtype=torch.int64),
+            ),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_repeat_interleave_tensor_none(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, ind):
+                return torch.repeat_interleave(x, ind)
+
+        inputs = (
+            torch.arange(4, dtype=torch.float32).reshape((2, 2)),
+            torch.tensor([1, 2, 3, 2], dtype=torch.int64),
+        )
+        onnx_program = torch.onnx.export(
+            Model(),
+            inputs,
+            dynamo=True,
+            optimize=False,
+        )
+        onnx_program = torch.onnx.export(
+            Model(),
+            inputs,
+            input_names=["x", "ind"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_sdpa_with_bool_attn_mask(self):
+        class ScaledDotProductAttention(torch.nn.Module):
+            def forward(self, query, key, value, attn_mask):
+                return torch.nn.functional.scaled_dot_product_attention(  # pylint: disable=not-callable
+                    query, key, value, attn_mask=attn_mask
+                )
+
+        model = ScaledDotProductAttention()
+        attn_mask = torch.ones(2, 4, 8, 8).bool()  # boolean mask for attention
+        attn_mask[0, 0, 0, :] = False  # masking an entire row (padding token)
+        query = key = value = torch.randn(2, 4, 8, 16)
+
+        onnx_program = torch.onnx.export(
+            model,
+            (query, key, value, attn_mask),
+            input_names=["query", "key", "value", "attn_mask"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_dynamic_paddings(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                height = x.size(2)  # height is SymInt
+                x = torch.nn.functional.pad(x, (0, 0, 0, height), mode="replicate")
+                return x
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.rand(1, 1, 1, 1),),
+            dynamo=True,
+            dynamic_shapes=({2: torch.export.Dim("H")},),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()

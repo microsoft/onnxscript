@@ -9,11 +9,11 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 import onnxruntime
 import torch
 
 from onnxscript import optimizer
-from onnxscript._legacy_ir import visitor
 from onnxscript.rewriter import onnxruntime as ort_rewriter
 from onnxscript.utils import evaluation_utils
 
@@ -37,20 +37,6 @@ def skip_if_no_cuda(reason: str):
         return wrapper
 
     return skip_dec
-
-
-class OpTypeAnalysisVisitor(visitor.ProtoVisitorCore):
-    def __init__(self):
-        super().__init__()
-        self.op_types = set()
-
-    def visit_model(self, model: onnx.ModelProto):
-        self.op_types = set()
-        super().visit_model(model)
-
-    def process_node(self, node: onnx.NodeProto):
-        self.op_types.add((node.domain, node.op_type, getattr(node, "overload", "")))
-        return super().process_node(node)
 
 
 def test_onnxruntime_rewrite(
@@ -84,10 +70,11 @@ def test_onnxruntime_rewrite(
         # onnx.save(rewritten, model_dir / f"{model_name}_opt.onnx")
 
         # Check expected operator is found.
-        optype_analysis = OpTypeAnalysisVisitor()
-        optype_analysis.visit_model(rewritten)
+        op_types = set()
+        for node in ir.from_proto(model).graph.all_nodes():
+            op_types.add((node.domain, node.op_type, node.overload))
         for domain, op_type, overload in expected_optypes:
-            if (domain, op_type, overload) not in optype_analysis.op_types:
+            if (domain, op_type, overload) not in op_types:
                 raise AssertionError(
                     f"Expected op type {domain}:{op_type}:{overload} not found in rewritten model."
                 )

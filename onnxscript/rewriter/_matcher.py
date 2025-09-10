@@ -149,18 +149,21 @@ class SimplePatternMatcher(PatternMatcher):
         match.bind_node(pattern_node, node)
 
         # TODO: Revisit this to handle optional trailing inputs better.
-        if pattern_node.allow_other_inputs:
-            if len(node.inputs) < len(pattern_node.inputs):
-                return self.fail(
-                    f"Number of inputs ({len(node.inputs)}) is less than expected ({len(pattern_node.inputs)})"
-                )
-        else:
-            if len(node.inputs) != len(pattern_node.inputs):
-                return self.fail(
-                    f"Input nums mismatch. {len(node.inputs)} vs {len(pattern_node.inputs)}"
-                )
 
-        for arg_value, arg_pattern in zip(node.inputs, pattern_node.inputs):
+        if len(node.inputs) > len(pattern_node.inputs):
+            if not pattern_node.allow_other_inputs:
+                return self.fail(
+                    f"Number of inputs ({len(node.inputs)}) is greater than expected ({len(pattern_node.inputs)})"
+                )
+            checked_inputs = zip(node.inputs, pattern_node.inputs)
+        else:
+            # In ONNX, trailing Nones can be omitted in the inputs of a node. So, we extend actual
+            # node inputs with None values to match the pattern node inputs length when zipping.
+            checked_inputs = itertools.zip_longest(
+                node.inputs, pattern_node.inputs, fillvalue=None
+            )
+
+        for arg_value, arg_pattern in checked_inputs:
             # arg_pattern could be a Var, if it's the original arg.
             if arg_pattern is None:
                 if arg_value is None:
@@ -171,6 +174,12 @@ class SimplePatternMatcher(PatternMatcher):
                 return False
 
         for i, output_value_pattern in enumerate(pattern_node.outputs):
+            # When trying to bind more outputs (from the pattern) than there are
+            # actual outputs of the candidate node, reject the node before even
+            # trying to index into the list of node outputs.
+            if i >= len(node.outputs):
+                return False
+
             if not self._match.bind_value(output_value_pattern, node.outputs[i]):
                 return False
 
@@ -180,6 +189,16 @@ class SimplePatternMatcher(PatternMatcher):
         self, pattern_value: _pattern_ir.ValuePattern, value: ir.Value | None
     ) -> bool:
         """Match an IR value against a ValuePattern instance."""
+        if value is not None and value.graph is not self._graph:
+            if not isinstance(
+                pattern_value, (_pattern_ir.Var, _pattern_ir.Constant, _pattern_ir.AnyValue)
+            ):
+                # If the pattern value is a Var, Constant, or AnyValue, we allow it to match
+                # values from other graphs. Otherwise, we fail the match.
+                return self.fail(
+                    f"Value {value.name} is not in the graph {self._graph.name}. "
+                    f"Pattern matches crossing graph boundaries are not supported."
+                )
         if isinstance(pattern_value, _pattern_ir.AnyValue):
             return True
 
@@ -216,6 +235,11 @@ class SimplePatternMatcher(PatternMatcher):
                 if pattern_value.tag_var is not None:
                     self._match.bind(pattern_value.tag_var, i)
             return result
+        # Default case: a plain pattern variable (ValuePattern)
+        if value is None and not pattern_value.can_match_none:
+            return self.fail(
+                f"Mismatch: pattern variable {pattern_value} does not match None."
+            )
         return True
 
     def _match_node_output(
@@ -344,6 +368,10 @@ class SimplePatternMatcher(PatternMatcher):
         complications which require careful consideration.
         """
         self._tracer = tracer
+        if isinstance(graph_or_function, ir.Graph):
+            self._graph: ir.Graph = graph_or_function
+        else:
+            self._graph = graph_or_function.graph
         if self.pattern.has_single_output_node:
             self._init_match(verbose)
             return self._match_single_output_node(

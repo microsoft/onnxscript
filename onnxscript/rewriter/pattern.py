@@ -7,13 +7,17 @@ from onnxscript.rewriter._basics import MatchingTracer, MatchResult, MatchStatus
 from onnxscript.rewriter._matcher import PatternMatcher, SimplePatternMatcher
 from onnxscript.rewriter._pattern_ir import (
     ANY_VALUE,
+    AttrVar,
     Constant,
     OpsetPatternBuilder,
     OrValue,
+    Var,
     pattern_builder,
     torch_module_op,
 )
 from onnxscript.rewriter._rewrite_rule import (
+    Pattern,
+    PatternBase,
     RewriteRule,
     RewriteRuleClassBase,
     RewriteRuleSet,
@@ -23,10 +27,13 @@ RewriterContext = _tape.Builder
 
 __all__ = [
     "ANY_VALUE",
+    "AttrVar",
     "OrValue",
     "Constant",
     "OpsetPatternBuilder",
     "pattern_builder",
+    "PatternBase",
+    "Pattern",
     "RewriteRule",
     "RewriteRuleClassBase",
     "RewriteRuleSet",
@@ -37,4 +44,5 @@ __all__ = [
     "PatternMatcher",
     "SimplePatternMatcher",
     "torch_module_op",
+    "Var",
 ]

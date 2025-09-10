@@ -107,6 +107,22 @@ def apply_rewrite(model):
     return model_with_rewrite_applied
 
 
+####################################
+# Rewrite Rule as a Class
+# =====================
+
+
+class ErfGeluFusion(pattern.RewriteRuleClassBase):
+    def pattern(self, op, x):
+        return (x * (op.Erf(x / math.sqrt(2)) + 1.0)) * 0.5
+
+    def rewrite(self, op, x):
+        return op.Gelu(x, _domain="com.microsoft")
+
+
+erf_gelu_rule_from_class = ErfGeluFusion.rule()
+
+
 def apply_rewrite_with_ruleset(model):
     # Create multiple rules
     rule1 = pattern.RewriteRule(

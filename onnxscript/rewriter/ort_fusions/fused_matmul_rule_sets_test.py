@@ -9,9 +9,9 @@ import numpy as np
 import onnx
 import onnx.reference
 import onnx.reference.op_run
+import onnx_ir.passes.common as common_passes
 import parameterized
 
-import onnxscript.ir.passes.common as common_passes
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 from onnxscript import FLOAT, ir, script
 from onnxscript.onnx_opset import opset18 as op
@@ -284,7 +284,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         opt = onnx.reference.ReferenceEvaluator(optimized_model, new_ops=[FusedMatMul])
         expected = ref.run(None, feeds)
         got = opt.run(None, feeds)
-        self.assertEqual(len(expected), len(got))
+        self.assertEqual(len(got), len(expected))
         for a, b in zip(expected, got):
             np.testing.assert_allclose(a, b, atol=atol, rtol=rtol)
 
@@ -319,7 +319,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
         rule_set.apply_to_model(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
-        self.assertEqual(["Constant", "FusedMatMul"], [n.op_type for n in ir_model.graph])
+        self.assertEqual([n.op_type for n in ir_model.graph], ["Constant", "FusedMatMul"])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
     @parameterized.parameterized.expand(
@@ -354,7 +354,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         ir_model = ir.serde.deserialize_model(model_proto)
         self._apply_fusion_rules(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
-        self.assertEqual(["FusedMatMul"], [n.op_type for n in ir_model.graph])
+        self.assertEqual([n.op_type for n in ir_model.graph], ["FusedMatMul"])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
     @parameterized.parameterized.expand([("should_not_match", _should_not_match)])
@@ -366,8 +366,8 @@ class TestFusedMatmulRules(unittest.TestCase):
         self._apply_fusion_rules(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual(
-            ["Transpose", "MatMul", "Transpose"],
             [n.op_type for n in ir_model.graph],
+            ["Transpose", "MatMul", "Transpose"],
         )
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
@@ -391,7 +391,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         common_passes.ShapeInferencePass()(ir_model)
         self._apply_fusion_rules(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
-        self.assertEqual(["Identity", "FusedMatMul"], [n.op_type for n in ir_model.graph])
+        self.assertEqual([n.op_type for n in ir_model.graph], ["Identity", "FusedMatMul"])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
     @parameterized.parameterized.expand(
@@ -440,7 +440,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         ir_model = ir.serde.deserialize_model(model_proto)
         self._apply_fusion_rules(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
-        self.assertEqual(["FusedMatMul"], [n.op_type for n in ir_model.graph])
+        self.assertEqual([n.op_type for n in ir_model.graph], ["FusedMatMul"])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
 

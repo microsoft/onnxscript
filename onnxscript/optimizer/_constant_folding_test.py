@@ -346,6 +346,60 @@ func (float[1,3] x) => (float[1,3] return_val) {
         self.assertEqual(len(optimized.graph), 7)
         self.assertEqual(optimized.graph[6].op_type, "Concat")
 
+    def test_dynamic_split_to_sequence_list_shape_rewrite(self):
+        # split is a graph input with known 1-D static shape [4]; values unknown (not constant)
+        # Ensures the branch: if isinstance(split_shape, tuple) and len(split_shape) == 1
+        model = """
+<
+   ir_version: 8,
+   opset_import: ["" : 18]
+>
+func (float[2,N] x, int64[4] split) => (float[2,N] return_val) {
+   splits = SplitToSequence <axis: int = 1> (x, split)
+   i0 = Constant <value: tensor = int64 i0 {0}> ()
+   s0 = SequenceAt (splits, i0)
+   i1 = Constant <value: tensor = int64 i1 {1}> ()
+   s1 = SequenceAt (splits, i1)
+   i2 = Constant <value: tensor = int64 i2 {2}> ()
+   s2 = SequenceAt (splits, i2)
+   i3 = Constant <value: tensor = int64 i3 {3}> ()
+   s3 = SequenceAt (splits, i3)
+   return_val = Concat <axis: int = 1> (s0, s1, s2, s3)
+}"""
+        optimized = self._fold(model)
+        # Expect: Split + Concat (index constants & SequenceAt removed)
+        split_nodes = [n for n in optimized.graph if n.op_type == "Split"]
+        self.assertEqual(len(split_nodes), 1)
+        self.assertEqual(len(split_nodes[0].outputs), 4)
+        self.assertEqual(split_nodes[0].op_type, "Split")
+        self.assertTrue(all(n.op_type != "SequenceAt" for n in optimized.graph))
+
+    def test_dynamic_split_to_sequence_list_shape_no_keepdims(self):
+        # keepdims=0 path with dynamic (non-constant) splits input; triggers squeeze logic.
+        model = """
+<
+   ir_version: 8,
+   opset_import: ["" : 18]
+>
+func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
+   splits = SplitToSequence <axis: int = 1, keepdims: int = 0> (x, split)
+   i0 = Constant <value: tensor = int64 i0 {0}> ()
+   s0 = SequenceAt (splits, i0)
+   i1 = Constant <value: tensor = int64 i1 {1}> ()
+   s1 = SequenceAt (splits, i1)
+   i2 = Constant <value: tensor = int64 i2 {2}> ()
+   s2 = SequenceAt (splits, i2)
+   return_val = Concat <axis: int = 1> (s0, s1, s2)
+}"""
+        optimized = self._fold(model)
+        split_nodes = [n for n in optimized.graph if n.op_type == "Split"]
+        self.assertEqual(len(split_nodes), 1)
+        self.assertEqual(len(split_nodes[0].outputs), 3)
+        self.assertTrue(all(n.op_type != "SequenceAt" for n in optimized.graph))
+        # Each split output should have a corresponding Squeeze (keepdims=0 branch)
+        squeeze_nodes = [n for n in optimized.graph if n.op_type == "Squeeze"]
+        self.assertEqual(len(squeeze_nodes), 3)
+
     def test_initializer_input_not_folded(self):
         model_text = """
             <ir_version: 7, opset_import: [ "" : 18]>
@@ -552,15 +606,13 @@ func (float[1,3] x) => (float[1,3] return_val) {
         w.const_value = ir.tensor(np.random.random((256, 256)).astype(np.float32))
 
         # Input size limit will prevent folding of Mul op
-        optimized = self._fold(model, input_size_limit=3 * 256 * 256)
+        optimized = self._fold(model, onnx_shape_inference=False, input_size_limit=128 * 128)
         ops = [node.op_type for node in optimized.graph]
         self.assertEqual(ops, ["Mul", "Add"])
 
         # Input size limit will allow folding of Mul op
         # Since there is no increase in model-size, output-size is not a concern.
-        optimized = self._fold(
-            model, input_size_limit=4 * 256 * 256, output_size_limit=4 * 256 * 256
-        )
+        optimized = self._fold(model, input_size_limit=256 * 256, output_size_limit=256 * 256)
         ops = [node.op_type for node in optimized.graph]
         self.assertEqual(ops, ["Constant", "Add"])
 
@@ -583,6 +635,33 @@ func (float[1,3] x) => (float[1,3] return_val) {
         ops = [node.op_type for node in optimized.graph]
         self.assertEqual(ops, ["Constant"])
 
+    def test_node_is_folded_if_specified_as_should_fold(self):
+        model_text = """
+            <ir_version: 10, opset_import: [ "" : 20]>
+            agraph (float[M, 256] x) => (float[42, 42] z)
+            <int64[2] w = {42, 42}>
+            {
+                z = ConstantOfShape <value: tensor = int64[1] {1}> (w)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+
+        # ConstantOfShape is not folded by default
+        optimized = self._fold(model)
+        ops = [node.op_type for node in optimized.graph]
+        self.assertEqual(ops, ["ConstantOfShape"])
+
+        # But ConstantOfShape is folded when specified in should_fold
+        optimized = self._fold(
+            model, should_fold=lambda node: node.op_type == "ConstantOfShape" or None
+        )
+        ops = [node.op_type for node in optimized.graph]
+        self.assertEqual(ops, ["Constant"])
+        np.testing.assert_array_equal(
+            optimized.graph.node(0).attributes["value"].as_tensor().numpy(),
+            np.ones((42, 42), dtype=np.int64),
+        )
+
     def test_multi_graph_identity_output_preserves_output_name(self):
         model = """
             <ir_version: 10, opset_import: ["" : 20]>
@@ -598,6 +677,22 @@ func (float[1,3] x) => (float[1,3] return_val) {
             [n.outputs[0].name for n in optimized.graph], ["graph_output1", "graph_output2"]
         )
         self.assertEqual([input.name for input in optimized.graph.inputs], ["x"])
+
+    # This should not be constant-foldable as the constant references an
+    # attribute and thus the shape cannot be resolved. At the same time it
+    # should not fail due to the attribute value being None in
+    # _process_constant_node
+    def test_attribute_reference(self):
+        model = """
+            <ir_version: 7, opset_import: ["" : 17]>
+            agraph () => (int64[N] z) {
+                x = Constant <value_ints: ints = @attr> ()
+                z = Shape (x)
+            }
+        """
+
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 2)
 
 
 if __name__ == "__main__":

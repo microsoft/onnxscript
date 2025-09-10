@@ -5,6 +5,8 @@
 # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy.typing as npt
 import onnx
 
@@ -78,3 +80,22 @@ def constant(
         A constant node.
     """
     return op.Constant(value=ir.tensor(array, dtype=ir.DataType(dtype)))
+
+
+def merge_dims(dims: Sequence[int | INT64]) -> INT64:
+    """Concatenate dimensions into a single value."""
+
+    if not dims:
+        return op.Constant(value_ints=ir.AttrInt64s("value_ints", []))
+
+    neg_one_1d = op.Constant(value_ints=ir.AttrInt64s("value_ints", [-1]))
+
+    result_dims = [
+        op.Constant(value_ints=[d]) if isinstance(d, int) else op.Reshape(d, neg_one_1d)
+        for d in dims
+    ]
+
+    # Set the output type to INT64 so op.Concat can be used
+    for dim in result_dims:
+        dim.dtype = ir.DataType.INT64
+    return op.Concat(*result_dims, axis=0)

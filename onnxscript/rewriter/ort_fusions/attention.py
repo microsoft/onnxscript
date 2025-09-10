@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Sequence, Union
 
-import onnxscript.ir as ir
+import onnx_ir as ir
+
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 Dim = Union[int, ir.SymbolicDim]
@@ -33,7 +34,6 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         qkv_bias,
         # mask_index,
         past,
-        attention_bias,
         num_heads,
         # scale,
         start1,
@@ -105,13 +105,13 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 value_BSD,
                 qkv_bias,
                 None,  # key_padding_mask
-                attention_bias,
+                pattern.Var("attention_bias", can_match_none=True),
                 past_key,
                 past_value,
                 num_heads=num_heads,
                 # scale=scale,
                 _domain="com.microsoft",
-                _outputs=3,
+                _outputs=["mha_output", "present_key", "present_value"],
             )
             # Concat present_key and present_value to form present
             present_key = op.Unsqueeze(present_key, [0])
@@ -126,13 +126,13 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 value_BSD,
                 qkv_bias,
                 None,  # key_padding_mask
-                attention_bias,
+                pattern.Var("attention_bias", can_match_none=True),
                 None,  # past_key
                 None,  # past_value
                 num_heads=num_heads,
                 # scale=scale,
                 _domain="com.microsoft",
-                _outputs=1,
+                _outputs=["mha_output"],
             )
             return attention
 
@@ -160,7 +160,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         self.bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _fusion_utils._check_shape(self.bindings, val, dims)
+            return not _fusion_utils.check_shape_bool(self.bindings, val, dims)
 
         if no_match(input, ["B", "S", "D"]):
             return check_result.fail(
@@ -260,6 +260,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         attention_bias,
         num_heads,
         # scale,
+        mha_output,
         q_mul=None,
         k_mul=None,
         v_mul=None,
@@ -274,6 +275,8 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         if self._no_slice:
             qkv_weight = op.Concat(q_mul, k_mul, v_mul, axis=1)
 
+        scale = mha_output.producer().attributes.get_float("scale", None)
+
         if self._has_past:
             attention, present = op.Attention(
                 input,
@@ -285,7 +288,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 # past_sequence_length
                 num_heads=num_heads,
                 qkv_hidden_sizes=qkv_hidden_sizes,
-                # scale=scale,
+                scale=scale,
                 _domain="com.microsoft",
                 _outputs=2,
             )
@@ -302,7 +305,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 None,  # past_sequence_length
                 num_heads=num_heads,
                 qkv_hidden_sizes=qkv_hidden_sizes,
-                # scale=scale,
+                scale=scale,
                 _domain="com.microsoft",
                 _outputs=1,
             )
