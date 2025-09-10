@@ -151,12 +151,6 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(
             Model(),
             inputs,
-            dynamo=True,
-            optimize=False,
-        )
-        onnx_program = torch.onnx.export(
-            Model(),
-            inputs,
             input_names=["x", "y"],
             output_names=["output"],
             opset_version=18,
