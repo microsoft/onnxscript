@@ -7384,20 +7384,22 @@ def aten_repeat_interleave_Tensor(
     if dim is None:
         # flatten
         self = op.Reshape(self, [-1])
-        rk = 1
+        rank = 1
     else:
-        rk = len(self.shape)
+        rank = len(self.shape)
 
-    if rk > 2:
+    if rank > 2:
         shape_x0 = op.Shape(self, start=0, end=1)
         shape_x = op.Shape(self, start=1)
         self = op.Reshape(self, op.Concat(shape_x0, [-1], axis=0))
-    elif rk == 1:
+    elif rank == 1:
         shape_x = None
         self = op.Reshape(self, [-1, 1])
     else:
-        if rk != 2:
-            raise NotImplementedError(f"rank(self)={rk} not implemented for repeat_interleave")
+        if rank != 2:
+            raise NotImplementedError(
+                f"rank(self)={rank} not implemented for repeat_interleave"
+            )
         shape_x = None
 
     ci = op.CumSum(repeats, [0])
@@ -7410,7 +7412,7 @@ def aten_repeat_interleave_Tensor(
     )
     indices = op.Reshape(srows, [-1])
     values = op.GatherND(self, op.Unsqueeze(indices, [-1]))
-    if rk == 2:
+    if rank == 2:
         return values
     # shape_x is None at this stage.
     assert shape_x is None  # for mypy
