@@ -17,8 +17,6 @@ from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleS
 class _RemoveZeroBiasBase(RewriteRuleClassBase):
     """Base class for removing zero bias from operations."""
 
-    op_type: ClassVar
-
     def rewrite(self, op: ir.tape.Tape, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
         """Remove the bias input from the operation."""
         return op.op(
