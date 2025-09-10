@@ -933,8 +933,9 @@ def aten_atan2(self: TFloat, other: TFloat) -> TFloat:
     slope = op.Div(self, other)
     atan = op.Atan(slope)
     zero = common_ops.constant(0.0, dtype=self.dtype)
+    pi = common_ops.constant(_MATH_PI, dtype=self.dtype)
 
-    second_third_quadrant = op.Where(op.Greater(self, zero), atan + _MATH_PI, atan - _MATH_PI)
+    second_third_quadrant = op.Where(op.Greater(self, zero), atan + pi, atan - pi)
     result = op.Where(op.Less(other, zero), second_third_quadrant, atan)
 
     # Map NaN to 0 to match PyTorch behavior
