@@ -392,7 +392,7 @@ class PatternBase(abc.ABC):
                 if perm.is_ref():
                     return False
                 if perm.type == ir.AttributeType.INTS:
-                    if perm.as_ints() == list(range(len(perm.as_ints()))):
+                    if list(perm.as_ints()) == list(range(len(perm.as_ints()))):
                         return True
                 return False
     """
@@ -463,7 +463,7 @@ class RewriteRuleClassBase(PatternBase):
                 if perm.is_ref():
                     return False
                 if perm.type == ir.AttributeType.INTS:
-                    if perm.as_ints() == list(range(len(perm.as_ints()))):
+                    if list(perm.as_ints()) == list(range(len(perm.as_ints()))):
                         return True
                 return False
 
