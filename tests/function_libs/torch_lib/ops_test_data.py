@@ -578,7 +578,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("asin", core_ops.aten_asin),
     TorchLibOpInfo("asinh", core_ops.aten_asinh),
     TorchLibOpInfo("atan", core_ops.aten_atan),
-    TorchLibOpInfo("atan2", core_ops.aten_atan2, tolerance={torch.float16: (1e-3, 1e-3)}),
+    TorchLibOpInfo("atan2", core_ops.aten_atan2),
     TorchLibOpInfo("atanh", core_ops.aten_atanh),
     TorchLibOpInfo("atleast_1d", core_ops.aten_atleast_1d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),

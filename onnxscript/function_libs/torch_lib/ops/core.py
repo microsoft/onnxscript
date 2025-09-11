@@ -925,16 +925,21 @@ def aten_atan(self: TFloat) -> TFloat:
     return op.Atan(self)
 
 
-@torch_op("aten::atan2")
+@torch_op("aten::atan2", trace_only=True)
 def aten_atan2(self: TFloat, other: TFloat) -> TFloat:
     """atan2(Tensor self, Tensor other) -> Tensor"""
 
     # self is y, and other is x on coordinate
     slope = op.Div(self, other)
     atan = op.Atan(slope)
+    zero = common_ops.constant(0.0, dtype=self.dtype)
+    pi = common_ops.constant(_MATH_PI, dtype=self.dtype)
 
-    second_third_quadrant = op.Where(self > 0.0, atan + _MATH_PI, atan - _MATH_PI)
-    result = op.Where(other < 0.0, second_third_quadrant, atan)
+    second_third_quadrant = op.Where(op.Greater(self, zero), atan + pi, atan - pi)
+    result = op.Where(op.Less(other, zero), second_third_quadrant, atan)
+
+    # Map NaN to 0 to match PyTorch behavior
+    result = op.Where(op.IsNaN(result), zero, result)
 
     return result
 
