@@ -7350,7 +7350,7 @@ def aten_repeat_interleave_self_int(
     final_shape = op.Concat(
         op.Shape(self, start=0, end=dim),
         op.Constant(value_ints=[-1]),
-        op.Shape(self, start=dim + 1),
+        op.Shape(self, start=pos_dim + 1),
         axis=0,
     )
     return op.Reshape(tiled, final_shape)
