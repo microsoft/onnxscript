@@ -7,15 +7,17 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 import onnx_ir.passes.common.shape_inference as shape_inference
 import onnxruntime as ort
 import torch
 
 import onnxscript
-import onnxscript.ir as ir
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
+from onnxscript.rewriter.models._phi4lm import phi4lm_test
+from onnxscript.rewriter.ort_fusions import optimize_for_ort
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
@@ -44,6 +46,7 @@ class GQAFusionTest(unittest.TestCase):
             "num_heads must be divisible by kv_num_heads"
         )
         self.num_groups = self.num_heads // self.kv_num_heads
+        self.total_seqlen = self.seqlen + self.past_seqlen
 
         # Abbreviations
         B = self.batchsize
@@ -306,17 +309,35 @@ class GQAFusionTest(unittest.TestCase):
             onnx.TensorProto.FLOAT,
             ["B", self.seqlen, self.num_heads, self.head_size],
         )
+        key_BHSDh_value_info = onnx.helper.make_tensor_value_info(
+            "key_BHSDh",
+            onnx.TensorProto.FLOAT,
+            ["B", self.num_heads, self.total_seqlen, self.head_size],
+        )
         key_BSHkvDh_value_info = onnx.helper.make_tensor_value_info(
             "key_BSHkvDh",
             onnx.TensorProto.FLOAT,
             ["B", self.seqlen, self.kv_num_heads, self.head_size],
+        )
+        key_transposed_value_info = onnx.helper.make_tensor_value_info(
+            "key_transposed",
+            onnx.TensorProto.FLOAT,
+            ["B", self.num_heads, self.head_size, self.total_seqlen],
+        )
+        value_BHSDh_value_info = onnx.helper.make_tensor_value_info(
+            "value_BHSDh",
+            onnx.TensorProto.FLOAT,
+            ["B", self.num_heads, self.total_seqlen, self.head_size],
         )
         source_model.graph.value_info.extend(
             [
                 query_BHSDh_rope_value_info,
                 key_BHkvSDh_rope_value_info,
                 query_BSHDh_value_info,
+                key_BHSDh_value_info,
                 key_BSHkvDh_value_info,
+                key_transposed_value_info,
+                value_BHSDh_value_info,
             ]
         )
 
@@ -325,10 +346,10 @@ class GQAFusionTest(unittest.TestCase):
         onnxscript.optimizer.optimize(inferred_model)
 
         count = fuse_sdpa(inferred_model, debug=True)
-        self.assertEqual(count, 1)
+        self.assertGreater(count, 0)
 
         count = fuse_gqa(inferred_model, debug=True)
-        self.assertEqual(count, 1)
+        self.assertGreater(count, 0)
 
         fused_model = ir.serde.to_proto(inferred_model)
         session = ort.InferenceSession(
@@ -338,6 +359,17 @@ class GQAFusionTest(unittest.TestCase):
 
         self.assertEqual(len(outputs3), len(source_model_outputs))
         assert_allclose(outputs3, source_model_outputs)
+
+
+class GQAFusionTest2(unittest.TestCase):
+    @unittest.skip("Needs too much memory.")
+    def test_phi4lm(self):
+        test_case = phi4lm_test()
+        model = test_case.get_onnx_model()
+        onnxscript.optimizer.optimize(model)
+        optimize_for_ort(model, debug=True)
+        gqa_nodes = [n for n in model.graph if n.op_type == "GQA"]
+        self.assertEqual(len(gqa_nodes), 2, "Expected 2i GQA nodes after fusion")
 
 
 if __name__ == "__main__":

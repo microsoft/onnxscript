@@ -127,17 +127,6 @@
 5. Develop optimization code.
     - `onnx-script/onnxscript/optimizer`: Optimizations such as constant folding, inlining, dead code elimination etc.
     - `onnx-script/onnxscript/rewriter`: Pattern based fusions.
-    - `onnx-script/onnxscript/rewriter/onnxruntime`: Onnxruntime specific pattern based fusions.
-    - `onnx-script/onnxscript/rewriter/onnxruntime/transformers`: Onnxruntime specific function based fusions.
-        - Use function unittest producer tool to create function fusion unittest. Example command to distill 4 unittests for function `LlamaSdpaAttention` from `llama_v2_7b` `dynamo` model. The unittest models are named with prefix `sdpa_llama2`:
-            ```
-            # Under onnx-script/onnxscript/rewriter/transformers
-            CUDA_VISIBLE_DEVICES="3" python tools/function_unittest_producer.py --model-path ../../../tools/onnx_models/llama_v2_7b_16h/dynamo_ort_rewritten/llama_v2_7b_16h_dynamo_ort_rewritten.onnx --function LlamaSdpaAttention --output-dir ../../testing/rewriter/transformers/unittest_models/ --max-outputs 4 --name sdpa_llama2
-            ```
-        - Create new testcase under `onnx-script/onnxscript/rewriter/transformers` with the generated unittest models.
-            ```python
-                def test_sdpa_llama2(self):
-                    common.test_function_rewrite("sdpa_llama2", 4)
-            ```
+    - `onnx-script/onnxscript/rewriter/ort_fusions`: Onnxruntime specific pattern based fusions.
 
 6. Repeat step 3 to step 5 to verify performance improvement as well as parity after new optimization.

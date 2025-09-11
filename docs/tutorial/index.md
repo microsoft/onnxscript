@@ -270,6 +270,7 @@ ONNX perspective, the two assignments to *g* represent two distinct tensors
 ```{toctree}
 :maxdepth: 1
 
-optimizer/index
 rewriter/index
+optimizer/index
+
 ```

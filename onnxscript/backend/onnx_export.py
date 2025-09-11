@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
-import numpy
+import numpy as np
 import onnx
 from onnx import FunctionProto, GraphProto, ModelProto, TensorProto, ValueInfoProto
 
@@ -12,6 +12,8 @@ import onnxscript.onnx_types
 import onnxscript.type_annotation
 
 _SINGLE_INDENT = "    "
+
+_SMALL_TENSOR_SIZE = 4
 
 kwlist = {
     "False",
@@ -68,9 +70,10 @@ def _get_const_repr(const_node):
         rank = len(tensor_proto.dims)
         if rank == 0:
             array = onnx.numpy_helper.to_array(tensor_proto).reshape(1)  # noqa: TID251
-            return repr(array[0])
+            return str(array[0])
         if rank == 1 and tensor_proto.dims[0] < 5:
-            return repr(list(onnx.numpy_helper.to_array(tensor_proto)))  # noqa: TID251
+            nparray = onnx.numpy_helper.to_array(tensor_proto)  # noqa: TID251
+            return repr(nparray.tolist())
     return None
 
 
@@ -118,7 +121,7 @@ def _make_short_name_mapper():
 
 def _translate_type(onnx_type):
     """Converts a onnx type into a type defined by *onnxscript*."""
-    return onnxscript.onnx_types.onnx_type_to_onnxscript_repr(onnx_type)
+    return onnxscript.onnx_types.onnx_type_to_onnxscript_repr(onnx_type, reversible=False)
 
 
 def _translate_signature(inputs, outputs):
@@ -136,6 +139,15 @@ def _translate_signature(inputs, outputs):
     if outputs and isinstance(outputs[0], ValueInfoProto):
         result += f" -> ({', '.join([_translate_type(x.type) for x in outputs])})"
     return f"{result}:"
+
+
+def _translate_value_infos(value_infos: Sequence[ValueInfoProto]) -> str:
+    def _translate_value_info(value_info: ValueInfoProto) -> str:
+        return f"{_SINGLE_INDENT}'{_cleanup_variable_name(value_info.name)}': {_translate_type(value_info.type)},"
+
+    lines = [_translate_value_info(x) for x in value_infos]
+    lines_joined = "\n".join(lines)
+    return "{\n" + lines_joined + "\n}"
 
 
 def _to_str(s):
@@ -340,25 +352,33 @@ class _Exporter:
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
                 if self.skip_initializers:
-                    init_py_name = self._translate_onnx_var(init.name)
-                    if init_py_name in self.skipped_initializers:
-                        raise RuntimeError(
-                            f"Initializer {init.name!r} is already present in skipped_initializers."
-                        )
-                    self.skipped_initializers[init_py_name] = init
-                    continue
+                    size = 1
+                    for d in init.dims:
+                        size *= d
+                    if size > _SMALL_TENSOR_SIZE:
+                        init_py_name = self._translate_onnx_var(init.name)
+                        if init_py_name in self.skipped_initializers:
+                            raise RuntimeError(
+                                f"Initializer {init.name!r} is already present in skipped_initializers."
+                            )
+                        self.skipped_initializers[init_py_name] = init
+                        continue
                 node = onnx.helper.make_node(  # noqa: TID251
                     "Constant",
                     [],
                     [self._translate_onnx_var(init.name)],  # type: ignore[list-item]
                     value=init,
                 )
-                code.append(self._translate_node(node, opsets, indent=indent))
+                pyinit = self._translate_node(node, opsets, indent=indent)
+                if pyinit:
+                    code.append(pyinit)
         if hasattr(graph, "sparse_initializer") and len(graph.sparse_initializer) > 0:
             raise NotImplementedError("Unable to convert sparse_initilizer into python.")
         for node in graph.node:
             pynode = self._translate_node(node, opsets, indent=indent)
             if pynode:
+                if node.name:
+                    pynode += f"  # {node.name}"
                 code.append(pynode)
 
         final = "\n".join(code)
@@ -374,17 +394,17 @@ class _Exporter:
             if isinstance(value, str):
                 attributes.append((at.name, f"{value!r}"))
                 continue
-            if isinstance(value, numpy.ndarray):
+            if isinstance(value, np.ndarray):
                 onnx_dtype = at.t.data_type
                 if len(value.shape) == 0:
                     text = (
                         f'make_tensor("value", {onnx_dtype}, dims=[], '
-                        f"vals=[{value.tolist()!r}])"
+                        f"vals=[{repr(value.tolist()).replace('nan', 'np.nan').replace('inf', 'np.inf')}])"
                     )
                 else:
                     text = (
                         f'make_tensor("value", {onnx_dtype}, dims={list(value.shape)!r}, '
-                        f"vals={value.ravel().tolist()!r})"
+                        f"vals={repr(value.ravel().tolist()).replace('nan', 'np.nan').replace('inf', 'np.inf')})"
                     )
                 attributes.append((at.name, text))
                 continue
@@ -408,7 +428,8 @@ class _Exporter:
     def _translate_if(self, node, opsets, indent=0):
         """Translates a node If into python."""
         sindent = _SINGLE_INDENT * indent
-        code = [f"{sindent}if {node.input[0]}:"]
+        cond = self._translate_onnx_var_ref(node.input[0])
+        code = [f"{sindent}if {cond}:"]
         if len(node.attribute) != 2:
             raise RuntimeError(
                 f"Node {node.op_type!r} expected two attributes not {len(node.attribute)}."
@@ -492,17 +513,21 @@ class _Exporter:
 
         rows.extend(self._emit_assign(formal_ins, actual_ins, indent))
 
+        if node.name:
+            node_name = "  # " + node.name
+        else:
+            node_name = ""
         if use_iter_var and not use_loop_cond:
-            rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
+            rows.append(f"{sindent}for {iter_var} in range({n_iter}):{node_name}")
             # The following is a hacky way to suppress the generation of
             # "cond_out = cond_in", which ONNX forces for a FOR loop.
             # TODO: a cleaner solution for this.
             self._name_remappings[-1][cond_out] = self._translate_onnx_var(cond_in)
         elif not use_iter_var and use_loop_cond:
-            rows.append(f"{sindent}while {py_cond}:")
+            rows.append(f"{sindent}while {py_cond}:{node_name}")
         elif use_iter_var and use_loop_cond:
             # TODO: This needs fixing
-            rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
+            rows.append(f"{sindent}for {iter_var} in range({n_iter}):{node_name}")
             rows.append(f"{sindent}{_SINGLE_INDENT}if not {py_cond}:")
             rows.append(f"{sindent}{_SINGLE_INDENT * 2}break")
         else:
@@ -710,10 +735,13 @@ class _Exporter:
         add(f"{indent}return {return_values}")
         script = "\n".join(result)
         if self.skipped_initializers:
-            return self._substitute_initializers(script, function_name)
+            value_infos = _translate_value_infos(graph.value_info)
+            return self._substitute_initializers(script, function_name, value_infos)
         return script
 
-    def _substitute_initializers(self, script: str, script_function_name: str) -> str:
+    def _substitute_initializers(
+        self, script: str, script_function_name: str, value_infos: str
+    ) -> str:
         init_names = self.skipped_initializers.keys()
         # Formal parameters representing initializers (single level indentation)
         __ = _SINGLE_INDENT
@@ -721,11 +749,13 @@ class _Exporter:
 
         def generate_rand(name: str, value: TensorProto) -> str:
             shape = ",".join(str(d) for d in value.dims)
-            if value.data_type != TensorProto.FLOAT:
-                raise NotImplementedError(
-                    f"Unable to generate random initializer for data type {value.data_type}."
-                )
-            return f"{__}{name} = numpy.random.rand({shape}).astype(numpy.float32)"
+            if value.data_type == TensorProto.FLOAT:
+                return f"{__}{name} = np.random.rand({shape}).astype(np.float32)"
+            if value.data_type == TensorProto.INT8:
+                return f"{__}{name} = np.random.randint(-128, 127, size=({shape},), dtype=np.int8)"
+            raise NotImplementedError(
+                f"Unable to generate random initializer for data type {value.data_type}."
+            )
 
         random_initializer_values = "\n".join(
             generate_rand(key, value) for key, value in self.skipped_initializers.items()
@@ -733,12 +763,14 @@ class _Exporter:
         # Actual parameter values for initializers (double level indentation)
         indented_initializers_as_params = "\n".join(f"{__}{__}{x}," for x in init_names)
         return f"""
+value_infos = {value_infos}
+
 def make_model(
 {initializers_as_params}
 ):
 {script}
 
-{__}model = {script_function_name}.to_model_proto()
+{__}model = {script_function_name}.to_model_proto(value_infos=value_infos)
 {__}return model
 
 def make_model_with_random_weights():
@@ -778,7 +810,7 @@ def make_model_with_random_weights():
             result.append(line)
 
         # Generic imports.
-        add("import numpy")
+        add("import numpy as np")
         add("from onnx import TensorProto")
         add("from onnx.helper import make_tensor")
         add("from onnxscript import script, external_tensor")
@@ -858,11 +890,11 @@ def export2python(
     .. runpython::
         :showcode:
         :process:
-        import numpy
+        import numpy as np
         from sklearn.cluster import KMeans
         from mlprodict.onnx_conv import to_onnx
         from mlprodict.onnx_tools.onnx_export import export2python
-        X = numpy.arange(20).reshape(10, 2).astype(numpy.float32)
+        X = np.arange(20).reshape(10, 2).astype(np.float32)
         tr = KMeans(n_clusters=2)
         tr.fit(X)
         onx = to_onnx(tr, X, target_opset=14)

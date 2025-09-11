@@ -5,8 +5,8 @@ import math
 import unittest
 
 import numpy as np
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 import onnxscript.rewriter.ort_fusions._test_utils as test_utils
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
@@ -48,6 +48,39 @@ class GeluFusionTest(unittest.TestCase):
 
         self.assertEqual(len(model.graph), 1)
         self.assertEqual(model.graph.node(0).op_type, "FastGelu")
+
+        optimized_output = test_utils.ort_run("Optimized", model, input)
+        test_utils.assert_allclose(original_output, optimized_output)
+
+    def test_gelu_erf_fusion(self):
+        _sqrt_two = math.sqrt(2.0)
+
+        @script()
+        def gelu_erf_model(x):
+            # GELU(x) = 0.5 * x * (1 + erf(x / sqrt(2)))
+            t1 = op.Div(x, _sqrt_two)
+            t2 = op.Erf(t1)
+            t3 = op.Add(t2, 1.0)
+            t4 = op.Mul(x, t3)
+            result = op.Mul(t4, 0.5)
+            return result
+
+        model_proto = gelu_erf_model.to_model_proto(
+            input_types=[FLOAT[10]], output_types=[FLOAT[10]]
+        )
+        model = ir.serde.deserialize_model(model_proto)
+
+        # Eliminate redundant CastLike ops:
+        optimize(model)
+
+        input = {"x": np.random.randn(10).astype(np.float32)}
+        original_output = test_utils.ort_run("Original", model, input)
+
+        fuse_gelu(model)
+        remove_unused_nodes(model)
+
+        self.assertEqual(len(model.graph), 1)
+        self.assertEqual(model.graph.node(0).op_type, "Gelu")
 
         optimized_output = test_utils.ort_run("Optimized", model, input)
         test_utils.assert_allclose(original_output, optimized_output)

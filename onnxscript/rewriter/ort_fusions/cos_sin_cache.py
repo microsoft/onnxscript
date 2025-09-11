@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Rewrite the computation of cos/sin cache into the form expected by ORT's custom ops.
@@ -106,7 +106,16 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         self._inv_freq_cos_sin_cache.clear()
 
     def pattern(
-        self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype, extra_dims
+        self,
+        op,
+        x,
+        inv_freq,
+        position_ids,
+        interleaved,
+        num_heads,
+        freqs,
+        dtype,
+        extra_dims,
     ):
         if not self._const_freqs:
             # Compute freqs from inv_freq and position_ids. In the _const_freqs case,
@@ -121,6 +130,13 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             # if self._reshape:
             #     position_ids_expanded = op.Expand(position_ids_expanded, _allow_other_inputs=True)
             #     position_ids_expanded = op.Reshape(position_ids_expanded, _allow_other_inputs=True)
+            # inv_freq may optionally be expanded to shape [B, E, 1]
+            inv_freq = pattern.OrValue(
+                [
+                    op.Expand(inv_freq, pattern.ANY_VALUE, _outputs=["expanded_inv_freq"]),
+                    inv_freq,
+                ]
+            )
             freqs = op.MatMul(inv_freq, position_ids_expanded)  # [B, E, S]
         # if self._reshape:
         #     freqs = op.Reshape(freqs, freqs_3d_shape)  # redundant reshape
@@ -140,11 +156,11 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             sin_4d,
             interleaved=interleaved,
             num_heads=num_heads,
-            _domain="ai.onnxruntime.fusion",
+            _domain="ai.onnxruntime._fusion",
         )
 
     def check(
-        self, context, inv_freq, position_ids, freqs, extra_dims, **_
+        self, context, inv_freq, position_ids, freqs, extra_dims, expanded_inv_freq=None, **_
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
         # TODO(rama): handle redundant reshape/expand
@@ -164,6 +180,10 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         if not _ir_utils.has_rank(inv_freq, 3):
             return check_result.fail("inv_freq is not 3D.", inv_freq)
         inv_freq_shape = inv_freq.shape
+        if expanded_inv_freq is not None:
+            if not _ir_utils.has_rank(expanded_inv_freq, 3):
+                return check_result.fail("expanded_inv_freq is not 3D.", expanded_inv_freq)
+            # TODO: check expanded_inv_freq shape
         if inv_freq.const_value is None:  # TODO: should this be inv_freq_shape?
             return check_result.fail("inv_freq is not a constant.", inv_freq)
         if inv_freq_shape[0] != 1 or inv_freq_shape[2] != 1:

@@ -8,7 +8,6 @@ from typing import Any, Optional, Sequence, TypeVar, Union
 import parameterized
 
 import onnxscript
-import onnxscript.testing
 from onnxscript import FLOAT, INT64, ir
 from onnxscript.ir import _schemas
 

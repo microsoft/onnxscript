@@ -45,7 +45,7 @@ def pyvalue_to_onnx_attribute(
     key: str,
     value: Any,
     name_generator: Callable[[], str],
-    attr_type: Optional[onnx.AttributeProto.AttributeType] = None,
+    attr_type: onnx.AttributeProto.AttributeType | None = None,
 ) -> onnx.AttributeProto:
     """Helper function to create an ONNX AttributeProto.
 

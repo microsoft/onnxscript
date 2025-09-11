@@ -9,9 +9,6 @@ import numpy as np
 import onnxruntime
 import torch
 
-import onnxscript.optimizer
-import onnxscript.rewriter
-import onnxscript.tools.training_helper
 import onnxscript.tools.transformers_models
 import onnxscript.tools.transformers_models.phi3
 from onnxscript._internal.version_utils import (
@@ -35,13 +32,7 @@ class TestExportPhi3(unittest.TestCase):
         )
         input_tensors = input_tensors_many[0]
         expected = model(*input_tensors)
-        try:
-            proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
-        except torch._export.verifier.SpecViolationError as e:  # pylint: disable=protected-access
-            # see https://github.com/pytorch/pytorch/issues/128394
-            if "Node.meta _enter_autocast is missing val field." in str(e):
-                raise unittest.SkipTest(str(e))
-            raise
+        proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
         names = [i.name for i in proto.graph.input]
         np_input_tensors = [x.numpy() for x in input_tensors]
         feeds = dict(zip(names, np_input_tensors))
@@ -62,15 +53,9 @@ class TestExportPhi3(unittest.TestCase):
         )
         input_tensors = input_tensors_many[0]
         expected = model(*input_tensors)
-        try:
-            proto = onnxscript.tools.transformers_models.export_to_onnx(
-                model, *input_tensors, export_api=True
-            )
-        except torch._export.verifier.SpecViolationError as e:  # pylint: disable=protected-access
-            # see https://github.com/pytorch/pytorch/issues/128394
-            if "Node.meta _enter_autocast is missing val field." in str(e):
-                raise unittest.SkipTest(str(e))
-            raise
+        proto = onnxscript.tools.transformers_models.export_to_onnx(
+            model, *input_tensors, export_api=True
+        )
         names = [i.name for i in proto.graph.input]
         np_input_tensors = [x.numpy() for x in input_tensors]
         feeds = dict(zip(names, np_input_tensors))
@@ -93,13 +78,7 @@ class TestExportPhi3(unittest.TestCase):
         model = model.to("cuda")
         input_tensors = [i.to("cuda") for i in input_tensors_cpu]
         expected = model(*input_tensors)
-        try:
-            proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
-        except torch._export.verifier.SpecViolationError as e:  # pylint: disable=protected-access
-            # see https://github.com/pytorch/pytorch/issues/128394
-            if "Node.meta _enter_autocast is missing val field." in str(e):
-                raise unittest.SkipTest(str(e))
-            raise
+        proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
         names = [i.name for i in proto.graph.input]
         np_input_tensors = [x.detach().cpu().numpy() for x in input_tensors]
         feeds = dict(zip(names, np_input_tensors))

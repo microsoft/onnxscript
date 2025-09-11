@@ -5,9 +5,9 @@ from __future__ import annotations
 import unittest
 
 import onnxscript.optimizer
+from onnxscript.rewriter.models._smollm_1 import smollm_test_1
 from onnxscript.rewriter.ort_fusions._core import fuse_xformers
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
-from onnxscript.rewriter.ort_fusions.models._smollm_1 import smollm_test_1
 
 
 class TestFuseXformers(unittest.TestCase):
