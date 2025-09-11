@@ -36,7 +36,6 @@ from onnxscript.rewriter.rules.common import (
     _cast_constant_of_shape,
     _collapse_slices,
     _fuse_batchnorm,
-    _fuse_batchnorm,
     _fuse_pad_into_conv,
     _fuse_relus_clips,
     _min_max_to_clip,
