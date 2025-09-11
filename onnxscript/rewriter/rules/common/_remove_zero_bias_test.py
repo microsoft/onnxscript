@@ -80,7 +80,11 @@ class RemoveZeroBiasTest(unittest.TestCase):
         )
 
         _apply_rule_and_check_optimization(
-            model, remove_zero_bias_from_conv_rule, expected_count=1, target_op_type="Conv", expected_inputs_after=2
+            model,
+            remove_zero_bias_from_conv_rule,
+            expected_count=1,
+            target_op_type="Conv",
+            expected_inputs_after=2,
         )
 
     def test_conv_with_non_zero_bias_unchanged(self):
@@ -99,7 +103,11 @@ class RemoveZeroBiasTest(unittest.TestCase):
         )
 
         _apply_rule_and_check_optimization(
-            model, remove_zero_bias_from_conv_rule, expected_count=0, target_op_type="Conv", expected_inputs_after=3
+            model,
+            remove_zero_bias_from_conv_rule,
+            expected_count=0,
+            target_op_type="Conv",
+            expected_inputs_after=3,
         )
 
     def test_remove_zero_bias_from_conv_transpose(self):
@@ -118,7 +126,11 @@ class RemoveZeroBiasTest(unittest.TestCase):
         )
 
         _apply_rule_and_check_optimization(
-            model, remove_zero_bias_from_conv_transpose_rule, expected_count=1, target_op_type="ConvTranspose", expected_inputs_after=2
+            model,
+            remove_zero_bias_from_conv_transpose_rule,
+            expected_count=1,
+            target_op_type="ConvTranspose",
+            expected_inputs_after=2,
         )
 
     def test_conv_transpose_with_non_zero_bias_unchanged(self):
@@ -137,7 +149,11 @@ class RemoveZeroBiasTest(unittest.TestCase):
         )
 
         _apply_rule_and_check_optimization(
-            model, remove_zero_bias_from_conv_transpose_rule, expected_count=0, target_op_type="ConvTranspose", expected_inputs_after=3
+            model,
+            remove_zero_bias_from_conv_transpose_rule,
+            expected_count=0,
+            target_op_type="ConvTranspose",
+            expected_inputs_after=3,
         )
 
     def test_remove_zero_bias_from_gemm(self):
@@ -156,7 +172,11 @@ class RemoveZeroBiasTest(unittest.TestCase):
         )
 
         _apply_rule_and_check_optimization(
-            model, remove_zero_bias_from_gemm_rule, expected_count=1, target_op_type="Gemm", expected_inputs_after=2
+            model,
+            remove_zero_bias_from_gemm_rule,
+            expected_count=1,
+            target_op_type="Gemm",
+            expected_inputs_after=2,
         )
 
     def test_gemm_with_non_zero_bias_unchanged(self):
@@ -175,7 +195,11 @@ class RemoveZeroBiasTest(unittest.TestCase):
         )
 
         _apply_rule_and_check_optimization(
-            model, remove_zero_bias_from_gemm_rule, expected_count=0, target_op_type="Gemm", expected_inputs_after=3
+            model,
+            remove_zero_bias_from_gemm_rule,
+            expected_count=0,
+            target_op_type="Gemm",
+            expected_inputs_after=3,
         )
 
     def test_remove_zero_bias_from_qlinear_conv(self):
@@ -200,7 +224,11 @@ class RemoveZeroBiasTest(unittest.TestCase):
         )
 
         _apply_rule_and_check_optimization(
-            model, remove_zero_bias_from_qlinear_conv_rule, expected_count=1, target_op_type="QLinearConv", expected_inputs_after=8
+            model,
+            remove_zero_bias_from_qlinear_conv_rule,
+            expected_count=1,
+            target_op_type="QLinearConv",
+            expected_inputs_after=8,
         )
 
     def test_qlinear_conv_with_non_zero_bias_unchanged(self):
@@ -225,7 +253,11 @@ class RemoveZeroBiasTest(unittest.TestCase):
         )
 
         _apply_rule_and_check_optimization(
-            model, remove_zero_bias_from_qlinear_conv_rule, expected_count=0, target_op_type="QLinearConv", expected_inputs_after=9
+            model,
+            remove_zero_bias_from_qlinear_conv_rule,
+            expected_count=0,
+            target_op_type="QLinearConv",
+            expected_inputs_after=9,
         )
 
 
