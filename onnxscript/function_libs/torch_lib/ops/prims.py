@@ -188,9 +188,6 @@ def prims_broadcast_in_dim(
         # Special case: no broadcast dimensions - all target dims should be 1
         return op.Expand(a, common_ops.merge_dims(shape))
 
-    # Build intermediate shape using a simpler approach than ScatterElements
-    # We'll construct it by concatenating the right values for each position
-
     # Create base shape of all 1s
     ones = [1] * target_rank
 
@@ -201,20 +198,10 @@ def prims_broadcast_in_dim(
     for i, broadcast_dim in enumerate(broadcast_dimensions):
         # Get the input dimension value
         input_dim_value = op.Shape(a, start=i, end=i + 1)
-
-        # Create a one-hot mask for this position
-        indices = op.Range(op.Constant(value_int=0), op.Constant(value_int=target_rank), op.Constant(value_int=1))
-        mask = op.Equal(indices, op.Constant(value_int=broadcast_dim))
-
-        # Use Where to replace the 1 with the input dimension value at this position
-        intermediate_shape = op.Where(
-            mask,
-            op.Cast(input_dim_value, to=ir.TensorType.INT64),
-            intermediate_shape
-        )
+        intermediate_shape[broadcast_dim] = input_dim_value
 
     # Reshape input to intermediate shape and expand to target
-    reshaped = op.Reshape(a, intermediate_shape)
+    reshaped = op.Reshape(a, common_ops.merge_dims(intermediate_shape))
     return op.Expand(reshaped, shape)
 
 
