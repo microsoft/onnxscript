@@ -116,7 +116,6 @@ def sample_inputs_broadcast_in_dim(op_info, device, dtype, requires_grad, **kwar
         yield opinfo_core.SampleInput(tensor, args=(target_shape, broadcast_dimensions))
 
 
-
 def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     # input_shape, output_size, kernal, dilation, padding, stride
