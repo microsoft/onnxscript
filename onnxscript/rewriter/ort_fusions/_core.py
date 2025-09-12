@@ -150,7 +150,6 @@ def optimize_for_ort(
         common_passes.LiftConstantsToInitializersPass(lift_all_constants=False, size_limit=1),
         common_passes.RemoveInitializersFromInputsPass(),
         common_passes.ShapeInferencePass(),
-        common_passes.CheckerPass(),
     )
     assert passes.in_place
     result = passes(model)
