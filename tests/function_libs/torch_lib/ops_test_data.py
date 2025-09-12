@@ -2124,6 +2124,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             "Our implementation is based on that for CUDA"
         ),
     ),
+    TorchLibOpInfo("ops.prims.broadcast_in_dim.default", prims_ops.prims_broadcast_in_dim),
     TorchLibOpInfo(
         "ops.prims.var.default", prims_ops.prims_var, tolerance={torch.float16: (1e-3, 5e-2)}
     ),
