@@ -13,7 +13,7 @@ from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 Dim = Union[int, ir.SymbolicDim]
 
 
-def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) -> bool:
+def check_shape_bool(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) -> bool:
     if val.shape is None:
         return False
     if val.shape.rank() != len(shape):

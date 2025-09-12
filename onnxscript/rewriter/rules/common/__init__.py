@@ -2,11 +2,13 @@
 # Licensed under the MIT License.
 __all__ = [
     "add_0_rule",
+    "affine_conv_fusion_rule",
     "cast_cast_rule",
     "cast_constant_of_shape_rule",
     "cast_constant_of_shape_without_value_rule",
     "collapse_slice_rule",
     "collapse_slice2_rule",
+    "conv_affine_fusion_rule",
     "div_by_1_rule",
     "dropout_inference_rule",
     "dropout_zero_rule",
@@ -14,6 +16,7 @@ __all__ = [
     "fuse_batchnorm_into_conv_rule",
     "fuse_batchnorm_into_conv_transpose_rule",
     "fuse_batchnorm_into_gemm_rule",
+    "fuse_hardswish_rules",
     "fuse_pad_into_conv_integer_rule",
     "fuse_pad_into_conv_rule",
     "min_min_rule",
@@ -76,6 +79,11 @@ from onnxscript.rewriter.rules.common._fuse_batchnorm import (
     fuse_batchnorm_into_conv_transpose_rule,
     fuse_batchnorm_into_gemm_rule,
 )
+from onnxscript.rewriter.rules.common._fuse_conv_affine import (
+    affine_conv_fusion_rule,
+    conv_affine_fusion_rule,
+)
+from onnxscript.rewriter.rules.common._fuse_hardswish import fuse_hardswish_rules
 from onnxscript.rewriter.rules.common._fuse_pad_into_conv import (
     fuse_pad_into_conv_integer_rule,
     fuse_pad_into_conv_rule,

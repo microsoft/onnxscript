@@ -674,7 +674,7 @@ class RewriteRuleTest(unittest.TestCase):
         function = model.functions[function_id]
         self.assertEqual([x.op_type for x in function], ["Add", "Transpose"])
         transpose_node = function[1]
-        self.assertEqual(transpose_node.attributes["perm"].value, [1, 0])
+        self.assertEqual(list(transpose_node.attributes["perm"].value), [1, 0])
         onnxscript.optimizer.inline(model)
         self.assertEqual([x.op_type for x in model.graph], ["Add", "Transpose"])
 
