@@ -421,14 +421,14 @@ class ReshapeReshapeTest(unittest.TestCase):
             if isinstance(shape, np.ndarray):
                 shape = tape.initializer(ir.Tensor(shape, name=name))
             elif isinstance(shape, (list, tuple)):
-                shape = ir.val(name, ir.Shape(shape), ir.TensorType(ir.DataType.INT64))
+                shape = ir.val(name, ir.DataType.INT64, ir.Shape(shape))
                 tape.graph_like.inputs.append(shape)
             else:
                 raise TypeError(f"Unsupported type {type(shape)} for shape.")
             return shape
 
-        x = ir.val("X", ir.Shape(input_shape), ir.TensorType(ir.DataType.FLOAT))
-        y = ir.val("Y", type=ir.TensorType(ir.DataType.FLOAT))
+        x = ir.val("X", ir.DataType.FLOAT, ir.Shape(input_shape))
+        y = ir.val("Y", ir.DataType.FLOAT)
         tape = ir.tape.Tape(ir.Graph([x], [y], nodes=[], opset_imports={"": 20}))
 
         # Build the graph.
@@ -554,8 +554,8 @@ class ReshapeReshapeTest(unittest.TestCase):
 class Flatten2ReshapeTest(unittest.TestCase):
     @staticmethod
     def create_model(input_shape, axis=1):
-        x = ir.val("X", ir.Shape(input_shape), ir.TensorType(ir.DataType.FLOAT))
-        y = ir.val("Y", type=ir.TensorType(ir.DataType.FLOAT))
+        x = ir.val("X", ir.DataType.FLOAT, ir.Shape(input_shape))
+        y = ir.val("Y", ir.DataType.FLOAT)
         tape = ir.tape.Tape(ir.Graph([x], [y], nodes=[], opset_imports={"": 20}))
 
         # Build the graph.
