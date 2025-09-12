@@ -137,6 +137,27 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_repeat_interleave_symbolic_tensor(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, y):
+                return torch.repeat_interleave(x, y.shape[1], dim=1) * torch.repeat_interleave(
+                    y, x.shape[1], dim=1
+                )
+
+        inputs = (
+            torch.arange(4, dtype=torch.float32).reshape((2, 2)),
+            torch.arange(6, dtype=torch.float32).reshape((2, 3)),
+        )
+        onnx_program = torch.onnx.export(
+            Model(),
+            inputs,
+            input_names=["x", "y"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_sdpa_with_bool_attn_mask(self):
         class ScaledDotProductAttention(torch.nn.Module):
             def forward(self, query, key, value, attn_mask):
@@ -171,6 +192,36 @@ class TorchLibe2eTest(unittest.TestCase):
             (torch.rand(1, 1, 1, 1),),
             dynamo=True,
             dynamic_shapes=({2: torch.export.Dim("H")},),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_enable_gqa_in_attention(self):
+        class Model(torch.nn.Module):
+            def forward(self, q, k, v):
+                return torch.nn.functional.scaled_dot_product_attention(  # pylint: disable=not-callable
+                    q,
+                    k,
+                    v,
+                    enable_gqa=True,
+                )
+
+        model = Model()
+
+        query = torch.randn(2, 4, 8, 16)
+        key = torch.randn(2, 2, 8, 16)
+        value = torch.randn(2, 2, 8, 16)
+
+        onnx_program = torch.onnx.export(
+            model,
+            (
+                query,
+                key,
+                value,
+            ),
+            input_names=["query", "key", "value"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
         )
         _testing.assert_onnx_program(onnx_program)
 
