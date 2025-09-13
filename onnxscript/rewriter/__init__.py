@@ -19,8 +19,8 @@ __all__ = [
 ]
 
 import onnx
-import onnx_ir.passes.common as common_passes
 
+import onnxscript.ir.passes.common as common_passes
 from onnxscript import ir
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchContext, MatchingTracer, MatchResult, MatchStatus
@@ -41,6 +41,7 @@ from onnxscript.rewriter.rules.common import (
     _min_max_to_clip,
     _no_op,
     _redundant_scatter_nd,
+    _remove_zero_bias,
 )
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
@@ -55,6 +56,7 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *_redundant_scatter_nd.rules,
     *_fuse_pad_into_conv.rules,
     *_fuse_batchnorm.rules,
+    *_remove_zero_bias.rules,
 )
 
 
