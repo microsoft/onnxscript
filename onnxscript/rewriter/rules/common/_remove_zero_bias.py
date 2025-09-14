@@ -21,12 +21,15 @@ class _RemoveZeroBiasBase(RewriteRuleClassBase):
         """Remove the bias input from the operation."""
         node = out.producer()
 
-        original_inputs = list(node.inputs)
-        inputs_without_bias = original_inputs[:-1]
+        # Filter out the bias parameter and keep all other inputs
+        inputs = []
+        for param_name, param_value in _.items():
+            if param_name != "b":  # 'b' is the bias parameter
+                inputs.append(param_value)
 
         return op.op(
             self.op_type,
-            inputs=inputs_without_bias,
+            inputs=inputs,
             attributes=node.attributes,
             domain=node.domain,
         )
