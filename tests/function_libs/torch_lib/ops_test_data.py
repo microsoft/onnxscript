@@ -203,6 +203,7 @@ def _embedding_bag_input_wrangler(
 
     return args, kwargs
 
+
 def _amin_amax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
