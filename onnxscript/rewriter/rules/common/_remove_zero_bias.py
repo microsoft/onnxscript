@@ -108,13 +108,8 @@ class RemoveZeroBiasFromGemm(_RemoveZeroBiasBase):
 
     op_type: ClassVar = "Gemm"
 
-    def pattern(self, op: ir.tape.Tape, a: ir.Value, b: ir.Value, c: ir.Value) -> ir.Value:
-        return op.Gemm(a, b, c, _outputs=["out"])
-
-    def check(self, context, a: ir.Value, b: ir.Value, c: ir.Value, **_) -> MatchResult:
-        """Check if the bias (c parameter) is present and is all zeros."""
-        del context  # Unused
-        return self._check_bias_is_zero(c)
+    def pattern(self, op: ir.tape.Tape, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
+        return op.Gemm(x, w, b, _outputs=["out"])
 
 
 # Create rule instances
