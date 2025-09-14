@@ -3115,7 +3115,7 @@ def aten_embedding_bag_padding_idx(
 
     if padding_idx is not None:
         # Call the existing function for handling padding_idx
-        result, offset2bag, bag_size, max_indices =_aten_embedding_bag_1d_padding_idx_onnx(
+        result, offset2bag, bag_size, max_indices = _aten_embedding_bag_1d_padding_idx_onnx(
             weight,
             indices,
             offsets,

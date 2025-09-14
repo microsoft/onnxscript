@@ -203,6 +203,7 @@ def _embedding_bag_input_wrangler(
 
     return args, kwargs
 
+
 def _amin_amax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -1068,7 +1069,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_embedding_bag,
         input_wrangler=_embedding_bag_input_wrangler,
     ),
-
     TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx",
         core_ops.aten_embedding_bag_padding_idx,
