@@ -2211,9 +2211,9 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "test_embedding_bag_with_padding_idx_none",
+        "ops.aten.embedding_bag.padding_idx_none",
         op=torch.nn.functional.embedding_bag,
-        dtypes=(torch.float32,),
+        dtypes=common_dtype.floating_types_and_half(),
         sample_inputs_func=lambda op_info, device, dtype, requires_grad: [
             opinfo_core.SampleInput(
                 torch.tensor(
@@ -2230,9 +2230,9 @@ OP_DB: List[opinfo_core.OpInfo] = [
         ],
     ),
     opinfo_core.OpInfo(
-        "test_embedding_bag_with_padding_idx_int",
+        "ops.aten.embedding_bag.padding_idx_int",
         op=torch.nn.functional.embedding_bag,
-        dtypes=(torch.float32,),
+        dtypes=common_dtype.floating_types_and_half(),
         sample_inputs_func=lambda op_info, device, dtype, requires_grad: [
             opinfo_core.SampleInput(
                 torch.tensor(
