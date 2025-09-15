@@ -25,7 +25,6 @@ class _RemoveZeroBiasBase(RewriteRuleClassBase):
             self.op_type,
             inputs=node.inputs[:-1],
             attributes=node.attributes,
-            domain=node.domain,
         )
 
     def _check_bias_is_zero(self, bias_value: ir.Value) -> MatchResult:
