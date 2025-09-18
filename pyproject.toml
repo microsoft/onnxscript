@@ -79,40 +79,6 @@ module = [
 ]
 ignore_errors = true
 
-# FIXME(#1378): Remove this overrides section
-[[tool.mypy.overrides]]
-module = [
-  "onnxrewriter.rewriter.generic_pattern_test.*",
-]
-check_untyped_defs = false
-disable_error_code = 'override,import-untyped,no-untyped-def,assignment'
-disallow_incomplete_defs = true
-disallow_untyped_defs = true
-disallow_untyped_decorators = true
-show_column_numbers = true
-strict_optional = true
-warn_incomplete_stub = true
-warn_no_return = true
-warn_unused_configs = true
-warn_unused_ignores = false
-
-# FIXME(#1378): Remove this overrides section
-[[tool.mypy.overrides]]
-module = [
-  "onnxrewriter.rewriter.generic_pattern.*",
-]
-check_untyped_defs = false
-disable_error_code = 'override,import-untyped,no-untyped-def,assignment,union-attr,func-returns-value,annotation-unchecked,arg-type,index,name-defined,attr-defined'
-disallow_incomplete_defs = true
-disallow_untyped_defs = true
-disallow_untyped_decorators = true
-show_column_numbers = true
-strict_optional = true
-warn_incomplete_stub = true
-warn_no_return = true
-warn_unused_configs = true
-warn_unused_ignores = false
-
 [tool.pylint.messages_control]
 # NOTE: This list is for vscode. Add new disables in pyproject_pylint.toml for lintrunner
 # Exclude patterns should be modified in .lintrunner.toml
