@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import traceback
 import inspect
@@ -30,14 +32,11 @@ def _arg_to_str(arg) -> str:
     return str(arg)
 
 
-
 def _op_to_str(op, *args, **kwargs) -> str:
     args_str = ", ".join(_arg_to_str(arg) for arg in args)
 
     if kwargs:
-        kwargs_str = ", " + ", ".join(
-            f"{k}={_arg_to_str(v)}" for k, v in kwargs.items()
-        )
+        kwargs_str = ", " + ", ".join(f"{k}={_arg_to_str(v)}" for k, v in kwargs.items())
     else:
         kwargs_str = ""
 
@@ -54,14 +53,21 @@ def _op_to_str(op, *args, **kwargs) -> str:
 @dataclasses.dataclass
 class Trace:
     op_str: str
-    stack: str
-
+    stack: list[inspect.FrameInfo]
 
 
 class TracingMode(TorchDispatchMode):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.traces: list[Trace] = []
+
     def __torch_dispatch__(self, func, types, args=(), kwargs=None):
         if kwargs is None:
             kwargs = {}
+
+        stack = inspect.stack()
+        op_str = _op_to_str(func, *args, **kwargs)
+        self.traces.append(Trace(op_str, stack))
 
         result = func(*args, **kwargs)
 
