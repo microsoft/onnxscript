@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import dataclasses
-import traceback
 import inspect
 
 import torch
-from torch.utils._python_dispatch import TorchDispatchMode
 from torch.utils._dtype_abbrs import dtype_abbrs
+from torch.utils._python_dispatch import TorchDispatchMode
 from torch.utils._pytree import tree_map
 
 
@@ -46,6 +45,9 @@ def _op_to_str(op, *args, **kwargs) -> str:
         op_name = f"{op.__module__}.{op.__name__}"
     else:
         op_name = str(op)
+
+    if op_name.startswith("aten::"):
+        op_name = op_name[len("aten::"):]
 
     return f"{op_name}({args_str}{kwargs_str})"
 
@@ -112,8 +114,16 @@ class TracingMode(TorchDispatchMode):
         for i, frame in enumerate(relevant_stack):
             indent = i + common_length
             src_line = frame.code_context[0].strip() if frame.code_context else ""
+            if len(src_line) > 40:
+                src_line = f"{src_line[:40]} [...]"
 
-            lines.append(f'{"| " * indent}{src_line}  # {trace.op_str}; {frame.filename}:{frame.lineno} in {frame.function}')
+            if i == len(relevant_stack) - 1:
+                # Last frame. Show the operator call
+                op_str = trace.op_str
+            else:
+                op_str = ""
+
+            lines.append(f'{"| " * indent}{src_line}  # {op_str}; {frame.filename}:{frame.lineno} in {frame.function}')
 
         return "\n".join(lines)
 
@@ -123,9 +133,42 @@ class Model(torch.nn.Module):
         return torch.relu(z)
 
 
-model = Model()
-x = torch.randn(2, 3)
-y = torch.randn(2, 3)
+import onnx_diagnostic.tasks.text_generation
+import torch
+from transformers import AutoConfig, AutoModel
+
+
+# MODEL_ID = "google/gemma-2b"
+MODEL_ID = "google/gemma-3-270m-it"
+# MODEL_ID = "google/gemma-3-270m"
+# MODEL_ID = "google/gemma-3-4b-it"
+
+def get_hf_model(model_id: str):
+    config = AutoConfig.from_pretrained(model_id, attn_implementation="sdpa")
+    # with torch.device('meta'):
+    model = AutoModel.from_config(config)
+    # This line is important. Some models may produce different
+    # outputs even with the same inputs in training mode.
+    model.eval()
+
+    return model, config
+
+def get_model_input(model: torch.nn.Module, config):
+    # with torch.device('meta'):
+    result = onnx_diagnostic.tasks.text_generation.get_inputs(
+        model,
+        config,
+        dummy_max_token_id=10,
+        num_hidden_layers=34,
+        num_key_value_heads=4,
+        head_dim=256,
+        cls_cache="DynamicCache"
+    )
+    return result["inputs"], result["dynamic_shapes"]
+
+model, config = get_hf_model(MODEL_ID)
+example_kwargs, dynamic_shapes = get_model_input(model, config)
+
 
 with TracingMode():
-    out = model(x, y)
+    out = model(**example_kwargs)
