@@ -141,28 +141,3 @@ print([n.op_type for n in rewritten_model.graph.node])
 rule = pattern.RewriteRule(rotary_match_pattern, rotary_apply_pattern, verbose=10)
 
 rule.apply_to_model(ir_model)
-
-# TODO(rama): Update the following, the trace-printed looks different now.
-
-######################################
-# The logs shows every time the algorithm rejected a pattern.
-# We can see the following:
-#
-# ::
-#
-#     [OnnxGenericPattern.match] NONE - line: 673:onnxscript.rewriter.generic_pattern, op_type=Cast
-#         --hint--: BACKWARD: different node types
-#           --pattern
-#           ConcatTraining(transpose, transpose) -> (output, length)
-#           -- model
-#           ConcatTrainingBad(_onx_transpose0, _onx_transpose0) -> (_onx_concattraining0, _onx_concattraining1)
-#         iteration=1
-#         --marked-- #2
-#           Cast(_onx_cos0) ~ Cast(cos) [140186194226496-140186194222320]
-#           Cos(_onx_concattraining0) ~ Cos(output) [140186194230816-140186194223472]
-#         len(stacked)=0:[]
-#
-# Line 673 in file `generic_pattern.py`, the match was rejected.
-# It says while comparing two nodes in the backward direction,
-# node types do not match.
-# It also says that two nodes were actually matched.
