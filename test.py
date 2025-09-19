@@ -107,11 +107,15 @@ class TracingMode(TorchDispatchMode):
             relevant_stack = trace.stack[common_length:]
         else:
             relevant_stack = trace.stack
-        for i, frame in enumerate(reversed(relevant_stack)):
-            indent = 2 * (i + common_length)
-            line = frame.code_context[0].strip() if frame.code_context else ""
 
-            return '{" " * indent}{line} # {trace.op_str}; {frame.filename}:{frame.lineno} in {frame.function
+        lines = []
+        for i, frame in enumerate(relevant_stack):
+            indent = i + common_length
+            src_line = frame.code_context[0].strip() if frame.code_context else ""
+
+            lines.append(f'{"| " * indent}{src_line}  # {trace.op_str}; {frame.filename}:{frame.lineno} in {frame.function}')
+
+        return "\n".join(lines)
 
 class Model(torch.nn.Module):
     def forward(self, x, y):
