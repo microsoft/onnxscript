@@ -53,6 +53,7 @@ def _op_to_str(op, *args, **kwargs) -> str:
 @dataclasses.dataclass
 class Trace:
     op_str: str
+    # Outer most frame is the first element. This is a reversed of inspect.stack()
     stack: list[inspect.FrameInfo]
 
 
@@ -66,7 +67,9 @@ class TracingMode(TorchDispatchMode):
         if kwargs is None:
             kwargs = {}
 
-        stack = inspect.stack()
+        stack = reversed(inspect.stack()[1:])  # Exclude the current frame
+        # Filter out frames from PyTorch internals
+        stack = [frame for frame in stack if "site-packages/torch" not in frame.filename]
         op_str = _op_to_str(func, *args, **kwargs)
         self._add_trace(Trace(op_str, stack))
 
@@ -80,31 +83,35 @@ class TracingMode(TorchDispatchMode):
             self._print_last_trace()
 
     def _print_last_trace(self) -> None:
+        print(self._last_trace_str())
+
+    def _last_trace_str(self) -> str:
         if not self.traces:
-            return
+            return ""
+
         trace = self.traces[-1]
+
+        common_length = 0
 
         if len(self.traces) > 1:
             # Find the common prefix between the current stack and the trace stack
             prev_trace = self.traces[-2]
-            common_length = 0
             for f1, f2 in zip(trace.stack, prev_trace.stack):
-                if f1 == f2:
+                if f1.filename == f2.filename and f1.lineno == f2.lineno:
                     common_length += 1
                 else:
                     break
+            if common_length == len(trace.stack):
+                # Keep at least one frame to show the context of the operator
+                common_length -= 1
             relevant_stack = trace.stack[common_length:]
         else:
             relevant_stack = trace.stack
-        print(f"Operator: {trace.op_str}")
-        print("Stack trace (most recent call last):")
-        for frame in reversed(relevant_stack):
-            print(f'  File "{frame.filename}", line {frame.lineno}, in {frame.function}')
+        for i, frame in enumerate(reversed(relevant_stack)):
+            indent = 2 * (i + common_length)
             line = frame.code_context[0].strip() if frame.code_context else ""
-            print(f"    {line}")
-        print("-" * 40)
 
-
+            return '{" " * indent}{line} # {trace.op_str}; {frame.filename}:{frame.lineno} in {frame.function
 
 class Model(torch.nn.Module):
     def forward(self, x, y):
