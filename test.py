@@ -57,9 +57,10 @@ class Trace:
 
 
 class TracingMode(TorchDispatchMode):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, verbose: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
         self.traces: list[Trace] = []
+        self._verbose = verbose
 
     def __torch_dispatch__(self, func, types, args=(), kwargs=None):
         if kwargs is None:
@@ -67,11 +68,42 @@ class TracingMode(TorchDispatchMode):
 
         stack = inspect.stack()
         op_str = _op_to_str(func, *args, **kwargs)
-        self.traces.append(Trace(op_str, stack))
+        self._add_trace(Trace(op_str, stack))
 
         result = func(*args, **kwargs)
 
         return result
+
+    def _add_trace(self, trace: Trace) -> None:
+        self.traces.append(trace)
+        if self._verbose:
+            self._print_last_trace()
+
+    def _print_last_trace(self) -> None:
+        if not self.traces:
+            return
+        trace = self.traces[-1]
+
+        if len(self.traces) > 1:
+            # Find the common prefix between the current stack and the trace stack
+            prev_trace = self.traces[-2]
+            common_length = 0
+            for f1, f2 in zip(trace.stack, prev_trace.stack):
+                if f1 == f2:
+                    common_length += 1
+                else:
+                    break
+            relevant_stack = trace.stack[common_length:]
+        else:
+            relevant_stack = trace.stack
+        print(f"Operator: {trace.op_str}")
+        print("Stack trace (most recent call last):")
+        for frame in reversed(relevant_stack):
+            print(f'  File "{frame.filename}", line {frame.lineno}, in {frame.function}')
+            line = frame.code_context[0].strip() if frame.code_context else ""
+            print(f"    {line}")
+        print("-" * 40)
+
 
 
 class Model(torch.nn.Module):
