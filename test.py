@@ -119,11 +119,11 @@ class TracingMode(TorchDispatchMode):
 
             if i == len(relevant_stack) - 1:
                 # Last frame. Show the operator call
-                op_str = trace.op_str
+                op_str = f"{trace.op_str};"
             else:
-                op_str = ""
+                op_str = "⬇️"
 
-            lines.append(f'{"| " * indent}{src_line}  # {op_str}; {frame.filename}:{frame.lineno} in {frame.function}')
+            lines.append(f'{"| " * indent}{src_line}  # {frame.filename}:{frame.lineno} in {frame.function}: {op_str}')
 
         return "\n".join(lines)
 
