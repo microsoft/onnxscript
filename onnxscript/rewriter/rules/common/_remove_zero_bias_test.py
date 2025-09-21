@@ -61,9 +61,17 @@ def _apply_rule_and_check_optimization(
             assert attr_name in target_node.attributes, f"Attribute {attr_name} was lost"
             original_value = attr_value.value
             new_value = target_node.attributes[attr_name].value
-            assert new_value == original_value, (
-                f"Attribute {attr_name} value changed from {original_value} to {new_value}"
-            )
+            # Convert both to same type for comparison to handle list vs tuple differences
+            if isinstance(original_value, (list, tuple)) and isinstance(
+                new_value, (list, tuple)
+            ):
+                assert list(original_value) == list(new_value), (
+                    f"Attribute {attr_name} value changed from {original_value} to {new_value}"
+                )
+            else:
+                assert new_value == original_value, (
+                    f"Attribute {attr_name} value changed from {original_value} to {new_value}"
+                )
 
     # Check specific expected attributes if provided
     if expected_attributes:
@@ -73,9 +81,17 @@ def _apply_rule_and_check_optimization(
             )
             actual_attr = target_node.attributes[attr_name]
             actual_value = actual_attr.value
-            assert actual_value == expected_value, (
-                f"Expected attribute {attr_name} to be {expected_value}, got {actual_value}"
-            )
+            # Convert both to same type for comparison to handle list vs tuple differences
+            if isinstance(actual_value, (list, tuple)) and isinstance(
+                expected_value, (list, tuple)
+            ):
+                assert list(actual_value) == list(expected_value), (
+                    f"Expected attribute {attr_name} to be {expected_value}, got {actual_value}"
+                )
+            else:
+                assert actual_value == expected_value, (
+                    f"Expected attribute {attr_name} to be {expected_value}, got {actual_value}"
+                )
 
     # Compare outputs to ensure correctness (only for supported input types)
     if expected_count > 0:
