@@ -5,10 +5,10 @@ from typing import Sequence
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 from onnx_ir.passes.common import onnx_checker, shape_inference
 from parameterized import parameterized
 
-from onnxscript import ir
 from onnxscript.rewriter import MatchingTracer, MatchStatus, testing
 from onnxscript.rewriter.rules.common import _matmul_add_to_gemm
 
@@ -46,10 +46,10 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
         bias_shape = weight_shape[0] if transB else weight_shape[-1]
         output_shape = ir.Shape(("?",) * input_shape.rank())
 
-        x = ir.val("X", shape=input_shape, type=ir.TensorType(ir.DataType.FLOAT))
+        x = ir.Value(name="X", shape=input_shape, type=ir.TensorType(ir.DataType.FLOAT))
 
         if weight_as_inputs:
-            w = ir.val("W", shape=weight_shape, type=ir.TensorType(ir.DataType.FLOAT))
+            w = ir.Value(name="W", shape=weight_shape, type=ir.TensorType(ir.DataType.FLOAT))
             inputs.append(w)
         else:
             w = ir.tensor(
@@ -58,8 +58,8 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
             w = tape.initializer(w)
 
         if bias_as_inputs:
-            b = ir.val(
-                "B", shape=ir.Shape([bias_shape]), type=ir.TensorType(ir.DataType.FLOAT)
+            b = ir.Value(
+                name="B", shape=ir.Shape([bias_shape]), type=ir.TensorType(ir.DataType.FLOAT)
             )
             inputs.append(b)
         else:
@@ -77,7 +77,9 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
         y = tape.op(
             "Add",
             inputs=[y, b],
-            output=ir.val("Y", shape=output_shape, type=ir.TensorType(ir.DataType.FLOAT)),
+            output=ir.Value(
+                name="Y", shape=output_shape, type=ir.TensorType(ir.DataType.FLOAT)
+            ),
         )
 
         # Build the model

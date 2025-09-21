@@ -8,11 +8,11 @@ from typing import Any
 import numpy as np
 import onnx
 import onnx.reference
+import onnx_ir as ir
 import parameterized
 
 import onnxscript
 import onnxscript.onnx_types as ot
-from onnxscript import ir
 from onnxscript.onnx_opset import opset18
 from onnxscript.rewriter import MatchingTracer, testing
 from onnxscript.rewriter import pattern as orp
@@ -421,14 +421,18 @@ class ReshapeReshapeTest(unittest.TestCase):
             if isinstance(shape, np.ndarray):
                 shape = tape.initializer(ir.Tensor(shape, name=name))
             elif isinstance(shape, (list, tuple)):
-                shape = ir.val(name, ir.DataType.INT64, ir.Shape(shape))
+                shape = ir.Value(
+                    name=name, type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape(shape)
+                )
                 tape.graph_like.inputs.append(shape)
             else:
                 raise TypeError(f"Unsupported type {type(shape)} for shape.")
             return shape
 
-        x = ir.val("X", ir.DataType.FLOAT, ir.Shape(input_shape))
-        y = ir.val("Y", ir.DataType.FLOAT)
+        x = ir.Value(
+            name="X", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape(input_shape)
+        )
+        y = ir.Value(name="Y", type=ir.TensorType(ir.DataType.FLOAT))
         tape = ir.tape.Tape(ir.Graph([x], [y], nodes=[], opset_imports={"": 20}))
 
         # Build the graph.
@@ -554,8 +558,10 @@ class ReshapeReshapeTest(unittest.TestCase):
 class Flatten2ReshapeTest(unittest.TestCase):
     @staticmethod
     def create_model(input_shape, axis=1):
-        x = ir.val("X", ir.DataType.FLOAT, ir.Shape(input_shape))
-        y = ir.val("Y", ir.DataType.FLOAT)
+        x = ir.Value(
+            name="X", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape(input_shape)
+        )
+        y = ir.Value(name="Y", type=ir.TensorType(ir.DataType.FLOAT))
         tape = ir.tape.Tape(ir.Graph([x], [y], nodes=[], opset_imports={"": 20}))
 
         # Build the graph.

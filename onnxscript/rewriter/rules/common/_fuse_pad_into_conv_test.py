@@ -61,13 +61,13 @@ class FuseConvPadBaseTest(unittest.TestCase):
 
         # Register operations in the tape
         idtype = ir.DataType.UINT8 if op_type == "ConvInteger" else ir.DataType.FLOAT
-        x = ir.val("X", shape=input_shape, type=ir.TensorType(idtype))
+        x = ir.Value(name="X", shape=input_shape, type=ir.TensorType(idtype))
         y = tape.op("Pad", inputs=[x, *pad_inputs], attributes=pad_attributes)
         y = tape.op(
             op_type,
             inputs=[y, self.get_conv_weights(weight_shape, tape)],
             attributes=conv_attributes,
-            output=ir.val("Y", shape=output_shape, type=ir.TensorType(x.dtype)),
+            output=ir.Value(name="Y", shape=output_shape, type=ir.TensorType(x.dtype)),
         )
         if op_type == "ConvInteger":
             y.dtype = ir.DataType.INT32
@@ -290,12 +290,12 @@ class NormalizePadFormatTest(FuseConvPadBaseTest):
                 raise ValueError(f"Unsupported type for pad input ({x}): {type(x)}.")
 
         # Register operations in the tape
-        x = ir.val("X", shape=input_shape, type=ir.TensorType(ir.DataType.FLOAT))
+        x = ir.Value(name="X", shape=input_shape, type=ir.TensorType(ir.DataType.FLOAT))
         y = tape.op(
             "Conv",
             inputs=[x, *conv_inputs],
             attributes=conv_attributes,
-            output=ir.val("Y", shape=output_shape, type=x.type),
+            output=ir.Value(name="Y", shape=output_shape, type=x.type),
         )
 
         # Build the model
