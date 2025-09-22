@@ -81,7 +81,11 @@ class GQAFusionTest(unittest.TestCase):
         self.assertGreater(count, 0, "GQA fusion should have occurred")
 
         # We can't yet test numerical equivalence because of a bug in the op spec/implementation.
-        if version.parse(onnx.__version__) >= version.parse("1.19.1"):
+        onnx_ver = version.parse(onnx.__version__)
+        if onnx_ver >= version.parse("1.19.1") and not (
+            onnx_ver.is_prerelease or onnx_ver.is_devrelease
+        ):
+            # Only official releases >= 1.19.1
             onnxscript.optimizer.remove_unused_nodes(model)
             rewritten_model_proto = ir.serde.serialize_model(model)
             onnxscript.rewriter.testing.assert_numerically_equal(
