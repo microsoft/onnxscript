@@ -369,6 +369,9 @@ class _Exporter:
         for node in graph.node:
             pynode = self._translate_node(node, opsets, indent=indent)
             if pynode:
+                if node.name:
+                    # If the node has a name, we can use it as a comment.
+                    pynode = f"{pynode}  # {node.name}"
                 code.append(pynode)
 
         final = "\n".join(code)
@@ -734,11 +737,12 @@ class _Exporter:
 
         def generate_rand(name: str, value: TensorProto) -> str:
             shape = ",".join(str(d) for d in value.dims)
-            if value.data_type != TensorProto.FLOAT:
-                raise NotImplementedError(
-                    f"Unable to generate random initializer for data type {value.data_type}."
-                )
-            return f"{__}{name} = np.random.rand({shape}).astype(np.float32)"
+            # if value.data_type != TensorProto.FLOAT:
+            #     raise NotImplementedError(
+            #         f"Unable to generate random initializer for data type {value.data_type}."
+            #     )
+            type_str = onnx.TensorProto.DataType.Name(value.data_type)
+            return f"{__}{name} = np.random.rand({shape}).astype(np.float32)  # {type_str}"
 
         random_initializer_values = "\n".join(
             generate_rand(key, value) for key, value in self.skipped_initializers.items()

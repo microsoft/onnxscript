@@ -2,6 +2,10 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import os
+import onnx
+import tempfile
+
 import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
 
@@ -24,6 +28,7 @@ from onnxscript.rewriter.ort_fusions.mha import fuse_mha1, fuse_mha2
 from onnxscript.rewriter.ort_fusions.mha_bias import fuse_mha_bias
 from onnxscript.rewriter.ort_fusions.mha_scale import fuse_mha_scale
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
+from onnxscript.rewriter.ort_fusions._layer_norm import fuse_layer_normalization
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
     fuse_rotary_embedding,
@@ -42,6 +47,13 @@ ORT_PATTERN_REWRITE_RULES = [
     *fused_matmul_rule_sets.fused_matmul_rule_sets(),
 ]
 
+def _check(model: ir.Model, msg: str) -> None:
+    print(f"Checking model: {msg}")
+    # common_passes.ShapeInferencePass()(model)
+    tmp = r"C:\Users\grama\OneDrive - Microsoft\0L-Torch\model\edgeformer\Temp\temp.onnx"
+    ir.save(model, tmp)
+    onnx.shape_inference.infer_shapes_path(tmp, check_type=True, strict_mode=True, data_prop=True)
+
 
 # Preliminary optimizations before applying the transformer fusions.
 # TODO: There are some potential redundancies below. Can be targeted for optimization
@@ -52,8 +64,11 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     # incorporated in our optimizer.
     common_passes.ShapeInferencePass()(model)
     optimize(model)
+    _check(model, "Pre-optimization shape inference")
     shape_optimization.rules.apply_to_model(model)
+    _check(model, "Shape optimization")
     optimize(model)
+    _check(model, "Post-shape optimization")
     return model
 
 
@@ -75,9 +90,11 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     model = _pre_optimize(model)
 
     def fuse(func, **kwargs):
-        return func(model, debug=debug, **kwargs)
+        result = func(model, debug=debug, **kwargs)
+        return result
 
     fusion_count["erf_gelu"] = fuse(fuse_erfgelu)
+    fusion_count["layer_normalization"] = fuse(fuse_layer_normalization)
     fusion_count["rms_normalization"] = fuse(fuse_rms_normalization)
     fusion_count["skip_layer_normalization"] = fuse(fuse_skip_layer_normalization)
     fusion_count["skip_rms_normalization"] = fuse(fuse_skip_rms_normalization)
@@ -133,11 +150,15 @@ def optimize_for_ort(
         - The optimized `ir.Model` after applying transformer-specific fusions.
         - A dictionary with a count of each of the fusions applied.
     """
+    _check(model, "Initial shape inference")
     rewrite(model, [gemm_to_matmul_add.rule])
+    _check(model, "After gemm_to_matmul_add rewrite")
     model, fusion_count = fuse_xformers(
         model,
         debug=debug,
     )
+    _check(model, "After xformers fusion")
     # Apply the ORT pattern rewrite rules.
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
+    _check(model, "After ORT pattern rewrite")
     return model, fusion_count

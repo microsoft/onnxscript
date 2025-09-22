@@ -224,6 +224,9 @@ def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
                 return name
             return f"{name}[{','.join(shape)}]"
         return f"{name}[...]"
+    if onnx_type.HasField("sequence_type"):
+        elem_type = onnx_type.sequence_type.elem_type
+        return f"list[{onnx_type_to_onnxscript_repr(elem_type)}]"
     raise NotImplementedError(f"Unable to translate type {onnx_type!r} into onnxscript type.")
 
 
