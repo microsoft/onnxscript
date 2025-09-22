@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 
 import unittest
+import onnx
+from packaging import version
 
 import onnx_ir as ir
 
@@ -9,7 +11,7 @@ import onnxscript
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 import onnxscript.rewriter.testing
-from onnxscript.rewriter.onnx_fusions._gqa import fuse_gqa
+from onnxscript.rewriter.rules.fusion._gqa import fuse_gqa
 
 op = onnxscript.values.Opset("", 23)
 
@@ -73,12 +75,13 @@ class GQAFusionTest(unittest.TestCase):
         count = fuse_gqa(model)
         self.assertGreater(count, 0, "GQA fusion should have occurred")
 
-        onnxscript.optimizer.remove_unused_nodes(model)
-
-        rewritten_model_proto = ir.serde.serialize_model(model)
-        # onnxscript.rewriter.testing.assert_numerically_equal(
-        #     model_proto, rewritten_model_proto, use_reference=True
-        # )
+        # We can't yet test numerical equivalence because of a bug in the op spec/implementation.
+        if version.parse(onnx.__version__) >= version.parse("1.19.1"):
+            onnxscript.optimizer.remove_unused_nodes(model)
+            rewritten_model_proto = ir.serde.serialize_model(model)
+            onnxscript.rewriter.testing.assert_numerically_equal(
+                model_proto, rewritten_model_proto, use_reference=True
+            )
 
 
 if __name__ == "__main__":

@@ -82,12 +82,7 @@ class Pattern:
         if isinstance(matcher, _matcher.PatternMatcher):
             self._matcher = matcher
         elif matcher is None:
-            if target_pattern.has_single_output_node:
-                self._matcher = _matcher.SimplePatternMatcher(self._target_pattern)
-            else:
-                import onnxscript.rewriter.generic_pattern as generic_pattern
-
-                self._matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
+            self._matcher = _matcher.SimplePatternMatcher(self._target_pattern)
         else:
             self._matcher = matcher(self._target_pattern)
         self._verbose = verbose
@@ -392,7 +387,7 @@ class PatternBase(abc.ABC):
                 if perm.is_ref():
                     return False
                 if perm.type == ir.AttributeType.INTS:
-                    if perm.as_ints() == list(range(len(perm.as_ints()))):
+                    if list(perm.as_ints()) == list(range(len(perm.as_ints()))):
                         return True
                 return False
     """
@@ -463,7 +458,7 @@ class RewriteRuleClassBase(PatternBase):
                 if perm.is_ref():
                     return False
                 if perm.type == ir.AttributeType.INTS:
-                    if perm.as_ints() == list(range(len(perm.as_ints()))):
+                    if list(perm.as_ints()) == list(range(len(perm.as_ints()))):
                         return True
                 return False
 

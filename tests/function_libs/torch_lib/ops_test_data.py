@@ -578,7 +578,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("asin", core_ops.aten_asin),
     TorchLibOpInfo("asinh", core_ops.aten_asinh),
     TorchLibOpInfo("atan", core_ops.aten_atan),
-    TorchLibOpInfo("atan2", core_ops.aten_atan2, tolerance={torch.float16: (1e-3, 1e-3)}),
+    TorchLibOpInfo("atan2", core_ops.aten_atan2),
     TorchLibOpInfo("atanh", core_ops.aten_atanh),
     TorchLibOpInfo("atleast_1d", core_ops.aten_atleast_1d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -1084,26 +1084,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.pixel_shuffle",
         core_ops.aten_pixel_shuffle,
-    )
-    .xfail(
+    ).xfail(
         dtypes=(torch.int32, torch.int64),
         reason="fixme: ONNX Runtime does not support int32/64 inputs",
-    )
-    .xfail(
-        matcher=lambda sample: sample.input.numel() == 0,
-        reason="fixme: ORT does not support empty tensor as input",
     ),
     TorchLibOpInfo(
         "nn.functional.pixel_unshuffle",
         core_ops.aten_pixel_unshuffle,
-    )
-    .xfail(
+    ).xfail(
         dtypes=(torch.int32, torch.int64),
         reason="fixme: ONNX Runtime does not support int32/64 inputs",
-    )
-    .xfail(
-        matcher=lambda sample: sample.input.numel() == 0,
-        reason="fixme: ORT does not support empty tensor as input",
     ),
     TorchLibOpInfo(
         "ops.aten.reflection_pad1d",
@@ -1918,6 +1908,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .xfail(
+        matcher=lambda sample: len(sample.input.shape) != 4
+        or len(sample.args[0].shape) != 4
+        or len(sample.args[1].shape) != 4,
+        reason="torch sdpa is expected to pass in 4d q, k, and v.",
     ),
     TorchLibOpInfo(
         "ops.aten._scaled_dot_product_flash_attention",
@@ -1969,6 +1965,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .xfail(
+        matcher=lambda sample: len(sample.input.shape) != 4
+        or len(sample.args[0].shape) != 4
+        or len(sample.args[1].shape) != 4,
+        reason="torch sdpa is expected to pass in 4d q, k, and v.",
     ),
     TorchLibOpInfo(
         "ops.aten.upsample_bilinear2d.default",
@@ -2134,6 +2136,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             "Our implementation is based on that for CUDA"
         ),
     ),
+    TorchLibOpInfo("ops.prims.broadcast_in_dim.default", prims_ops.prims_broadcast_in_dim),
     TorchLibOpInfo(
         "ops.prims.var.default", prims_ops.prims_var, tolerance={torch.float16: (1e-3, 5e-2)}
     ),

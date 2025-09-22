@@ -13,13 +13,13 @@ from onnxscript.rewriter import (
     MatchingTracer,
     MatchStatus,
     RewriteRule,
-    fuse_relus_clips,
     testing,
 )
-from onnxscript.rewriter.fuse_relus_clips import (
-    fuse_successive_clip_relu_rule,
-    fuse_successive_clip_rule,
-    fuse_successive_relu_clip_rule,
+from onnxscript.rewriter.rules.common import _fuse_relus_clips
+from onnxscript.rewriter.rules.common._fuse_relus_clips import (
+    successive_clip_relu_rule,
+    successive_clip_rule,
+    successive_relu_clip_rule,
 )
 
 
@@ -40,7 +40,7 @@ class _FuseReluClipTestBase(unittest.TestCase):
         onnx_checker.CheckerPass(True)(base_model)
         base_model = shape_inference.infer_shapes(base_model)
         updated_model = self.clone_model(base_model)
-        _ = fuse_relus_clips.fuse_relus_clips_rules().apply_to_model(updated_model)
+        _ = _fuse_relus_clips.rules.apply_to_model(updated_model)
 
         # Check expected op_types
         self.assertEqual([node.op_type for node in updated_model.graph], expected_op_types)
@@ -214,7 +214,7 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
                     x1 = Relu(X)
                     Y = Clip(x1, min)
                 """,
-                fuse_successive_clip_relu_rule,
+                successive_clip_relu_rule,
             ),
             (
                 "clip_then_relu",
@@ -222,7 +222,7 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
                     x1 = Clip(X, min)
                     Y = Relu(x1)
                 """,
-                fuse_successive_relu_clip_rule,
+                successive_relu_clip_rule,
             ),
         ]
     )
@@ -245,7 +245,7 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
                     x1 = Relu(X)
                     Y = Clip(x1, min)
                 """,
-                fuse_successive_clip_relu_rule,
+                successive_clip_relu_rule,
             ),
             (
                 "clip_then_relu",
@@ -253,7 +253,7 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
                     x1 = Clip(X, min)
                     Y = Relu(x1)
                 """,
-                fuse_successive_relu_clip_rule,
+                successive_relu_clip_rule,
             ),
         ]
     )
@@ -334,7 +334,7 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
                 Y = Clip(x1, min2)
             }
         """)
-        self.run_failed_condition_test(model, fuse_successive_clip_rule, "is not a constant.")
+        self.run_failed_condition_test(model, successive_clip_rule, "is not a constant.")
 
     def test_fail_fuse_successive_clips_graph_inputs(self):
         model = ir.from_onnx_text("""
@@ -346,7 +346,7 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
                 Y = Clip(x1, min2)
             }
         """)
-        self.run_failed_condition_test(model, fuse_successive_clip_rule, "is a graph input.")
+        self.run_failed_condition_test(model, successive_clip_rule, "is a graph input.")
 
 
 class FuseReluClipIntegrationTest(_FuseReluClipTestBase):

@@ -84,20 +84,11 @@ transpose_b_matmul_add_to_gemm_rule = TransBMatMulAddToGemm().rule()
 transpose_ab_matmul_add_to_gemm_rule = TransABMatMulAddToGemm().rule()
 
 
-def gemm_rule_set() -> RewriteRuleSet:
-    """Returns a set of rewrite rules that fuse MatMul + Add patterns into a single Gemm node,
-    handling cases where one or both MatMul inputs are transposed.
-
-    Returns:
-        RewriteRuleSet
-    """
-
-    # Order is important
-    return RewriteRuleSet(
-        [
-            transpose_ab_matmul_add_to_gemm_rule,
-            transpose_a_matmul_add_to_gemm_rule,
-            transpose_b_matmul_add_to_gemm_rule,
-            matmul_add_to_gemm_rule,
-        ]
-    )
+rules = RewriteRuleSet(
+    [
+        transpose_ab_matmul_add_to_gemm_rule,
+        transpose_a_matmul_add_to_gemm_rule,
+        transpose_b_matmul_add_to_gemm_rule,
+        matmul_add_to_gemm_rule,
+    ]
+)

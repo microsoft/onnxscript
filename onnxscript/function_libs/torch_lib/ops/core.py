@@ -925,16 +925,21 @@ def aten_atan(self: TFloat) -> TFloat:
     return op.Atan(self)
 
 
-@torch_op("aten::atan2")
+@torch_op("aten::atan2", trace_only=True)
 def aten_atan2(self: TFloat, other: TFloat) -> TFloat:
     """atan2(Tensor self, Tensor other) -> Tensor"""
 
     # self is y, and other is x on coordinate
     slope = op.Div(self, other)
     atan = op.Atan(slope)
+    zero = common_ops.constant(0.0, dtype=self.dtype)
+    pi = common_ops.constant(_MATH_PI, dtype=self.dtype)
 
-    second_third_quadrant = op.Where(self > 0.0, atan + _MATH_PI, atan - _MATH_PI)
-    result = op.Where(other < 0.0, second_third_quadrant, atan)
+    second_third_quadrant = op.Where(op.Greater(self, zero), atan + pi, atan - pi)
+    result = op.Where(op.Less(other, zero), second_third_quadrant, atan)
+
+    # Map NaN to 0 to match PyTorch behavior
+    result = op.Where(op.IsNaN(result), zero, result)
 
     return result
 
@@ -1523,10 +1528,10 @@ def aten_broadcast_tensors(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::broadcast_to")
-def aten_broadcast_to(self: TTensor, size: INT64) -> TTensor:
+@torch_op("aten::broadcast_to", trace_only=True)
+def aten_broadcast_to(self: TTensor, size: Sequence[INT64]) -> TTensor:
     """broadcast_to(Tensor(a) self, SymInt[] size) -> Tensor(a)"""
-
+    size = common_ops.merge_dims(size)
     return op.Expand(self, size)
 
 
@@ -3286,20 +3291,20 @@ def aten_embedding_sparse_backward(
 
 @torch_op("aten::empty.memory_format", trace_only=True)
 def aten_empty(
-    size: IntType,
+    size: Sequence[INT64],
     dtype: int = FLOAT.dtype,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
     memory_format: str = "",
 ) -> TensorType:  # type: ignore[type-var]
-    # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+    """empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
     if dtype == -1:
         dtype = FLOAT.dtype
-    # using Zeros to simulate np.empty()
-    size = op.Cast(size, to=INT64.dtype)
-    zero = op.Constant(value_float=0.0)
-    zero = op.Cast(zero, to=dtype)
+
+    # using Zeros to simulate empty()
+    zero = op.Constant(value=ir.tensor(0, dtype=ir.DataType(dtype)))
+    size = common_ops.merge_dims(size)
 
     return op.Expand(zero, size)
 
@@ -3334,17 +3339,18 @@ def aten_empty_quantized(
 
 @torch_op("aten::empty_strided", trace_only=True)
 def aten_empty_strided(
-    size: INT64,
+    size: Sequence[INT64],
     stride: INT64,
     layout: str = "",
+    dtype: int = FLOAT.dtype,
     device: str = "",
     pin_memory: bool = False,
 ) -> TTensor:  # type: ignore[type-var]
     # empty_strided(SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     # using Zeros to simulate empty()
-    size = op.Cast(size, to=INT64.dtype)
-    zero = op.Constant(value_float=0.0)
+    zero = op.Constant(value=ir.tensor(0, dtype=ir.DataType(dtype)))
+    size = common_ops.merge_dims(size)
 
     return op.Expand(zero, size)
 
@@ -3392,13 +3398,14 @@ def aten_exp2(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::expand", trace_only=True)
-def aten_expand(self: TTensor, size: TInt, implicit: bool = False) -> TTensor:
+def aten_expand(self: TTensor, size: Sequence[INT64], implicit: bool = False) -> TTensor:
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
-    size = op.Cast(size, to=INT64.dtype)
     # NOTE: PyTorch supports `not changing dim` by -1, but ONNX supports `not changing dim` by 1.
     # To support -1 dim, we need to convert -1 to 1.
-    size = op.Abs(size)
-    return op.Expand(self, size)
+    # Even though in theory a dynamic dim can still be -1, in practice it is very unlikely
+    # and isn't expected to appear from correct usages of SymInt.
+    size = [1 if isinstance(s, int) and s == -1 else s for s in size]
+    return op.Expand(self, common_ops.merge_dims(size))
 
 
 @torch_op("aten::expand_as", trace_only=True)
@@ -3807,11 +3814,15 @@ def aten_gather(
         else:
             return op.Expand(self, op.Shape(index))
 
-    if len(index.shape) == 0:
-        return op.Identity(self)
+    is_scalar_index = len(index.shape) == 0
+    if is_scalar_index:
+        index = op.Unsqueeze(index, [0])
 
     index = op.Cast(index, to=INT64.dtype)
     result = op.GatherElements(self, index, axis=dim)
+
+    if is_scalar_index:
+        result = op.Squeeze(result, [0])
     return result
 
 
@@ -6691,34 +6702,41 @@ def aten_pinverse(self: TensorType, rcond: float = 1e-15) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::pixel_shuffle")
+@torch_op("aten::pixel_shuffle", trace_only=True)
 def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
     """pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"""
-    self_shape = op.Shape(self)
-    batch_dims = self_shape[:-3]
-    chw_in_dims = self_shape[-3:]
+    if len(self.shape) == 4:
+        return op.DepthToSpace(self, blocksize=upscale_factor, mode="CRD")
+
     # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
+    batch_dims = op.Shape(self, end=-3)
+    chw_in_dims = op.Shape(self, start=-3)
+
     reshaped_self = op.Reshape(
         self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0)
     )
     depth_to_space = op.DepthToSpace(reshaped_self, blocksize=upscale_factor, mode="CRD")
-    output_shape = op.Concat(batch_dims, op.Shape(depth_to_space)[1:], axis=0)
+    final_dims = op.Shape(depth_to_space, start=1)
+    output_shape = op.Concat(batch_dims, final_dims, axis=0)
     return op.Reshape(depth_to_space, output_shape, allowzero=True)
 
 
-@torch_op("aten::pixel_unshuffle")
+@torch_op("aten::pixel_unshuffle", trace_only=True)
 def aten_pixel_unshuffle(self: TReal, downscale_factor: int) -> TReal:
     """pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor"""
+    if len(self.shape) == 4:
+        return op.SpaceToDepth(self, blocksize=downscale_factor)
 
-    self_shape = op.Shape(self)
-    batch_dims = self_shape[:-3]
-    chw_in_dims = self_shape[-3:]
     # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
+    batch_dims = op.Shape(self, end=-3)
+    chw_in_dims = op.Shape(self, start=-3)
+
     reshaped_self = op.Reshape(
         self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0)
     )
     space_to_depth = op.SpaceToDepth(reshaped_self, blocksize=downscale_factor)
-    output_shape = op.Concat(batch_dims, op.Shape(space_to_depth)[1:], axis=0)
+    final_dims = op.Shape(space_to_depth, start=1)
+    output_shape = op.Concat(batch_dims, final_dims, axis=0)
     return op.Reshape(space_to_depth, output_shape, allowzero=True)
 
 
@@ -7318,16 +7336,25 @@ def aten_repeat_interleave_self_int(
     self_rank = len(self.shape)
     pos_dim = (dim + self_rank) % self_rank
     unsqueezed = op.Unsqueeze(self, [pos_dim + 1])
-    tiles = [1] * (self_rank + 1)
-    tiles[pos_dim + 1] = repeats
-    tile_repeat = op.Constant(value=ir.tensor(tiles, dtype=INT64.dtype))
-    tiled = op.Tile(unsqueezed, tile_repeat)
+    if isinstance(repeats, int):
+        tiles = [1] * (self_rank + 1)
+        tiles[pos_dim + 1] = repeats
+        tile_repeat = op.Constant(value=ir.tensor(tiles, dtype=INT64.dtype))
+    else:
+        # repeats is a symbolic tensor
+        tile_repeat = op.Concat(
+            op.Constant(value=ir.tensor([1] * pos_dim, dtype=INT64.dtype)),
+            op.Reshape(repeats, op.Constant(value=ir.tensor([-1], dtype=INT64.dtype))),
+            op.Constant(value=ir.tensor([1] * (self_rank - pos_dim), dtype=INT64.dtype)),
+            axis=0,
+        )
+    tiled = op.Expand(unsqueezed, tile_repeat)
     if self_rank == 1:
         return op.Identity(tiled)
     final_shape = op.Concat(
         op.Shape(self, start=0, end=dim),
         op.Constant(value_ints=[-1]),
-        op.Shape(self, start=dim + 1),
+        op.Shape(self, start=pos_dim + 1),
         axis=0,
     )
     return op.Reshape(tiled, final_shape)
@@ -7366,20 +7393,22 @@ def aten_repeat_interleave_Tensor(
     if dim is None:
         # flatten
         self = op.Reshape(self, [-1])
-        rk = 1
+        rank = 1
     else:
-        rk = len(self.shape)
+        rank = len(self.shape)
 
-    if rk > 2:
+    if rank > 2:
         shape_x0 = op.Shape(self, start=0, end=1)
         shape_x = op.Shape(self, start=1)
         self = op.Reshape(self, op.Concat(shape_x0, [-1], axis=0))
-    elif rk == 1:
+    elif rank == 1:
         shape_x = None
         self = op.Reshape(self, [-1, 1])
     else:
-        if rk != 2:
-            raise NotImplementedError(f"rank(self)={rk} not implemented for repeat_interleave")
+        if rank != 2:
+            raise NotImplementedError(
+                f"rank(self)={rank} not implemented for repeat_interleave"
+            )
         shape_x = None
 
     ci = op.CumSum(repeats, [0])
@@ -7392,7 +7421,7 @@ def aten_repeat_interleave_Tensor(
     )
     indices = op.Reshape(srows, [-1])
     values = op.GatherND(self, op.Unsqueeze(indices, [-1]))
-    if rk == 2:
+    if rank == 2:
         return values
     # shape_x is None at this stage.
     assert shape_x is None  # for mypy
@@ -7402,12 +7431,10 @@ def aten_repeat_interleave_Tensor(
     )
 
 
-@torch_op("aten::reshape")
-def aten_reshape(self: TTensor, shape: IntType) -> TTensor:
+@torch_op("aten::reshape", trace_only=True)
+def aten_reshape(self: TTensor, shape: Sequence[INT64]) -> TTensor:
     """reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)"""
-
-    # Reshape only support INT64 as 'shape'
-    shape = op.Cast(shape, to=INT64.dtype)
+    shape = common_ops.merge_dims(shape)
     return op.Reshape(self, shape)
 
 
@@ -8718,12 +8745,11 @@ def aten_type_as(self: TTensor, other: TTensor2) -> TTensor2:
     return op.CastLike(self, other)
 
 
-@torch_op("aten::unbind.int")
+@torch_op("aten::unbind.int", trace_only=True)
 def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
     """unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]"""
 
-    split_sizes = op.Constant(value_int=1)
-    return op.SplitToSequence(self, split_sizes, axis=dim, keepdims=False)
+    return op.SplitToSequence(self, axis=dim, keepdims=False)
 
 
 @torch_op("aten::unflatten.int", trace_only=True)
@@ -9147,23 +9173,22 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op(("aten::view", "aten::_unsafe_view"), trace_only=True)
-def aten_view(self: TTensor, size: IntType) -> TTensor:
+def aten_view(self: TTensor, size: Sequence[INT64]) -> TTensor:
     """view(Tensor(a) self, SymInt[] size) -> Tensor(a)"""
 
-    size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
+    size = common_ops.merge_dims(size)
     return op.Reshape(self, size, allowzero=True)
 
 
-@torch_op(("aten::view", "aten::_unsafe_view"), complex=True)
-def aten_view_complex(self: TTensor, size: IntType) -> TTensor:
+@torch_op(("aten::view", "aten::_unsafe_view"), complex=True, trace_only=True)
+def aten_view_complex(self: TTensor, size: Sequence[INT64]) -> TTensor:
     """view(Tensor(a) self, SymInt[] size) -> Tensor(a)"""
 
-    size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
-    complex_size = op.Concat(size, op.Constant(value_ints=[2]), axis=0)
+    complex_size = common_ops.merge_dims([*size, 2])
     return op.Reshape(self, complex_size, allowzero=True)
 
 
-@torch_op("aten::view_as")
+@torch_op("aten::view_as", trace_only=True)
 def aten_view_as(self: TTensor, other: TTensor2) -> TTensor:
     """view_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
 
@@ -9207,11 +9232,11 @@ def aten_view_as_real_copy(self: TTensor) -> TTensor:
     return op.Identity(self)
 
 
-@torch_op("aten::view_copy")
-def aten_view_copy(self: TTensor, size: IntType) -> TTensor:
+@torch_op("aten::view_copy", trace_only=True)
+def aten_view_copy(self: TTensor, size: Sequence[INT64]) -> TTensor:
     """view_copy(Tensor self, SymInt[] size) -> Tensor"""
 
-    size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
+    size = common_ops.merge_dims(size)
     return op.Reshape(self, size)
 
 
@@ -9239,7 +9264,8 @@ def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
         "aten::where.ScalarSelf",
         "aten::where.ScalarOther",
         "aten::where.self",
-    )
+    ),
+    trace_only=True,
 )
 def aten_where(condition: BOOL, self: TTensor, other: TTensor) -> TTensor:
     """where.self(Tensor condition, Tensor self, Tensor other) -> Tensor"""
@@ -9255,7 +9281,7 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
 
 @torch_op("aten::zeros", trace_only=True)
 def aten_zeros(
-    size: IntType,
+    size: Sequence[INT64],
     dtype: int = FLOAT.dtype,
     layout: str = "",
     device: str = "",
@@ -9264,9 +9290,9 @@ def aten_zeros(
     """zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
     if dtype == -1:
         dtype = FLOAT.dtype
-    size = op.Cast(size, to=INT64.dtype)
-    zero = op.Constant(value_float=0.0)
-    zero = op.Cast(zero, to=dtype)
+
+    zero = op.Constant(value=ir.tensor(0, dtype=ir.DataType(dtype)))
+    size = common_ops.merge_dims(size)
 
     return op.Expand(zero, size)
 

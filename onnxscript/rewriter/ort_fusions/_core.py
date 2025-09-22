@@ -8,7 +8,7 @@ import onnx_ir.passes.common as common_passes
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.optimizer import optimize
-from onnxscript.rewriter import gemm_to_matmul_add, rewrite
+from onnxscript.rewriter import rewrite
 from onnxscript.rewriter.ort_fusions import (
     instance_to_group_normalization,
     softmax,
@@ -33,6 +33,7 @@ from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
     fuse_skip_rms_normalization,
 )
+from onnxscript.rewriter.rules.common import _gemm_to_matmul_add
 
 ORT_PATTERN_REWRITE_RULES = [
     *softmax.rules.rules,
@@ -133,7 +134,7 @@ def optimize_for_ort(
         - The optimized `ir.Model` after applying transformer-specific fusions.
         - A dictionary with a count of each of the fusions applied.
     """
-    rewrite(model, [gemm_to_matmul_add.rule])
+    rewrite(model, [_gemm_to_matmul_add.gemm_to_matmul_add_rule])
     model, fusion_count = fuse_xformers(
         model,
         debug=debug,
@@ -149,7 +150,6 @@ def optimize_for_ort(
         common_passes.LiftConstantsToInitializersPass(lift_all_constants=False, size_limit=1),
         common_passes.RemoveInitializersFromInputsPass(),
         common_passes.ShapeInferencePass(),
-        common_passes.CheckerPass(),
     )
     assert passes.in_place
     result = passes(model)
