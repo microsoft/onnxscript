@@ -346,7 +346,7 @@ def aten_linalg_vector_norm(
     elif ord == 2.0:
         return op.ReduceL2(self, dim, keepdims=keepdim)
     else:
-        if ord % 2 != 0:
+        if ord < 0 or ord % 2 != 0:
             # Not-even integer, use abs
             self = op.Abs(self)
         self_pow = op.Pow(self, ord)
