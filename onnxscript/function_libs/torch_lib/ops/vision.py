@@ -16,7 +16,7 @@ from onnxscript.onnx_types import FLOAT, INT64
 _INT64_MAX = 0x7FFFFFFFFFFFFFFF
 
 
-@torch_op("torchvision::nms")
+@torch_op("torchvision::nms", trace_only=True)
 def torchvision_nms(boxes: FLOAT, scores: FLOAT, iou_threshold: float) -> INT64:
     # boxes: [num_batches, spatial_dimension, 4]
     boxes = op.Unsqueeze(boxes, [0])
@@ -50,7 +50,7 @@ def _process_sampling_ratio_for_roi_align(sampling_ratio: int):
     return sampling_ratio
 
 
-@torch_op("torchvision::roi_align")
+@torch_op("torchvision::roi_align", trace_only=True)
 def torchvision_roi_align(
     input,
     rois,
@@ -77,7 +77,7 @@ def torchvision_roi_align(
     )
 
 
-@torch_op("torchvision::roi_pool")
+@torch_op("torchvision::roi_pool", trace_only=True)
 def torchvision_roi_pool(
     input, rois, spatial_scale: float, pooled_height: int, pooled_width: int
 ):
