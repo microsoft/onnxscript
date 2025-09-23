@@ -347,7 +347,7 @@ def aten_linalg_vector_norm(
         return op.ReduceL2(self, dim, keepdims=keepdim)
     else:
         if ord < 0 or ord % 2 != 0:
-            # Not-even integer, use abs
+            # Not an even integer (could be odd, fractional or negative), use Abs
             self = op.Abs(self)
         self_pow = op.Pow(self, ord)
         exp = op.CastLike(1 / ord, self)
