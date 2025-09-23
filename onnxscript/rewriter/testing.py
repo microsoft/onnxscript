@@ -99,16 +99,6 @@ def assert_numerically_equal(
             None, the_rewritten_proto_ort_inputs, run_options=run_options
         )
 
-    for i, (orig, rewritten) in enumerate(zip(original_outputs, the_rewritten_outputs)):
-        print(f"==== Output {i} ====")
-        diff = np.abs(orig - rewritten)
-        for h in range(diff.shape[1]):
-            subarray = diff[:, h, :, :]  # Select along H
-            if np.allclose(subarray, 0):
-                print(f"H={h}: all zeros")
-            else:
-                print(f"H={h}: not all zeros")
-
     np.testing.assert_allclose(
         original_outputs, the_rewritten_outputs, rtol=rtol, atol=atol, equal_nan=True
     )
