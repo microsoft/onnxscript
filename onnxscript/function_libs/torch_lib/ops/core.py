@@ -1189,6 +1189,7 @@ def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
     return op.CastLike(sampled, self)
 
 
+@torch_op("aten::bilinear", trace_only=True)
 def aten_bilinear(
     input1: TensorType,
     input2: TensorType,
@@ -1197,7 +1198,23 @@ def aten_bilinear(
 ) -> TensorType:
     """bilinear(Tensor input1, Tensor input2, Tensor weight, Tensor? bias=None) -> Tensor"""
 
-    raise NotImplementedError()
+    # Bilinear transformation: y = x1^T A x2 + b
+    # input1 shape: (..., in1_features)
+    # input2 shape: (..., in2_features)
+    # weight shape: (out_features, in1_features, in2_features)
+    # bias shape: (out_features) - optional
+    # output shape: (..., out_features)
+
+    # Use Einsum to compute the bilinear transformation
+    # "...i,oij,...j->...o" means:
+    # - input1[..., i] * weight[o, i, j] * input2[..., j] -> output[..., o]
+    result = op.Einsum(input1, weight, input2, equation="...i,oij,...j->...o")
+
+    # Add bias if provided
+    if bias is not None:
+        result = op.Add(result, bias)
+
+    return result
 
 
 def aten_binary_cross_entropy_with_logits(

@@ -37,6 +37,37 @@ def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs)
         yield opinfo_core.SampleInput(item, dtype=dtype)
 
 
+def sample_inputs_bilinear(op_info, device, dtype, requires_grad, **kwargs):
+    """Sample inputs for bilinear operation."""
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    # Test cases: (batch_size, in1_features, in2_features, out_features)
+    cases = [
+        (2, 3, 4, 5),      # Basic case
+        (1, 2, 2, 1),      # Minimal case
+        (3, 5, 7, 4),      # Different dimensions
+        (2, 1, 1, 3),      # Single input features
+    ]
+
+    for batch_size, in1_features, in2_features, out_features in cases:
+        input1 = make_arg((batch_size, in1_features))
+        input2 = make_arg((batch_size, in2_features))
+        weight = make_arg((out_features, in1_features, in2_features))
+        bias = make_arg((out_features,))
+
+        # Test with bias
+        yield opinfo_core.SampleInput(input1, args=(input2, weight, bias))
+
+        # Test without bias (only for first case to avoid too many tests)
+        if batch_size == 2:
+            yield opinfo_core.SampleInput(input1, args=(input2, weight, None))
+
+
 def sample_inputs_bernoulli_p(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
 
@@ -2180,6 +2211,13 @@ class _TestParamsMaxPool3dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
 #    To avoid name duplication, it is possible to rename the OpInfo and specify
 #    the `op` field explicitly.
 OP_DB: List[opinfo_core.OpInfo] = [
+    opinfo_core.OpInfo(
+        "bilinear",
+        op=torch.nn.functional.bilinear,
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_bilinear,
+        supports_out=False,
+    ),
     opinfo_core.OpInfo(
         "ops.aten.bernoulli.p",
         aten_name="bernoulli.p",
