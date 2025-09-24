@@ -2236,7 +2236,7 @@ def aten_convolution_overrideable(
     raise NotImplementedError()
 
 
-@torch_op("aten::copy")
+@torch_op("aten::copy", trace_only=True)
 def aten_copy(
     self: TTensor,
     src: TTensor2,
@@ -8690,7 +8690,7 @@ def aten_triangular_solve(
     raise NotImplementedError()
 
 
-@torch_op("aten::tril")
+@torch_op("aten::tril", trace_only=True)
 def aten_tril(self: TTensor, diagonal: int = 0) -> TTensor:
     """tril(Tensor self, int diagonal=0) -> Tensor"""
 
@@ -8718,7 +8718,7 @@ def aten_triplet_margin_loss(
     raise NotImplementedError()
 
 
-@torch_op("aten::triu")
+@torch_op("aten::triu", trace_only=True)
 def aten_triu(self: TTensor, diagonal: int = 0) -> TTensor:
     """triu(Tensor self, int diagonal=0) -> Tensor"""
 
