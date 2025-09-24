@@ -916,7 +916,8 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
     return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
 
 
-def _record_contributing_values(original_node: ir.Node, replacement: Replacement):
+def _record_contributing_values(original_node: ir.Node, replacement: Replacement) -> None:
+    """Record the set of original input values that contributed to the constant-folded outputs."""
     folded_from: set[str] = set()
     for input in original_node.inputs:
         if input is None:
