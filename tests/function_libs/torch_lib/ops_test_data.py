@@ -657,7 +657,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm, tolerance={torch.float16: (1e-3, 1e-2)}),
     TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
-    TorchLibOpInfo("bilinear", core_ops.aten_bilinear, tolerance={torch.float32: (1e-4, 1e-4)}),
+    TorchLibOpInfo(
+        "bilinear", core_ops.aten_bilinear, tolerance={torch.float32: (2e-5, 2e-5)}
+    ),
     TorchLibOpInfo(
         # This string is a unique ID. In extra_opinfo.py, we
         # also define test data for this ID with

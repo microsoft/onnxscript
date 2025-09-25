@@ -48,10 +48,10 @@ def sample_inputs_bilinear(op_info, device, dtype, requires_grad, **kwargs):
 
     # Test cases: (batch_size, in1_features, in2_features, out_features)
     cases = [
-        (2, 3, 4, 5),      # Basic case
-        (1, 2, 2, 1),      # Minimal case
-        (3, 5, 7, 4),      # Different dimensions
-        (2, 1, 1, 3),      # Single input features
+        (2, 3, 4, 5),  # Basic case
+        (1, 2, 2, 1),  # Minimal case
+        (3, 5, 7, 4),  # Different dimensions
+        (2, 1, 1, 3),  # Single input features
     ]
 
     for batch_size, in1_features, in2_features, out_features in cases:
