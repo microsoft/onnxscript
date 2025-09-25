@@ -32,8 +32,13 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
     def __init__(self):
         super().__init__(name="RotaryEmbedding23")
 
-    def pattern(self, op, x, cos, sin, start1, end1, start2, end2):
-        return x * cos + _rotate_half_pattern(op, x, start1, end1, start2, end2) * sin
+    def pattern(self, op, x, freqs, start1, end1, start2, end2):
+        freqs_repeated = op.Concat(freqs, freqs, axis=-1)
+        cos = op.Cos(freqs_repeated)
+        sin = op.Sin(freqs_repeated)
+        cos_4d = op.Unsqueeze(cos, 1)
+        sin_4d = op.Unsqueeze(sin, 1)
+        return x * cos_4d + _rotate_half_pattern(op, x, start1, end1, start2, end2) * sin_4d
 
     def check(self, op, x, start1, end1, start2, end2, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
@@ -59,12 +64,16 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
             )
         return check_result
 
-    def rewrite(self, op, x, cos, sin, **_):
+    def rewrite(self, op, x, freqs, **_):
         num_heads = x.shape[1]
+        cos = op.Cos(freqs)
+        sin = op.Sin(freqs)
+        cos_4d = op.Unsqueeze(cos, 1)
+        sin_4d = op.Unsqueeze(sin, 1)
         return op.RotaryEmbedding(
             x,
-            cos,
-            sin,
+            cos_4d,
+            sin_4d,
             interleaved=0,
             num_heads=num_heads,
         )
