@@ -68,12 +68,10 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         num_heads = x.shape[1]
         cos = op.Cos(freqs)
         sin = op.Sin(freqs)
-        cos_4d = op.Unsqueeze(cos, 1)
-        sin_4d = op.Unsqueeze(sin, 1)
         return op.RotaryEmbedding(
             x,
-            cos_4d,
-            sin_4d,
+            cos,
+            sin,
             interleaved=0,
             num_heads=num_heads,
         )
