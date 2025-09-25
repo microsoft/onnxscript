@@ -5,14 +5,11 @@ from __future__ import annotations
 import unittest
 
 import onnx_ir as ir
-from parameterized import parameterized
-
 import onnxscript
-from onnxscript.rewriter import onnx_fusions
-from onnxscript.rewriter.models import _rotary_embedding_models
+from onnxscript.rewriter.rules.fusion import _rms_normalization
 
 
-class OnnxFusionsTest(unittest.TestCase):
+class RmsNormOnnxFusionsTest(unittest.TestCase):
     def test_rms_normalization_fusion(self):
         opset23 = onnxscript.values.Opset("", 23)
 
@@ -34,33 +31,9 @@ class OnnxFusionsTest(unittest.TestCase):
             output_types=[onnxscript.FLOAT[128]],
         )
         model = ir.serde.deserialize_model(rms_norm_model_proto)
-        onnx_fusions.fuse(model, debug=True)
+        count = _rms_normalization.fuse_rms_normalization(model)
+        self.assertEqual(count, 1)
         self.assertEqual(model.graph.node(-1).op_type, "RMSNormalization")
-
-    @parameterized.expand(
-        [
-            (
-                "test_case_1",
-                _rotary_embedding_models.test_case_1,
-            ),
-            (
-                "test_case_2",
-                _rotary_embedding_models.test_case_2,
-            ),
-        ]
-    )
-    def test_rotary_embedding_fusion(self, _: str, test_data_constructor):
-        test = test_data_constructor()
-        for opset_version in [22, 23]:
-            model: ir.Model = test.get_onnx_model()
-            model.graph.opset_imports[""] = opset_version
-            onnxscript.optimizer.optimize(model)
-            onnx_fusions.fuse(model)
-            op_types = [n.op_type for n in model.graph]
-            if opset_version == 22:
-                self.assertNotIn("RotaryEmbedding", op_types)
-            else:
-                self.assertIn("RotaryEmbedding", op_types)
 
 
 if __name__ == "__main__":
