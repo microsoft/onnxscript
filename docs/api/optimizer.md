@@ -15,5 +15,4 @@
     optimizer.inline
     optimizer.basic_constant_propagation
     optimizer.fold_constants
-    optimizer.remove_unused_nodes
 ```
