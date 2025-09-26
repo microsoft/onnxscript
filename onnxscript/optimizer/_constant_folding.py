@@ -5,6 +5,13 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "basic_constant_propagation",
+    "fold_constants",
+    "FoldConstantsPass",
+    "FOLDED_FROM_KEY",
+]
+
 import dataclasses
 import logging
 import math
@@ -23,7 +30,8 @@ DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 8192
 
 DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 512 * 512
 
-_FOLDED_FROM_KEY = "pkg.onnxscript.optimizer.folded_from"
+# Key used to store the metadata
+FOLDED_FROM_KEY = "pkg.onnxscript.optimizer.folded_from"
 
 
 _NON_DETERMINISTIC_OPS = frozenset(
@@ -922,14 +930,16 @@ def _record_contributing_values(original_node: ir.Node, replacement: Replacement
     for input in original_node.inputs:
         if input is None:
             continue
-        folded_from.update(input.meta.get(_FOLDED_FROM_KEY, set()))
+        folded_from.update(input.meta.get(FOLDED_FROM_KEY, set()))
         assert input.name is not None
         folded_from.add(input.name)
 
     for new_output in replacement.new_outputs:
         if new_output is None:
             continue
-        new_output.meta[_FOLDED_FROM_KEY] = folded_from
+        new_output.meta[FOLDED_FROM_KEY] = folded_from
+        # Store the string representation of the set to metadata_props to persist it across serialization
+        new_output.metadata_props[FOLDED_FROM_KEY] = repr(sorted(folded_from))
 
 
 class FoldConstantsPass(ir.passes.InPlacePass):
