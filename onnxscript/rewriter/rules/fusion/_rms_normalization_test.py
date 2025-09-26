@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 import onnx_ir as ir
+
 import onnxscript
 from onnxscript.rewriter.rules.fusion import _rms_normalization
 

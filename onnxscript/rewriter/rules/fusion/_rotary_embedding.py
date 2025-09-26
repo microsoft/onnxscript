@@ -30,18 +30,34 @@ def _rotate_half_pattern(op, x, start1, end1, start2, end2):
 
 class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
     def __init__(self):
-        super().__init__(name="RotaryEmbedding23")
+        super().__init__(name="RotaryEmbedding23", remove_nodes=False)
 
-    def pattern(self, op, x, freqs, start1, end1, start2, end2):
+    def pattern(self, op, x, freqs, start1, end1, start2, end2, one1, one2):
         freqs_repeated = op.Concat(freqs, freqs, axis=-1)
         cos = op.Cos(freqs_repeated)
         sin = op.Sin(freqs_repeated)
-        cos_4d = op.Unsqueeze(cos, 1)
-        sin_4d = op.Unsqueeze(sin, 1)
+        cos_4d = op.Unsqueeze(cos, one1)
+        sin_4d = op.Unsqueeze(sin, one2)
         return x * cos_4d + _rotate_half_pattern(op, x, start1, end1, start2, end2) * sin_4d
 
-    def check(self, op, x, start1, end1, start2, end2, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
+    def check(self, op, x, start1, end1, start2, end2, one1, one2, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
+
+        def is_one(val):
+            """Check if val is a 0/1 dimensional tensor with a single element equal to 1."""
+            np_val = _ir_utils.get_numpy_value(val)
+            return (
+                np_val is not None
+                and np_val.size == 1
+                and np_val.ndim <= 1
+                and np_val.item() == 1
+            )
+
+        if not is_one(one1):
+            return check_result.fail("Unsqueeze axes is not [1]", one1)
+        if not is_one(one2):
+            return check_result.fail("Unsqueeze axes is not [1]", one2)
+
         # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)
         if x is None or x.shape is None or len(x.shape) != 4:
             return check_result.fail("Input is not known to be a 4D tensor.", x)
