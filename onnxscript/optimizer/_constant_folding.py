@@ -922,7 +922,7 @@ def _record_contributing_values(original_node: ir.Node, replacement: Replacement
     for input in original_node.inputs:
         if input is None:
             continue
-        folded_from.union(input.meta.get(_FOLDED_FROM_KEY, set()))
+        folded_from.update(input.meta.get(_FOLDED_FROM_KEY, set()))
         assert input.name is not None
         folded_from.add(input.name)
 
