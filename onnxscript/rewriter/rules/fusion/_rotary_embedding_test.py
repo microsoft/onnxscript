@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import unittest
 
+import onnx
 import onnx_ir as ir
+from packaging.version import Version
 from parameterized import parameterized
 
 import onnxscript
@@ -37,9 +39,14 @@ class RotaryEmbeddingOnnxFusionTest(unittest.TestCase):
         self.assertIn("RotaryEmbedding", op_types)
         rewritten_model_proto = ir.serde.serialize_model(model)
         inputs = test.get_ort_inputs()
-        onnxscript.rewriter.testing.assert_numerically_equal(
-            model_proto, rewritten_model_proto, args=inputs, use_reference=True
-        )
+
+        onnx_version = Version(onnx.__version__)
+        min_version = Version("1.19.1")
+        is_stable = not (onnx_version.is_devrelease or onnx_version.is_prerelease)
+        if onnx_version >= min_version and is_stable:
+            onnxscript.rewriter.testing.assert_numerically_equal(
+                model_proto, rewritten_model_proto, args=inputs, use_reference=True
+            )
 
 
 if __name__ == "__main__":
