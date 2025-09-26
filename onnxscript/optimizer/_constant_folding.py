@@ -1226,12 +1226,12 @@ class FoldConstantsPass(ir.passes.InPlacePass):
     ) -> None:
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
 
+        # Record the values that has contributed to the replacement
+        _record_contributing_values(node, replacement)
+
         ir.convenience.replace_nodes_and_values(
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
-
-        # Record the values that has contributed to the replacement
-        _record_contributing_values(node, replacement)
 
         self._modified = True
 
