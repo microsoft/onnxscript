@@ -166,6 +166,9 @@ def aten_add(self: TTensor, other: TTensor, alpha: float = 1.0) -> TTensor:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
     if self.dtype == ir.DataType.BOOL:
+        # alpha can also be bool
+        if alpha == 0:
+            return op.Identity(self)
         return op.Or(self, other)
 
     if alpha != 1.0:
