@@ -5034,7 +5034,7 @@ def aten_logical_and(self: TTensor, other: TTensor) -> BOOL:
 
 
 @torch_op(("aten::logical_not", "aten::bitwise_not"), trace_only=True)
-def aten_logical_not(self: BOOL) -> BOOL:
+def aten_logical_not(self: TTensor) -> BOOL:
     """logical_not(Tensor self) -> Tensor"""
 
     if self.dtype == ir.DataType.BOOL:
@@ -5043,7 +5043,7 @@ def aten_logical_not(self: BOOL) -> BOOL:
 
 
 @torch_op(("aten::logical_or", "aten::add.Tensor", "aten::add.Scalar"), trace_only=True)
-def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
+def aten_logical_or(self: TTensor, other: TTensor) -> BOOL:
     """logical_or(Tensor self, Tensor other) -> Tensor"""
 
     assert self.dtype == other.dtype
@@ -5054,7 +5054,7 @@ def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
 
 
 @torch_op(("aten::logical_xor"), trace_only=True)
-def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
+def aten_logical_xor(self: TTensor, other: TTensor) -> BOOL:
     """logical_xor(Tensor self, Tensor other) -> Tensor"""
 
     assert self.dtype == other.dtype
