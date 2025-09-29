@@ -162,9 +162,12 @@ def aten_acosh(self: TFloat) -> TFloat:
 
 
 @torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True)
-def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
+def aten_add(self: TTensor, other: TTensor, alpha: float = 1.0) -> TTensor:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
-    # TODO(microsoft/onnxruntime#15977): Improve fp16 precision
+
+    if self.dtype == ir.DataType.BOOL:
+        return op.Or(self, other)
+
     if alpha != 1.0:
         alpha = op.CastLike(alpha, other)
         other = op.Mul(other, alpha)
@@ -5045,7 +5048,7 @@ def aten_logical_not(self: TTensor) -> BOOL:
     return op.Not(op.Cast(self, to=BOOL.dtype))
 
 
-@torch_op(("aten::logical_or", "aten::add.Tensor", "aten::add.Scalar"), trace_only=True)
+@torch_op(("aten::logical_or"), trace_only=True)
 def aten_logical_or(self: TTensor, other: TTensor) -> BOOL:
     """logical_or(Tensor self, Tensor other) -> Tensor"""
 
