@@ -1333,11 +1333,14 @@ def aten_bitwise_left_shift_int8(self: INT8, other: INT8) -> INT8:
 
 
 @torch_op("aten::bitwise_not", trace_only=True)
-def aten_bitwise_not(self: TInt) -> TInt:
+def aten_bitwise_not(self: TTensor) -> TTensor:
     """bitwise_not(Tensor self) -> Tensor"""
-    # logical_not implements the BOOL variant
 
-    return op.BitwiseNot(self)
+    if self.dtype == ir.DataType.BOOL:
+        return op.Not(self)
+    if self.dtype.is_integer():
+        return op.BitwiseNot(self)
+    raise NotImplementedError(f"Not implemented for type {self.dtype}")
 
 
 @torch_op(
@@ -1348,7 +1351,7 @@ def aten_bitwise_not(self: TInt) -> TInt:
     ),
     trace_only=True,
 )
-def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
+def aten_bitwise_or(self: TTensor, other: TTensor) -> TTensor:
     """bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     assert self.dtype == other.dtype
@@ -1495,7 +1498,7 @@ def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
     ),
     trace_only=True,
 )
-def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
+def aten_bitwise_xor(self: TTensor, other: TTensor) -> TTensor:
     """bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor"""
     assert self.dtype == other.dtype
 
@@ -5033,7 +5036,7 @@ def aten_logical_and(self: TTensor, other: TTensor) -> BOOL:
     return op.And(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
 
 
-@torch_op(("aten::logical_not", "aten::bitwise_not"), trace_only=True)
+@torch_op("aten::logical_not", trace_only=True)
 def aten_logical_not(self: TTensor) -> BOOL:
     """logical_not(Tensor self) -> Tensor"""
 
