@@ -85,6 +85,10 @@ def _same_shape(op, data: ir.Value, slice_output: ir.Value, steps: ir.Value, **_
     if not is_singleton_value(steps, 1):
         return False
 
+    # If any dim is unknown, the shapes are not the same
+    if data.shape.has_unknown_dim() or slice_output.shape.has_unknown_dim():
+        return False
+
     return data.shape == slice_output.shape
 
 
