@@ -1631,6 +1631,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float32 if sys.platform != "linux" else torch.complex64,),
         reason="fixme: test is unstable on macosx, windows",
     ),
+    TorchLibOpInfo("logical_and", core_ops.aten_logical_and),
+    TorchLibOpInfo("logical_not", core_ops.aten_logical_not),
+    TorchLibOpInfo("logical_or", core_ops.aten_logical_or),
+    TorchLibOpInfo("logical_xor", core_ops.aten_logical_xor),
     TorchLibOpInfo("logit", core_ops.aten_logit, tolerance={torch.float16: (1e-1, 7e-4)}),
     TorchLibOpInfo("max_dim", core_ops.aten_max_dim)
     .xfail(
