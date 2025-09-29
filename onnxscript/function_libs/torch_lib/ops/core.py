@@ -5022,10 +5022,7 @@ def aten_logdet(self: TFloat) -> TFloat:
     return op.Log(op.Det(self))
 
 
-@torch_op(
-    ("aten::logical_and")
-    trace_only=True,
-)
+@torch_op(("aten::logical_and"), trace_only=True)
 def aten_logical_and(self: TTensor, other: TTensor) -> BOOL:
     """logical_and(Tensor self, Tensor other) -> Tensor"""
 
@@ -5045,14 +5042,7 @@ def aten_logical_not(self: BOOL) -> BOOL:
     return op.Not(op.Cast(self, to=BOOL.dtype))
 
 
-@torch_op(
-    (
-        "aten::logical_or",
-        "aten::add.Tensor",
-        "aten::add.Scalar"
-    ),
-    trace_only=True,
-)
+@torch_op(("aten::logical_or", "aten::add.Tensor", "aten::add.Scalar"), trace_only=True)
 def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
     """logical_or(Tensor self, Tensor other) -> Tensor"""
 
@@ -5063,10 +5053,7 @@ def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
     return op.Or(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
 
 
-@torch_op(
-    ("aten::logical_xor")
-    trace_only=True,
-)
+@torch_op(("aten::logical_xor"), trace_only=True)
 def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
     """logical_xor(Tensor self, Tensor other) -> Tensor"""
 
