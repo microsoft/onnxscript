@@ -5056,7 +5056,7 @@ def aten_logical_or(self: TTensor, other: TTensor) -> BOOL:
     return op.Or(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
 
 
-@torch_op(("aten::logical_xor"), trace_only=True)
+@torch_op("aten::logical_xor", trace_only=True)
 def aten_logical_xor(self: TTensor, other: TTensor) -> BOOL:
     """logical_xor(Tensor self, Tensor other) -> Tensor"""
 
