@@ -5033,9 +5033,7 @@ def aten_logical_and(self: TTensor, other: TTensor) -> BOOL:
 
     if self.dtype == ir.DataType.BOOL:
         return op.And(self, other)
-    if self.dtype.is_integer():
-        return op.And(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
-    raise NotImplementedError(f"Not implemented for dtype {self.dtype} and {other.dtype}")
+    return op.And(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
 
 
 @torch_op(("aten::logical_not", "aten::bitwise_not"), trace_only=True)
@@ -5044,9 +5042,7 @@ def aten_logical_not(self: BOOL) -> BOOL:
 
     if self.dtype == ir.DataType.BOOL:
         return op.Not(self)
-    if self.dtype.is_integer():
-        return op.Not(op.Cast(self, to=BOOL.dtype))
-    raise NotImplementedError(f"Not implemented for dtype {self.dtype}")
+    return op.Not(op.Cast(self, to=BOOL.dtype))
 
 
 @torch_op(
@@ -5064,9 +5060,7 @@ def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
 
     if self.dtype == ir.DataType.BOOL:
         return op.Or(self, other)
-    if self.dtype.is_integer():
-        return op.Or(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
-    raise NotImplementedError(f"Not implemented for dtype {self.dtype} and {other.dtype}")
+    return op.Or(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
 
 
 @torch_op(
@@ -5080,9 +5074,7 @@ def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
 
     if self.dtype == ir.DataType.BOOL:
         return op.Xor(self, other)
-    if self.dtype.is_integer():
-        return op.Xor(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
-    raise NotImplementedError(f"Not implemented for dtype {self.dtype} and {other.dtype}")
+    return op.Xor(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
 
 
 @torch_op("aten::logit", private=True)
