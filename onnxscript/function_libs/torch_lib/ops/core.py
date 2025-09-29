@@ -1233,15 +1233,19 @@ def aten_binomial(
         "aten::bitwise_and.Tensor",
         "aten::bitwise_and.Scalar",
         "aten::bitwise_and.Scalar_Tensor",
-        "_operator::and_",
     ),
     trace_only=True,
 )
-def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
+def aten_bitwise_and(self: TTensor, other: TTensor) -> TTensor:
     """bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor"""
-    # logical_and implements the BOOL variant
 
-    return op.BitwiseAnd(self, other)
+    assert self.dtype == other.dtype
+
+    if self.dtype.is_integer():
+        return op.BitwiseAnd(self, other)
+    if self.dtype == ir.DataType.BOOL:
+        return op.And(self, other)
+    raise NotImplementedError(f"Not implemented for types {self.dtype} and {other.dtype}")
 
 
 @torch_op(
@@ -1341,15 +1345,19 @@ def aten_bitwise_not(self: TInt) -> TInt:
         "aten::bitwise_or.Tensor",
         "aten::bitwise_or.Scalar",
         "aten::bitwise_or.Scalar_Tensor",
-        "_operator::or_",
     ),
     trace_only=True,
 )
 def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
     """bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor"""
-    # logical_or implements the BOOL variant
 
-    return op.BitwiseOr(self, other)
+    assert self.dtype == other.dtype
+
+    if self.dtype.is_integer():
+        return op.BitwiseOr(self, other)
+    if self.dtype == ir.DataType.BOOL:
+        return op.Or(self, other)
+    raise NotImplementedError(f"Not implemented for types {self.dtype} and {other.dtype}")
 
 
 @torch_op(
@@ -1489,9 +1497,13 @@ def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
 )
 def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
     """bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor"""
-    # logical_xor implements the BOOL variant
+    assert self.dtype == other.dtype
 
-    return op.BitwiseXor(self, other)
+    if self.dtype.is_integer():
+        return op.BitwiseXor(self, other)
+    if self.dtype == ir.DataType.BOOL:
+        return op.Xor(self, other)
+    raise NotImplementedError(f"Not implemented for types {self.dtype} and {other.dtype}")
 
 
 @torch_op("aten::blackman_window", trace_only=True)
@@ -5011,57 +5023,66 @@ def aten_logdet(self: TFloat) -> TFloat:
 
 
 @torch_op(
-    (
-        "aten::logical_and",
-        "aten::bitwise_and.Tensor",
-        "aten::bitwise_and.Scalar",
-        "aten::bitwise_and.Scalar_Tensor",
-    ),
+    ("aten::logical_and")
     trace_only=True,
 )
-def aten_logical_and(self: BOOL, other: BOOL) -> BOOL:
+def aten_logical_and(self: TTensor, other: TTensor) -> BOOL:
     """logical_and(Tensor self, Tensor other) -> Tensor"""
 
-    return op.And(self, other)
+    assert self.dtype == other.dtype
+
+    if self.dtype == ir.DataType.BOOL:
+        return op.And(self, other)
+    if self.dtype.is_integer():
+        return op.And(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
+    raise NotImplementedError(f"Not implemented for dtype {self.dtype} and {other.dtype}")
 
 
 @torch_op(("aten::logical_not", "aten::bitwise_not"), trace_only=True)
 def aten_logical_not(self: BOOL) -> BOOL:
     """logical_not(Tensor self) -> Tensor"""
 
-    return op.Not(self)
+    if self.dtype == ir.DataType.BOOL:
+        return op.Not(self)
+    if self.dtype.is_integer():
+        return op.Not(op.Cast(self, to=BOOL.dtype))
+    raise NotImplementedError(f"Not implemented for dtype {self.dtype}")
 
 
 @torch_op(
     (
         "aten::logical_or",
-        "aten::bitwise_or.Tensor",
-        "aten::bitwise_or.Scalar",
-        "aten::bitwise_or.Scalar_Tensor",
         "aten::add.Tensor",
-        "aten::add.Scalar",
+        "aten::add.Scalar"
     ),
     trace_only=True,
 )
 def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
     """logical_or(Tensor self, Tensor other) -> Tensor"""
 
-    return op.Or(self, other)
+    assert self.dtype == other.dtype
+
+    if self.dtype == ir.DataType.BOOL:
+        return op.Or(self, other)
+    if self.dtype.is_integer():
+        return op.Or(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
+    raise NotImplementedError(f"Not implemented for dtype {self.dtype} and {other.dtype}")
 
 
 @torch_op(
-    (
-        "aten::logical_xor",
-        "aten::bitwise_xor.Tensor",
-        "aten::bitwise_xor.Scalar",
-        "aten::bitwise_xor.Scalar_Tensor",
-    ),
+    ("aten::logical_xor")
     trace_only=True,
 )
 def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
     """logical_xor(Tensor self, Tensor other) -> Tensor"""
 
-    return op.Xor(self, other)
+    assert self.dtype == other.dtype
+
+    if self.dtype == ir.DataType.BOOL:
+        return op.Xor(self, other)
+    if self.dtype.is_integer():
+        return op.Xor(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
+    raise NotImplementedError(f"Not implemented for dtype {self.dtype} and {other.dtype}")
 
 
 @torch_op("aten::logit", private=True)
