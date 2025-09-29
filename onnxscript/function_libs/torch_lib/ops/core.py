@@ -5025,7 +5025,7 @@ def aten_logdet(self: TFloat) -> TFloat:
     return op.Log(op.Det(self))
 
 
-@torch_op(("aten::logical_and"), trace_only=True)
+@torch_op("aten::logical_and", trace_only=True)
 def aten_logical_and(self: TTensor, other: TTensor) -> BOOL:
     """logical_and(Tensor self, Tensor other) -> Tensor"""
 
