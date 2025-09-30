@@ -608,6 +608,7 @@ def identity(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = node.inputs[0]
     output = node.outputs[0]
     if input is not None and output is not None:
+        input.shape = _merge_shapes(input.shape, output.shape)
         state.set_sym_value(output, input)
     return None
 
