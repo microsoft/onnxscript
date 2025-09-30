@@ -214,7 +214,7 @@ class IRStmt:
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("%s: %s", type(self), str(self))
+            logger.debug("%s: %s", type(self), self)
 
     def to_node_proto(self, node_name: str) -> onnx.NodeProto:
         n = helper.make_node(
