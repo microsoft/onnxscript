@@ -98,7 +98,11 @@ def get_singleton_value(val: ir.Value | None, rank: int | Sequence[int] | None =
 
 
 def is_singleton_value(
-    val: ir.Value | None, expected: float | int | Callable, *, rtol: float | None = None, rank: int | Sequence[int] | None = None
+    val: ir.Value | None,
+    expected: float | int | Callable,
+    *,
+    rtol: float | None = None,
+    rank: int | Sequence[int] | None = None,
 ) -> bool:
     """Returns True if the value is a single element tensor with given value, and False otherwise."""
     scalar = get_singleton_value(val, rank=rank)
