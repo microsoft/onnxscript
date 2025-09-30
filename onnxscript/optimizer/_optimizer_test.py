@@ -42,22 +42,6 @@ class OptimizerTest(unittest.TestCase):
                 {
                     return_val = SequenceAt (self, i)
                 }
-
-                <domain: "pkg.onnxscript.torch_lib.common", opset_import: ["" : 18]>
-                Rank (input) => (return_val)
-                {
-                    tmp = Shape (input)
-                    return_val = Size (tmp)
-                }
-
-                <domain: "pkg.onnxscript.torch_lib.common", opset_import: ["" : 18]>
-                IsScalar (input) => (return_val)
-                {
-                    tmp = Shape (input)
-                    tmp_0 = Size (tmp)
-                    tmp_1 = Constant <value_int: int = 0> ()
-                    return_val = Equal (tmp_0, tmp_1)
-                }
                 """
         )
 
