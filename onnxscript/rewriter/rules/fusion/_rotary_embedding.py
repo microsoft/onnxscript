@@ -43,19 +43,9 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
     def check(self, op, x, start1, end1, start2, end2, one1, one2, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
 
-        def is_one(val):
-            """Check if val is a 0/1 dimensional tensor with a single element equal to 1."""
-            np_val = _ir_utils.get_numpy_value(val)
-            return (
-                np_val is not None
-                and np_val.size == 1
-                and np_val.ndim <= 1
-                and np_val.item() == 1
-            )
-
-        if not is_one(one1):
+        if not _ir_utils.is_singleton_value(one1, 1):
             return check_result.fail("Unsqueeze axes is not [1]", one1)
-        if not is_one(one2):
+        if not _ir_utils.is_singleton_value(one2, 1):
             return check_result.fail("Unsqueeze axes is not [1]", one2)
 
         # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)

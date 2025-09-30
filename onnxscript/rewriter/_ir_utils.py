@@ -78,23 +78,34 @@ def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
     return None
 
 
-def get_singleton_value(val: ir.Value | None, rank: int | None = None):
+def get_singleton_value(val: ir.Value | None, rank: int | Sequence[int] | None = None):
     """Returns element of a single element tensor constant value, and None otherwise.
 
-    If rank is specified, it checks that the value has the given rank.
+    If an int rank is specified, it checks that the value has the given rank.
+    If the rank is a sequence of ints, it checks that the value has one of the given ranks.
+
+    Thus, `rank=0` checks for a scalar, `rank=1` checks for a 1D tensor, and
+    `rank=(0,1)` checks for either a scalar or a 1D tensor.
     """
     np_val = get_numpy_value(val)
     if np_val is not None and np_val.size == 1:
-        if rank is None or (np_val.ndim == rank):
-            return np_val.item()
+        value = np_val.item()
+        if (rank is None) or (isinstance(rank, int) and (np_val.ndim == rank)):
+            return value
+        if isinstance(rank, Sequence) and (np_val.ndim in rank):
+            return value
     return None
 
 
 def is_singleton_value(
-    val: ir.Value | None, expected: float | int | Callable, *, rtol: float | None = None
+    val: ir.Value | None,
+    expected: float | int | Callable,
+    *,
+    rtol: float | None = None,
+    rank: int | Sequence[int] | None = None,
 ) -> bool:
     """Returns True if the value is a single element tensor with given value, and False otherwise."""
-    scalar = get_singleton_value(val)
+    scalar = get_singleton_value(val, rank=rank)
     if scalar is None:
         return False
     if callable(expected):
