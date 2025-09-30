@@ -3703,9 +3703,9 @@ def aten_floor_divide(self: TTensor, other: TTensor) -> TTensor:
     # Reference: https://pytorch.org/docs/stable/generated/torch.floor_divide.html
     # offset = (torch.signbit(a) != torch.signbit(b)).logical_and(torch.fmod(a, b) != 0)
     # return prims.div(a, b) - _maybe_convert_to_dtype(offset, a.dtype)
-    offset = op.Or(
-        op.Equal(op.Sign(self), op.Sign(other)),
-        op.Not(op.Cast(op.Mod(self, other), to=BOOL.dtype)),
+    offset = op.And(
+        op.Not(op.Equal(op.Sign(self), op.Sign(other))),
+        op.Cast(op.Mod(self, other), to=BOOL.dtype),
     )
     offset = op.Cast(offset, to=self.dtype)
     return op.Sub(op.Div(self, other), offset)
