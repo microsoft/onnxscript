@@ -44,7 +44,10 @@ def _unmasked_pre_div_sdpa_script(query, key, value):
     scaled_key = op.Div(key_transposed, divisor)
     attn_score = op.MatMul(scaled_query, scaled_key)
     attn_weight = op.Softmax(attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -56,7 +59,10 @@ def _unmasked_pre_mul_sdpa_script(query, key, value):
     scaled_key = op.Mul(key_transposed, multiplier)
     attn_score = op.MatMul(scaled_query, scaled_key)
     attn_weight = op.Softmax(attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -67,7 +73,10 @@ def _unmasked_post_div_sdpa_script(query, key, value):
     attn_score = op.MatMul(query, key_transposed)
     scaled_attn_score = op.Div(attn_score, divisor)
     attn_weight = op.Softmax(scaled_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -78,7 +87,10 @@ def _unmasked_post_mul_sdpa_script(query, key, value):
     attn_score = op.MatMul(query, key_transposed)
     scaled_attn_score = op.Mul(attn_score, multiplier)
     attn_weight = op.Softmax(scaled_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -90,7 +102,10 @@ def _custom_scale_pre_div_sdpa_script(query, key, value):
     scaled_key = op.Div(key_transposed, divisor)
     attn_score = op.MatMul(scaled_query, scaled_key)
     attn_weight = op.Softmax(attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -102,7 +117,10 @@ def _custom_scale_pre_mul_sdpa_script(query, key, value):
     scaled_key = op.Mul(key_transposed, multiplier)
     attn_score = op.MatMul(scaled_query, scaled_key)
     attn_weight = op.Softmax(attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -115,7 +133,10 @@ def _custom_multi_scale_pre_mul_sdpa_script(query, key, value):
     scaled_key = op.Mul(key_transposed, multiplier_k)
     attn_score = op.MatMul(scaled_query, scaled_key)
     attn_weight = op.Softmax(attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -126,7 +147,10 @@ def _custom_scale_post_div_sdpa_script(query, key, value):
     attn_score = op.MatMul(query, key_transposed)
     scaled_attn_score = op.Div(attn_score, divisor)
     attn_weight = op.Softmax(scaled_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -137,7 +161,10 @@ def _custom_scale_post_mul_sdpa_script(query, key, value):
     attn_score = op.MatMul(query, key_transposed)
     scaled_attn_score = op.Mul(attn_score, multiplier)
     attn_weight = op.Softmax(scaled_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -150,7 +177,10 @@ def _masked_pre_div_sdpa_script(query, key, value, mask):
     attn_score = op.MatMul(scaled_query, scaled_key)
     masked_attn_score = op.Add(attn_score, mask)
     attn_weight = op.Softmax(masked_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -163,7 +193,10 @@ def _masked_pre_mul_sdpa_script(query, key, value, mask):
     attn_score = op.MatMul(scaled_query, scaled_key)
     masked_attn_score = op.Add(attn_score, mask)
     attn_weight = op.Softmax(masked_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -175,7 +208,10 @@ def _masked_post_div_sdpa_script(query, key, value, mask):
     scaled_attn_score = op.Div(attn_score, divisor)
     masked_attn_score = op.Add(scaled_attn_score, mask)
     attn_weight = op.Softmax(masked_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -187,7 +223,10 @@ def _masked_post_mul_sdpa_script(query, key, value, mask):
     scaled_attn_score = op.Mul(attn_score, multiplier)
     masked_attn_score = op.Add(scaled_attn_score, mask)
     attn_weight = op.Softmax(masked_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -200,7 +239,10 @@ def _masked_custom_scale_pre_div_sdpa_script(query, key, value, mask):
     attn_score = op.MatMul(scaled_query, scaled_key)
     masked_attn_score = op.Add(attn_score, mask)
     attn_weight = op.Softmax(masked_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -213,7 +255,10 @@ def _masked_custom_scale_pre_mul_sdpa_script(query, key, value, mask):
     attn_score = op.MatMul(scaled_query, scaled_key)
     masked_attn_score = op.Add(attn_score, mask)
     attn_weight = op.Softmax(masked_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -225,7 +270,10 @@ def _masked_custom_scale_post_div_sdpa_script(query, key, value, mask):
     scaled_attn_score = op.Div(attn_score, divisor)
     masked_attn_score = op.Add(scaled_attn_score, mask)
     attn_weight = op.Softmax(masked_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
@@ -237,7 +285,10 @@ def _masked_custom_scale_post_mul_sdpa_script(query, key, value, mask):
     scaled_attn_score = op.Mul(attn_score, multiplier)
     masked_attn_score = op.Add(scaled_attn_score, mask)
     attn_weight = op.Softmax(masked_attn_score, axis=-1)
-    attn_output = op.MatMul(attn_weight, value)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
     return attn_output
 
 
