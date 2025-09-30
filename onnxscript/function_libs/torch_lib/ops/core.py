@@ -1239,6 +1239,7 @@ def aten_binomial(
         "aten::bitwise_and.Tensor",
         "aten::bitwise_and.Scalar",
         "aten::bitwise_and.Scalar_Tensor",
+        "_operator::and_",
     ),
     trace_only=True,
 )
@@ -1354,6 +1355,7 @@ def aten_bitwise_not(self: TTensor) -> TTensor:
         "aten::bitwise_or.Tensor",
         "aten::bitwise_or.Scalar",
         "aten::bitwise_or.Scalar_Tensor",
+        "_operator::or_",
     ),
     trace_only=True,
 )
@@ -5051,7 +5053,7 @@ def aten_logical_not(self: TTensor) -> BOOL:
     return op.Not(op.Cast(self, to=BOOL.dtype))
 
 
-@torch_op(("aten::logical_or"), trace_only=True)
+@torch_op("aten::logical_or", trace_only=True)
 def aten_logical_or(self: TTensor, other: TTensor) -> BOOL:
     """logical_or(Tensor self, Tensor other) -> Tensor"""
 
