@@ -43,10 +43,10 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
     def check(self, op, x, start1, end1, start2, end2, one1, one2, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
 
-        if not _ir_utils.is_singleton_value(one1, 1, rank=(0, 1)):
-            return check_result.fail("Unsqueeze axes is not [1] or 1", one1)
-        if not _ir_utils.is_singleton_value(one2, 1, rank=(0, 1)):
-            return check_result.fail("Unsqueeze axes is not [1] or 1", one2)
+        if not _ir_utils.is_singleton_value(one1, 1):
+            return check_result.fail("Unsqueeze axes is not [1]", one1)
+        if not _ir_utils.is_singleton_value(one2, 1):
+            return check_result.fail("Unsqueeze axes is not [1]", one2)
 
         # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)
         if x is None or x.shape is None or len(x.shape) != 4:
