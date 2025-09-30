@@ -3700,7 +3700,7 @@ def aten_floor_divide(self: TTensor, other: TTensor) -> TTensor:
         return op.Div(self, other)
 
     # Convert truncation to flooring
-    # Reference: https://pytorch.org/docs/stable/generated/torch.floor_divide.html
+    # Reference: https://github.com/pytorch/pytorch/blob/ffc645c870f0abd368606ba1e2b3b58cacb03046/torch/_refs/__init__.py#L1401C1-L1409C70
     # offset = (torch.signbit(a) != torch.signbit(b)).logical_and(torch.fmod(a, b) != 0)
     # return prims.div(a, b) - _maybe_convert_to_dtype(offset, a.dtype)
     offset = op.And(
