@@ -5,6 +5,13 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "basic_constant_propagation",
+    "fold_constants",
+    "FoldConstantsPass",
+    "FOLDED_FROM_KEY",
+]
+
 import dataclasses
 import logging
 import math
@@ -22,6 +29,9 @@ from onnxscript.ir import _tape
 DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 8192
 
 DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 512 * 512
+
+# Key used to store the metadata
+FOLDED_FROM_KEY = "pkg.onnxscript.optimizer.folded_from"
 
 
 _NON_DETERMINISTIC_OPS = frozenset(
@@ -914,6 +924,24 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
     return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
 
 
+def _record_contributing_values(original_node: ir.Node, replacement: Replacement) -> None:
+    """Record the set of original input values that contributed to the constant-folded outputs."""
+    folded_from: set[str] = set()
+    for input in original_node.inputs:
+        if input is None:
+            continue
+        folded_from.update(input.meta.get(FOLDED_FROM_KEY, set()))
+        assert input.name is not None
+        folded_from.add(input.name)
+
+    for new_output in replacement.new_outputs:
+        if new_output is None:
+            continue
+        new_output.meta[FOLDED_FROM_KEY] = folded_from
+        # Store the string representation of the set to metadata_props to persist it across serialization
+        new_output.metadata_props[FOLDED_FROM_KEY] = repr(sorted(folded_from))
+
+
 class FoldConstantsPass(ir.passes.InPlacePass):
     """A pass that folds constant expressions in the model.
 
@@ -1203,8 +1231,13 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             )
         return None
 
-    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function) -> None:
+    def replace_node(
+        self, node: ir.Node, replacement: Replacement, root: ir.Graph | ir.Function
+    ) -> None:
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
+
+        # Record the names of the values that has contributed to the replacement
+        _record_contributing_values(node, replacement)
 
         ir.convenience.replace_nodes_and_values(
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
