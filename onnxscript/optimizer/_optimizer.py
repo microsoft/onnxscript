@@ -48,7 +48,7 @@ def optimize_ir(
                     shape_inference=onnx_shape_inference,
                     input_size_limit=input_size_limit,
                     output_size_limit=output_size_limit,
-                    should_fold=should_fold
+                    should_fold=should_fold,
                 ),
                 rewriter.RewritePass(rewriter._DEFAULT_REWRITE_RULES),
                 common_passes.RemoveUnusedNodesPass(),
