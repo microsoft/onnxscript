@@ -2270,17 +2270,8 @@ OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.BinaryUfuncInfo(
         "ops.aten.floor_divide",
         aten_name="floor_divide",
-        dtypes=common_dtype.floating_types_and_half(),
+        dtypes=common_dtype.all_types_and_half(),
         rhs_make_tensor_kwargs=dict(exclude_zero=True),
-    ),
-    opinfo_core.BinaryUfuncInfo(
-        "ops.aten.floor_divide.int",
-        aten_name="floor_divide",
-        op=torch.ops.aten.floor_divide,
-        dtypes=common_dtype.integral_types(),
-        # Create only positive inputs
-        lhs_make_tensor_kwargs=dict(low=0),
-        rhs_make_tensor_kwargs=dict(exclude_zero=True, low=0),
     ),
     opinfo_core.OpInfo(
         "ops.aten.hamming_window",

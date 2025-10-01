@@ -3688,23 +3688,27 @@ def python_math_floor(self: TFloat) -> TInt:
 
 
 @torch_op("aten::floor_divide", trace_only=True)
-def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
+def aten_floor_divide(self: TTensor, other: TTensor) -> TTensor:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
-    return op.Floor(op.Div(self, other))
+    if self.dtype.is_floating_point():
+        return op.Floor(op.Div(self, other))
 
+    assert self.dtype.is_integer()
 
-@torch_op("aten::floor_divide", trace_only=True)
-def aten_floor_divide_int(self: TInt, other: TInt) -> TInt:
-    """floor_divide(Tensor self, Tensor other) -> Tensor"""
+    if not self.dtype.is_signed():
+        return op.Div(self, other)
 
-    # TODO(justinchuby): This can be simplified if we can constrain the
-    # inputs to be positive integers. Consider how we can embed constraints in the model.
-    dtype = self.dtype
-    self = op.Cast(self, to=FLOAT.dtype)
-    other = op.Cast(other, to=FLOAT.dtype)
-    result = op.Floor(op.Div(self, other))
-    return op.Cast(result, to=dtype)
+    # Convert truncation to flooring
+    # Reference: https://github.com/pytorch/pytorch/blob/ffc645c870f0abd368606ba1e2b3b58cacb03046/torch/_refs/__init__.py#L1401C1-L1409C70
+    # offset = (torch.signbit(a) != torch.signbit(b)).logical_and(torch.fmod(a, b) != 0)
+    # return prims.div(a, b) - _maybe_convert_to_dtype(offset, a.dtype)
+    offset = op.And(
+        op.Not(op.Equal(op.Sign(self), op.Sign(other))),
+        op.Cast(op.Mod(self, other), to=BOOL.dtype),
+    )
+    offset = op.Cast(offset, to=self.dtype)
+    return op.Sub(op.Div(self, other), offset)
 
 
 @torch_op("_operator::floordiv", trace_only=True)
