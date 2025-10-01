@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Callable
 
 import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
