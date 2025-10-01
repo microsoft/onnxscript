@@ -88,6 +88,9 @@ class SDPA(pattern.RewriteRuleClassBase):
         )
 
         attn_weight = op.Softmax(attn_score, axis=-1)
+        is_nan = op.IsNaN(attn_weight)
+        adj_attn_weight = op.Where(is_nan, 0.0, attn_weight)
+        attn_weight = pattern.OrValue([adj_attn_weight, attn_weight])
         attn_output = op.MatMul(attn_weight, value)
         return attn_output
 
