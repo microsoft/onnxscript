@@ -8764,6 +8764,11 @@ def aten_type_as(self: TTensor, other: TTensor2) -> TTensor2:
 def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
     """unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]"""
 
+    if isinstance(self.shape[dim], int):
+        # We can create a definitive split op if the input shape is static
+        outputs = op.Split(self, axis=dim, num_outputs=self.shape[dim])
+        return [op.Squeeze(out, [self.shape[dim]]) for out in outputs]
+
     return op.SplitToSequence(self, axis=dim, keepdims=False)
 
 
