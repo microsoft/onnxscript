@@ -48,7 +48,6 @@ from torch.testing._internal import common_methods_invocations
 from torch.testing._internal.opinfo import definitions as opinfo_definitions
 from typing_extensions import Self
 
-from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib import _flags
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import fft as fft_ops
@@ -1715,7 +1714,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ops.aten.upsample_trilinear3d.default", nn_ops.aten_upsample_trilinear3d),
     TorchLibOpInfo("ops.aten.upsample_trilinear3d.vec", nn_ops.aten_upsample_trilinear3d_vec),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like),
-    TorchLibOpInfo("roll", core_ops.aten_roll, input_wrangler=_roll_input_wrangler),
     TorchLibOpInfo(
         "scatter_reduce",
         core_ops.aten_scatter_reduce,
@@ -1795,6 +1793,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
+ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
