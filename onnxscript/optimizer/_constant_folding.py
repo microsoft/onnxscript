@@ -959,9 +959,9 @@ class FoldConstantsPass(ir.passes.InPlacePass):
     def __init__(
         self,
         *,
-        shape_inference: bool,
-        input_size_limit: int,
-        output_size_limit: int,
+        shape_inference: bool = True,
+        input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
+        output_size_limit: int = DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
         should_fold: Callable[[ir.Node], bool | None] = lambda node: None,
     ) -> None:
         self.shape_inference = shape_inference
