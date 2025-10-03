@@ -77,13 +77,11 @@ def aten__local_scalar_dense(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::_log_softmax", trace_only=True)
-def aten__log_softmax_half(
-    self: Union[FLOAT16, BFLOAT16], dim: int, half_to_float: bool
-) -> FLOAT:
+def aten__log_softmax(self: TFloat, dim: int, half_to_float: bool) -> TFloatHighPrecision:
     """_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
 
     self_is_scalar = len(self.shape) == 0
-    if half_to_float:
+    if half_to_float and self.dtype in {ir.DataType.FLOAT16, ir.DataType.BFLOAT16}:
         self = op.Cast(self, to=FLOAT.dtype)
     if self_is_scalar:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
@@ -93,44 +91,23 @@ def aten__log_softmax_half(
     return result
 
 
-@torch_op("aten::_log_softmax", trace_only=True)
-def aten__log_softmax(
-    self: TFloatHighPrecision,
-    dim: int,
-    half_to_float: bool,
-) -> TFloatHighPrecision:
-    """_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
+@torch_op("aten::_softmax", trace_only=True)
+def aten__softmax(self: TFloat, dim: int, half_to_float: bool) -> TFloatHighPrecision:
+    """_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
 
     self_is_scalar = len(self.shape) == 0
-    if self_is_scalar:
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-    result = op.LogSoftmax(self, axis=dim)
-    if self_is_scalar:
-        result = op.Squeeze(result)
-    return result
 
-
-@torch_op("aten::_softmax", trace_only=True)
-def aten__softmax_half(self: Union[FLOAT16, BFLOAT16], dim: int, half_to_float: bool) -> FLOAT:
-    """_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
-
-    # trace_only because we need to cast conditionally based on half_to_float
-    if half_to_float:
+    if half_to_float and self.dtype in {ir.DataType.FLOAT16, ir.DataType.BFLOAT16}:
         self = op.Cast(self, to=FLOAT.dtype)
 
-    return aten_softmax_no_dtype(self, dim)
+    if self_is_scalar:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    result = op.Softmax(self, axis=dim)
+    if self_is_scalar:
+        # Convert to scalar when input is scalar
+        result = op.Squeeze(result)
 
-
-@torch_op("aten::_softmax", trace_only=True)
-def aten__softmax(
-    self: TFloatHighPrecision, dim: int, half_to_float: bool
-) -> TFloatHighPrecision:
-    """_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
-
-    # trace_only to reuse aten_softmax_no_dtype
-
-    del half_to_float  # Unused
-    return aten_softmax_no_dtype(self, dim)
+    return result
 
 
 @torch_op(("aten::abs", "_operator::abs"), trace_only=True)
@@ -380,7 +357,6 @@ def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     return self
 
 
-@torch_op("aten::all.dims", trace_only=True)
 def _aten_all_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
     """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -499,7 +475,6 @@ def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     return self
 
 
-@torch_op("aten::any.dims", trace_only=True)
 def _aten_any_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
     if len(self.shape) == 0:
         result = op.Cast(self, to=BOOL.dtype)
@@ -739,7 +714,6 @@ def aten_argmax(
     return result
 
 
-@torch_op("aten::argmax", private=True, trace_only=True)
 def _aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -752,7 +726,6 @@ def _aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     return result
 
 
-@torch_op("aten::argmax", private=True, trace_only=True)
 def _aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -780,7 +753,6 @@ def aten_argmin(
     return result
 
 
-@torch_op("aten::argmin", private=True, trace_only=True)
 def _aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -793,7 +765,6 @@ def _aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     return result
 
 
-@torch_op("aten::argmin", private=True, trace_only=True)
 def _aten_argmin_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
