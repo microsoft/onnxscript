@@ -3871,26 +3871,18 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
     ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor", "_operator::ge"),
     trace_only=True,
 )
-def aten_ge(self: TReal, other: TReal) -> BOOL:
+def aten_ge(self: TTensor, other: TTensor) -> BOOL:
     """ge.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    if self.dtype == ir.DataType.BOOL:
+        # self, other, self >= other
+        #    F,    F,    T
+        #    F,    T,    F
+        #    T,    F,    T
+        #    T,    T,    T
+        return op.Or(self, op.Not(other))
 
     return op.GreaterOrEqual(self, other)
-
-
-@torch_op(
-    ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor", "_operator::ge"),
-    trace_only=True,
-)
-def aten_ge_bool(self: BOOL, other: BOOL) -> BOOL:
-    """ge.Tensor(Tensor self, Tensor other) -> Tensor"""
-
-    # self, other, self >= other
-    #    F,    F,    T
-    #    F,    T,    F
-    #    T,    F,    T
-    #    T,    T,    T
-
-    return op.Or(self, op.Not(other))
 
 
 def aten_geqrf(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -4019,7 +4011,7 @@ def aten_gru_cell(
     ("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater.Tensor", "_operator::gt"),
     trace_only=True,
 )
-def aten_gt(self: TReal, other: TReal) -> BOOL:
+def aten_gt(self: TTensor, other: TTensor) -> BOOL:
     """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     if self.dtype == ir.DataType.BOOL:
@@ -4852,26 +4844,20 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
     ("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"),
     trace_only=True,
 )
-def aten_le(self: TReal, other: TReal) -> BOOL:
+def aten_le(self: TTensor, other: TTensor) -> BOOL:
     """le.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    if self.dtype == ir.DataType.BOOL:
+        # self, other, self <= other
+        #    F,    F,    T
+        #    F,    T,    T
+        #    T,    F,    F
+        #    T,    T,    T
+
+        return op.Or(other, op.Not(self))
 
     return op.LessOrEqual(self, other)
 
-
-@torch_op(
-    ("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"),
-    trace_only=True,
-)
-def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
-    """le.Tensor(Tensor self, Tensor other) -> Tensor"""
-
-    # self, other, self <= other
-    #    F,    F,    T
-    #    F,    T,    T
-    #    T,    F,    F
-    #    T,    T,    T
-
-    return op.Or(other, op.Not(self))
 
 
 @torch_op(("aten::lerp.Tensor", "aten::lerp.Scalar"))
@@ -5146,7 +5132,7 @@ def aten_lstm_mps_backward(
     ("aten::lt.Tensor", "aten::lt.Scalar", "aten::less.Tensor", "_operator::lt"),
     trace_only=True,
 )
-def aten_lt(self: TReal, other: TReal) -> BOOL:
+def aten_lt(self: TTensor, other: TTensor) -> BOOL:
     """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     if self.dtype == ir.DataType.BOOL:
