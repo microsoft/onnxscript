@@ -7517,99 +7517,11 @@ def aten_rnn_tanh_cell(
     raise NotImplementedError()
 
 
-@torch_op("aten::roll", trace_only=True)
+# roll is decomposed by PyTorch
 def aten_roll(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) -> TTensor:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
-    self_rank = len(self.shape)
-    if self_rank == 0:
-        return op.Identity(self)
-    elif self.shape[0] == 0:  # empty tensor
-        return op.Identity(self)
-    else:
-        # NOTE: In pytorch, default value of dims is an empty list.
-        if len(dims) == 0:  # Empty sequence
-            # assert isinstance(shifts, int)
-            return _aten_roll_shift_no_dim_onnx(self, shifts)
-        else:
-            # assert len(shifts) == len(dims), but shifts is a tensor, dims is a list
-            result = self
-            for i, shift in enumerate(shifts):
-                dim = dims[i]
-                result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
-            return result
-
-
-@torch_op("aten::roll", trace_only=True, complex=True)
-def aten_roll_complex(
-    self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()
-) -> TTensor:
-    """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
-
-    self_rank = len(self.shape)
-    if self_rank == 1:
-        return op.Identity(self)
-
-    if self.shape[0] == 0:  # empty tensor
-        return op.Identity(self)
-
-    self_real = op.Slice(self, [0], [1], axes=[-1])
-    self_imag = op.Slice(self, [1], [2], axes=[-1])
-    if not dims:
-        # assert isinstance(shifts, int)
-        shift_real = _aten_roll_shift_no_dim_onnx(self_real, shifts)
-        shift_imag = _aten_roll_shift_no_dim_onnx(self_imag, shifts)
-
-        result = op.Concat(shift_real, shift_imag, axis=-1)
-
-    else:
-        # assert len(shifts) == len(dims), but shifts is a tensor, dims is a list
-        for i, dim in enumerate(dims):
-            shift = op.Gather(shifts, i, axis=0)
-            self_real = _aten_roll_shift_and_dim_onnx(self_real, shift, dim)
-            self_imag = _aten_roll_shift_and_dim_onnx(self_imag, shift, dim)
-
-        result = op.Concat(self_real, self_imag, axis=-1)
-    return result
-
-
-@torch_op("aten::roll", private=True)
-def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: INT64) -> TTensor:
-    neg_1 = op.Constant(value_ints=[-1])
-    # flatten the self tensor: from [[A,B],[C,D]] to [A,B,C,D]
-    self_flatten = op.Reshape(self, neg_1)
-    # Compute slice length
-    shift_tensor = op.Reshape(shift, neg_1)
-    if shift_tensor < 0:
-        # For [A,B,C,D], if shift is -1, slice_length = -(-1) = 1, means move [A] to the end
-        slice_length = -shift_tensor
-    else:
-        # For [A,B,C,D], if shift is 1, slice_length = 4 - 1 = 3, means move [A,B,C] to the end
-        # The effect equals to move [D] to the beginning
-        slice_length = op.Size(self_flatten) - shift_tensor
-    # Get second part of the tensor, e.g. [A,B,C]
-    suffix = op.Slice(self_flatten, op.Constant(value_ints=[0]), slice_length)
-    # Get first part of the tensor, e.g. [D]
-    prefix = op.Slice(self_flatten, slice_length, op.Reshape(op.Size(self_flatten), neg_1))
-    # Concat first+second together, e.g. [D,A,B,C]
-    result = op.Concat(prefix, suffix, axis=0)
-    return op.Reshape(result, op.Shape(self))
-
-
-@torch_op("aten::roll", private=True)
-def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: INT64, dim: int) -> TTensor:
-    neg_1 = op.Constant(value_ints=[-1])
-    dim_tensor = op.Reshape(op.Constant(value_int=dim), neg_1)
-    shift_tensor = op.Reshape(shift, neg_1)
-    if shift_tensor < 0:
-        slice_length = -shift_tensor
-    else:
-        slice_length = op.Gather(op.Shape(self), dim_tensor, axis=0) - shift_tensor
-    # from [A,B,C,D] -> [D,A,B,C], [D] is prefix, [A,B,C] is suffix
-    suffix = op.Slice(self, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
-    prefix = op.Slice(self, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
-    result = op.Concat(prefix, suffix, axis=dim)
-    return result
+    raise NotImplementedError()
 
 
 def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> TensorType:
@@ -7683,7 +7595,7 @@ def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 @torch_op("aten::scalar_tensor", trace_only=True)
 def aten_scalar_tensor(
-    s: float,
+    s,
     dtype: int = FLOAT.dtype,
     layout: str = "",
     device: str = "",
@@ -7692,8 +7604,7 @@ def aten_scalar_tensor(
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
     if dtype == -1:
         dtype = FLOAT.dtype
-    # Set trace_only=True because different if branches return different dtypes
-    # which is not supported in an ONNX function
+
     return common_ops.cast_to(s, dtype=dtype)
 
 
@@ -7722,18 +7633,7 @@ def aten_scalar_tensor_complex(
     return result
 
 
-@torch_op("aten::scalar_tensor", trace_only=True)
-def aten_scalar_tensor_sym_number(
-    s: TensorType,
-    dtype: int = FLOAT.dtype,
-    layout: str = "",
-    device: str = "",
-    pin_memory: bool = False,
-) -> RealType:
-    """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-    if dtype == -1:
-        dtype = FLOAT.dtype
-    return common_ops.cast_to(s, dtype=dtype)
+
 
 
 @torch_op(("aten::scatter.value", "aten::scatter.src"), trace_only=True)
@@ -8105,23 +8005,8 @@ def aten_softmax(self: TFloat, dim: int, dtype: int = -1) -> TFloat:
     if self_is_scalar:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.Softmax(self, axis=dim)
-    if dtype != -1:
+    if dtype != -1 and dtype is not None:
         result = op.Cast(result, to=dtype)
-    if self_is_scalar:
-        # Convert to scalar when input is scalar
-        result = op.Squeeze(result)
-
-    return result
-
-
-@torch_op(("aten::softmax.int", "aten::special_softmax"), trace_only=True)
-def aten_softmax_no_dtype(self: TFloat, dim: int) -> TFloat:
-    """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
-
-    self_is_scalar = len(self.shape) == 0
-    if self_is_scalar:
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-    result = op.Softmax(self, axis=dim)
     if self_is_scalar:
         # Convert to scalar when input is scalar
         result = op.Squeeze(result)
