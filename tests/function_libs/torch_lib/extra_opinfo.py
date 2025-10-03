@@ -87,6 +87,35 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
 
 
+def sample_inputs_broadcast_in_dim(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    # cases: (input_shape, target_shape, broadcast_dimensions)
+    # broadcast_dimensions maps each input dim to an axis in target_shape
+    cases = (
+        # scalar -> 1-D tensor
+        ((), (3,), ()),
+        # identity (no-op broadcast)
+        ((3,), (3,), (0,)),
+        # rank-preserving broadcast where singleton dims expand
+        ((1, 3, 1), (2, 3, 4), (0, 1, 2)),
+        # input rank 2 -> output rank 3, input dims map to trailing axes
+        ((3, 1), (2, 3, 4), (1, 2)),
+        # add leading broadcast axis
+        ((3, 4), (1, 3, 4), (1, 2)),
+        # insert broadcasting in middle axis
+        ((3,), (2, 3, 1), (1,)),
+    )
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    for shape, target_shape, broadcast_dimensions in cases:
+        tensor = make_arg(shape)
+        yield opinfo_core.SampleInput(tensor, args=(target_shape, broadcast_dimensions))
+
+
 def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     # input_shape, output_size, kernal, dilation, padding, stride
@@ -2241,17 +2270,8 @@ OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.BinaryUfuncInfo(
         "ops.aten.floor_divide",
         aten_name="floor_divide",
-        dtypes=common_dtype.floating_types_and_half(),
+        dtypes=common_dtype.all_types_and_half(),
         rhs_make_tensor_kwargs=dict(exclude_zero=True),
-    ),
-    opinfo_core.BinaryUfuncInfo(
-        "ops.aten.floor_divide.int",
-        aten_name="floor_divide",
-        op=torch.ops.aten.floor_divide,
-        dtypes=common_dtype.integral_types(),
-        # Create only positive inputs
-        lhs_make_tensor_kwargs=dict(low=0),
-        rhs_make_tensor_kwargs=dict(exclude_zero=True, low=0),
     ),
     opinfo_core.OpInfo(
         "ops.aten.hamming_window",
@@ -2685,6 +2705,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="upsample_trilinear3d.vec",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_trilinear3d_vec,
+        supports_out=False,
+    ),
+    opinfo_core.ReductionOpInfo(
+        "ops.prims.broadcast_in_dim.default",
+        op=torch.ops.prims.broadcast_in_dim.default,
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_broadcast_in_dim,
         supports_out=False,
     ),
     opinfo_core.ReductionOpInfo(

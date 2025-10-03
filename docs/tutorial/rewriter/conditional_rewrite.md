@@ -50,3 +50,54 @@ With all the necessary components in place, the pattern rewrite rule with the `m
 The final graph with the applied rewrite looks as follows:
 
 ![broadcast_rewrite](examples/img/broadcast_02.png){align=center}
+
+# Using MatchContext for Advanced Condition Checking
+
+The `context` parameter passed to condition functions is an instance of {py:class}`onnxscript.rewriter.MatchContext`, which provides access to additional information about the pattern match that can be useful for sophisticated condition checking.
+
+## MatchContext Properties
+
+The MatchContext provides the following read-only properties:
+
+- `model`: The entire ONNX model being matched
+- `graph_or_function`: The specific graph or function being matched
+- `root`: The root node of the matching subgraph
+- `output_values`: The output values of the matching subgraph
+- `nodes`: All nodes that are part of the matching subgraph
+
+## Example Usage
+
+Here's an example showing how to use the MatchContext to implement more sophisticated condition checking:
+
+```python
+def advanced_condition_check(context, x, y, **_):
+    """Example condition function using MatchContext."""
+
+    # Access the main node of the pattern match
+    main_node = context.root
+
+    # Check that the main_node does not have an attribute called "alpha"
+    if "alpha" in main_node.attributes:
+        return False
+
+    # Access the broader graph context and check that x occurs as a graph-input
+    model = context.model
+    if x not in model.graph.inputs:
+        return False
+
+    # You can inspect the matched nodes for advanced validation
+    for node in context.nodes:
+        if node.op_type == "Constant":
+            # Check properties of constant nodes in the match
+            pass
+
+    # Access output values for shape/type validation
+    outputs = context.output_values
+    if len(outputs) > 0 and outputs[0].shape is not None:
+        # Validate output shapes
+        pass
+
+    return True
+```
+
+This context information enables condition functions to make decisions based on the broader graph structure, the specific nodes involved in the match, and relationships between matched patterns and the rest of the model.

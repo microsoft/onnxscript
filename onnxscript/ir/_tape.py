@@ -17,7 +17,17 @@ UsedOpsets = set[tuple[str, Optional[int]]]
 
 
 class Builder(tape.Tape):
-    """An extension of the tape that provides a more convenient API for constructing the IR."""
+    """An extension of the tape that provides a more convenient API for constructing the IR.
+
+    Example:
+        >>> from onnxscript import ir
+        >>> from onnxscript.ir import _tape
+        >>> op = _tape.Builder()
+        >>> input = ir.Value(name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((1, 2)))
+        >>> relu_val = op.Relu(input, _name="relu_node", _domain="", _version=18, _outputs=["relu_out"])
+
+    Note: When passing `_name`, ensure it is unique to avoid duplicate node names.
+    """
 
     def __getattr__(self, op_type: str) -> Any:
         return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
@@ -26,6 +36,8 @@ class Builder(tape.Tape):
         domain = kwargs.pop("_domain", "")
         version = kwargs.pop("_version", None)
         outputs = kwargs.pop("_outputs", 1)
+        name = kwargs.pop("_name", None)
+
         if isinstance(outputs, Sequence):
             num_outputs = len(outputs)
         else:
@@ -34,7 +46,12 @@ class Builder(tape.Tape):
 
         if num_outputs == 1:
             value = super().op(
-                op_type, inputs=inputs, attributes=kwargs, domain=domain, version=version
+                op_type,
+                inputs=inputs,
+                attributes=kwargs,
+                domain=domain,
+                version=version,
+                name=name,
             )
             if isinstance(outputs, Sequence):
                 value.name = outputs[0]
@@ -45,6 +62,7 @@ class Builder(tape.Tape):
             attributes=kwargs,
             domain=domain,
             version=version,
+            name=name,
             num_outputs=num_outputs,
         )
         if isinstance(outputs, Sequence):

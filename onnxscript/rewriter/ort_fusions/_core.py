@@ -8,7 +8,7 @@ import onnx_ir.passes.common as common_passes
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.optimizer import optimize
-from onnxscript.rewriter import gemm_to_matmul_add, rewrite
+from onnxscript.rewriter import rewrite
 from onnxscript.rewriter.ort_fusions import (
     instance_to_group_normalization,
     softmax,
@@ -17,11 +17,12 @@ from onnxscript.rewriter.ort_fusions.attention import fuse_attention
 from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
 from onnxscript.rewriter.ort_fusions.erfgelu import fuse_erfgelu
-from onnxscript.rewriter.ort_fusions.fuse_mha_bias import fuse_mha_bias
-from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_gqa import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
+from onnxscript.rewriter.ort_fusions.gqa_packed_qkv import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.mha import fuse_mha1, fuse_mha2
+from onnxscript.rewriter.ort_fusions.mha_bias import fuse_mha_bias
+from onnxscript.rewriter.ort_fusions.mha_scale import fuse_mha_scale
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
@@ -32,6 +33,7 @@ from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
     fuse_skip_rms_normalization,
 )
+from onnxscript.rewriter.rules.common import _gemm_to_matmul_add
 
 ORT_PATTERN_REWRITE_RULES = [
     *softmax.rules.rules,
@@ -82,6 +84,7 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     fusion_count["skip_rms_normalization"] = fuse(fuse_skip_rms_normalization)
     fusion_count["rotary_embedding"] = fuse(fuse_rotary_embedding)
     fusion_count["cos_sin_cache"] = fuse(fuse_cos_sin_cache)
+    common_passes.CommonSubexpressionEliminationPass()(model)
     fusion_count["partial_rotary_embedding"] = fuse(fuse_partial_rotary_embedding)
 
     # We apply shape inference after the SDPA fusion as new nodes are added
@@ -90,9 +93,9 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
 
     fusion_count["gqa"] = fuse(fuse_gqa)
     fusion_count["packed_qkv_for_gqa"] = fuse(fuse_qkv_gqa)
-
     fusion_count["mha1"] = fuse(fuse_mha1)
     fusion_count["mha2"] = fuse(fuse_mha2)
+    fusion_count["mha_scale"] = fuse(fuse_mha_scale)
     if (fusion_count["mha1"] == 0) and (fusion_count["mha2"] == 0):
         fusion_count["mha_bias"] = 0
         fusion_count["attention"] = 0
@@ -131,11 +134,24 @@ def optimize_for_ort(
         - The optimized `ir.Model` after applying transformer-specific fusions.
         - A dictionary with a count of each of the fusions applied.
     """
-    rewrite(model, [gemm_to_matmul_add.rule])
+    rewrite(model, [_gemm_to_matmul_add.gemm_to_matmul_add_rule])
     model, fusion_count = fuse_xformers(
         model,
         debug=debug,
     )
     # Apply the ORT pattern rewrite rules.
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
+
+    passes = ir.passes.Sequential(
+        # Apply the ORT optimization passes.
+        # https://github.com/microsoft/onnxruntime/blob/74dcf7e296639095dfa55d31336998b6f719ed76/onnxruntime/python/tools/transformers/dynamo_onnx_helper.py#L172
+        common_passes.ClearMetadataAndDocStringPass(),
+        # https://github.com/microsoft/onnxruntime/blob/74dcf7e296639095dfa55d31336998b6f719ed76/onnxruntime/python/tools/transformers/dynamo_onnx_helper.py#L139
+        common_passes.LiftConstantsToInitializersPass(lift_all_constants=False, size_limit=1),
+        common_passes.RemoveInitializersFromInputsPass(),
+        common_passes.ShapeInferencePass(),
+    )
+    assert passes.in_place
+    result = passes(model)
+    assert result.model is model
     return model, fusion_count

@@ -40,8 +40,8 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
             skip_sum,
             gamma,
             axis=-1,
-            epsilon=epsilon,
-            stash_type=stash_type,
+            _allow_other_attributes=True,
+            _outputs=["simplified_layer_norm"],
         )
         return normalized, skip_sum
 
@@ -52,8 +52,7 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         skip,
         gamma,
         bias,
-        epsilon,
-        stash_type,
+        simplified_layer_norm,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SkipSimplifiedLayerNormalization op."""
@@ -61,7 +60,7 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _fusion_utils._check_shape(bindings, val, dims)
+            return not _fusion_utils.check_shape_bool(bindings, val, dims)
 
         if no_match(input, ["B", "S", "D"]):
             return check_result.fail(
@@ -85,6 +84,10 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
                     bias,
                 )
 
+        stash_type = simplified_layer_norm.producer().attributes.get_int("stash_type", 1)
+        if stash_type != 1:
+            return check_result.fail("Stash type is not supported.")
+
         return check_result
 
     def rewrite(
@@ -94,10 +97,11 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         skip,
         gamma,
         bias,
-        epsilon,
-        stash_type,
+        simplified_layer_norm,
         **_,
     ):
+        epsilon = simplified_layer_norm.producer().attributes.get_float("epsilon", 1e-5)
+
         if self._has_bias:
             normalized, _mean, _inv_std_var, skip_sum = op.SkipSimplifiedLayerNormalization(
                 input,
@@ -142,7 +146,7 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         self._has_bias = has_bias
         self._bias_pre_add = bias_pre_add
 
-    def pattern(self, op, input, skip, gamma, beta, bias, epsilon, stash_type):
+    def pattern(self, op, input, skip, gamma, beta, bias):
         if self._has_bias and self._bias_pre_add:
             input = op.Add(input, bias)
 
@@ -153,13 +157,14 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
 
         if self._has_bias and not self._bias_pre_add:
             skip_sum = op.Add(skip_sum, bias)
+
         normalized = op.LayerNormalization(
             skip_sum,
             gamma,
             beta,
             axis=-1,
-            epsilon=epsilon,
-            stash_type=stash_type,
+            _allow_other_attributes=True,
+            _outputs=["layer_norm"],
         )
         return normalized, skip_sum
 
@@ -171,8 +176,7 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         gamma,
         beta,
         bias,
-        epsilon,
-        stash_type,
+        layer_norm,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SimplifiedLayerNormalization op."""
@@ -180,7 +184,7 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _fusion_utils._check_shape(bindings, val, dims)
+            return not _fusion_utils.check_shape_bool(bindings, val, dims)
 
         if no_match(input, ["B", "S", "D"]):
             return check_result.fail(
@@ -209,6 +213,9 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
                     bias,
                 )
 
+        stash_type = layer_norm.producer().attributes.get_int("stash_type", 1)
+        if stash_type != 1:
+            return check_result.fail("Stash type is not supported.")
         return check_result
 
     def rewrite(
@@ -219,10 +226,11 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         gamma,
         beta,
         bias,
-        epsilon,
-        stash_type,
+        layer_norm,
         **_,
     ):
+        epsilon = layer_norm.producer().attributes.get_float("epsilon", 1e-5)
+
         normalized, _mean, _inv_std_var, skip_sum = op.SkipLayerNormalization(
             input,
             skip,
@@ -245,9 +253,12 @@ _skip_layer_pre_add_bias_rule = SkipLayerNormFusion.rule(
 _skip_layer_rule = SkipLayerNormFusion.rule("SkipLayerNorm", has_bias=False)
 
 skip_layer_normalization_ruleset = pattern.RewriteRuleSet(
-    [_skip_layer_pre_add_bias_rule, _skip_layer_add_bias_rule, _skip_layer_rule]
+    [
+        _skip_layer_pre_add_bias_rule,
+        _skip_layer_add_bias_rule,
+        _skip_layer_rule,
+    ]
 )
-
 
 fuse_skip_layer_normalization = _fusion_utils.apply_fusion_rules(
     skip_layer_normalization_ruleset
