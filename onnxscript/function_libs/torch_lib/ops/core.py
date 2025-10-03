@@ -18,21 +18,16 @@ import numpy as np
 import torch
 
 from onnxscript import (
-    BFLOAT16,
     BOOL,
     COMPLEX64,
     COMPLEX128,
     DOUBLE,
     FLOAT,
-    FLOAT16,
     INT8,
     INT16,
     INT32,
     INT64,
     UINT8,
-    UINT16,
-    UINT32,
-    UINT64,
     graph,
     ir,
 )
@@ -1301,7 +1296,8 @@ def aten_bitwise_or(self: TTensor, other: TTensor) -> TTensor:
         "aten::bitwise_right_shift.Scalar_Tensor",
         "_operator::__rshift__",
         "aten::__rshift__.Scalar",
-    )
+    ),
+    trace_only=True,
 )
 def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -5089,7 +5085,7 @@ def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, I
     return result, indices
 
 
-@torch_op("aten::maximum")
+@torch_op("aten::maximum", trace_only=True)
 def aten_maximum(self: TTensor, other: TTensor) -> TTensor:
     """maximum(Tensor self, Tensor other) -> Tensor"""
 
@@ -5131,7 +5127,7 @@ def aten_meshgrid(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::min")
+@torch_op("aten::min", trace_only=True)
 def aten_min(self: TReal) -> TReal:
     """min(Tensor self) -> Tensor"""
 
