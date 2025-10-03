@@ -5073,27 +5073,21 @@ def aten_logical_xor(self: TTensor, other: TTensor) -> BOOL:
     return op.Xor(op.Cast(self, to=BOOL.dtype), op.Cast(other, to=BOOL.dtype))
 
 
-@torch_op("aten::logit", private=True)
-def _aten_logit_onnx(self: TFloat) -> TFloat:
-    return op.Log(op.Div(self, op.Sub(1.0, self)))
-
-
-@torch_op("aten::logit", private=True)
-def _aten_logit_clamp_onnx(self: TFloat, eps: float) -> TFloat:
-    eps = op.CastLike(eps, self)
-    one = op.CastLike(1.0, self)
-    temporary_self = op.Where(self <= one - eps, self, one - eps)
-    z = op.Where(temporary_self < eps, eps, temporary_self)
-
-    return op.Log(op.Div(z, op.Sub(one, z)))
-
-
 @torch_op("aten::logit", trace_only=True)
 def aten_logit(self: TFloat, eps: Optional[float] = None) -> TFloat:
     """logit(Tensor self, float? eps=None) -> Tensor"""
+    one = ir.tensor(1, dtype=self.dtype)
+
     if eps is None:
-        return _aten_logit_onnx(self)
-    return _aten_logit_clamp_onnx(self, eps)
+        return op.Log(op.Div(self, op.Sub(one, self)))
+
+    one_minus_eps = ir.tensor(1 - eps, dtype=self.dtype)
+    eps = ir.tensor(eps, dtype=self.dtype)
+
+    temporary_self = op.Where(self <= one_minus_eps, self, one_minus_eps)
+    z = op.Where(temporary_self < eps, eps, temporary_self)
+
+    return op.Log(op.Div(z, op.Sub(one, z)))
 
 
 def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> TensorType:
