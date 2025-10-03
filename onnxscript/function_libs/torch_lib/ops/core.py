@@ -6516,16 +6516,7 @@ def aten_norm_except_dim(v: TensorType, pow: int = 2, dim: int = 0) -> TensorTyp
     raise NotImplementedError()
 
 
-@torch_op(
-    (
-        "aten::normal.Tensor_float",
-        "aten::normal.Tensor_Tensor",
-        "aten::normal.float_Tensor",
-        "aten::normal.float_float",
-        "aten::normal_functional",
-    ),
-    trace_only=True,
-)
+@torch_op("aten::normal_functional", trace_only=True)
 def aten_normal(
     self: TTensor,
     mean: float = 0.0,
@@ -6554,7 +6545,7 @@ def aten_normal_float_float(
     return op.Cast(result, to=dtype)
 
 
-@torch_op("aten::normal.float_Tensor")
+@torch_op("aten::normal.float_Tensor", trace_only=True)
 def aten_normal_float_tensor(mean: FLOAT, std: TFloat) -> TFloat:
     """normal.float_Tensor(float mean, Tensor std, *, Generator? generator=None) -> Tensor"""
 
@@ -6564,7 +6555,7 @@ def aten_normal_float_tensor(mean: FLOAT, std: TFloat) -> TFloat:
     return op.Add(op.Mul(std, sampled), mean_casted)
 
 
-@torch_op("aten::normal.Tensor_float")
+@torch_op("aten::normal.Tensor_float", trace_only=True)
 def aten_normal_tensor_float(mean: TFloat, std: FLOAT) -> TFloat:
     """normal.Tensor_float(Tensor mean, float std=1, *, Generator? generator=None) -> Tensor"""
 
@@ -6573,7 +6564,7 @@ def aten_normal_tensor_float(mean: TFloat, std: FLOAT) -> TFloat:
     return op.Add(op.Mul(op.CastLike(std, sampled), sampled), mean)
 
 
-@torch_op("aten::normal.Tensor_Tensor")
+@torch_op("aten::normal.Tensor_Tensor", trace_only=True)
 def aten_normal_tensor_tensor(mean: TFloat, std: TFloat) -> TFloat:
     """normal.Tensor_Tensor(Tensor mean, Tensor std, *, Generator? generator=None) -> Tensor"""
 
@@ -7281,9 +7272,14 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"), trace_only=True)
-def aten_remainder(self: TFloat, other: TFloat) -> TFloat:
+@torch_op(
+    ("aten::remainder.Tensor", "aten::remainder.Scalar", "_operator::mod"), trace_only=True
+)
+def aten_remainder(self: TTensor, other: TTensor) -> TTensor:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    if self.dtype.is_integer():
+        return op.Mod(self, other)
 
     # TODO(justinchuby): Improve fp16 precision by following the logic in
     # https://github.com/pytorch/pytorch/blob/3a823e46170778cc32783f27596c77d0103084a9/aten/src/ATen/native/cpu/BinaryOpsKernel.cpp#L264-L277
@@ -7292,15 +7288,6 @@ def aten_remainder(self: TFloat, other: TFloat) -> TFloat:
     rounded_quotient = op.Floor(op.Div(self, other))
 
     return op.Sub(self, op.Mul(rounded_quotient, other))
-
-
-@torch_op(
-    ("aten::remainder.Tensor", "aten::remainder.Scalar", "_operator::mod"), trace_only=True
-)
-def aten_remainder_int(self: TInt, other: TInt) -> TInt:
-    """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
-
-    return op.Mod(self, other)
 
 
 def aten_rename(self: TensorType, names: Optional[str]) -> TensorType:
@@ -7631,9 +7618,6 @@ def aten_scalar_tensor_complex(
         # It's potentially a bug if it comes here with no-op.
         result = s
     return result
-
-
-
 
 
 @torch_op(("aten::scatter.value", "aten::scatter.src"), trace_only=True)
