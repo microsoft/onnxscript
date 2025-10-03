@@ -12,7 +12,6 @@ nox.options.error_on_missing_interpreters = False
 
 
 COMMON_TEST_DEPENDENCIES = (
-    "beartype==0.17.2",
     "expecttest==0.1.6",
     "hypothesis",
     "numpy",

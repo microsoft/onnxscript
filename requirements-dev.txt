@@ -17,9 +17,6 @@ sphinx>=6
 myst_nb
 chardet
 
-# Torch lib
-beartype!=0.16.0
-
 # Testing
 expecttest==0.1.6
 hypothesis
