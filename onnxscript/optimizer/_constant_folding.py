@@ -935,6 +935,8 @@ def _record_contributing_values(original_node: ir.Node, replacement: Replacement
         assert input.name is not None
         folded_from.add(input.name)
 
+
+
     for new_output in replacement.new_outputs:
         if new_output is None:
             continue
@@ -1238,7 +1240,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     self.output_size_limit,
                 )
                 return None
-
+            assert new_initializer.const_value is not None
             replacement_values.append(new_initializer)
 
         for value in replacement_values:
