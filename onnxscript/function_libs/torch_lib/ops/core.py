@@ -4022,22 +4022,16 @@ def aten_gru_cell(
 def aten_gt(self: TReal, other: TReal) -> BOOL:
     """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
+    if self.dtype == ir.DataType.BOOL:
+        # self, other, self > other
+        #    F,    F,    F
+        #    F,    T,    F
+        #    T,    F,    T
+        #    T,    T,    F
+
+        return op.And(self, op.Not(other))
+
     return op.Greater(self, other)
-
-
-@torch_op(
-    ("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater.Tensor", "_operator::gt"),
-    trace_only=True,
-)
-def aten_gt_bool(self: BOOL, other: BOOL) -> BOOL:
-    """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
-    # self, other, self > other
-    #    F,    F,    F
-    #    F,    T,    F
-    #    T,    F,    T
-    #    T,    T,    F
-
-    return op.And(self, op.Not(other))
 
 
 @torch_op("aten::hamming_window", trace_only=True)
@@ -5161,23 +5155,15 @@ def aten_lstm_mps_backward(
 def aten_lt(self: TReal, other: TReal) -> BOOL:
     """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
+    if self.dtype == ir.DataType.BOOL:
+        # self, other, self < other
+        #    F,    F,    F
+        #    F,    T,    T
+        #    T,    F,    F
+        #    T,    T,    F
+        return op.And(other, op.Not(self))
+
     return op.Less(self, other)
-
-
-@torch_op(
-    ("aten::lt.Tensor", "aten::lt.Scalar", "aten::less.Tensor", "_operator::lt"),
-    trace_only=True,
-)
-def aten_lt_bool(self: BOOL, other: BOOL) -> BOOL:
-    """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
-
-    # self, other, self < other
-    #    F,    F,    F
-    #    F,    T,    T
-    #    T,    F,    F
-    #    T,    T,    F
-
-    return op.And(other, op.Not(self))
 
 
 def aten_lu_solve(self: TensorType, LU_data: TensorType, LU_pivots: TensorType) -> TensorType:
@@ -5352,17 +5338,13 @@ def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, I
 
 
 @torch_op("aten::maximum")
-def aten_maximum(self: TReal, other: TReal) -> TReal:
+def aten_maximum(self: TTensor, other: TTensor) -> TTensor:
     """maximum(Tensor self, Tensor other) -> Tensor"""
+
+    if self.dtype == ir.DataType.BOOL:
+        return op.Or(self, other)
 
     return op.Max(self, other)
-
-
-@torch_op("aten::maximum")
-def aten_maximum_bool(self: BOOL, other: BOOL) -> BOOL:
-    """maximum(Tensor self, Tensor other) -> Tensor"""
-
-    return op.Or(self, other)
 
 
 @torch_op("aten::mean")
@@ -5418,18 +5400,14 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
     return result, indices
 
 
-@torch_op("aten::minimum")
-def aten_minimum(self: TReal, other: TReal) -> TReal:
+@torch_op("aten::minimum", trace_only=True)
+def aten_minimum(self: TTensor, other: TTensor) -> TTensor:
     """minimum(Tensor self, Tensor other) -> Tensor"""
+
+    if self.dtype == ir.DataType.BOOL:
+        return op.And(self, other)
 
     return op.Min(self, other)
-
-
-@torch_op("aten::minimum")
-def aten_minimum_bool(self: BOOL, other: BOOL) -> BOOL:
-    """minimum(Tensor self, Tensor other) -> Tensor"""
-
-    return op.And(self, other)
 
 
 def aten_miopen_batch_norm(
@@ -5772,23 +5750,13 @@ def aten_msort(self: TensorType) -> TensorType:
     ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
     trace_only=True,
 )
-def aten_mul(self: TReal, other: TReal) -> TReal:
+def aten_mul(self: TTensor, other: TTensor) -> TTensor:
     """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
 
+    if self.dtype == ir.DataType.BOOL:
+        return op.And(self, other)
+
     return op.Mul(self, other)
-
-
-@torch_op(
-    ("aten::mul", "aten::mul.Tensor", "aten::multiply.Tensor"),
-    trace_only=True,
-)
-def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
-    """ONNX Mul doesn't support Boolean, so use And as an equivalent operator."""
-
-    # TODO(justinchuby): Handle cases where type reconcilation is not enough,
-    # since different ONNX operators are used based on different data types.
-
-    return op.And(self, other)
 
 
 @torch_op(
@@ -6030,7 +5998,6 @@ def aten_native_batch_norm(
     return norm, input_mean, input_rstd
 
 
-@torch_op("aten::native_batch_norm", private=True)
 def _aten_native_batch_norm_training_onnx(
     input: TFloat,
     weight: TFloat,
@@ -6082,7 +6049,6 @@ def _aten_native_batch_norm_training_onnx(
     return norm, mean, rstd, running_mean, new_running_var
 
 
-@torch_op("aten::native_batch_norm", private=True)
 def _aten_native_batch_norm_inference_onnx(
     input: TFloat,
     weight: TFloat,
@@ -6252,22 +6218,10 @@ def aten_native_group_norm(
     if bias is None:  # Set to 0.0 as default, the shape is Channel size
         bias = op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2))
 
-    # Accoding to Torch, return rstd instead of var
-    norm, mean, rstd = _aten_native_group_norm_onnx(input, weight, bias, group, eps)
-    return norm, mean, rstd
-
-
-@torch_op("aten::native_group_norm", private=True)
-def _aten_native_group_norm_onnx(
-    input: TFloat,
-    weight: TFloat,
-    bias: TFloat,
-    group: INT64,
-    eps: float,
-) -> Tuple[TFloat, TFloat, TFloat]:
     # Because onnx.GroupNorm() need size=group for weight and bias
     # But the torch's aten function's input need size=channel, the size mismatched
     # So we have to use onnx.InstanceNorm() to simulate
+    # This implementation should be simplified after opset 21
     neg_1 = op.Constant(value_ints=[-1])
     # Create weight_instance_norm and bias_instance_norm, copied from Torch ONNX converter
     group_tensor = op.Reshape(group, neg_1)
