@@ -1150,21 +1150,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "split_with_sizes",
-        core_ops.aten_split_with_sizes,
-    ).xfail(
-        dtypes=(torch.bool,),
-        reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
+        core_ops.aten_split_with_sizes
     ),
-    TorchLibOpInfo("split", core_ops.aten_split)
-    .xfail(
-        dtypes=(torch.bool,),
-        reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
-    )
-    .xfail(
-        variant_name="list_args",
-        dtypes=(torch.bool,),
-        reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
-    ),
+    TorchLibOpInfo("split", core_ops.aten_split),
     TorchLibOpInfo("sqrt", core_ops.aten_sqrt),
     TorchLibOpInfo("squeeze_dim", core_ops.aten_squeeze_dim)
     .skip(
@@ -1230,10 +1218,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT does not have an implementation of Trilu for int32.",
     ),
     TorchLibOpInfo("trunc", core_ops.aten_trunc),
-    TorchLibOpInfo("unbind", core_ops.aten_unbind).xfail(
-        dtypes=(torch.bool,),
-        reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
-    ),
+    TorchLibOpInfo("unbind", core_ops.aten_unbind),
     TorchLibOpInfo("unflatten", core_ops.aten_unflatten),
     TorchLibOpInfo("unfold", core_ops.aten_unfold),
     TorchLibOpInfo("ops.aten.unfold", core_ops.aten_unfold),

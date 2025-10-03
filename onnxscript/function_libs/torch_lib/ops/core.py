@@ -1316,7 +1316,7 @@ def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     elif self.dtype.bitwidth == 64:
         unsigned_dtype = ir.DataType.UINT64
         signed_dtype = ir.DataType.INT64
-        mask = ir.tensor(-1, dtype=unsigned_dtype)  # 0xFFFFFFFFFFFFFFFF
+        mask = ir.tensor(0xFFFFFFFFFFFFFFFF, dtype=unsigned_dtype)  # 0xFFFFFFFFFFFFFFFF
     else:
         raise NotImplementedError(f"Not implemented for type {self.dtype}")
 
