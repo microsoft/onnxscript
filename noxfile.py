@@ -29,7 +29,7 @@ COMMON_TEST_DEPENDENCIES = (
     "typing_extensions>=4.10",
     "ml-dtypes",
 )
-ONNX = "onnx==1.18"
+ONNX = "onnx==1.17"
 ONNX_RUNTIME = "onnxruntime==1.23.0"
 PYTORCH = "torch==2.6.0"
 TORCHVISON = "torchvision==0.21.0"
