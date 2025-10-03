@@ -1148,10 +1148,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: Tensor-likes are not close. Tests pass for float32.",
     ),
-    TorchLibOpInfo(
-        "split_with_sizes",
-        core_ops.aten_split_with_sizes
-    ),
+    TorchLibOpInfo("split_with_sizes", core_ops.aten_split_with_sizes),
     TorchLibOpInfo("split", core_ops.aten_split),
     TorchLibOpInfo("sqrt", core_ops.aten_sqrt),
     TorchLibOpInfo("squeeze_dim", core_ops.aten_squeeze_dim)
