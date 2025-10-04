@@ -7284,7 +7284,7 @@ def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 @torch_op("aten::scalar_tensor", trace_only=True)
 def aten_scalar_tensor(
-    s,
+    s: float,
     dtype: int = FLOAT.dtype,
     layout: str = "",
     device: str = "",
