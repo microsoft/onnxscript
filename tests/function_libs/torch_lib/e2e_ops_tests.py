@@ -225,6 +225,21 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_roll(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                x = torch.roll(x, 1)
+                x = torch.roll(x, 1, 0)
+                x = torch.roll(x, -1, 0)
+                x = torch.roll(x, shifts=(2, 1), dims=(0, 1))
+                return x
+
+        model = Model()
+        x = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8]).view(4, 2)
+
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True)
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
