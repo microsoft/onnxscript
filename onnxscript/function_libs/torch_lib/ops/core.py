@@ -4383,7 +4383,7 @@ def aten_index_put(
     See implementation of `torch.onnx.symbolic_opset11.index_put
     <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
     """
-    if any(
+    if len(indices) > 1 and any(
         isinstance(indice, torch.onnx._internal.exporter._tensors.SymbolicTensor)
         for indice in indices
     ):
