@@ -225,6 +225,49 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_index_put_dynamic(self):
+        for dimension in [3, 4, 2]:
+            with self.subTest(dimension=dimension):
+
+                class Model(torch.nn.Module):
+                    def __init__(self, dimension):
+                        super().__init__()
+                        self.params = torch.zeros(
+                            (4, 5)
+                            if dimension == 2
+                            else ((2, 4, 5) if dimension == 3 else (1, 1, 4, 5))
+                        )
+                        self.dimension = dimension
+
+                    def forward(self, update, index1, index2):
+                        copy = self.params.clone()
+                        if self.dimension == 2:
+                            copy[index1, index2] = update
+                        elif self.dimension == 3:
+                            copy[:, index1, index2] = update
+                        else:
+                            copy[:, :, index1, index2] = update
+                        return copy
+
+                update = (torch.arange(2) + 10).reshape((2,)).to(torch.float32)
+                index1 = torch.tensor([1, 2], dtype=torch.int64)
+                index2 = torch.tensor([3, 4], dtype=torch.int64)
+                feeds = dict(zip(["update", "index1", "index2"], (update, index1, index2)))
+                onnx_program = torch.onnx.export(
+                    Model(dimension),
+                    tuple(feeds.values()),
+                    input_names=["update", "index1", "index2"],
+                    output_names=["output"],
+                    opset_version=18,
+                    dynamo=True,
+                    dynamic_shapes={
+                        "update": {0: "dn"},
+                        "index1": {0: "dn"},
+                        "index2": {0: "dn"},
+                    },
+                )
+                _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4383,6 +4383,11 @@ def aten_index_put(
     See implementation of `torch.onnx.symbolic_opset11.index_put
     <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
     """
+    if any(
+        isinstance(indice, torch.onnx._internal.exporter._tensors.SymbolicTensor)
+        for indice in indices
+    ):
+        return _aten_index_put_dynamic(self, indices, values, accumulate=accumulate)
 
     def _make_reshape_list_broadcastable(reshape_list, values_shape):
         # Remove ones until the rank of reshape_list matches values_shape.
@@ -4452,12 +4457,102 @@ def aten_index_put(
     # Flatten values to match the indices
     flat_values = op.Reshape(values, [-1])
 
-    if accumulate:
-        result = op.ScatterND(self, new_index, flat_values, reduction="add")
-    else:
-        result = op.ScatterND(self, new_index, flat_values)
-
+    scatter_kwargs = dict(reduction="add") if accumulate else {}
+    result = op.ScatterND(self, new_index, flat_values, **scatter_kwargs)
     return result
+
+
+def _aten_index_put_dynamic(
+    x: TReal,
+    indices: Sequence[INT64],
+    values: TReal,
+    accumulate: bool = False,
+) -> TReal:
+    def _make_range_or_cast(ind, shape_x, static_shape: bool, dim: int):
+        if ind is not None:
+            return op.Cast(ind, to=INT64.dtype), False
+        return (
+            op.Cast(
+                op.Range(  # Range does not return a typed result
+                    0,
+                    op.Squeeze(op.Shape(x, start=dim, end=dim + 1)),
+                    1,
+                ),
+                to=INT64.dtype,
+            ),
+            True,
+        )
+
+    rk1s = [(ind is None or len(ind.shape) == 1) for ind in indices]
+    assert all(rk1s) and len(rk1s) == len(x.shape), (
+        f"input_put not implemented for indices={indices}, "
+        f"where rk1s={rk1s}, rank(x)={len(x.shape)}"
+    )
+    shape_x = op.Shape(x)
+    exped = []
+    fixed = []
+    reshape_value_shape2 = []
+    expand_value_shape = []
+    for i, ind in enumerate(indices):
+        if isinstance(ind, torch.onnx._internal.exporter._tensors.SymbolicTensor):
+            ind.dtype = ir.DataType.INT64
+        ind, expanded = _make_range_or_cast(ind, shape_x, False, i)
+        if expanded:
+            exped.append((i, ind))
+            expand_value_shape.append(op.Shape(x, start=i, end=i + 1))
+            reshape_value_shape2.append([1])
+        else:
+            expand_value_shape.append([1])
+            reshape_value_shape2.append(op.Shape(ind))
+            fixed.append((i, ind))
+
+    reshape_value_shape1 = [1] * len(indices)
+    if len(fixed) <= 1:
+        reshape_value_shape1 = None
+    elif fixed:
+        reshape_value_shape1[fixed[-1][0]] = -1
+
+    def _mkstride(x, i):
+        if i >= len(x.shape) - 1:
+            return [1]
+        if i == len(x.shape) - 2:
+            return op.Shape(x, start=i + 1)
+        return op.ReduceProd(op.Shape(x, start=i + 1), keepdims=1)
+
+    shape = [1] * (len(x.shape) + 1)
+    mfixed = []
+    if fixed:
+        new_shape = shape.copy()
+        new_shape[-1] = -1
+        mfixed = [op.Reshape(op.Mul(_mkstride(x, i), f), new_shape) for i, f in fixed]
+
+    mexped = []
+    for i, e in exped:
+        new_shape = shape.copy()
+        new_shape[i] = -1
+        mexped.append(op.Reshape(op.Mul(_mkstride(x, i), e), new_shape))
+
+    # final sum
+    unflat = None
+    for a in [*mfixed, *mexped]:
+        if unflat is None:
+            unflat = a
+            continue
+        unflat = op.Add(unflat, a)
+
+    # value_shape
+    expanded_values = values
+    if reshape_value_shape1 is not None:
+        expanded_values = op.Reshape(expanded_values, op.Concat(*reshape_value_shape1, axis=0))
+    # Bug here: Error calling operator 'Concat' with args
+    # (SymbolicTensor(name='anonymous:124529632436112', producer=anonymous_node:124529631522416, index=0), [1], [1])
+    expanded_values = op.Expand(expanded_values, op.Concat(*expand_value_shape, axis=0))
+    flat_ind = op.Reshape(unflat, [-1])
+    expanded_values = op.Reshape(expanded_values, [-1])
+    flat_x = op.Reshape(x, [-1])
+    scat_kwargs = {"reduction": "add"} if accumulate else {}
+    flat_up_x = op.ScatterElements(flat_x, flat_ind, expanded_values, **scat_kwargs)
+    return op.Reshape(flat_up_x, op.Shape(x))
 
 
 @torch_op("aten::index_put", trace_only=True)
