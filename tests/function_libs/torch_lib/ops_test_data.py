@@ -2108,6 +2108,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="onnxruntime does not support ml_dtypes.bfloat16",
     ),
     TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
+    TorchLibOpInfo("ops.aten.scatter.src", core_ops.aten_scatter_src),
+    TorchLibOpInfo("ops.aten.scatter.value", core_ops.aten_scatter_value),
     TorchLibOpInfo("slice", core_ops.aten_slice),
     TorchLibOpInfo("slice", core_ops.aten_slice_complex, complex=True),
     TorchLibOpInfo(
