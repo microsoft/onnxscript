@@ -7736,17 +7736,29 @@ def aten_scalar_tensor_sym_number(
     return common_ops.cast_to(s, dtype=dtype)
 
 
-@torch_op(("aten::scatter.value", "aten::scatter.src"), trace_only=True)
-def aten_scatter(
+@torch_op("aten::scatter.src", trace_only=True)
+def aten_scatter_src(
     self: TReal,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
     index: TInt,
     src: TReal,
 ) -> TReal:
-    """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
+    """scatter.src(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
+    return op.ScatterElements(self, index, src, axis=dim)
 
-    update = op.Expand(src, op.Shape(index))
-    return op.ScatterElements(self, index, update, axis=dim)
+
+@torch_op("aten::scatter.value", trace_only=True)
+def aten_scatter_value(
+    self: TReal,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    value: TReal,
+) -> TReal:
+    """scatter.value(Tensor self, int dim, Tensor index, Scalar value) -> Tensor"""
+    # Ensure value is a scalar tensor and expand it to match index shape
+    scalar_tensor = op.CastLike(value, self)
+    src = op.Expand(scalar_tensor, op.Shape(index))
+    return op.ScatterElements(self, index, src, axis=dim)
 
 
 @torch_op("aten::scatter_add", trace_only=True)
