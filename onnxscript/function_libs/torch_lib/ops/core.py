@@ -4468,15 +4468,21 @@ def _aten_index_put_dynamic(
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
+    def _1dint(i: int):
+        return op.Constant(value_ints=ir.AttrInt64s("value_ints", [i]))
+
+    def _0dint(i: int):
+        return op.Constant(value_int=ir.AttrInt64("value_int", i))
+
     def _make_range_or_cast(ind, shape_x, static_shape: bool, dim: int):
         if ind is not None:
             return op.Cast(ind, to=INT64.dtype), False
         return (
             op.Cast(
                 op.Range(  # Range does not return a typed result
-                    0,
+                    _0dint(0),
                     op.Squeeze(op.Shape(x, start=dim, end=dim + 1)),
-                    1,
+                    _0dint(1),
                 ),
                 to=INT64.dtype,
             ),
@@ -4500,21 +4506,21 @@ def _aten_index_put_dynamic(
         if expanded:
             exped.append((i, ind))
             expand_value_shape.append(op.Shape(x, start=i, end=i + 1))
-            reshape_value_shape2.append([1])
+            reshape_value_shape2.append(_1dint(1))
         else:
-            expand_value_shape.append([1])
+            expand_value_shape.append(_1dint(1))
             reshape_value_shape2.append(op.Shape(ind))
             fixed.append((i, ind))
 
-    reshape_value_shape1 = [1] * len(indices)
+    reshape_value_shape1 = [_1dint(1)] * len(indices)
     if len(fixed) <= 1:
         reshape_value_shape1 = None
     elif fixed:
-        reshape_value_shape1[fixed[-1][0]] = -1
+        reshape_value_shape1[fixed[-1][0]] = _1dint(-1)
 
     def _mkstride(x, i):
         if i >= len(x.shape) - 1:
-            return [1]
+            return _1dint(1)
         if i == len(x.shape) - 2:
             return op.Shape(x, start=i + 1)
         return op.ReduceProd(op.Shape(x, start=i + 1), keepdims=1)
@@ -4547,9 +4553,9 @@ def _aten_index_put_dynamic(
     # Bug here: Error calling operator 'Concat' with args
     # (SymbolicTensor(name='anonymous:124529632436112', producer=anonymous_node:124529631522416, index=0), [1], [1])
     expanded_values = op.Expand(expanded_values, op.Concat(*expand_value_shape, axis=0))
-    flat_ind = op.Reshape(unflat, [-1])
-    expanded_values = op.Reshape(expanded_values, [-1])
-    flat_x = op.Reshape(x, [-1])
+    flat_ind = op.Reshape(unflat, _1dint(-1))
+    expanded_values = op.Reshape(expanded_values, _1dint(-1))
+    flat_x = op.Reshape(x, _1dint(-1))
     scat_kwargs = {"reduction": "add"} if accumulate else {}
     flat_up_x = op.ScatterElements(flat_x, flat_ind, expanded_values, **scat_kwargs)
     return op.Reshape(flat_up_x, op.Shape(x))
