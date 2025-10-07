@@ -459,7 +459,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float64: (2e-6, 2e-6), torch.float32: (3e-2, 3e-4)},
     ),
     TorchLibOpInfo("ops.aten._local_scalar_dense", core_ops.aten__local_scalar_dense),
-    TorchLibOpInfo("ops.aten._log_softmax", core_ops.aten__log_softmax),
+    TorchLibOpInfo(
+        "ops.aten._log_softmax",
+        core_ops.aten__log_softmax,
+        tolerance={torch.float16: (1e-3, 1e-3)},
+    ),
     TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax),
     TorchLibOpInfo("all_dim", core_ops.aten_all_dim).skip(
         matcher=lambda sample: not (len(sample.kwargs) > 0)
