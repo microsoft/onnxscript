@@ -4383,10 +4383,14 @@ def aten_index_put(
     See implementation of `torch.onnx.symbolic_opset11.index_put
     <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
     """
-    if len(indices) > 1 and any(
-        isinstance(indice, torch.onnx._internal.exporter._tensors.SymbolicTensor)
-        for indice in indices
-    ) and len(values.shape) == 1:
+    if (
+        len(indices) > 1
+        and any(
+            isinstance(indice, torch.onnx._internal.exporter._tensors.SymbolicTensor)
+            for indice in indices
+        )
+        and len(values.shape) == 1
+    ):
         return _aten_index_put_dynamic(self, indices, values, accumulate=accumulate)
 
     def _make_reshape_list_broadcastable(reshape_list, values_shape):
@@ -4526,21 +4530,21 @@ def _aten_index_put_dynamic(
         return op.ReduceProd(op.Shape(x, start=i + 1), keepdims=1)
 
     shape = [1] * (len(x.shape) + 1)
-    mfixed = []
+    r_fixed = []
     if fixed:
         new_shape = shape.copy()
         new_shape[-1] = -1
-        mfixed = [op.Reshape(op.Mul(_mkstride(x, i), f), new_shape) for i, f in fixed]
+        r_fixed = [op.Reshape(op.Mul(_mkstride(x, i), f), new_shape) for i, f in fixed]
 
-    mexped = []
+    r_exped = []
     for i, e in exped:
         new_shape = shape.copy()
         new_shape[i] = -1
-        mexped.append(op.Reshape(op.Mul(_mkstride(x, i), e), new_shape))
+        r_exped.append(op.Reshape(op.Mul(_mkstride(x, i), e), new_shape))
 
     # final sum
     unflat = None
-    for a in [*mfixed, *mexped]:
+    for a in [*r_fixed, *r_exped]:
         if unflat is None:
             unflat = a
             continue
@@ -4550,8 +4554,6 @@ def _aten_index_put_dynamic(
     expanded_values = values
     if reshape_value_shape1 is not None:
         expanded_values = op.Reshape(expanded_values, op.Concat(*reshape_value_shape1, axis=0))
-    # Bug here: Error calling operator 'Concat' with args
-    # (SymbolicTensor(name='anonymous:124529632436112', producer=anonymous_node:124529631522416, index=0), [1], [1])
     expanded_values = op.Expand(expanded_values, op.Concat(*expand_value_shape, axis=0))
     flat_ind = op.Reshape(unflat, _1dint(-1))
     expanded_values = op.Reshape(expanded_values, _1dint(-1))
