@@ -1394,6 +1394,35 @@ def sample_inputs_scatter_src(op_info, device, dtype, requires_grad, **kwargs):
         src_tensor = make_arg(src_shape)
         yield opinfo_core.SampleInput(self_tensor, args=(dim, index_tensor, src_tensor))
 
+    # Additional test cases for scalar and single-element tensor combinations with dim=0
+    # Test case: scalar index, scalar src (dim_size=5)
+    dim_size = 5
+    data_1d = make_arg((dim_size,))
+    valid_index = torch.randint(0, dim_size, (), device=device, dtype=torch.long)
+    scalar_src = make_arg(())
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index, scalar_src))
+
+    # Test case: single-element tensor index, scalar src (dim_size=7)
+    dim_size = 7
+    data_1d = make_arg((dim_size,))
+    valid_index_1d = torch.randint(0, dim_size, (1,), device=device, dtype=torch.long)
+    scalar_src = make_arg(())
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index_1d, scalar_src))
+
+    # Test case: scalar index, single-element tensor src (dim_size=3)
+    dim_size = 3
+    data_1d = make_arg((dim_size,))
+    valid_index = torch.randint(0, dim_size, (), device=device, dtype=torch.long)
+    src_1d = make_arg((1,))
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index, src_1d))
+
+    # Test case: single-element tensor index, single-element tensor src (dim_size=10)
+    dim_size = 10
+    data_1d = make_arg((dim_size,))
+    valid_index_1d = torch.randint(0, dim_size, (1,), device=device, dtype=torch.long)
+    src_1d = make_arg((1,))
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index_1d, src_1d))
+
 
 def sample_inputs_scatter_value(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
@@ -1422,6 +1451,21 @@ def sample_inputs_scatter_value(op_info, device, dtype, requires_grad, **kwargs)
             tuple(slice(None, d, None) for d in index_shape)
         ]
         yield opinfo_core.SampleInput(self_tensor, args=(dim, index_tensor, value))
+
+    # Additional test cases for scalar and single-element tensor combinations with dim=0
+    # Test case: scalar index with scalar value (dim_size=6, value_type=torch.long)
+    dim_size = 6
+    data_1d = make_arg((dim_size,))
+    valid_index = torch.randint(0, dim_size, (), device=device, dtype=torch.long)
+    random_value = torch.randint(0, 10, (), device=device, dtype=torch.long).item()
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index, random_value))
+
+    # Test case: single-element tensor index with scalar value (dim_size=8, value_type=torch.float)
+    dim_size = 8
+    data_1d = make_arg((dim_size,))
+    valid_index_1d = torch.randint(0, dim_size, (1,), device=device, dtype=torch.long)
+    random_value = torch.rand((), device=device, dtype=torch.float).item()
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index_1d, random_value))
 
 
 def sample_inputs__scaled_dot_product_flash_attention(
