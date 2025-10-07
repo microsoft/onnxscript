@@ -7744,6 +7744,10 @@ def aten_scatter_src(
     src: TReal,
 ) -> TReal:
     """scatter.src(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
+    if len(index.shape) == 0:
+        index = op.Unsqueeze(index, [0])
+    if len(src.shape) == 0:
+        src = op.Unsqueeze(src, [0])
     return op.ScatterElements(self, index, src, axis=dim)
 
 
@@ -7756,6 +7760,8 @@ def aten_scatter_value(
 ) -> TReal:
     """scatter.value(Tensor self, int dim, Tensor index, Scalar value) -> Tensor"""
     # Ensure value is a scalar tensor and expand it to match index shape
+    if len(index.shape) == 0:
+        index = op.Unsqueeze(index, [0])
     scalar_tensor = op.CastLike(value, self)
     src = op.Expand(scalar_tensor, op.Shape(index))
     return op.ScatterElements(self, index, src, axis=dim)
