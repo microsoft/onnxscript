@@ -7738,27 +7738,57 @@ def aten_scalar_tensor_sym_number(
 
 @torch_op("aten::scatter.src", trace_only=True)
 def aten_scatter_src(
-    self: TReal,
+    self: TensorType,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
     index: TInt,
-    src: TReal,
-) -> TReal:
+    src: TensorType,
+) -> TensorType:
     """scatter.src(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
     return op.ScatterElements(self, index, src, axis=dim)
 
 
-@torch_op("aten::scatter.value", trace_only=True)
-def aten_scatter_value(
-    self: TReal,
+@torch_op("aten::scatter.value", trace_only=True, private=True)
+def aten_scatter_value_impl(
+    self: TensorType,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
     index: TInt,
-    value: TReal,
-) -> TReal:
+    value: Any,
+) -> TensorType:
     """scatter.value(Tensor self, int dim, Tensor index, Scalar value) -> Tensor"""
     # Ensure value is a scalar tensor and expand it to match index shape
-    scalar_tensor = op.CastLike(value, self)
-    src = op.Expand(scalar_tensor, op.Shape(index))
+    scalar_tensor = ir.tensor([value], dtype=self.dtype)
+    src = op.ConstantOfShape(op.Shape(index), value=scalar_tensor)
     return op.ScatterElements(self, index, src, axis=dim)
+
+
+@torch_op("aten::scatter.value", trace_only=True)
+def aten_scatter_value_int(
+    self: TensorType,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    value: int,
+) -> TensorType:
+    return aten_scatter_value_impl(self, dim, index, value)
+
+
+@torch_op("aten::scatter.value", trace_only=True)
+def aten_scatter_value_float(
+    self: TensorType,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    value: float,
+) -> TensorType:
+    return aten_scatter_value_impl(self, dim, index, value)
+
+
+@torch_op("aten::scatter.value", trace_only=True)
+def aten_scatter_value_bool(
+    self: TensorType,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    value: bool,
+) -> TensorType:
+    return aten_scatter_value_impl(self, dim, index, value)
 
 
 @torch_op("aten::scatter_add", trace_only=True)

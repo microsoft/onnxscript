@@ -2109,7 +2109,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
     TorchLibOpInfo("ops.aten.scatter.src", core_ops.aten_scatter_src),
-    TorchLibOpInfo("ops.aten.scatter.value", core_ops.aten_scatter_value),
+    TorchLibOpInfo("ops.aten.scatter.value", core_ops.aten_scatter_value_impl),
     TorchLibOpInfo("slice", core_ops.aten_slice),
     TorchLibOpInfo("slice", core_ops.aten_slice_complex, complex=True),
     TorchLibOpInfo(
