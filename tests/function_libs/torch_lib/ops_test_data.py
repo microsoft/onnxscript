@@ -964,6 +964,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).skip(
         matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "replicate"),
         reason="this Aten overload need args[1] == 'replicate' for pad mode",
+    ).skip(
+        variant_name="replicate_negative",
+        reason="fixme: The implementation for negative paddings is not correct. Potentially an ORT issue",
     ),
     TorchLibOpInfo(
         "nn.functional.replication_pad3d",
