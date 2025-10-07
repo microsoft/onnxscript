@@ -1365,6 +1365,65 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         yield opinfo_core.SampleInput(input_, args=(src, *args))
 
 
+def sample_inputs_scatter_src(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+
+    # Basic test cases for scatter.src
+    cases = [
+        # (self_shape, index_shape, src_shape, dim)
+        ((5, 5), (2, 3), (2, 3), 0),  # 2D scatter on dim=0
+        ((5, 5), (3, 2), (3, 2), 1),  # 2D scatter on dim=1
+        ((3, 4, 5), (2, 2, 3), (2, 2, 3), 0),  # 3D scatter on dim=0
+        ((3, 4, 5), (2, 2, 3), (2, 2, 3), 1),  # 3D scatter on dim=1
+        ((3, 4, 5), (2, 2, 3), (2, 2, 3), 2),  # 3D scatter on dim=2
+        ((10,), (3,), (3,), 0),  # 1D scatter
+    ]
+
+    for self_shape, index_shape, src_shape, dim in cases:
+        self_tensor = make_arg(self_shape)
+        # Create valid indices for the given dimension without duplication
+        index_buffer_shape = list(index_shape)
+        index_buffer_shape[dim] = self_shape[dim]
+        index_tensor = torch.rand(index_buffer_shape, device=device).argsort(dim=dim)[
+            tuple(slice(None, d, None) for d in index_shape)
+        ]
+        src_tensor = make_arg(src_shape)
+        yield opinfo_core.SampleInput(self_tensor, args=(dim, index_tensor, src_tensor))
+
+
+def sample_inputs_scatter_value(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+
+    # Basic test cases for scatter.value
+    cases = [
+        # (self_shape, index_shape, dim, value)
+        ((5, 5), (2, 3), 0, 1.0),  # 2D scatter on dim=0 with scalar value
+        ((5, 5), (3, 2), 1, -2.5),  # 2D scatter on dim=1 with scalar value
+        ((3, 4, 5), (2, 2, 3), 0, False),  # 3D scatter on dim=0 with scalar value
+        ((3, 4, 5), (2, 2, 3), 1, 3.14),  # 3D scatter on dim=1 with scalar value
+        ((3, 4, 5), (2, 2, 3), 2, -1),  # 3D scatter on dim=2 with scalar value
+        ((10,), (3,), 0, 5.0),  # 1D scatter with scalar value
+    ]
+
+    for self_shape, index_shape, dim, value in cases:
+        self_tensor = make_arg(self_shape)
+        # Create valid indices for the given dimension without duplication
+        index_buffer_shape = list(index_shape)
+        index_buffer_shape[dim] = self_shape[dim]
+        index_tensor = torch.rand(index_buffer_shape, device=device).argsort(dim=dim)[
+            tuple(slice(None, d, None) for d in index_shape)
+        ]
+        yield opinfo_core.SampleInput(self_tensor, args=(dim, index_tensor, value))
+
+
 def sample_inputs__scaled_dot_product_flash_attention(
     op_info, device, dtype, requires_grad, **kwargs
 ):
@@ -2531,6 +2590,22 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="slice_scatter",
         dtypes=common_dtype.all_types_and(torch.bfloat16, torch.half, torch.bool),
         sample_inputs_func=sample_inputs_slice_scatter,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.scatter.src",
+        op=torch.ops.aten.scatter.src,
+        aten_name="scatter.src",
+        dtypes=common_dtype.all_types_and(torch.bfloat16, torch.half, torch.bool),
+        sample_inputs_func=sample_inputs_scatter_src,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.scatter.value",
+        op=torch.ops.aten.scatter.value,
+        aten_name="scatter.value",
+        dtypes=common_dtype.all_types_and(torch.bfloat16, torch.half, torch.bool),
+        sample_inputs_func=sample_inputs_scatter_value,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
