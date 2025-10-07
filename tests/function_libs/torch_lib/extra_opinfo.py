@@ -1436,9 +1436,9 @@ def sample_inputs_scatter_value(op_info, device, dtype, requires_grad, **kwargs)
         # (self_shape, index_shape, dim, value)
         ((5, 5), (2, 3), 0, 1.0),  # 2D scatter on dim=0 with scalar value
         ((5, 5), (3, 2), 1, -2.5),  # 2D scatter on dim=1 with scalar value
-        ((3, 4, 5), (2, 2, 3), 0, 0.0),  # 3D scatter on dim=0 with scalar value
+        ((3, 4, 5), (2, 2, 3), 0, False),  # 3D scatter on dim=0 with scalar value
         ((3, 4, 5), (2, 2, 3), 1, 3.14),  # 3D scatter on dim=1 with scalar value
-        ((3, 4, 5), (2, 2, 3), 2, -1.0),  # 3D scatter on dim=2 with scalar value
+        ((3, 4, 5), (2, 2, 3), 2, -1),  # 3D scatter on dim=2 with scalar value
         ((10,), (3,), 0, 5.0),  # 1D scatter with scalar value
     ]
 

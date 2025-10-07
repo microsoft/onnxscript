@@ -7738,11 +7738,11 @@ def aten_scalar_tensor_sym_number(
 
 @torch_op("aten::scatter.src", trace_only=True)
 def aten_scatter_src(
-    self: TReal,
+    self: TTensor,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
     index: TInt,
-    src: TReal,
-) -> TReal:
+    src: TTensor,
+) -> TTensor:
     """scatter.src(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
     if len(index.shape) == 0:
         index = op.Unsqueeze(index, [0])
@@ -7753,17 +7753,17 @@ def aten_scatter_src(
 
 @torch_op("aten::scatter.value", trace_only=True)
 def aten_scatter_value(
-    self: TReal,
+    self: TTensor,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
     index: TInt,
-    value: TReal,
-) -> TReal:
+    value: float,
+) -> TTensor:
     """scatter.value(Tensor self, int dim, Tensor index, Scalar value) -> Tensor"""
     # Ensure value is a scalar tensor and expand it to match index shape
     if len(index.shape) == 0:
         index = op.Unsqueeze(index, [0])
-    scalar_tensor = op.CastLike(value, self)
-    src = op.Expand(scalar_tensor, op.Shape(index))
+    scalar_tensor = ir.tensor([value], dtype=self.dtype)
+    src = op.ConstantOfShape(op.Shape(index), value=scalar_tensor)
     return op.ScatterElements(self, index, src, axis=dim)
 
 
