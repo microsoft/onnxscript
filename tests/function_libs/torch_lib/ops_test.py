@@ -39,6 +39,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 from torch.utils import _pytree as pytree
 
 import onnxscript
+from onnxscript._internal import version_utils
 from tests.function_libs.torch_lib import (
     error_reproduction,
     ops_test_common,
@@ -200,7 +201,7 @@ def run_test_output_match(
                 reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
                 if (
                     op.name.startswith("split")
-                    or op.name.startswith("unbind")
+                    or (op.name.startswith("unbind") and version_utils.torch_older_than("2.7"))
                     or op.name
                     in {"atleast_1d_Sequence", "atleast_2d_Sequence", "atleast_3d_Sequence"}
                 ):

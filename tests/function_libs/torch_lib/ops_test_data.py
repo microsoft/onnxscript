@@ -1481,6 +1481,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
+        enabled_if=version_utils.torch_older_than("2.7"),
         dtypes=(torch.bool,),
         reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
