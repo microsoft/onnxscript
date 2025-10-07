@@ -6023,7 +6023,9 @@ def aten_native_group_norm(
     sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
     # In Pytorch, vstd = 1/(sqrt(var + eps))
     var = op.ReduceMean(sqr_input_sub_mean, axes, keepdims=False)
-    rstd = op.Div(1.0, op.Sqrt(var + eps))
+    eps = op.Constant(value=ir.tensor(eps, dtype=input.dtype))
+    one = op.Constant(value=ir.tensor(1.0, dtype=input.dtype))
+    rstd = op.Div(one, op.Sqrt(op.Add(var, eps)))
     # Get the correct shape [N, group] for mean again
     mean = op.ReduceMean(input_N_group_neg1, axes, keepdims=False)
     return norm_result, mean, rstd
