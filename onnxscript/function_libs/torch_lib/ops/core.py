@@ -4386,7 +4386,7 @@ def aten_index_put(
     if len(indices) > 1 and any(
         isinstance(indice, torch.onnx._internal.exporter._tensors.SymbolicTensor)
         for indice in indices
-    ):
+    ) and len(values.shape) == 1:
         return _aten_index_put_dynamic(self, indices, values, accumulate=accumulate)
 
     def _make_reshape_list_broadcastable(reshape_list, values_shape):
