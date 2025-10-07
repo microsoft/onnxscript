@@ -4494,10 +4494,6 @@ def _aten_index_put_dynamic(
         )
 
     rk1s = [(ind is None or len(ind.shape) == 1) for ind in indices]
-    assert all(rk1s) and len(rk1s) == len(x.shape), (
-        f"input_put not implemented for indices={indices}, "
-        f"where rk1s={rk1s}, rank(x)={len(x.shape)}"
-    )
     shape_x = op.Shape(x)
     exped = []
     fixed = []
