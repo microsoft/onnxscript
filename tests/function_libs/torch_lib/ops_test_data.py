@@ -1700,6 +1700,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ops.aten.upsample_trilinear3d.vec", nn_ops.aten_upsample_trilinear3d_vec),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like),
     TorchLibOpInfo(
+        "roll",
+        core_ops.aten_roll,
+        input_wrangler=_roll_input_wrangler,
+    ),
+    TorchLibOpInfo(
+        "roll",
+        core_ops.aten_roll_complex,
+        input_wrangler=_roll_input_wrangler,
+        complex=True,
+    ),
+    TorchLibOpInfo(
         "scatter_reduce",
         core_ops.aten_scatter_reduce,
         input_wrangler=_scatter_reduce_input_wrangler,

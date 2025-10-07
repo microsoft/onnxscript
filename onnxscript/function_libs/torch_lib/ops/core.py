@@ -7223,11 +7223,106 @@ def aten_rnn_tanh_cell(
     raise NotImplementedError()
 
 
-# roll is decomposed by PyTorch
+@torch_op("aten::roll", trace_only=True)
 def aten_roll(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) -> TTensor:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
-    raise NotImplementedError()
+    if isinstance(shifts, int):
+        shifts = [shifts]
+
+    if isinstance(dims, int):
+        dims = [dims]
+
+    self_rank = len(self.shape)
+    if self_rank == 0:
+        return op.Identity(self)
+    elif self.shape[0] == 0:  # empty tensor
+        return op.Identity(self)
+
+    # NOTE: In pytorch, default value of dims is an empty list.
+    if len(dims) == 0:  # Empty sequence
+        assert len(shifts) == 1, "shifts should be a single integer if dims is empty"
+        return _aten_roll_shift_no_dim_onnx(self, shifts[0])
+    else:
+        assert len(shifts) == len(dims)
+        result = self
+        for i, shift in enumerate(shifts):
+            dim = dims[i]
+            result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
+        return result
+
+
+@torch_op("aten::roll", trace_only=True, complex=True)
+def aten_roll_complex(
+    self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()
+) -> TTensor:
+    """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
+
+    if isinstance(shifts, int):
+        shifts = [shifts]
+
+    if isinstance(dims, int):
+        dims = [dims]
+
+    self_rank = len(self.shape)
+    if self_rank == 1:
+        return op.Identity(self)
+
+    if self.shape[0] == 0:  # empty tensor
+        return op.Identity(self)
+
+    self_real = op.Slice(self, [0], [1], axes=[-1])
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
+    if not dims:
+        assert len(shifts) == 1, "shifts should be a single integer if dims is empty"
+        shift_real = _aten_roll_shift_no_dim_onnx(self_real, shifts[0])
+        shift_imag = _aten_roll_shift_no_dim_onnx(self_imag, shifts[0])
+
+        result = op.Concat(shift_real, shift_imag, axis=-1)
+
+    else:
+        assert len(shifts) == len(dims)
+        for i, dim in enumerate(dims):
+            self_real = _aten_roll_shift_and_dim_onnx(self_real, shifts[i], dim)
+            self_imag = _aten_roll_shift_and_dim_onnx(self_imag, shifts[i], dim)
+
+        result = op.Concat(self_real, self_imag, axis=-1)
+    return result
+
+
+def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: int) -> TTensor:
+    neg_1 = op.Constant(value_ints=[-1])
+    # flatten the self tensor: from [[A,B],[C,D]] to [A,B,C,D]
+    self_flatten = op.Reshape(self, neg_1)
+    # Compute slice length
+    if shift < 0:
+        # For [A,B,C,D], if shift is -1, slice_length = -(-1) = 1, means move [A] to the end
+        slice_length = op.Constant(value_ints=[-shift])
+    else:
+        # For [A,B,C,D], if shift is 1, slice_length = 4 - 1 = 3, means move [A,B,C] to the end
+        # The effect equals to move [D] to the beginning
+        slice_length = op.Size(self_flatten) - op.Constant(value_ints=[shift])
+    # Get second part of the tensor, e.g. [A,B,C]
+    suffix = op.Slice(self_flatten, op.Constant(value_ints=[0]), slice_length)
+    # Get first part of the tensor, e.g. [D]
+    prefix = op.Slice(self_flatten, slice_length, op.Reshape(op.Size(self_flatten), neg_1))
+    # Concat first+second together, e.g. [D,A,B,C]
+    result = op.Concat(prefix, suffix, axis=0)
+    return op.Reshape(result, op.Shape(self))
+
+
+def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTensor:
+    neg_1 = op.Constant(value_ints=[-1])
+    dim_tensor = op.Constant(value_ints=[dim])
+    if shift < 0:
+        slice_length = op.Constant(value_ints=[-shift])
+    else:
+        slice_length = op.Shape(self, start=dim, end=dim + 1) - op.Constant(value_ints=[shift])
+    # from [A,B,C,D] -> [D,A,B,C], [D] is prefix, [A,B,C] is suffix
+    suffix = op.Slice(self, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
+    prefix = op.Slice(self, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
+    result = op.Concat(prefix, suffix, axis=dim)
+    return result
 
 
 def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> TensorType:
