@@ -4386,7 +4386,7 @@ def aten_index_put(
     if (
         len(indices) > 1
         and any(
-            isinstance(indice, torch.onnx._internal.exporter._tensors.SymbolicTensor)
+            isinstance(indice, torch.onnx._internal.exporter._tensors.SymbolicTensor)  # pylint: disable=protected-access
             for indice in indices
         )
         and len(values.shape) == 1
@@ -4493,14 +4493,13 @@ def _aten_index_put_dynamic(
             True,
         )
 
-    rk1s = [(ind is None or len(ind.shape) == 1) for ind in indices]
     shape_x = op.Shape(x)
     exped = []
     fixed = []
     reshape_value_shape2 = []
     expand_value_shape = []
     for i, ind in enumerate(indices):
-        if isinstance(ind, torch.onnx._internal.exporter._tensors.SymbolicTensor):
+        if isinstance(ind, torch.onnx._internal.exporter._tensors.SymbolicTensor):  # pylint: disable=protected-access
             ind.dtype = ir.DataType.INT64
         ind, expanded = _make_range_or_cast(ind, shape_x, False, i)
         if expanded:
