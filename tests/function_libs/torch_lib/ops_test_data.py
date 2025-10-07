@@ -575,6 +575,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm, tolerance={torch.float16: (1e-3, 1e-2)}),
     TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
     TorchLibOpInfo(
+        "bilinear", core_ops.aten_bilinear, tolerance={torch.float32: (2e-5, 2e-5)}
+    ),
+    TorchLibOpInfo(
         # This string is a unique ID. In extra_opinfo.py, we
         # also define test data for this ID with
         # `opinfo_core.OpInfo("aten.bernoulli.p", ...)`.
@@ -1728,6 +1731,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="onnxruntime does not support ml_dtypes.bfloat16",
     ),
     TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
+    TorchLibOpInfo("ops.aten.scatter.src", core_ops.aten_scatter_src),
+    TorchLibOpInfo("ops.aten.scatter.value", core_ops.aten_scatter_value),
     TorchLibOpInfo("slice", core_ops.aten_slice),
     TorchLibOpInfo("slice", core_ops.aten_slice_complex, complex=True),
     TorchLibOpInfo(

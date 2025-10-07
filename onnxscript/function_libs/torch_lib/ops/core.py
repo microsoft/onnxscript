@@ -1161,6 +1161,7 @@ def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
     return op.CastLike(sampled, self)
 
 
+@torch_op("aten::bilinear", trace_only=True)
 def aten_bilinear(
     input1: TensorType,
     input2: TensorType,
@@ -1169,7 +1170,23 @@ def aten_bilinear(
 ) -> TensorType:
     """bilinear(Tensor input1, Tensor input2, Tensor weight, Tensor? bias=None) -> Tensor"""
 
-    raise NotImplementedError()
+    # Bilinear transformation: y = x1^T A x2 + b
+    # input1 shape: (..., in1_features)
+    # input2 shape: (..., in2_features)
+    # weight shape: (out_features, in1_features, in2_features)
+    # bias shape: (out_features) - optional
+    # output shape: (..., out_features)
+
+    # Use Einsum to compute the bilinear transformation
+    # "...i,oij,...j->...o" means:
+    # - input1[..., i] * weight[o, i, j] * input2[..., j] -> output[..., o]
+    result = op.Einsum(input1, weight, input2, equation="...i,oij,...j->...o")
+
+    # Add bias if provided
+    if bias is not None:
+        result = op.Add(result, bias)
+
+    return result
 
 
 def aten_binary_cross_entropy_with_logits(
@@ -7284,7 +7301,7 @@ def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 @torch_op("aten::scalar_tensor", trace_only=True)
 def aten_scalar_tensor(
-    s: float,
+    s: TensorType,
     dtype: int = FLOAT.dtype,
     layout: str = "",
     device: str = "",
@@ -7322,17 +7339,35 @@ def aten_scalar_tensor_complex(
     return result
 
 
-@torch_op(("aten::scatter.value", "aten::scatter.src"), trace_only=True)
-def aten_scatter(
-    self: TReal,
+@torch_op("aten::scatter.src", trace_only=True)
+def aten_scatter_src(
+    self: TTensor,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
     index: TInt,
-    src: TReal,
-) -> TReal:
-    """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
+    src: TTensor,
+) -> TTensor:
+    """scatter.src(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
+    if len(index.shape) == 0:
+        index = op.Unsqueeze(index, [0])
+    if len(src.shape) == 0:
+        src = op.Unsqueeze(src, [0])
+    return op.ScatterElements(self, index, src, axis=dim)
 
-    update = op.Expand(src, op.Shape(index))
-    return op.ScatterElements(self, index, update, axis=dim)
+
+@torch_op("aten::scatter.value", trace_only=True)
+def aten_scatter_value(
+    self: TTensor,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    value: float,
+) -> TTensor:
+    """scatter.value(Tensor self, int dim, Tensor index, Scalar value) -> Tensor"""
+    # Ensure value is a scalar tensor and expand it to match index shape
+    if len(index.shape) == 0:
+        index = op.Unsqueeze(index, [0])
+    scalar_tensor = ir.tensor([value], dtype=self.dtype)
+    src = op.ConstantOfShape(op.Shape(index), value=scalar_tensor)
+    return op.ScatterElements(self, index, src, axis=dim)
 
 
 @torch_op("aten::scatter_add", trace_only=True)
