@@ -294,20 +294,16 @@ def aten_binary_cross_entropy_backward(
 
 
 @torch_op("aten::celu", trace_only=True)
-def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
+def aten_celu(self: TFloat, alpha: float = 1.0) -> TFloat:
     """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
 
-    return op.Celu(self, alpha=alpha)  # op.Celu only support float32
+    if self.dtype != FLOAT.dtype:
+        self_upcasted = op.Cast(self, to=FLOAT.dtype)
 
+        # op.Celu only support float32
+        return op.Cast(op.Celu(self_upcasted, alpha=alpha), to=self.dtype)
 
-@torch_op("aten::celu", trace_only=True)
-def aten_celu_type_promoted(
-    self: TFloatUnlessFloat32, alpha: float = 1.0
-) -> TFloatUnlessFloat32:
-    """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
-
-    self_upcasted = op.Cast(self, to=FLOAT.dtype)
-    return op.CastLike(op.Celu(self_upcasted, alpha=alpha), self)
+    return op.Celu(self, alpha=alpha)
 
 
 @torch_op("aten::col2im", trace_only=True)
@@ -1804,7 +1800,7 @@ def aten_scaled_dot_product_attention(
     query: TFloat,
     key: TFloat,
     value: TFloat,
-    attn_mask: Optional[TFloat] = None,
+    attn_mask: Optional[TensorType] = None,
     dropout_p: float = 0.0,
     is_causal: bool = False,
     scale: Optional[float] = None,
@@ -1852,6 +1848,11 @@ def aten_scaled_dot_product_attention(
     if attn_mask is None:
         return _aten_scaled_dot_product_attention_no_mask_onnx(
             query, key, value, scale, dropout_p
+        )
+
+    if attn_mask.dtype == ir.DataType.BOOL:
+        return _aten_scaled_dot_product_attention_bool_mask_onnx(
+            query, key, value, attn_mask, scale, dropout_p
         )
 
     return _aten_scaled_dot_product_attention_float_mask_onnx(
@@ -1921,7 +1922,6 @@ def aten__scaled_dot_product_flash_attention(
     )
 
 
-@torch_op("aten::_scaled_dot_product_efficient_attention", private=True)
 def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
     query: TFloat,
     compute_log_sumexp: bool,
@@ -2013,64 +2013,6 @@ def aten__scaled_dot_product_efficient_attention(
         logsumexp,
         empty_tensor_int,
         empty_tensor_int,
-    )
-
-
-@torch_op("aten::scaled_dot_product_attention", trace_only=True)
-def aten_scaled_dot_product_attention_bool_mask(
-    query: TFloat,
-    key: TFloat,
-    value: TFloat,
-    attn_mask: Optional[BOOL] = None,
-    dropout_p: float = 0.0,
-    is_causal: bool = False,
-    scale: Optional[float] = None,
-    enable_gqa: bool = False,
-) -> TFloat:
-    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None, bool enable_gqa=False) -> Tensor
-
-    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
-
-    Equivalent to the PyTorch code::
-        scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
-        attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
-        attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
-        attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
-        attn_weight = torch.dropout(attn_weight, dropout_p)
-        return attn_weight @ V
-
-    where Q, K, V are the query, key, and value tensors, respectively.
-    L is the target sequence length, S is the source sequence length, and E is the embedding size.
-    """
-    # Use trace_only to handle optional inputs
-    assert (not is_causal) or (is_causal and attn_mask is None), (
-        "is_causal and attn_mask cannot be set at the same time"
-    )
-    assert len(query.shape) == 4 and len(key.shape) == 4 and len(value.shape) == 4, (
-        "only 4D query, key, and value are supported"
-    )
-
-    if scale is None:
-        scale = _attention_scale(query)
-    scale = op.CastLike(scale, query)
-
-    if is_causal:
-        attn_mask = _causal_attention_mask(query, key)
-        # The causal mask is always float
-        return _aten_scaled_dot_product_attention_float_mask_onnx(
-            query, key, value, attn_mask, scale, dropout_p
-        )
-
-    if enable_gqa:
-        key, value = _attention_repeat_kv_for_group_query(query, key, value)
-
-    if attn_mask is None:
-        return _aten_scaled_dot_product_attention_no_mask_onnx(
-            query, key, value, scale, dropout_p
-        )
-
-    return _aten_scaled_dot_product_attention_bool_mask_onnx(
-        query, key, value, attn_mask, scale, dropout_p
     )
 
 

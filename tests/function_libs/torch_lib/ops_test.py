@@ -99,7 +99,7 @@ def _should_skip_xfail_test_sample(
 
 class TestFunctionValidity(unittest.TestCase):
     @parameterized.parameterized.expand(
-        [(info.op.name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
+        [(info.op_info_name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
     )
     def test_script_function_passes_checker(
         self, _, torchlib_op_info: ops_test_data.TorchLibOpInfo
@@ -110,10 +110,12 @@ class TestFunctionValidity(unittest.TestCase):
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
     @parameterized.parameterized.expand(
-        [(info.op.name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
+        [(info.op_info_name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
     )
     def test_function_has_op_schema(self, _, torchlib_op_info: ops_test_data.TorchLibOpInfo):
         func = torchlib_op_info.op
+        if not hasattr(func, "op_schema"):
+            raise AssertionError(f"Function {func.__name__} does not have op_schema attribute")
         schema = func.op_schema
         self.assertIsNotNone(schema)
         self.assertEqual(schema.name, func.name)

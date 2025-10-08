@@ -29,9 +29,9 @@ COMMON_TEST_DEPENDENCIES = (
     "ml-dtypes",
 )
 ONNX = "onnx==1.17"
-ONNX_RUNTIME = "onnxruntime==1.20.1"
-PYTORCH = "torch==2.5.1"
-TORCHVISON = "torchvision==0.20.1"
+ONNX_RUNTIME = "onnxruntime==1.23.0"
+PYTORCH = "torch==2.7.1"
+TORCHVISON = "torchvision==0.22.1"
 TRANSFORMERS = "transformers==4.37.2"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
