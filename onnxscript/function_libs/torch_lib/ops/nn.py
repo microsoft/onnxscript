@@ -1800,7 +1800,7 @@ def aten_scaled_dot_product_attention(
     query: TFloat,
     key: TFloat,
     value: TFloat,
-    attn_mask: Optional[TFloat] = None,
+    attn_mask: Optional[TensorType] = None,
     dropout_p: float = 0.0,
     is_causal: bool = False,
     scale: Optional[float] = None,
