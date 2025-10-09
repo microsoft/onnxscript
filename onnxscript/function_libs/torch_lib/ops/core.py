@@ -1442,7 +1442,7 @@ def aten_bitwise_xor_scalar(self: TTensor, other: int) -> TTensor:
 
 
 @torch_op("aten::bitwise_xor.Scalar_Tensor", trace_only=True)
-def aten_bitwise_xor_scalar_tensor(self: float, other: TTensor) -> TTensor:
+def aten_bitwise_xor_scalar_tensor(self: int, other: TTensor) -> TTensor:
     """bitwise_xor.Scalar_Tensor(Scalar self, Tensor other) -> Tensor"""
     self_tensor = op.Constant(value=ir.tensor(self, dtype=other.dtype))
     return aten_bitwise_xor(self_tensor, other)
