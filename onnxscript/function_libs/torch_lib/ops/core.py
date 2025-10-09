@@ -1238,6 +1238,32 @@ def aten_bitwise_and(self: TTensor, other: TTensor) -> TTensor:
     raise NotImplementedError(f"Not implemented for types {self.dtype} and {other.dtype}")
 
 
+@torch_op("aten::bitwise_and.Scalar", trace_only=True)
+def aten_bitwise_and_scalar(self: TTensor, other: float) -> TTensor:
+    """bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    other = op.Constant(value=ir.tensor(other, dtype=self.dtype))
+
+    if self.dtype.is_integer():
+        return op.BitwiseAnd(self, other)
+    if self.dtype == ir.DataType.BOOL:
+        return op.And(self, other)
+    raise NotImplementedError(f"Not implemented for types {self.dtype} and {other.dtype}")
+
+
+@torch_op("aten::bitwise_and.Scalar_Tensor", trace_only=True)
+def aten_bitwise_and_scalar_tensor(self: float, other: TTensor) -> TTensor:
+    """bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    self = op.Constant(value=ir.tensor(self, dtype=other.dtype))
+
+    if other.dtype.is_integer():
+        return op.BitwiseAnd(self, other)
+    if other.dtype == ir.DataType.BOOL:
+        return op.And(self, other)
+    raise NotImplementedError(f"Not implemented for types {self.dtype} and {other.dtype}")
+
+
 @torch_op(
     (
         "aten::bitwise_left_shift.Tensor",
