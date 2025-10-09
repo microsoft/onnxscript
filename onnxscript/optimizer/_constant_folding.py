@@ -1032,11 +1032,14 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                             inferred_type
                         )
                         merged_shape = _merge_shapes(output.shape, inferred_shape)
+
+                        # Replace unknown dims with uniquely named symbolic dims
                         assert merged_shape is not None
-                        output.shape = merged_shape
                         for i in range(len(merged_shape)):
                             if merged_shape.is_unknown_dim(i):
                                 merged_shape[i] = ir.SymbolicDim(self._new_unknown_dim_name())
+
+                        output.shape = merged_shape
                         output.type = ir.serde.deserialize_type_proto_for_type(inferred_type)
             except Exception as e:
                 logger.debug(
