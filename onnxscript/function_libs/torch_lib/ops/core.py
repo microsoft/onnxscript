@@ -1291,7 +1291,9 @@ def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
     return op.Cast(result, to=signed_dtype)
 
 
-@torch_op("aten::bitwise_left_shift.Tensor_Scalar", trace_only=True)
+@torch_op(
+    ("aten::bitwise_left_shift.Tensor_Scalar", "aten::__lshift__.Scalar"), trace_only=True
+)
 def aten_bitwise_left_shift_tensor_scalar(self: TInt, other: int) -> TInt:
     """bitwise_left_shift.Tensor_Scalar(Tensor self, Scalar other) -> Tensor"""
     other_tensor = op.Constant(value=ir.tensor(other, dtype=self.dtype))
@@ -1401,7 +1403,9 @@ def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     )
 
 
-@torch_op("aten::bitwise_right_shift.Tensor_Scalar", trace_only=True)
+@torch_op(
+    ("aten::bitwise_right_shift.Tensor_Scalar", "aten::__rshift__.Scalar"), trace_only=True
+)
 def aten_bitwise_right_shift_tensor_scalar(self: TInt, other: int) -> TInt:
     """bitwise_right_shift.Tensor_Scalar(Tensor self, Scalar other) -> Tensor"""
     other_tensor = op.Constant(value=ir.tensor(other, dtype=self.dtype))
