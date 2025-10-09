@@ -225,6 +225,19 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_bitwise_and_scalar(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return x & 3
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([1, 2, 3, 4, 5]),),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
