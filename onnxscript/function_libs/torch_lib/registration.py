@@ -43,11 +43,15 @@ class Registry:
 
         if complex:
             if overloaded_function.complex:
-                raise ValueError(f"Complex overload for '{name}' already registered.")
+                raise ValueError(
+                    f"Complex overload for '{name}' already registered: {overloaded_function.complex}."
+                )
             overloaded_function.complex.append(func)
         else:
             if overloaded_function.overloads:
-                raise ValueError(f"Real overload for '{name}' already registered.")
+                raise ValueError(
+                    f"Real overload for '{name}' already registered: {overloaded_function.overloads}."
+                )
             overloaded_function.overloads.append(func)
 
     def __getitem__(self, name):
