@@ -4082,7 +4082,9 @@ def aten_index(
     """
     # Handle Boolean indexing first
     for index in indices:
-        if index is not None and index.dtype == BOOL.dtype:
+        if index is None:
+            continue
+        if index.dtype == BOOL.dtype:
             return _aten_index_bool(self, indices)
 
     index_ranks = [len(index.shape) for index in indices if index is not None]
@@ -4149,7 +4151,7 @@ def aten_index_copy(
 @torch_op(("aten::index_put", "aten::_unsafe_index_put"), trace_only=True)
 def aten_index_put(
     self: TReal,
-    indices: Sequence[[Union[INT64, BOOL]]],
+    indices: Sequence[Optional[Union[INT64, BOOL]]],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
@@ -4160,7 +4162,9 @@ def aten_index_put(
     """
     # Handle Boolean indexing first
     for index in indices:
-        if index is not None and index.dtype == BOOL.dtype:
+        if index is None:
+            continue
+        if index.dtype == BOOL.dtype:
             return _aten_index_put_bool(self, indices, values, accumulate=accumulate)
 
     def _make_reshape_list_broadcastable(reshape_list, values_shape):
