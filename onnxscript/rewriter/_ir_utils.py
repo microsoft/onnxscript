@@ -172,10 +172,7 @@ def same_dim(dim1: ir.SymbolicDim | int, dim2: ir.SymbolicDim | int) -> bool:
         return False
     if isinstance(dim1, int) and isinstance(dim2, int):
         return dim1 == dim2
-    # If any dim is unknown, the dimensions are not the same
-    if dim1 != dim2:
-        return False
     assert isinstance(dim1, ir.SymbolicDim) and isinstance(dim2, ir.SymbolicDim)
-    if dim1.value is None and dim2.value is None:
+    if dim1.value is None or dim2.value is None:
         return False
-    return True
+    return dim1.value == dim2.value
