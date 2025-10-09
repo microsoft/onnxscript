@@ -974,6 +974,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         self._sizes: dict[str, int] = {}
         self._modified: bool = False
         self._state = OptimizerState()
+        # Count of unknown (None) symbolic dimensions seen so far for generating unique names
         self._unknown_dim_count = 0
         self._reset()
 
