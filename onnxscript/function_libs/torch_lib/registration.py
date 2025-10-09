@@ -22,14 +22,12 @@ class OverloadedFunction:
     Attributes:
         name: Name of the op. E.g. "aten::add".
         overloads: Overloads function.
-        privates: Private functions not exposed to users.
         complex: Support complex functions.
     """
 
     def __init__(self, name: str):
         self.name = name
         self.overloads: list[Any] = []
-        self.privates: list[Any] = []
         self.complex: list[Any] = []
 
 
@@ -39,17 +37,18 @@ class Registry:
     def __init__(self):
         self._registry: dict[str, OverloadedFunction] = {}
 
-    def register(
-        self, func: Any, name: str, *, private: bool = False, complex: bool = False
-    ) -> None:
+    def register(self, func: Any, name: str, *, complex: bool = False) -> None:
         """Register a function."""
+        overloaded_function = self._registry.setdefault(name, OverloadedFunction(name))
 
-        if private:
-            self._registry.setdefault(name, OverloadedFunction(name)).privates.append(func)
-        elif complex:
-            self._registry.setdefault(name, OverloadedFunction(name)).complex.append(func)
+        if complex:
+            if overloaded_function.complex:
+                raise ValueError(f"Complex overload for '{name}' already registered.")
+            overloaded_function.complex.append(func)
         else:
-            self._registry.setdefault(name, OverloadedFunction(name)).overloads.append(func)
+            if overloaded_function.overloads:
+                raise ValueError(f"Real overload for '{name}' already registered.")
+            overloaded_function.overloads.append(func)
 
     def __getitem__(self, name):
         return self._registry[name]
@@ -131,7 +130,9 @@ def torch_op(
 
         assert registry is not None
         for name_ in _check_and_normalize_names(name):
-            registry.register(processed_func, name_, private=private, complex=complex)
+            if private:
+                continue
+            registry.register(processed_func, name_, complex=complex)
         return processed_func
 
     return wrapper

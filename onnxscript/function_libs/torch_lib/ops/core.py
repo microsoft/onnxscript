@@ -3704,7 +3704,6 @@ def aten_grid_sampler(
     padding_mode_options = ("zeros", "border", "reflection")
     padding_mode_str = padding_mode_options[padding_mode]
 
-    # Only one onnx Op so don't put into private function
     return op.GridSample(
         input,
         grid,
@@ -3730,7 +3729,6 @@ def aten_grid_sampler_2d(
     padding_mode_options = ("zeros", "border", "reflection")
     padding_mode_str = padding_mode_options[padding_mode]
 
-    # Only one onnx Op so don't put into private function
     return op.GridSample(
         input,
         grid,

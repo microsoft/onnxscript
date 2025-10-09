@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def torch_lib_onnx_functions_from_registry() -> Generator[onnxscript.OnnxFunction, None, None]:
     for op in registration.default_registry.values():
-        for func in (*op.overloads, *op.privates, *op.complex):
+        for func in (*op.overloads, *op.complex):
             if isinstance(func, onnxscript.OnnxFunction):
                 yield func
 
