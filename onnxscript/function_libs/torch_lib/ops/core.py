@@ -4060,7 +4060,9 @@ def _aten_index_onnx(
 
 
 @torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
-def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
+def aten_index(
+    self: TensorType, indices: Sequence[Optional[Union[INT64, BOOL]]]
+) -> TensorType:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
 
     NOTE: Understanding `aten::index`
@@ -4080,14 +4082,17 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
 
     None in `indices` are like fillers for dimensions that cannot be removed in the process.
     """
+    # Handle Boolean indexing first
+    for index in indices:
+        if index is not None and index.dtype == BOOL.dtype:
+            return _aten_index_bool(self, indices)
 
     index_ranks = [len(index.shape) for index in indices if index is not None]
 
     return _aten_index_onnx(self, indices, index_ranks)
 
 
-@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
-def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:  # pylint: disable=inconsistent-return-statements
+def _aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:  # pylint: disable=inconsistent-return-statements
     index_ranks = [len(index.shape) for index in indices if index is not None]
 
     if index_ranks[0] == 1:
@@ -4146,7 +4151,7 @@ def aten_index_copy(
 @torch_op(("aten::index_put", "aten::_unsafe_index_put"), trace_only=True)
 def aten_index_put(
     self: TReal,
-    indices: Sequence[INT64],
+    indices: Sequence[[Union[INT64, BOOL]]],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
@@ -4155,6 +4160,10 @@ def aten_index_put(
     See implementation of `torch.onnx.symbolic_opset11.index_put
     <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
     """
+    # Handle Boolean indexing first
+    for index in indices:
+        if index is not None and index.dtype == BOOL.dtype:
+            return _aten_index_put_bool(self, indices, values, accumulate=accumulate)
 
     def _make_reshape_list_broadcastable(reshape_list, values_shape):
         # Remove ones until the rank of reshape_list matches values_shape.
@@ -4232,8 +4241,7 @@ def aten_index_put(
     return result
 
 
-@torch_op("aten::index_put", trace_only=True)
-def aten_index_put_bool(
+def _aten_index_put_bool(
     self: TReal,
     indices: Sequence[BOOL],
     values: TReal,
