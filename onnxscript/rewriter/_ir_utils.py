@@ -155,7 +155,7 @@ def get_dim(value: ir.Value | None, dim: int) -> ir.SymbolicDim | int | None:
 
 
 def same_shape(shape1: ir.Shape | None, shape2: ir.Shape | None) -> bool:
-    """Check if two shape are semantically the same."""
+    """Check if two shapes are semantically the same."""
     if shape1 is None or shape2 is None:
         return False
 
