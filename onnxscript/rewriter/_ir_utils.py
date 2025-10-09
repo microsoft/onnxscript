@@ -152,3 +152,25 @@ def get_dim(value: ir.Value | None, dim: int) -> ir.SymbolicDim | int | None:
     if dim < 0 or dim >= shape.rank():
         return None
     return shape[dim]
+
+
+def same_shape(shape1: ir.Shape | None, shape2: ir.Shape | None) -> bool:
+    """Check if two shape are semantically the same."""
+    if shape1 is None or shape2 is None:
+        return False
+
+    # If any dim is unknown, the shapes are not the same
+    if shape1.has_unknown_dim() or shape2.has_unknown_dim():
+        return False
+
+    return shape1 == shape2
+
+
+def same_dim(dim1: ir.SymbolicDim | int, dim2: ir.SymbolicDim | int) -> bool:
+    """Check if two dimensions are semantically the same."""
+    if dim1 != dim2:
+        return False
+    if isinstance(dim1, ir.SymbolicDim) and isinstance(dim2, ir.SymbolicDim):
+        if dim1.value is None and dim2.value is None:
+            return False
+    return True
