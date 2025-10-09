@@ -1049,6 +1049,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 )
 
     def _new_unknown_dim_name(self) -> str:
+        """Generate a new unique name for an unknown (None) symbolic dimension."""
         name = f"unknown_{self._unknown_dim_count}"
         self._unknown_dim_count += 1
         return name
