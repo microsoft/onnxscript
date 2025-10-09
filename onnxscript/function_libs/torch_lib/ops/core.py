@@ -1239,7 +1239,7 @@ def aten_bitwise_and(self: TTensor, other: TTensor) -> TTensor:
 
 
 @torch_op("aten::bitwise_and.Scalar", trace_only=True)
-def aten_bitwise_and_scalar(self: TTensor, other: float) -> TTensor:
+def aten_bitwise_and_scalar(self: TTensor, other: int) -> TTensor:
     """bitwise_and.Scalar(Tensor self, Scalar other) -> Tensor"""
 
     other_tensor = op.Constant(value=ir.tensor(other, dtype=self.dtype))
