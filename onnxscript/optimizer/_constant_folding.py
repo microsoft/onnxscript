@@ -1103,6 +1103,27 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         # to avoid potentially expensive shape inference on large tensors.
         if _is_onnx_op(node, "Constant"):
             _process_constant_node(node)
+        # Do incremental shape inference
+        elif self.shape_inference and not _is_control_flow_op(node):
+            self._do_inference(node)
+
+        if node.domain not in self._opset_imports:
+            return None
+        version = self._opset_imports[node.domain]
+        op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
+        for optimizer in op_optimizers:
+            assert optimizer
+            context = RewriterContext()
+            output = optimizer(node, context, self._state)
+            if output is not None:
+                if isinstance(output, Replacement):
+                    return output
+                if isinstance(output, ir.Value):
+                    output = [output]
+                return Replacement(output, context.nodes)
+
+        if _is_onnx_op(node, "Constant"):
+            logger.debug("Skipping constant folding for Constant node %r", node.name)
             return None
 
         if _is_control_flow_op(node):
@@ -1123,25 +1144,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 node.op_type,
             )
             return None
-
-        # Do incremental shape inference
-        if self.shape_inference:
-            self._do_inference(node)
-
-        if node.domain not in self._opset_imports:
-            return None
-        version = self._opset_imports[node.domain]
-        op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
-        for optimizer in op_optimizers:
-            assert optimizer
-            context = RewriterContext()
-            output = optimizer(node, context, self._state)
-            if output is not None:
-                if isinstance(output, Replacement):
-                    return output
-                if isinstance(output, ir.Value):
-                    output = [output]
-                return Replacement(output, context.nodes)
 
         if any(x.is_graph_input() for x in node.inputs if x is not None):
             logger.info(
