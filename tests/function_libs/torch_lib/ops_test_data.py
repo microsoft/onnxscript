@@ -724,7 +724,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index),
     TorchLibOpInfo(
         "index_put", core_ops.aten_index_put, input_wrangler=_index_put_input_wrangler
-    ).xfail(
+    ).skip(
         dtypes=(torch.float16,),
         matcher=lambda sample: sample.kwargs.get("accumulate") is True,
         reason="fixme: ORT only supports float32 when accumulate is True:  MLFloat16 data type is not supported with ScatterND when reduction is 'add'",
