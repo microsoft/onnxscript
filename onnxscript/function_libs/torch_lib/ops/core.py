@@ -1231,9 +1231,9 @@ def aten_bitwise_and(self: TTensor, other: TTensor) -> TTensor:
     dtype = self.dtype if self.dtype is not None else other.dtype
     assert dtype is not None
 
-    if self.dtype.is_integer():
+    if dtype.is_integer():
         return op.BitwiseAnd(self, other)
-    if self.dtype == ir.DataType.BOOL:
+    if dtype == ir.DataType.BOOL:
         return op.And(self, other)
     raise NotImplementedError(f"Not implemented for types {self.dtype} and {other.dtype}")
 
@@ -1427,9 +1427,9 @@ def aten_bitwise_xor(self: TTensor, other: TTensor) -> TTensor:
     dtype = self.dtype if self.dtype is not None else other.dtype
     assert dtype is not None
 
-    if self.dtype.is_integer():
+    if dtype.is_integer():
         return op.BitwiseXor(self, other)
-    if self.dtype == ir.DataType.BOOL:
+    if dtype == ir.DataType.BOOL:
         return op.Xor(self, other)
     raise NotImplementedError(f"Not implemented for types {self.dtype} and {other.dtype}")
 
