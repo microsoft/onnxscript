@@ -1240,7 +1240,7 @@ def aten_bitwise_and(self: TTensor, other: TTensor) -> TTensor:
 
 @torch_op("aten::bitwise_and.Scalar", trace_only=True)
 def aten_bitwise_and_scalar(self: TTensor, other: float) -> TTensor:
-    """bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor"""
+    """bitwise_and.Scalar(Tensor self, Scalar other) -> Tensor"""
 
     other_tensor = op.Constant(value=ir.tensor(other, dtype=self.dtype))
     return aten_bitwise_and(self, other_tensor)
@@ -1248,7 +1248,7 @@ def aten_bitwise_and_scalar(self: TTensor, other: float) -> TTensor:
 
 @torch_op("aten::bitwise_and.Scalar_Tensor", trace_only=True)
 def aten_bitwise_and_scalar_tensor(self: float, other: TTensor) -> TTensor:
-    """bitwise_and.Scalar_Tensor(float self, Tensor other) -> Tensor"""
+    """bitwise_and.Scalar_Tensor(Scalar self, Tensor other) -> Tensor"""
 
     self_tensor = op.Constant(value=ir.tensor(self, dtype=other.dtype))
     return aten_bitwise_and(self_tensor, other)
@@ -1348,7 +1348,7 @@ def aten_bitwise_or_scalar(self: TTensor, other: float) -> TTensor:
 
 @torch_op("aten::bitwise_or.Scalar_Tensor", trace_only=True)
 def aten_bitwise_or_scalar_tensor(self: float, other: TTensor) -> TTensor:
-    """bitwise_or.Scalar_Tensor(float self, Tensor other) -> Tensor"""
+    """bitwise_or.Scalar_Tensor(Scalar self, Tensor other) -> Tensor"""
     self_tensor = op.Constant(value=ir.tensor(self, dtype=other.dtype))
     return aten_bitwise_or(self_tensor, other)
 
