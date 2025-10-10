@@ -1820,40 +1820,20 @@ def aten_conj_physical(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::constant_pad_nd", trace_only=True)
-def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTensor:
+def aten_constant_pad_nd(self: TTensor, pad: Sequence[INT64], value: float = 0) -> TTensor:
     """constant_pad_nd(Tensor self, SymInt[] pad, Scalar value=0) -> Tensor"""
 
     # The desired order of paddings is
     # dim_0_begin, dim_1_begin, ... , dim_0_end, ..., dim_n_end.
     # n is the dimension of input.
     # assume zero-dimensions in the beginning
-    # rank = len(self.shape)  # rank must be scalar
-    # paddings = list(pad[:]) + [0] * (rank * 2 - len(pad))
+    rank = len(self.shape)
+    paddings = list(pad) + [0] * (rank * 2 - len(pad))
     # reverse order and collate first beginnings and then ends
-    # paddings = paddings[-2::-2] + paddings[-1::-2]
+    paddings = paddings[-2::-2] + paddings[-1::-2]
+    value = op.Constant(value=ir.tensor(value, dtype=self.dtype))
 
-    # TODO(justinchuby): Simplify the logic to use Python evaluation
-
-    neg_1 = op.Constant(value_ints=[-1])
-
-    zero_count = op.Sub(op.Mul(len(self.shape), 2), op.Size(pad))
-    zero_count = op.Reshape(zero_count, neg_1)
-    zero = op.Constant(value_ints=[0])
-    zeros = op.Expand(zero, zero_count)
-    torch_paddings = op.Concat(pad, zeros, axis=0)
-    size_d = op.Size(torch_paddings)
-    steps = op.Constant(value_ints=[-2])
-
-    starts = steps
-    ends = op.Sub(starts, size_d)
-    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
-
-    starts = neg_1
-    ends = op.Sub(starts, size_d)
-    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
-
-    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
-    return op.Pad(self, onnx_padding, value)
+    return op.Pad(self, paddings, value)
 
 
 @torch_op("aten::contiguous", trace_only=True)
