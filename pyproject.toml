@@ -42,6 +42,11 @@ onnx = ["py.typed"]
 
 [tool.pytest.ini_options]
 addopts = "-rsfEX --tb=short --color=yes"
+norecursedirs = [
+  # Skip test collection because pytest will try to import the modules twice,
+  # causing the torchlib registry to complain that functions are redefined.
+  "onnxscript/function_libs/torch_lib/ops",
+]
 
 [tool.mypy]
 # TODO disallow_incomplete_defs = true
