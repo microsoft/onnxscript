@@ -4201,9 +4201,9 @@ def _aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Ten
                 finla_rank = input_rank - (len(index.shape) - 1)
                 trans_perm = list(range(finla_rank))
                 trans_perm = trans_perm[-1:] + trans_perm[:-1]
-                for _ in range(count_of_none):
-                    result = op.Transpose(result, perm=trans_perm)
-                return result
+        for _ in range(count_of_none):
+            result = op.Transpose(result, perm=trans_perm)
+        return result
 
 
 def aten_index_add(
