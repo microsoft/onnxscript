@@ -1820,7 +1820,7 @@ def aten_conj_physical(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::constant_pad_nd", trace_only=True)
-def aten_constant_pad_nd(self: TTensor, pad: Sequence[INT64], value: float = 0) -> TTensor:
+def aten_constant_pad_nd(self: TTensor, pad: Sequence[INT64], value: float = 0.0) -> TTensor:
     """constant_pad_nd(Tensor self, SymInt[] pad, Scalar value=0) -> Tensor"""
 
     # The desired order of paddings is
@@ -1831,9 +1831,9 @@ def aten_constant_pad_nd(self: TTensor, pad: Sequence[INT64], value: float = 0) 
     paddings = list(pad) + [0] * (rank * 2 - len(pad))
     # reverse order and collate first beginnings and then ends
     paddings = paddings[-2::-2] + paddings[-1::-2]
-    value = op.Constant(value=ir.tensor(value, dtype=self.dtype))
+    constant_value = op.Constant(value=ir.tensor(value, dtype=self.dtype))
 
-    return op.Pad(self, paddings, value)
+    return op.Pad(self, paddings, constant_value)
 
 
 @torch_op("aten::contiguous", trace_only=True)
