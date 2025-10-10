@@ -26,7 +26,6 @@ from typing import (
 
 import numpy as np
 import onnx
-import onnx_ir.passes.common as common_passes
 import onnxruntime as ort
 import onnxruntime.capi.onnxruntime_pybind11_state
 import pytest
@@ -37,7 +36,6 @@ from torch.testing._internal.opinfo import core as opinfo_core
 import onnxscript
 import onnxscript.evaluator
 from onnxscript import ir
-from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from tests.function_libs.torch_lib import error_reproduction
 
 T = TypeVar("T")
@@ -412,19 +410,6 @@ TORCH_DTYPE_TO_ONNX_STRING = {
 }
 
 
-def add_torchlib_common_imports(model: ir.Model) -> None:
-    """Hack to add torchlib common imports to the model."""
-
-    model.opset_imports["pkg.onnxscript.torch_lib.common"] = 1
-    rank_func = ir.serde.deserialize_function(common_ops.Rank.to_function_proto())
-    is_scalar_func = ir.serde.deserialize_function(common_ops.IsScalar.to_function_proto())
-    model.functions[rank_func.identifier()] = rank_func
-    model.functions[is_scalar_func.identifier()] = is_scalar_func
-    removal_pass = common_passes.RemoveUnusedFunctionsPass()
-    assert removal_pass.in_place
-    removal_pass(model)
-
-
 def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -> bool:
     """Checks if the dtype is compatible with the schema.
 
@@ -593,7 +578,6 @@ def graph_executor(
                 proto = onnxscript_function.to_function_proto()
                 ir_function = ir.serde.deserialize_function(proto)
             onnx_model.functions[identifier] = ir_function
-        add_torchlib_common_imports(onnx_model)
         # Make sure the model is valid
         model_proto = ir.to_proto(onnx_model)
         try:
