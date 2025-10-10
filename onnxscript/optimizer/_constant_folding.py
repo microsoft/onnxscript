@@ -501,8 +501,6 @@ def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     # should handle this. Only the optimization to eliminate redundant Cast ops
     # should be needed here.
 
-    output.shape = _merge_shapes(output.shape, input.shape)
-
     input_dtype = _get_input_element_type(node, 0)
     output_dtype = _get_int_attribute(node, "to", None)
     if output_dtype is not None:
@@ -608,6 +606,7 @@ def identity(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = node.inputs[0]
     output = node.outputs[0]
     if input is not None and output is not None:
+        # NOTE: backward shape inference
         input.shape = _merge_shapes(input.shape, output.shape)
         if input.type is None:
             input.type = output.type
@@ -904,7 +903,11 @@ def sequence_at(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
-def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape | None:
+def _merge_shapes(
+    preferred_shapes: ir.Shape | None, referenced_shapes: ir.Shape | None
+) -> ir.Shape | None:
+    """Merge two shapes, preferring dimensions from preferred_shapes."""
+
     def merge_dims(dim1, dim2):
         if dim1 == dim2:
             return dim1
@@ -916,13 +919,15 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
             return dim2
         return dim1
 
-    if shape1 is None:
-        return shape2
-    if shape2 is None:
-        return shape1
-    if len(shape1) != len(shape2):
+    if preferred_shapes is None:
+        return referenced_shapes
+    if referenced_shapes is None:
+        return preferred_shapes
+    if len(preferred_shapes) != len(referenced_shapes):
         raise ValueError("Shapes must have the same rank.")
-    return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
+    return ir.Shape(
+        [merge_dims(dim1, dim2) for dim1, dim2 in zip(preferred_shapes, referenced_shapes)]
+    )
 
 
 def _record_contributing_values(original_node: ir.Node, replacement: Replacement) -> None:
@@ -1029,6 +1034,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                         inferred_shape = ir.serde.deserialize_type_proto_for_shape(
                             inferred_type
                         )
+                        # NOTE: forward shape inference
                         output.shape = _merge_shapes(output.shape, inferred_shape)
                         output.type = ir.serde.deserialize_type_proto_for_type(inferred_type)
             except Exception as e:
