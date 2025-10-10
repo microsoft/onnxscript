@@ -18,7 +18,6 @@ import math
 from typing import Optional, Sequence, Tuple, TypeVar, Union
 
 from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64, ir
-from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -32,7 +31,6 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _MATH_PI = math.pi
-Rank = common_ops.Rank
 
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
@@ -576,7 +574,7 @@ def aten_group_norm(
     norm = op.Reshape(norm, op.Shape(input))
     # Using the input weight and bias to do affine
     # But need to unsqueeze to the target shape for broading cast easy
-    input_rank = Rank(input)
+    input_rank = len(input.shape)
     one = op.Constant(value_int=1)
     axes_unsqueeze = op.Range(one, op.Sub(input_rank, one), one)
     weight_full_shape = op.Unsqueeze(weight, axes_unsqueeze)
@@ -999,7 +997,7 @@ def _aten_max_pool_onnx(
     ceil_mode: bool,
     unbatched_rank: int,
 ) -> TFloatOrUInt8:
-    self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
+    self_rank_is_unbatched_rank = len(self.shape) == unbatched_rank
     if self_rank_is_unbatched_rank:  # C,H,W -> N,C,H,W and N=1
         self = op.Unsqueeze(self, [0])
 
@@ -1133,7 +1131,7 @@ def _aten_max_pool_with_indices_onnx(
     n_dims_zero: Sequence[int],
     n_dims_axes: Sequence[int],
 ) -> Tuple[TFloatOrUInt8, INT64]:
-    self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
+    self_rank_is_unbatched_rank = len(self.shape) == unbatched_rank
     if self_rank_is_unbatched_rank:
         self = op.Unsqueeze(self, axes=[0])
 
@@ -1362,11 +1360,11 @@ def aten_nll_loss(
 ) -> TFloat:
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
-    self_rank_is_1 = Rank(self) == 1
+    self_rank_is_1 = len(self.shape) == 1
     if self_rank_is_1:  # self rank should be at least 2
         self = op.Unsqueeze(self, [0])
 
-    rank_target = Rank(target)
+    rank_target = len(target.shape)
     if rank_target == 0:  # target rank should be at least 1
         target = op.Unsqueeze(target, [0])
 
