@@ -8299,7 +8299,7 @@ def aten_tile(self: TTensor, dims: Sequence[int]) -> TTensor:
 
     self_rank = len(self.shape)
     dims_rank = len(dims)
-    diff = op.Sub(self_rank, dims_rank)
+    diff = self_rank - dims_rank
 
     if diff > 0:
         # dims is shorter than self.shape
@@ -8307,10 +8307,10 @@ def aten_tile(self: TTensor, dims: Sequence[int]) -> TTensor:
         exapnd_ones = [1] * diff
         dims = [*exapnd_ones, *dims]
 
-    if diff < 0:
+    elif diff < 0:
         # dims is longer than self.shape
         # pad self.shape with 1
-        exapnd_ones = [1] * (-diff)
+        exapnd_ones = op.Constant(value_ints=[1] * (-diff))
         self_shape = op.Shape(self)
         self_final_shape = op.Concat(exapnd_ones, self_shape, axis=0)
         self = op.Reshape(self, self_final_shape, allowzero=True)
