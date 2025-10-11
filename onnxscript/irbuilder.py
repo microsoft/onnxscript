@@ -321,6 +321,7 @@ class IRFunction:
         input_types: Optional[Sequence[ONNXType]] = None,
         output_types: Optional[Sequence[ONNXType]] = None,
         value_infos: dict[str, ONNXType] | None = None,
+        opset_version: int | None = None,
         **kwargs,
     ) -> onnx.ModelProto:
         """Converts this instance into a `onnx.ModelProto`.
@@ -336,6 +337,8 @@ class IRFunction:
                 are set to be of the corresponding type in this list.
             value_infos: A dictionary mapping intermediate variable names to ONNX types.
                 Used to set value_info for intermediate variables.
+            opset_version: The standard opset version to use for the model if it
+                cannot be inferred. Otherwise defaults to the current opset version.
             kwargs: Additional parameters given to function :func:`onnx.helper.make_model`.
 
         Returns:
@@ -393,12 +396,8 @@ class IRFunction:
 
         if "" not in opsets:
             # No operator is using the standard opset.
-            # A default value is given.
-            opsets[""] = (
-                onnx_opset_version()
-                if "opset_version" not in kwargs
-                else kwargs["opset_version"]
-            )
+            # Use the specified version if provided or the default value.
+            opsets[""] = opset_version if opset_version is not None else onnx_opset_version()
 
         if "ir_version" not in kwargs:
             kwargs["ir_version"] = select_ir_version(opsets[""])
