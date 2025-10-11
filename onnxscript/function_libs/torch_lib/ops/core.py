@@ -6057,7 +6057,7 @@ def aten_native_group_norm(
     norm = op.Reshape(norm, op.Shape(input), allowzero=True)
     # Using the input weight and bias to do affine
     # But need to unsqueeze to the target shape for broading cast easy
-    input_rank = input.shape
+    input_rank = len(input.shape)
     axes_unsqueeze = op.Range(1, input_rank - 1, 1)
     weight_full_shape = op.Unsqueeze(weight, axes_unsqueeze)
     bias_full_shape = op.Unsqueeze(bias, axes_unsqueeze)
