@@ -168,7 +168,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _fusion_utils.check_shape_bool(bindings, val, dims)
+            return not _fusion_utils._check_shape(bindings, val, dims)
 
         if no_match(query_BSD, ["B", "S", "D"]):
             return False
@@ -360,13 +360,10 @@ class LongRoPeGQACausalMask(pattern.RewriteRuleClassBase):
     def pattern(
         self,
         op,
-        mask,
         input_ids,
         past_kv_cache_1,
         past_kv_cache_2,
         attention_mask,
-        past_seq_length,
-        total_seq_length,
     ):
         """
         Pattern for LongRoPe GQA Causal Mask.
