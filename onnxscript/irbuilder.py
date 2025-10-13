@@ -397,11 +397,7 @@ class IRFunction:
         if "" not in opsets:
             # No operator is using the standard opset.
             # Use the specified version if provided or the default value.
-            opsets[""] = (
-                opset_version
-                if opset_version is not None
-                else onnx_opset_version()
-            )
+            opsets[""] = opset_version if opset_version is not None else onnx_opset_version()
 
         if "ir_version" not in kwargs:
             kwargs["ir_version"] = select_ir_version(opsets[""])
