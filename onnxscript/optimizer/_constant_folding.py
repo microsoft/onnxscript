@@ -76,7 +76,7 @@ def _is_onnx_op(node: ir.Node, op_type: str) -> bool:
 
 def _process_constant_node(node: ir.Node) -> None:
     """Sets const_value of output value of a Constant op node."""
-    if node.op_type != "Constant" or node.domain != "":
+    if not _is_onnx_op(node, "Constant"):
         return
     if len(node.attributes) != 1:
         return
@@ -1105,8 +1105,12 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 self._modified = True
                 # TODO(rama): consider merging type/other info from both values
 
+        # Propagate const_value, and manually find out shape and type
+        # to avoid potentially expensive shape inference on large tensors.
+        if _is_onnx_op(node, "Constant"):
+            _process_constant_node(node)
         # Do incremental shape inference
-        if self.shape_inference and not _is_control_flow_op(node):
+        elif self.shape_inference and not _is_control_flow_op(node):
             self._do_inference(node)
 
         if node.domain not in self._opset_imports:
@@ -1123,6 +1127,10 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 if isinstance(output, ir.Value):
                     output = [output]
                 return Replacement(output, context.nodes)
+
+        if _is_onnx_op(node, "Constant"):
+            logger.debug("Skipping constant folding for Constant node %r", node.name)
+            return None
 
         if _is_control_flow_op(node):
             logger.info(
@@ -1141,10 +1149,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 node.domain,
                 node.op_type,
             )
-            return None
-
-        if _is_onnx_op(node, "Constant"):
-            _process_constant_node(node)
             return None
 
         if any(x.is_graph_input() for x in node.inputs if x is not None):

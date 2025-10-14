@@ -20,7 +20,7 @@ from __future__ import annotations
 import onnx_ir as ir
 
 import onnxscript.rewriter
-from onnxscript.rewriter import _ir_utils as ir_utils
+from onnxscript.rewriter import _ir_utils
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
 
@@ -41,7 +41,7 @@ class ScatterAllDynamic(RewriteRuleClassBase):
         # Check that updated-indices represent the full range of the first dimension of the transposed data.
         # That is: check that the data.shape[axis] matches transposed_data.shape[0].
         result = onnxscript.rewriter.MatchResult()
-        axis_value = ir_utils.get_singleton_value(axis)
+        axis_value = _ir_utils.get_singleton_value(axis)
         if not isinstance(axis_value, int):
             return result.fail("Axis value must be a constant integer.", axis)
         shape: ir.Shape | None = data.shape
@@ -54,7 +54,7 @@ class ScatterAllDynamic(RewriteRuleClassBase):
                 "Transposed data shape is not statically known.", transposed_data
             )
         actual_dim_value = transposed_data_shape[0]
-        if updated_dim_value != actual_dim_value:
+        if not _ir_utils.same_dim(updated_dim_value, actual_dim_value):
             # The first dimension of the transposed data does not match the updated dimension,
             # so we cannot apply this rule.
             return result.fail(
@@ -87,7 +87,7 @@ class ScatterAllStatic(RewriteRuleClassBase):
             return result.fail("The value 'data' shape is not statically known.", data)
         if updates.shape is None:
             return result.fail("The value 'updates' shape is not statically known.", updates)
-        if data.shape != updates.shape:
+        if not _ir_utils.same_shape(data.shape, updates.shape):
             return result.fail(
                 "The shape of 'data' and 'updates' are different.", [data, updates]
             )
