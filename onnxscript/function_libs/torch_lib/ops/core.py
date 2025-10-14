@@ -132,7 +132,7 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True)
+@torch_op(("aten::add.Tensor", "aten::add.Scalar"), trace_only=True)
 def aten_add(self: TTensor, other: TTensor, alpha: float = 1.0) -> TTensor:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
@@ -148,7 +148,7 @@ def aten_add(self: TTensor, other: TTensor, alpha: float = 1.0) -> TTensor:
     return op.Add(self, other)
 
 
-@torch_op(("_operator::add"), trace_only=True)
+@torch_op("_operator::add", trace_only=True)
 def operator_add(self: TTensor, other: TTensor) -> TTensor:
     return op.Add(self, other)
 
