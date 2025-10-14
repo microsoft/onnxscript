@@ -496,11 +496,6 @@ def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if input is None or output is None:
         return None
 
-    # TODO(rama): Parts of the following logic (implementing type/shape inference
-    # for Cast op) should be unnecessary. Generic incremental shape-inference
-    # should handle this. Only the optimization to eliminate redundant Cast ops
-    # should be needed here.
-
     input_dtype = _get_input_element_type(node, 0)
     output_dtype = _get_int_attribute(node, "to", None)
     if output_dtype is not None:
@@ -904,7 +899,7 @@ def sequence_at(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 
 
 def _merge_shapes(
-    preferred_shapes: ir.Shape | None, referenced_shapes: ir.Shape | None
+    preferred_shape: ir.Shape | None, other_shape: ir.Shape | None
 ) -> ir.Shape | None:
     """Merge two shapes, preferring dimensions from preferred_shapes."""
 
@@ -919,14 +914,14 @@ def _merge_shapes(
             return dim2
         return dim1
 
-    if preferred_shapes is None:
-        return referenced_shapes
-    if referenced_shapes is None:
-        return preferred_shapes
-    if len(preferred_shapes) != len(referenced_shapes):
+    if preferred_shape is None:
+        return other_shape
+    if other_shape is None:
+        return preferred_shape
+    if len(preferred_shape) != len(other_shape):
         raise ValueError("Shapes must have the same rank.")
     return ir.Shape(
-        [merge_dims(dim1, dim2) for dim1, dim2 in zip(preferred_shapes, referenced_shapes)]
+        [merge_dims(dim1, dim2) for dim1, dim2 in zip(preferred_shape, other_shape)]
     )
 
 
