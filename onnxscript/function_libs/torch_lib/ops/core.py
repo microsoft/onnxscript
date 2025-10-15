@@ -132,7 +132,7 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True)
+@torch_op("aten::add.Tensor", trace_only=True)
 def aten_add(self: TTensor, other: TTensor, alpha: float = 1.0) -> TTensor:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
@@ -145,6 +145,19 @@ def aten_add(self: TTensor, other: TTensor, alpha: float = 1.0) -> TTensor:
     if alpha != 1.0:
         alpha = op.CastLike(alpha, other)
         other = op.Mul(other, alpha)
+    return op.Add(self, other)
+
+
+@torch_op("aten::add.Scalar", trace_only=True)
+def aten_add_scalar(self: TTensor, other: float, alpha: float = 1.0) -> TTensor:
+    """add.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor"""
+
+    other = op.Constant(value=ir.tensor(other, dtype=self.dtype))
+    return aten_add(self, other, alpha=alpha)
+
+
+@torch_op("_operator::add", trace_only=True)
+def operator_add(self: TTensor, other: TTensor) -> TTensor:
     return op.Add(self, other)
 
 
@@ -5567,7 +5580,7 @@ def aten_msort(self: TensorType) -> TensorType:
 
 
 @torch_op(
-    ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
+    ("aten::mul", "aten::mul.Tensor", "aten::multiply.Tensor"),
     trace_only=True,
 )
 def aten_mul(self: TTensor, other: TTensor) -> TTensor:
@@ -5576,6 +5589,11 @@ def aten_mul(self: TTensor, other: TTensor) -> TTensor:
     if self.dtype == ir.DataType.BOOL:
         return op.And(self, other)
 
+    return op.Mul(self, other)
+
+
+@torch_op("_operator::mul", trace_only=True)
+def operator_mul(self: TTensor, other: TTensor) -> TTensor:
     return op.Mul(self, other)
 
 
@@ -8103,9 +8121,7 @@ def aten_std_mean_correction(
 @torch_op(
     (
         "aten::sub.Tensor",
-        "aten::sub.Scalar",
         "aten::subtract.Tensor",
-        "aten::subtract.Scalar",
         "_operator::sub",
     ),
     trace_only=True,
@@ -8116,6 +8132,14 @@ def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
         alpha = op.CastLike(alpha, other)
         other = op.Mul(other, alpha)
     return op.Sub(self, other)
+
+
+@torch_op(("aten::sub.Scalar", "aten::subtract.Scalar"), trace_only=True)
+def aten_sub_scalar(self: TTensor, other: float, alpha: float = 1.0) -> TTensor:
+    """sub.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor"""
+
+    other = op.Constant(value=ir.tensor(other, dtype=self.dtype))
+    return aten_sub(self, other, alpha=alpha)
 
 
 @torch_op(
