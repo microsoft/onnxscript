@@ -76,7 +76,7 @@ def _is_onnx_op(node: ir.Node, op_type: str) -> bool:
 
 def _process_constant_node(node: ir.Node) -> None:
     """Sets const_value of output value of a Constant op node."""
-    if node.op_type != "Constant" or node.domain != "":
+    if not _is_onnx_op(node, "Constant"):
         return
     if len(node.attributes) != 1:
         return
@@ -496,13 +496,6 @@ def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if input is None or output is None:
         return None
 
-    # TODO(rama): Parts of the following logic (implementing type/shape inference
-    # for Cast op) should be unnecessary. Generic incremental shape-inference
-    # should handle this. Only the optimization to eliminate redundant Cast ops
-    # should be needed here.
-
-    output.shape = _merge_shapes(output.shape, input.shape)
-
     input_dtype = _get_input_element_type(node, 0)
     output_dtype = _get_int_attribute(node, "to", None)
     if output_dtype is not None:
@@ -608,6 +601,7 @@ def identity(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = node.inputs[0]
     output = node.outputs[0]
     if input is not None and output is not None:
+        # NOTE: backward shape inference
         input.shape = _merge_shapes(input.shape, output.shape)
         if input.type is None:
             input.type = output.type
@@ -904,7 +898,11 @@ def sequence_at(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
-def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape | None:
+def _merge_shapes(
+    preferred_shape: ir.Shape | None, other_shape: ir.Shape | None
+) -> ir.Shape | None:
+    """Merge two shapes, preferring dimensions from preferred_shapes."""
+
     def merge_dims(dim1, dim2):
         if dim1 == dim2:
             return dim1
@@ -916,13 +914,15 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
             return dim2
         return dim1
 
-    if shape1 is None:
-        return shape2
-    if shape2 is None:
-        return shape1
-    if len(shape1) != len(shape2):
+    if preferred_shape is None:
+        return other_shape
+    if other_shape is None:
+        return preferred_shape
+    if len(preferred_shape) != len(other_shape):
         raise ValueError("Shapes must have the same rank.")
-    return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
+    return ir.Shape(
+        [merge_dims(dim1, dim2) for dim1, dim2 in zip(preferred_shape, other_shape)]
+    )
 
 
 def _record_contributing_values(original_node: ir.Node, replacement: Replacement) -> None:
@@ -1029,6 +1029,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                         inferred_shape = ir.serde.deserialize_type_proto_for_shape(
                             inferred_type
                         )
+                        # NOTE: forward shape inference
                         output.shape = _merge_shapes(output.shape, inferred_shape)
                         output.type = ir.serde.deserialize_type_proto_for_type(inferred_type)
             except Exception as e:
@@ -1099,8 +1100,12 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 self._modified = True
                 # TODO(rama): consider merging type/other info from both values
 
+        # Propagate const_value, and manually find out shape and type
+        # to avoid potentially expensive shape inference on large tensors.
+        if _is_onnx_op(node, "Constant"):
+            _process_constant_node(node)
         # Do incremental shape inference
-        if self.shape_inference and not _is_control_flow_op(node):
+        elif self.shape_inference and not _is_control_flow_op(node):
             self._do_inference(node)
 
         if node.domain not in self._opset_imports:
@@ -1117,6 +1122,10 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 if isinstance(output, ir.Value):
                     output = [output]
                 return Replacement(output, context.nodes)
+
+        if _is_onnx_op(node, "Constant"):
+            logger.debug("Skipping constant folding for Constant node %r", node.name)
+            return None
 
         if _is_control_flow_op(node):
             logger.info(
@@ -1135,10 +1144,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 node.domain,
                 node.op_type,
             )
-            return None
-
-        if _is_onnx_op(node, "Constant"):
-            _process_constant_node(node)
             return None
 
         if any(x.is_graph_input() for x in node.inputs if x is not None):

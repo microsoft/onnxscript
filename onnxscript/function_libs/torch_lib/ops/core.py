@@ -54,7 +54,6 @@ from onnxscript.onnx_types import TensorType
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
-Rank = common_ops.Rank
 
 
 @torch_op("aten::_local_scalar_dense", trace_only=True)
@@ -133,7 +132,7 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True)
+@torch_op("aten::add.Tensor", trace_only=True)
 def aten_add(self: TTensor, other: TTensor, alpha: float = 1.0) -> TTensor:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
@@ -146,6 +145,19 @@ def aten_add(self: TTensor, other: TTensor, alpha: float = 1.0) -> TTensor:
     if alpha != 1.0:
         alpha = op.CastLike(alpha, other)
         other = op.Mul(other, alpha)
+    return op.Add(self, other)
+
+
+@torch_op("aten::add.Scalar", trace_only=True)
+def aten_add_scalar(self: TTensor, other: float, alpha: float = 1.0) -> TTensor:
+    """add.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor"""
+
+    other = op.Constant(value=ir.tensor(other, dtype=self.dtype))
+    return aten_add(self, other, alpha=alpha)
+
+
+@torch_op("_operator::add", trace_only=True)
+def operator_add(self: TTensor, other: TTensor) -> TTensor:
     return op.Add(self, other)
 
 
@@ -947,11 +959,11 @@ def aten_atleast_1d_sequence(self: Sequence[TTensor]) -> TTensor:
     return op.SequenceMap(self, body=reshape_to_1d)
 
 
-@torch_op("aten::atleast_2d")
+@torch_op("aten::atleast_2d", trace_only=True)
 def aten_atleast_2d(self: TTensor) -> TTensor:
     """atleast_2d(Tensor self) -> Tensor"""
 
-    if Rank(self) <= 1:
+    if len(self.shape) <= 1:
         self = op.Reshape(self, op.Constant(value_ints=[1, -1]))
     return op.Identity(self)
 
@@ -975,7 +987,7 @@ def aten_atleast_2d_sequence(self: Sequence[TTensor]) -> TTensor:
 def aten_atleast_3d(self: TTensor) -> TTensor:
     """atleast_3d(Tensor self) -> Tensor"""
 
-    rank = Rank(self)
+    rank = len(self.shape)
     if rank <= 1:
         self = op.Reshape(self, op.Constant(value_ints=[1, -1, 1]))
     elif rank == 2:
@@ -1820,39 +1832,21 @@ def aten_conj_physical(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::constant_pad_nd")
-def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTensor:
+@torch_op("aten::constant_pad_nd", trace_only=True)
+def aten_constant_pad_nd(self: TTensor, pad: Sequence[INT64], value: float = 0.0) -> TTensor:
     """constant_pad_nd(Tensor self, SymInt[] pad, Scalar value=0) -> Tensor"""
 
     # The desired order of paddings is
     # dim_0_begin, dim_1_begin, ... , dim_0_end, ..., dim_n_end.
     # n is the dimension of input.
     # assume zero-dimensions in the beginning
-    # rank = len(self.shape)  # rank must be scalar
-    # paddings = list(pad[:]) + [0] * (rank * 2 - len(pad))
+    rank = len(self.shape)
+    paddings = list(pad) + [0] * (rank * 2 - len(pad))
     # reverse order and collate first beginnings and then ends
-    # paddings = paddings[-2::-2] + paddings[-1::-2]
+    paddings = paddings[-2::-2] + paddings[-1::-2]
+    constant_value = op.Constant(value=ir.tensor(value, dtype=self.dtype))
 
-    neg_1 = op.Constant(value_ints=[-1])
-
-    zero_count = op.Sub(op.Mul(Rank(self), 2), op.Size(pad))
-    zero_count = op.Reshape(zero_count, neg_1)
-    zero = op.Constant(value_ints=[0])
-    zeros = op.Expand(zero, zero_count)
-    torch_paddings = op.Concat(pad, zeros, axis=0)
-    size_d = op.Size(torch_paddings)
-    steps = op.Constant(value_ints=[-2])
-
-    starts = steps
-    ends = op.Sub(starts, size_d)
-    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
-
-    starts = neg_1
-    ends = op.Sub(starts, size_d)
-    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
-
-    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
-    return op.Pad(self, onnx_padding, value)
+    return op.Pad(self, paddings, constant_value)
 
 
 @torch_op("aten::contiguous", trace_only=True)
@@ -3996,7 +3990,7 @@ def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     result = op.ConcatFromSequence(tensors_atleast_2d, axis=1, new_axis=0)
 
     # hstack expects a non-empty sequence of tensors. So we don't need to check for length
-    rank_1d_or_less = op.Less(Rank(op.SequenceAt(tensors, 0)), 2)
+    rank_1d_or_less = op.Less(op.Size(op.Shape(op.SequenceAt(tensors, 0))), 2)
     if rank_1d_or_less:
         result = op.Reshape(result, op.Constant(value_ints=[-1]))
     return result
@@ -5684,7 +5678,7 @@ def aten_msort(self: TensorType) -> TensorType:
 
 
 @torch_op(
-    ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
+    ("aten::mul", "aten::mul.Tensor", "aten::multiply.Tensor"),
     trace_only=True,
 )
 def aten_mul(self: TTensor, other: TTensor) -> TTensor:
@@ -5693,6 +5687,11 @@ def aten_mul(self: TTensor, other: TTensor) -> TTensor:
     if self.dtype == ir.DataType.BOOL:
         return op.And(self, other)
 
+    return op.Mul(self, other)
+
+
+@torch_op("_operator::mul", trace_only=True)
+def operator_mul(self: TTensor, other: TTensor) -> TTensor:
     return op.Mul(self, other)
 
 
@@ -6174,7 +6173,7 @@ def aten_native_group_norm(
     norm = op.Reshape(norm, op.Shape(input), allowzero=True)
     # Using the input weight and bias to do affine
     # But need to unsqueeze to the target shape for broading cast easy
-    input_rank = Rank(input)
+    input_rank = len(input.shape)
     axes_unsqueeze = op.Range(1, input_rank - 1, 1)
     weight_full_shape = op.Unsqueeze(weight, axes_unsqueeze)
     bias_full_shape = op.Unsqueeze(bias, axes_unsqueeze)
@@ -8220,9 +8219,7 @@ def aten_std_mean_correction(
 @torch_op(
     (
         "aten::sub.Tensor",
-        "aten::sub.Scalar",
         "aten::subtract.Tensor",
-        "aten::subtract.Scalar",
         "_operator::sub",
     ),
     trace_only=True,
@@ -8233,6 +8230,14 @@ def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
         alpha = op.CastLike(alpha, other)
         other = op.Mul(other, alpha)
     return op.Sub(self, other)
+
+
+@torch_op(("aten::sub.Scalar", "aten::subtract.Scalar"), trace_only=True)
+def aten_sub_scalar(self: TTensor, other: float, alpha: float = 1.0) -> TTensor:
+    """sub.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor"""
+
+    other = op.Constant(value=ir.tensor(other, dtype=self.dtype))
+    return aten_sub(self, other, alpha=alpha)
 
 
 @torch_op(
@@ -8327,7 +8332,7 @@ def aten_symeig(
 def aten_t(self: TTensor) -> TTensor:
     """t(Tensor(a) self) -> Tensor(a)"""
 
-    rank = Rank(self)
+    rank = len(self.shape)
     if rank == 2:
         result = op.Transpose(self, perm=[1, 0])
     else:
@@ -8410,26 +8415,24 @@ def aten_threshold_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::tile")
-def aten_tile(self: TTensor, dims: INT64) -> TTensor:
+@torch_op("aten::tile", trace_only=True)
+def aten_tile(self: TTensor, dims: Sequence[int]) -> TTensor:
     """tile(Tensor self, int[] dims) -> Tensor"""
 
-    self_rank = Rank(self)
-    dims_rank = op.Size(dims)
-    diff = op.Sub(self_rank, dims_rank)
+    self_rank = len(self.shape)
+    dims_rank = len(dims)
+    diff = self_rank - dims_rank
 
     if diff > 0:
         # dims is shorter than self.shape
         # pad dims with 1
-        diff_1d = op.Reshape(diff, op.Constant(value_ints=[1]))
-        exapnd_ones = op.Expand(op.Constant(value_ints=[1]), diff_1d)
-        dims = op.Concat(exapnd_ones, dims, axis=0)
+        exapnd_ones = [1] * diff
+        dims = [*exapnd_ones, *dims]
 
-    if diff < 0:
+    elif diff < 0:
         # dims is longer than self.shape
         # pad self.shape with 1
-        diff_1d = op.Reshape(op.Abs(diff), op.Constant(value_ints=[1]))
-        exapnd_ones = op.Expand(op.Constant(value_ints=[1]), diff_1d)
+        exapnd_ones = op.Constant(value_ints=[1] * (-diff))
         self_shape = op.Shape(self)
         self_final_shape = op.Concat(exapnd_ones, self_shape, axis=0)
         self = op.Reshape(self, self_final_shape, allowzero=True)
