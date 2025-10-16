@@ -4226,8 +4226,8 @@ def aten_index_put(
     if (
         len(indices) > 1
         and any(
-            isinstance(indice, torch.onnx._internal.exporter._tensors.SymbolicTensor)  # pylint: disable=protected-access
-            for indice in indices
+            isinstance(index, torch.onnx._internal.exporter._tensors.SymbolicTensor)  # pylint: disable=protected-access
+            for index in indices
         )
         and len(values.shape) == 1
     ):
