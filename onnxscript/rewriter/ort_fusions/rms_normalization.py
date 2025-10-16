@@ -84,8 +84,9 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
             stash_type=self._stash_dtype,
         )
 
-_rule1 = RmsNormFusion.rule("RmsNormFusion1", _mul_order=False)    
-_rule2 = RmsNormFusion.rule("RmsNormFusion2", _mul_order=True)    
+
+_rule1 = RmsNormFusion.rule("RmsNormFusion1", _mul_order=False)
+_rule2 = RmsNormFusion.rule("RmsNormFusion2", _mul_order=True)
 
 rms_normalization_rules = [_rule1, _rule2]
 rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)
