@@ -484,7 +484,7 @@ class GemmaGQAFusionTest(unittest.TestCase):
                 sin,
             )
             key_BHkvSDh_rope = msft_op.RotaryEmbedding(
-                key_BHkvSDh,
+                key_BHkvSDh_normalized,
                 position_ids_k,
                 cos,
                 sin,
