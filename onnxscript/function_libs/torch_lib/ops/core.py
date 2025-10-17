@@ -8119,8 +8119,8 @@ def aten_std_mean_correction(
 
 
 @torch_op("aten::stft", private=True)
-def _add_batch_dimension(self: TFloatOrBFloat16) -> Tuple[TFloatOrBFloat16, INT64]:
-    signal_rank = Rank(self)
+def _add_batch_dimension(self: TFloat) -> Tuple[TFloat, INT64]:
+    signal_rank = op.Size(op.Shape(self))
     if signal_rank == 1:
         # Add a batch dimension
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
@@ -8129,8 +8129,8 @@ def _add_batch_dimension(self: TFloatOrBFloat16) -> Tuple[TFloatOrBFloat16, INT6
 
 @torch_op("aten::stft", private=True)
 def _center_window_around_zeros_if_needed(
-    window: TFloatOrBFloat16, n_fft: int
-) -> TFloatOrBFloat16:
+    window: TFloat, n_fft: int
+) -> TFloat:
     # first dimension
     n_win = op.Shape(window, start=0, end=1)
     # Center window around zeros if needed (required by ONNX's STFT)
@@ -8150,7 +8150,7 @@ def _center_window_around_zeros_if_needed(
 
 
 @torch_op("aten::stft", private=True)
-def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloatOrBFloat16:
+def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloat:
     left = (n_fft - win_length) / 2
 
     right = n_fft - left - win_length
@@ -8165,7 +8165,7 @@ def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloatOrBFloa
 
 
 @torch_op("aten::stft", private=True)
-def _create_window_from_n_fft(n_fft: int) -> TFloatOrBFloat16:
+def _create_window_from_n_fft(n_fft: int) -> TFloat:
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
     window = op.Expand(op.Constant(value_ints=[1]), n_fft_tensor)
     return window
@@ -8173,8 +8173,8 @@ def _create_window_from_n_fft(n_fft: int) -> TFloatOrBFloat16:
 
 @torch_op("aten::stft", private=True)
 def _normalize_fft_result(
-    signal: TFloatOrBFloat16, result: TFloatOrBFloat16, n_fft: int
-) -> TFloatOrBFloat16:
+    signal: TFloat, result: TFloat, n_fft: int
+) -> TFloat:
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
     sqrt_nfft = op.Sqrt(op.CastLike(n_fft_tensor, signal))
     result = result / sqrt_nfft
@@ -8183,13 +8183,13 @@ def _normalize_fft_result(
 
 @torch_op("aten::stft", private=True)
 def _aten_stft_onnx(
-    signal: TFloatOrBFloat16,
+    signal: TFloat,
     frame_step_const: INT64,
-    window: Union[TFloatOrBFloat16, INT64],
+    window: Union[TFloat, INT64],
     frame_length_const: INT64,
     signal_rank: INT64,
     onesided: int,
-) -> TFloatOrBFloat16:
+) -> TFloat:
     window = op.CastLike(window, signal)
     result = op.STFT(signal, frame_step_const, window, frame_length_const, onesided=onesided)
     result = op.Transpose(result, perm=[0, 2, 1, 3])
@@ -8201,15 +8201,15 @@ def _aten_stft_onnx(
 
 @torch_op("aten::stft", trace_only=True)
 def aten_stft(
-    self: TFloatOrBFloat16,
+    self: TFloat,
     n_fft: int,
     hop_length: Optional[int] = None,
     win_length: Optional[int] = None,
-    window: Optional[TFloatOrBFloat16] = None,
+    window: Optional[TFloat] = None,
     normalized: bool = False,
     onesided: Optional[bool] = None,
     return_complex: Optional[bool] = None,
-) -> TFloatOrBFloat16:
+) -> TFloat:
     """stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor"""
 
     # NOTE: regarless of the value of return_complex, we always return a real representation.
