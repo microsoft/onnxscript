@@ -5,6 +5,7 @@
 
 import unittest
 
+import numpy as np
 import torch
 from torch.onnx._internal.exporter import _testing
 
@@ -267,6 +268,30 @@ class TorchLibe2eTest(unittest.TestCase):
                     },
                 )
                 _testing.assert_onnx_program(onnx_program)
+
+    def test_index_put_scatter_nd(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, index, update):
+                x = x.clone()
+                return torch.ops.aten.index_put(x, [None, index, None], update)
+
+        shape = (2, 3, 2)
+        N = int(np.prod(shape))
+        x = torch.arange(N, dtype=torch.float32).reshape(shape)
+        update = (torch.arange(N, dtype=torch.float32).reshape(shape) + 1) * 100
+        index = ((torch.arange(shape[-2])).to(torch.int64) + 1) % shape[-2]
+
+        feeds = dict(zip(["x", "index", "update"], (x, index, update)))
+        onnx_program = torch.onnx.export(
+            Model(),
+            tuple(feeds.values()),
+            input_names=["x", "index", "update"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+            dynamic_shapes=({0: "a", 1: "b", 2: "c"}, {0: "d"}, {0: "e", 1: "f", 2: "g"}),
+        )
+        _testing.assert_onnx_program(onnx_program)
 
     def test_bitwise_and_scalar(self):
         class Model(torch.nn.Module):

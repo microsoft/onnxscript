@@ -4233,6 +4233,14 @@ def aten_index_put(
     ):
         return _aten_index_put_dynamic(self, indices, values, accumulate=accumulate)
 
+    n_none = [i for i, ind in enumerate(indices) if ind is not None]
+    if (
+        len(n_none) == 1
+        and len(indices[n_none[0]].shape) == 1
+        and len(self.shape) == len(values.shape)
+    ):
+        return _aten_index_put_scatter_nd(self, indices, values, accumulate)
+
     def _make_reshape_list_broadcastable(reshape_list, values_shape):
         # Remove ones until the rank of reshape_list matches values_shape.
         while len(reshape_list) > len(values_shape) and 1 in reshape_list:
@@ -4304,6 +4312,34 @@ def aten_index_put(
     scatter_kwargs = dict(reduction="add") if accumulate else {}
     result = op.ScatterND(self, new_index, flat_values, **scatter_kwargs)
     return result
+
+
+def _aten_index_put_scatter_nd(
+    x: TReal,
+    indices: Sequence[INT64],
+    values: TReal,
+    accumulate: bool = False,
+) -> TReal:
+    def _1dint(i: int):
+        return op.Constant(value_ints=ir.AttrInt64s("value_ints", [i]))
+
+    n_none = [i for i, ind in enumerate(indices) if ind is not None]
+    assert len(n_none) == 1, f"Unable to handle that case: n_none={n_none}"
+    unsq = op.Unsqueeze(indices[n_none[0]], _1dint(1))
+    if n_none[0] == 0:
+        return op.ScatterND(x, unsq, values)
+
+    perm = list(range(len(x.shape)))
+    perm[n_none[0]], perm[0] = perm[0], perm[n_none[0]]
+    return op.Transpose(
+        op.ScatterND(
+            op.Transpose(x, perm=perm),
+            unsq,
+            op.Transpose(values, perm=perm),
+            reduction="add" if accumulate else "none",
+        ),
+        perm=perm,
+    )
 
 
 def _aten_index_put_dynamic(
