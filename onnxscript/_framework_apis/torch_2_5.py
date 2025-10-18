@@ -83,10 +83,7 @@ def save_model_with_external_data(
     data_path = f"{destination_path.name}.data"
 
     # Show a progress bar if verbose is True and tqdm is installed
-    if verbose:
-        use_tqdm = importlib.util.find_spec("tqdm") is not None
-    else:
-        use_tqdm = False
+    use_tqdm = verbose and importlib.util.find_spec("tqdm") is not None
 
     if use_tqdm:
         import tqdm
