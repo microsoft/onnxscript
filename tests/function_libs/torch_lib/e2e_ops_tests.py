@@ -5,6 +5,7 @@
 
 import unittest
 
+import numpy as np
 import torch
 from torch.onnx._internal.exporter import _testing
 
@@ -222,6 +223,73 @@ class TorchLibe2eTest(unittest.TestCase):
             output_names=["output"],
             opset_version=18,
             dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_index_put_dynamic(self):
+        for dimension in [3, 4, 2]:
+            with self.subTest(dimension=dimension):
+
+                class Model(torch.nn.Module):
+                    def __init__(self, dimension):
+                        super().__init__()
+                        self.params = torch.zeros(
+                            (4, 5)
+                            if dimension == 2
+                            else ((2, 4, 5) if dimension == 3 else (1, 1, 4, 5))
+                        )
+                        self.dimension = dimension
+
+                    def forward(self, update, index1, index2):
+                        copy = self.params.clone()
+                        if self.dimension == 2:
+                            copy[index1, index2] = update
+                        elif self.dimension == 3:
+                            copy[:, index1, index2] = update
+                        else:
+                            copy[:, :, index1, index2] = update
+                        return copy
+
+                update = (torch.arange(2) + 10).reshape((2,)).to(torch.float32)
+                index1 = torch.tensor([1, 2], dtype=torch.int64)
+                index2 = torch.tensor([3, 4], dtype=torch.int64)
+                feeds = dict(zip(["update", "index1", "index2"], (update, index1, index2)))
+                onnx_program = torch.onnx.export(
+                    Model(dimension),
+                    tuple(feeds.values()),
+                    input_names=["update", "index1", "index2"],
+                    output_names=["output"],
+                    opset_version=18,
+                    dynamo=True,
+                    dynamic_shapes={
+                        "update": {0: "dn"},
+                        "index1": {0: "dn"},
+                        "index2": {0: "dn"},
+                    },
+                )
+                _testing.assert_onnx_program(onnx_program)
+
+    def test_index_put_scatter_nd(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, index, update):
+                x = x.clone()
+                return torch.ops.aten.index_put(x, [None, index, None], update)
+
+        shape = (2, 3, 2)
+        N = int(np.prod(shape))
+        x = torch.arange(N, dtype=torch.float32).reshape(shape)
+        update = (torch.arange(N, dtype=torch.float32).reshape(shape) + 1) * 100
+        index = ((torch.arange(shape[-2])).to(torch.int64) + 1) % shape[-2]
+
+        feeds = dict(zip(["x", "index", "update"], (x, index, update)))
+        onnx_program = torch.onnx.export(
+            Model(),
+            tuple(feeds.values()),
+            input_names=["x", "index", "update"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+            dynamic_shapes=({0: "a", 1: "b", 2: "c"}, {0: "d"}, {0: "e", 1: "f", 2: "g"}),
         )
         _testing.assert_onnx_program(onnx_program)
 
