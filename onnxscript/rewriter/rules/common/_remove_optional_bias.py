@@ -52,7 +52,7 @@ class _RemoveOptionalBias(RewriteRuleClassBase):
 class RemoveOptionalBiasFromConv(_RemoveOptionalBias):
     """Remove zero bias from Conv operation."""
 
-    op_type: ClassVar = "Conv"
+    op_type: ClassVar[str] = "Conv"
 
     def pattern(self, op: ir.tape.Tape, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
         return op.Conv(x, w, b, _outputs=["out"])
@@ -61,7 +61,7 @@ class RemoveOptionalBiasFromConv(_RemoveOptionalBias):
 class RemoveOptionalBiasFromConvTranspose(_RemoveOptionalBias):
     """Remove zero bias from ConvTranspose operation."""
 
-    op_type: ClassVar = "ConvTranspose"
+    op_type: ClassVar[str] = "ConvTranspose"
 
     def pattern(self, op: ir.tape.Tape, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
         return op.ConvTranspose(x, w, b, _outputs=["out"])
@@ -70,7 +70,7 @@ class RemoveOptionalBiasFromConvTranspose(_RemoveOptionalBias):
 class RemoveOptionalBiasFromQLinearConv(_RemoveOptionalBias):
     """Remove zero bias from QLinearConv operation."""
 
-    op_type: ClassVar = "QLinearConv"
+    op_type: ClassVar[str] = "QLinearConv"
 
     def pattern(
         self,
@@ -102,7 +102,7 @@ class RemoveOptionalBiasFromQLinearConv(_RemoveOptionalBias):
 class RemoveOptionalBiasFromGemm(_RemoveOptionalBias):
     """Remove zero bias from Gemm operation."""
 
-    op_type: ClassVar = "Gemm"
+    op_type: ClassVar[str] = "Gemm"
 
     def pattern(self, op: ir.tape.Tape, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
         return op.Gemm(x, w, b, _outputs=["out"])
