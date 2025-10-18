@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-
 __all__ = [
     "check_model",
     "convert_version",
@@ -13,8 +12,8 @@ __all__ = [
     "save_model_with_external_data",
 ]
 
-import importlib.util
 import dataclasses
+import importlib.util
 import os
 import pathlib
 from typing import Callable
