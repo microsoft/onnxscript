@@ -100,7 +100,7 @@ def save_model_with_external_data(
 
                 pbar.update()
                 pbar.set_description(
-                    f"Saving {tensor.name} ({tensor.dtype}, {tensor.shape}) at offset {metadata.offset}"
+                    f"Saving {tensor.name} ({tensor.dtype.short_name()}, {tensor.shape}) at offset {metadata.offset}"
                 )
 
             ir.save(model, model_path, external_data=data_path, callback=callback)
