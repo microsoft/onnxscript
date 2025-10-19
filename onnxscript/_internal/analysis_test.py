@@ -14,24 +14,27 @@ from onnxscript.sourceinfo import formatter
 class AnalysisResultsVisitor(ast.NodeVisitor):
     """Visitor class to flatten the results of liveness analysis in a pre-order traversal."""
 
-    def __init__(self) -> None:
+    def __init__(self, analyzer: analysis.AstAnalyzer) -> None:
         super().__init__()
         self.results: list[Any] = []
+        self.analyzer = analyzer
 
     def generic_visit(self, node):
-        if hasattr(node, "live_in"):
-            self.results.append(node.live_in)
+        live_in = self.analyzer.live_in(node)
+        if live_in is not None:
+            self.results.append(live_in)
         ast.NodeVisitor.generic_visit(self, node)
         if isinstance(node, (ast.For, ast.While)):
             last = node.body[-1]
-            self.results.append(last.live_out)  # type: ignore
+            live_out = self.analyzer.live_out(last)
+            self.results.append(live_out)  # type: ignore
 
 
 class TestLivenessAnalysis(unittest.TestCase):
     def analyze(self, fun):
         source, parse_tree = ast_utils.get_src_and_ast(fun)
-        analysis.AstAnalyzer(parse_tree, formatter(source))
-        visitor = AnalysisResultsVisitor()
+        analyzer = analysis.AstAnalyzer(parse_tree, formatter(source))
+        visitor = AnalysisResultsVisitor(analyzer)
         visitor.visit(parse_tree)
         return visitor.results
 

@@ -56,9 +56,19 @@ class AstAnalyzer:
     ) -> None:
         self._formatter = formatter
         self._constant_if_condition: dict[ast.If, bool] = {}
+        self._live_in: dict[ast.stmt, Set[str]] = {}
+        self._live_out: dict[ast.stmt, Set[str]] = {}
         if globals:
             self._compute_constant_if_conditions(fun, globals)
         self.do_liveness_analysis(fun)
+
+    def live_in(self, stmt: ast.stmt) -> Set[str] | None:
+        """Get the set of variables that are live at the entry of the given statement."""
+        return self._live_in.get(stmt)
+
+    def live_out(self, stmt: ast.stmt) -> Set[str] | None:
+        """Get the set of variables that are live at the exit of the given statement."""
+        return self._live_out.get(stmt)
 
     def _compute_constant_if_conditions(
         self, fun: ast.FunctionDef, globals: dict[str, Any]
@@ -135,15 +145,12 @@ class AstAnalyzer:
         raise ValueError(error_message)
 
     def do_liveness_analysis(self, fun: ast.FunctionDef):
-        """Perform liveness analysis of the given function-ast. The results of the
-        analysis are stored directly with each statement-ast `s` as attributes `s.live_in`
-        and `s.live_out`.
-        """
+        """Perform liveness analysis of the given function-ast."""
 
         def visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
-            stmt.live_out = live_out  # type: ignore[attr-defined]
+            self._live_out[stmt] = live_out
             live = do_visit(stmt, live_out)
-            stmt.live_in = live  # type: ignore[attr-defined]
+            self._live_in[stmt] = live
             return live
 
         def do_visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:

@@ -1107,10 +1107,11 @@ class Converter:
             for s in stmt.orelse:
                 self._translate_stmt(s)
             return
-        if hasattr(stmt, "live_out"):
-            live_defs = list(stmt.live_out.intersection(self.analyzer.assigned_vars(stmt)))
-        else:
-            live_defs = list(self.analyzer.assigned_vars(stmt))
+        live_def_set = self.analyzer.assigned_vars(stmt)
+        live_out = self.analyzer.live_out(stmt)
+        assert live_out is not None, "live_out cannot be None here."
+        live_def_set = live_out.intersection(live_def_set)
+        live_defs = list(live_def_set)
         test = self._translate_expr(stmt.test, "cond").name
         lineno = self._source_of(stmt).lineno
         thenGraph, sub_fct_then = self._translate_block(
@@ -1192,7 +1193,9 @@ class Converter:
         # analyze loop body
         exposed_uses = self.analyzer.exposed_uses(loop_stmt.body)
         vars_def_in_loop = self.analyzer.assigned_vars(loop_stmt.body)
-        loop_state_vars = vars_def_in_loop.intersection(exposed_uses | loop_stmt.live_out)
+        live_out = self.analyzer.live_out(loop_stmt)
+        assert live_out is not None, "live_out cannot be None here."
+        loop_state_vars = vars_def_in_loop.intersection(exposed_uses | live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
 
