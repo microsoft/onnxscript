@@ -58,7 +58,7 @@ class AstAnalyzer:
         self._constant_if_condition: dict[ast.If, bool] = {}
         if globals:
             self._compute_constant_if_conditions(fun, globals)
-        self.do_liveness_analysis(fun, formatter)
+        self.do_liveness_analysis(fun)
 
     def _compute_constant_if_conditions(
         self, fun: ast.FunctionDef, globals: dict[str, Any]
@@ -70,7 +70,7 @@ class AstAnalyzer:
         conditions. The value of such conditions is determined from the outer-scope.
         """
 
-        assigned_vars = self.assigned_vars(fun.body, self._formatter)
+        assigned_vars = self.assigned_vars(fun.body)
         for node in ast.walk(fun):
             if isinstance(node, ast.If):
                 if isinstance(node.test, ast.Name):
@@ -90,9 +90,7 @@ class AstAnalyzer:
         """
         return self._constant_if_condition.get(if_stmt, None)  # type: ignore[return-value]
 
-    def assigned_vars(
-        self, stmt: ast.stmt | list[ast.stmt], formatter: sourceinfo.Formatter
-    ) -> Set[str]:
+    def assigned_vars(self, stmt: ast.stmt | list[ast.stmt]) -> Set[str]:
         """Return the set of all variables that may be assigned to in an execution of input stmt
         or sequence of statements.
         """
@@ -100,7 +98,7 @@ class AstAnalyzer:
         def assigned_in_block(block: Sequence[ast.stmt]) -> Set[str]:
             result: set[Any] = set()
             for s in block:
-                result = result | self.assigned_vars(s, formatter)
+                result = result | self.assigned_vars(s)
             return result
 
         if isinstance(stmt, ast.Assign):
@@ -118,7 +116,7 @@ class AstAnalyzer:
             else:
                 return assigned_in_block(stmt.orelse)
         if isinstance(stmt, ast.For):
-            return assigned_in_block(stmt.body) | {_get_loop_var(stmt, formatter)}
+            return assigned_in_block(stmt.body) | {_get_loop_var(stmt, self._formatter)}
         if isinstance(stmt, ast.While):
             return assigned_in_block(stmt.body)
         if isinstance(stmt, list):
@@ -133,10 +131,10 @@ class AstAnalyzer:
             return set()
         if ast_utils.is_doc_string(stmt):
             return set()
-        error_message = formatter(stmt, f"Unsupported statement type {type(stmt)!r}.")
+        error_message = self._formatter(stmt, f"Unsupported statement type {type(stmt)!r}.")
         raise ValueError(error_message)
 
-    def do_liveness_analysis(self, fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
+    def do_liveness_analysis(self, fun: ast.FunctionDef):
         """Perform liveness analysis of the given function-ast. The results of the
         analysis are stored directly with each statement-ast `s` as attributes `s.live_in`
         and `s.live_out`.
@@ -171,7 +169,7 @@ class AstAnalyzer:
                 else:
                     return visitBlock(stmt.orelse, live_out)
             if isinstance(stmt, ast.For):
-                p_loop_var = _get_loop_var(stmt, formatter)
+                p_loop_var = _get_loop_var(stmt, self._formatter)
                 prev = None
                 curr = live_out
                 while curr != prev:
@@ -198,14 +196,16 @@ class AstAnalyzer:
                 return live_out
             if ast_utils.is_print_call(stmt):
                 return live_out
-            raise ValueError(formatter(stmt, f"Unsupported statement type {type(stmt)!r}."))
+            raise ValueError(
+                self._formatter(stmt, f"Unsupported statement type {type(stmt)!r}.")
+            )
 
         assert isinstance(fun, ast.FunctionDef)
         live: set[Any] = set()
         for s in reversed(fun.body):
             live = visit(s, live)
 
-    def exposed_uses(self, stmts: Sequence[ast.stmt], formatter: sourceinfo.Formatter):
+    def exposed_uses(self, stmts: Sequence[ast.stmt]):
         """Return the set of variables that are used before being defined by given block.
         In essence, this identifies the "inputs" to a given code-block.
         For example, consider the following code-block:
@@ -251,7 +251,7 @@ class AstAnalyzer:
             if isinstance(stmt, ast.For):
                 # Analysis assumes loop may execute zero times. Results can be improved
                 # for loops that execute at least once.
-                loop_var_set = {_get_loop_var(stmt, formatter)}
+                loop_var_set = {_get_loop_var(stmt, self._formatter)}
                 used_after_loop = live_out.difference(loop_var_set)
                 used_inside_loop = visitBlock(stmt.body, set()).difference(loop_var_set)
                 used_in_loop_header = _used_vars(stmt.iter)
@@ -269,13 +269,15 @@ class AstAnalyzer:
             if isinstance(stmt, ast.FunctionDef):
                 if stmt.name in live_out:
                     live_out.remove(stmt.name)
-                    live_out = live_out | self.outer_scope_variables(stmt, formatter)
+                    live_out = live_out | self.outer_scope_variables(stmt)
                 return live_out
-            raise ValueError(formatter(stmt, f"Unsupported statement type {type(stmt)!r}."))
+            raise ValueError(
+                self._formatter(stmt, f"Unsupported statement type {type(stmt)!r}.")
+            )
 
         return visitBlock(stmts, set())
 
-    def outer_scope_variables(self, fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
+    def outer_scope_variables(self, fun: ast.FunctionDef):
         """Return the set of outer-scope variables used in a nested function.
 
         Args:
@@ -286,6 +288,6 @@ class AstAnalyzer:
             A set of variable names (strings).
         """
         assert isinstance(fun, ast.FunctionDef)
-        used_vars_ = self.exposed_uses(fun.body, formatter)
+        used_vars_ = self.exposed_uses(fun.body)
         inputs = [x.arg for x in fun.args.args]
         return used_vars_.difference(inputs)

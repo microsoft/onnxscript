@@ -1108,11 +1108,9 @@ class Converter:
                 self._translate_stmt(s)
             return
         if hasattr(stmt, "live_out"):
-            live_defs = list(
-                stmt.live_out.intersection(self.analyzer.assigned_vars(stmt, self._message))
-            )
+            live_defs = list(stmt.live_out.intersection(self.analyzer.assigned_vars(stmt)))
         else:
-            live_defs = list(self.analyzer.assigned_vars(stmt, self._message))
+            live_defs = list(self.analyzer.assigned_vars(stmt))
         test = self._translate_expr(stmt.test, "cond").name
         lineno = self._source_of(stmt).lineno
         thenGraph, sub_fct_then = self._translate_block(
@@ -1192,8 +1190,8 @@ class Converter:
         else:
             self.fail(loop_stmt, f"Unexpected loop type {type(loop_stmt)!r}.")
         # analyze loop body
-        exposed_uses = self.analyzer.exposed_uses(loop_stmt.body, self._message)
-        vars_def_in_loop = self.analyzer.assigned_vars(loop_stmt.body, self._message)
+        exposed_uses = self.analyzer.exposed_uses(loop_stmt.body)
+        vars_def_in_loop = self.analyzer.assigned_vars(loop_stmt.body)
         loop_state_vars = vars_def_in_loop.intersection(exposed_uses | loop_stmt.live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
@@ -1380,7 +1378,7 @@ class Converter:
         self._enter_scope(fn.name, fn)
         self._translate_function_def_common(fn)
         function_ir = self._exit_scope()
-        outer_scope_vars = self.analyzer.outer_scope_variables(fn, self._message)
+        outer_scope_vars = self.analyzer.outer_scope_variables(fn)
         function_ir.outer_scope_variables = [
             (var, self._lookup(var, self._source_of(fn))) for var in outer_scope_vars
         ]

@@ -114,7 +114,7 @@ class TestExposedUses(unittest.TestCase):
     def assertUses(self, f, expected):
         source, parse_tree = ast_utils.get_src_and_ast(f)
         analyzer = analysis.AstAnalyzer(parse_tree, formatter(source))
-        result = analyzer.exposed_uses(parse_tree.body, formatter(source))
+        result = analyzer.exposed_uses(parse_tree.body)
         self.assertEqual(result, set(expected))
 
     def test_basic(self):
@@ -192,7 +192,7 @@ class TestAssignedVarAnalysis(unittest.TestCase):
     def assert_assigned_vars(self, f, expected: set[str]):
         source, parse_tree = ast_utils.get_src_and_ast(f)
         analyzer = analysis.AstAnalyzer(parse_tree, formatter(source))
-        result = analyzer.assigned_vars(parse_tree.body, formatter(source))
+        result = analyzer.assigned_vars(parse_tree.body)
         self.assertEqual(result, expected)
 
     def test_basic_defs(self):
