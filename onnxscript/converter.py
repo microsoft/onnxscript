@@ -1109,8 +1109,10 @@ class Converter:
             return
         live_def_set = self.analyzer.assigned_vars(stmt)
         live_out = self.analyzer.live_out(stmt)
-        assert live_out is not None, "live_out cannot be None here."
-        live_def_set = live_out.intersection(live_def_set)
+        if live_out is not None:
+            # Ideally, live_out should never be None here. But handle this conditionally
+            # due to some existing usage.
+            live_def_set = live_out.intersection(live_def_set)
         live_defs = list(live_def_set)
         test = self._translate_expr(stmt.test, "cond").name
         lineno = self._source_of(stmt).lineno
