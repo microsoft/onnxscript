@@ -269,6 +269,23 @@ class TorchLibe2eTest(unittest.TestCase):
                 )
                 _testing.assert_onnx_program(onnx_program)
 
+    def test_index_put_55_12_25(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, index, update):
+                return torch.ops.aten.index_put(x, [index], update)
+
+        x = torch.zeros((6, 5), dtype=torch.float32)
+        index = torch.tensor([[2, 1]], dtype=torch.int64)
+        update = (torch.arange(10) + 10).reshape((2, -1)).to(torch.float32)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, index, update),
+            input_names=["x", "index", "update"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
 
     def test_index_put_scatter_nd(self):
         class Model(torch.nn.Module):

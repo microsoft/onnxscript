@@ -4241,6 +4241,11 @@ def aten_index_put(
     ):
         return _aten_index_put_scatter_nd(self, indices, values, accumulate)
 
+    if len(indices) == 1 and set(indices[0].shape[:-1]) == {1} and indices[0].shape[0] == 1:
+        # shape(self) = (5,5), shape(indices[0]) = (1,2), shape(values) = (2,5)
+        # This case was only found in ops_data test.
+        return _aten_index_put_scatter_nd(self, [op.Reshape(indices[0], [-1])], values, accumulate)
+
     def _make_reshape_list_broadcastable(reshape_list, values_shape):
         # Remove ones until the rank of reshape_list matches values_shape.
         while len(reshape_list) > len(values_shape) and 1 in reshape_list:
@@ -4252,7 +4257,13 @@ def aten_index_put(
         # the reshape list should be : [[2, 1], [1, 3], [2, 1]]
         for i, r in enumerate(reshape_list):
             if r not in (1, values_shape[i]):
-                value_index = values_shape.index(r)
+                try:
+                    value_index = values_shape.index(r)
+                except ValueError as e:
+                    raise RuntimeError(
+                        f"Unable to find element {r!r} in shape {values_shape}, "
+                        f"reshape_list={reshape_list}"
+                    ) from e
                 # Swap elements
                 # For the example above the current reshape list is [1, 2] for last dim,
                 # to make it broadcastable, we swap the elements
