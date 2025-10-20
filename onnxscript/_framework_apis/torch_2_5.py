@@ -85,7 +85,7 @@ def save_model_with_external_data(
     use_tqdm = verbose and importlib.util.find_spec("tqdm") is not None
 
     if use_tqdm:
-        import tqdm
+        import tqdm  # pylint: disable=import-outside-toplevel
 
         with tqdm.tqdm() as pbar:
             total_set = False
