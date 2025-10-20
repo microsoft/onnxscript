@@ -269,6 +269,7 @@ class TorchLibe2eTest(unittest.TestCase):
                 )
                 _testing.assert_onnx_program(onnx_program)
 
+
     def test_index_put_scatter_nd(self):
         class Model(torch.nn.Module):
             def forward(self, x, index, update):

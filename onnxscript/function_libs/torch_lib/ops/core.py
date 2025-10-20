@@ -4276,15 +4276,22 @@ def aten_index_put(
             reshape_update = self.shape[i]
         else:
             idx = indices[i]
-            reshape_update = math.prod(idx.shape)
-            # when Index is more than 1D, flatten it and also the values shape
-            # Example: self shape: (10, 3), indices[i] shape: (2, 4), values shape: (2, 4, 3)
-            # Indices -> (2*4,) and values shape (2*4, 32)
-            if len(idx.shape) > 1:
-                values_shape = (reshape_update, *values_shape[len(idx.shape) :])
+            if all(isinstance(s, int) for s in idx.shape):
+                reshape_update = math.prod(idx.shape)
+                # when Index is more than 1D, flatten it and also the values shape
+                # Example: self shape: (10, 3), indices[i] shape: (2, 4), values shape: (2, 4, 3)
+                # Indices -> (2*4,) and values shape (2*4, 32)
+                if len(idx.shape) > 1:
+                    values_shape = (reshape_update, *values_shape[len(idx.shape) :])
 
-            # Flatten index (always working with 1D index in each dim)
-            idx = op.Reshape(idx, [-1])
+                # Flatten index (always working with 1D index in each dim)
+                idx = op.Reshape(idx, [-1])
+            else:
+                raise RuntimeError(
+                    f"Unable to handle index {indices[i]} for axis={i} "
+                    f"because one of the dimension is not static as shape="
+                    f"{idx.shape}, indices={indices}"
+                )
 
         # Create a reshape pattern: one value per index dimension,
         # with the current dimension set to the update size.
