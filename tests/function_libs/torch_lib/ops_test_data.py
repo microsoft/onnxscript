@@ -313,7 +313,10 @@ def _im2col_input_wrangler(
 def _index_put_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    args[1] = [(elem.detach().cpu().numpy() if hasattr(elem, "detach") else np.array(elem)) for elem in args[1]]
+    args[1] = [
+        (elem.detach().cpu().numpy() if hasattr(elem, "detach") else np.array(elem))
+        for elem in args[1]
+    ]
     return args, kwargs
 
 

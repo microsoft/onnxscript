@@ -4244,7 +4244,9 @@ def aten_index_put(
     if len(indices) == 1 and set(indices[0].shape[:-1]) == {1} and indices[0].shape[0] == 1:
         # shape(self) = (5,5), shape(indices[0]) = (1,2), shape(values) = (2,5)
         # This case was only found in ops_data test.
-        return _aten_index_put_scatter_nd(self, [op.Reshape(indices[0], [-1])], values, accumulate)
+        return _aten_index_put_scatter_nd(
+            self, [op.Reshape(indices[0], [-1])], values, accumulate
+        )
 
     def _make_reshape_list_broadcastable(reshape_list, values_shape):
         # Remove ones until the rank of reshape_list matches values_shape.
