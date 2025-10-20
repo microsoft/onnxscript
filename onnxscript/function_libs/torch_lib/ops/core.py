@@ -4345,7 +4345,7 @@ def _aten_index_put_scatter_nd(
     assert len(n_none) == 1, f"Unable to handle that case: n_none={n_none}"
     unsq = op.Unsqueeze(indices[n_none[0]], _1dint(1))
     if n_none[0] == 0:
-        return op.ScatterND(x, unsq, values)
+        return op.ScatterND(x, unsq, values, reduction="add" if accumulate else "none")
 
     perm = list(range(len(x.shape)))
     perm[n_none[0]], perm[0] = perm[0], perm[n_none[0]]
