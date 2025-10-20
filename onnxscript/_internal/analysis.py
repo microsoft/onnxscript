@@ -98,7 +98,7 @@ class AstAnalyzer:
         Returns:
             The constant boolean value of the if-statement condition, or None if not constant.
         """
-        return self._constant_if_condition.get(if_stmt, None)  # type: ignore[return-value]
+        return self._constant_if_condition.get(if_stmt, None)
 
     def assigned_vars(self, stmt: ast.stmt | list[ast.stmt]) -> Set[str]:
         """Return the set of all variables that may be assigned to in an execution of input stmt
