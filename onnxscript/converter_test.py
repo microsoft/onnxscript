@@ -710,6 +710,36 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(len(onnx_opset_import), 1)
         self.assertEqual(onnx_opset_import[0].version, 19)
 
+    def test_traced_if(self):
+        """Test that traced if statements are converted correctly."""
+
+        @script()
+        def add_model(x: FLOAT[10]) -> FLOAT[10]:
+            y = op.Add(x, x)
+            return y
+
+        @script()
+        def sub_model(x: FLOAT[10]) -> FLOAT[10]:
+            y = op.Sub(x, x)
+            return y
+
+        def make_model(flag: bool):
+            @script()
+            def model(x: FLOAT[10]) -> FLOAT[10]:
+                if flag:
+                    y = op.Add(x, x)
+                else:
+                    y = op.Sub(x, x)
+                return y
+
+            return model.to_model_proto()
+
+        model_true = make_model(True)
+        onnxscript.testing.assert_isomorphic(model_true, add_model.to_model_proto())
+
+        model_false = make_model(False)
+        onnxscript.testing.assert_isomorphic(model_false, sub_model.to_model_proto())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
