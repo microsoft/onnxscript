@@ -8212,13 +8212,13 @@ def aten_stft(
 ) -> TFloat:
     """stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor"""
 
-    # NOTE: regarless of the value of return_complex, we always return a real representation.
+    # NOTE: regardless of the value of return_complex, we always return a real representation.
     del return_complex
 
     # Get STFT sizes
     if hop_length is None:
         # core dump
-        # hop_leagth = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
+        # hop_length = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
         hop_length = n_fft // 4
     frame_step_const = op.Reshape(hop_length, op.Constant(value_ints=[1]))
     frame_length_const = op.Reshape(n_fft, op.Constant(value_ints=[1]))
