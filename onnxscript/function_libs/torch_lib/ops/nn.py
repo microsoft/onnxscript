@@ -121,9 +121,8 @@ def _aten_avg_pool_onnx(
     pads: Sequence[int],
     ceil_mode: bool,
     count_include_pad: bool,
-    unbatched_rank: int,
 ) -> TFloat:
-    self_rank_is_unbatched_rank = len(self.shape) == unbatched_rank
+    self_rank_is_unbatched_rank = len(self.shape) == len(kernel_shape) + 1
     if self_rank_is_unbatched_rank:  # C,H,W -> N,C,H,W and N=1
         self = op.Unsqueeze(self, [0])
 
@@ -162,7 +161,7 @@ def aten_avg_pool1d(
         expand_size, kernel_size, stride, padding
     )
 
-    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad, 2)
+    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
 
 @torch_op("aten::avg_pool2d", trace_only=True)
@@ -199,7 +198,7 @@ def aten_avg_pool2d(
     # S is stride size, in this case S=4,
     # S may dup lot of times according to the image size
 
-    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad, 3)
+    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
 
 def aten_avg_pool2d_backward(
@@ -251,7 +250,7 @@ def aten_avg_pool3d(
     # S is stride size, in this case S=4,
     # S may dup lot of times according to the image size
 
-    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad, 4)
+    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
 
 def aten_avg_pool3d_backward(
