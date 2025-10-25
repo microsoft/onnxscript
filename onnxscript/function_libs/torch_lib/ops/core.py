@@ -8118,39 +8118,33 @@ def aten_std_mean_correction(
     return op.Sqrt(var), mean
 
 
-def _add_batch_dimension(self: TFloat) -> Tuple[TFloat, INT64]:
-    signal_rank = op.Size(op.Shape(self))
-    if signal_rank == 1:
-        # Add a batch dimension
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-    return op.Identity(self), signal_rank
-
-
 def _center_window_around_zeros_if_needed(
     window: TFloat, n_fft: int
 ) -> TFloat:
     # first dimension
     n_win = op.Shape(window, start=0, end=1)
+
+    left = op.Div(op.Sub(n_fft, n_win), op.Constant(value_ints=[2]))
+
+    right = op.Sub(op.Sub(n_fft, left), n_win)
+    left = op.Reshape(left, op.Constant(value_ints=[1]))
+    right = op.Reshape(right, op.Constant(value_ints=[1]))
+
+    left_win = op.Expand(op.Constant(value_ints=[0]), left)
+    right_win = op.Expand(op.Constant(value_ints=[0]), right)
+    right_win = op.CastLike(right_win, window)
+    left_win = op.CastLike(left_win, window)
+    window_padded = op.Concat(left_win, window, right_win, axis=0)
+
     # Center window around zeros if needed (required by ONNX's STFT)
-    if n_win < n_fft:
-        left = (n_fft - n_win) / 2
-
-        right = n_fft - left - n_win
-        left = op.Reshape(left, op.Constant(value_ints=[1]))
-        right = op.Reshape(right, op.Constant(value_ints=[1]))
-
-        left_win = op.Expand(op.Constant(value_ints=[0]), left)
-        right_win = op.Expand(op.Constant(value_ints=[0]), right)
-        right_win = op.CastLike(right_win, window)
-        left_win = op.CastLike(left_win, window)
-        window = op.Concat(left_win, window, right_win, axis=0)
+    window = op.Where(op.Less(op.Squeeze(n_win), n_fft), window_padded, window)
     return window
 
 
 def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloat:
-    left = (n_fft - win_length) / 2
+    left = op.Div(op.Sub(n_fft, win_length), op.Constant(value_ints=[2]))
 
-    right = n_fft - left - win_length
+    right = op.Sub(op.Sub(n_fft, left), win_length)
     left = op.Reshape(left, op.Constant(value_ints=[1]))
     right = op.Reshape(right, op.Constant(value_ints=[1]))
     win_length = op.Reshape(win_length, op.Constant(value_ints=[1]))
@@ -8172,7 +8166,7 @@ def _normalize_fft_result(
 ) -> TFloat:
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
     sqrt_nfft = op.Sqrt(op.CastLike(n_fft_tensor, signal))
-    result = result / sqrt_nfft
+    result = op.Div(result, sqrt_nfft)
     return result
 
 
@@ -8181,15 +8175,11 @@ def _aten_stft_onnx(
     frame_step_const: INT64,
     window: Union[TFloat, INT64],
     frame_length_const: INT64,
-    signal_rank: INT64,
     onesided: int,
 ) -> TFloat:
     window = op.CastLike(window, signal)
     result = op.STFT(signal, frame_step_const, window, frame_length_const, onesided=onesided)
     result = op.Transpose(result, perm=[0, 2, 1, 3])
-    # Remove batch dimension, if needed
-    if signal_rank == 1:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
     return result
 
 
@@ -8218,7 +8208,10 @@ def aten_stft(
     frame_length_const = op.Reshape(n_fft, op.Constant(value_ints=[1]))
 
     # Pre-process input if needed
-    self, signal_rank = _add_batch_dimension(self)
+    is_signal_rank1 = self.shape is not None and len(self.shape) == 1
+    if is_signal_rank1:
+        # Add a batch dimension
+        self = op.Identity(op.Unsqueeze(self, op.Constant(value_ints=[0])))
 
     # Get window and make sure it's the same size as `win_length` or `n_fft`
     if window is not None and window.shape[0] is not None:
@@ -8233,10 +8226,12 @@ def aten_stft(
         onesided = 1
     else:
         onesided = 0
-    # remove batch dimension included
     result = _aten_stft_onnx(
-        self, frame_step_const, window, frame_length_const, signal_rank, onesided
+        self, frame_step_const, window, frame_length_const, onesided
     )
+    # Remove batch dimension, if needed
+    if is_signal_rank1:
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
 
     # Normalize, if needed
     if normalized:
