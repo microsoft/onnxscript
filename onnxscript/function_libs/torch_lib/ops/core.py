@@ -8118,7 +8118,6 @@ def aten_std_mean_correction(
     return op.Sqrt(var), mean
 
 
-@torch_op("aten::stft", private=True)
 def _add_batch_dimension(self: TFloat) -> Tuple[TFloat, INT64]:
     signal_rank = op.Size(op.Shape(self))
     if signal_rank == 1:
@@ -8127,7 +8126,6 @@ def _add_batch_dimension(self: TFloat) -> Tuple[TFloat, INT64]:
     return op.Identity(self), signal_rank
 
 
-@torch_op("aten::stft", private=True)
 def _center_window_around_zeros_if_needed(
     window: TFloat, n_fft: int
 ) -> TFloat:
@@ -8149,7 +8147,6 @@ def _center_window_around_zeros_if_needed(
     return window
 
 
-@torch_op("aten::stft", private=True)
 def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloat:
     left = (n_fft - win_length) / 2
 
@@ -8164,14 +8161,12 @@ def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloat:
     return op.Concat(left_win, window_list, right_win, axis=0)
 
 
-@torch_op("aten::stft", private=True)
 def _create_window_from_n_fft(n_fft: int) -> TFloat:
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
     window = op.Expand(op.Constant(value_ints=[1]), n_fft_tensor)
     return window
 
 
-@torch_op("aten::stft", private=True)
 def _normalize_fft_result(
     signal: TFloat, result: TFloat, n_fft: int
 ) -> TFloat:
@@ -8181,7 +8176,6 @@ def _normalize_fft_result(
     return result
 
 
-@torch_op("aten::stft", private=True)
 def _aten_stft_onnx(
     signal: TFloat,
     frame_step_const: INT64,
