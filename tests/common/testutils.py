@@ -14,6 +14,7 @@ import onnxruntime
 import torch
 
 from onnxscript import optimizer
+from onnxscript.onnx_opset import opset18 as op
 from onnxscript.rewriter import onnxruntime as ort_rewriter
 from onnxscript.utils import evaluation_utils
 
@@ -101,3 +102,9 @@ def test_onnxruntime_rewrite(
                     f"Failed for model {model_name} and output {i} with rtol={rtol} and atol={atol}\n{e}"
                 )
                 raise
+
+def test_softmax_with_all_inf_mask():
+    # GH #2561
+    input = np.array([[-float("inf"), -float("inf")]], dtype=np.float32)
+    output = op.Softmax(input, axis=-1)
+    assert np.isnan(output).all(), "Softmax should return NaN when all inputs are -inf"
