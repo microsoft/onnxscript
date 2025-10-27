@@ -8536,6 +8536,8 @@ def aten_trunc(self: TFloat) -> TFloat:
 @torch_op("math::trunc", trace_only=True)
 def python_math_trunc(self: TFloat) -> TInt:
     """trunc(Tensor self) -> Tensor"""
+    # NOTE: This is used in SymInt/SymBool/SymFloat context, so
+    # we don't expect overflow to happen here.
     return op.Cast(self, to=INT64.dtype)
 
 
