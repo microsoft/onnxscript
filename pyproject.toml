@@ -27,7 +27,7 @@ classifiers = [
 dependencies = [
   "ml_dtypes",
   "numpy",
-  "onnx_ir>=0.1.3,<2",  # Expect onnx_ir to have a breaking change in 2.0. If not, extend this range.
+  "onnx_ir>=0.1.10,<2",  # Expect onnx_ir to have a breaking change in 2.0. If not, extend this range.
   "onnx>=1.16",
   "packaging",
   "typing_extensions>=4.10",
@@ -41,7 +41,6 @@ onnxscript = ["py.typed"]
 onnx = ["py.typed"]
 
 [tool.pytest.ini_options]
-filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
 addopts = "-rsfEX --tb=short --color=yes"
 
 [tool.mypy]
@@ -79,40 +78,6 @@ module = [
   "tests.onnx_backend_test_code.*",
 ]
 ignore_errors = true
-
-# FIXME(#1378): Remove this overrides section
-[[tool.mypy.overrides]]
-module = [
-  "onnxrewriter.rewriter.generic_pattern_test.*",
-]
-check_untyped_defs = false
-disable_error_code = 'override,import-untyped,no-untyped-def,assignment'
-disallow_incomplete_defs = true
-disallow_untyped_defs = true
-disallow_untyped_decorators = true
-show_column_numbers = true
-strict_optional = true
-warn_incomplete_stub = true
-warn_no_return = true
-warn_unused_configs = true
-warn_unused_ignores = false
-
-# FIXME(#1378): Remove this overrides section
-[[tool.mypy.overrides]]
-module = [
-  "onnxrewriter.rewriter.generic_pattern.*",
-]
-check_untyped_defs = false
-disable_error_code = 'override,import-untyped,no-untyped-def,assignment,union-attr,func-returns-value,annotation-unchecked,arg-type,index,name-defined,attr-defined'
-disallow_incomplete_defs = true
-disallow_untyped_defs = true
-disallow_untyped_decorators = true
-show_column_numbers = true
-strict_optional = true
-warn_incomplete_stub = true
-warn_no_return = true
-warn_unused_configs = true
-warn_unused_ignores = false
 
 [tool.pylint.messages_control]
 # NOTE: This list is for vscode. Add new disables in pyproject_pylint.toml for lintrunner
@@ -211,6 +176,7 @@ ignore-init-module-imports = true
 "setup.py" = ["TID251"] # pathlib is allowed in supporting code
 "**/{examples,tests,docs,tools,utils,opgen,_framework_apis}/*" = ["TID251"] # pathlib is allowed in supporting code
 "**/*_test.py" = ["TID251"] # pathlib is allowed in tests
+"onnxscript/onnx_opset/_impl/*.py" = ["RUF036"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 # Disallow all relative imports.

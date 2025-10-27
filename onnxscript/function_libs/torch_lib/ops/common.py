@@ -5,6 +5,8 @@
 # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy.typing as npt
 import onnx
 
@@ -26,14 +28,24 @@ common_opset = onnxscript.values.Opset(domain=DOMAIN, version=1)
 
 @onnxscript.script(common_opset)
 def Rank(input: tensor_typing.TTensor) -> INT64:
-    """Take the rank of the input tensor."""
+    """Deprecated.
+
+    NOTE: Do not remove, for backward compatibility with PyTorch < 2.10.
+
+    Take the rank of the input tensor.
+    """
 
     return op.Size(op.Shape(input))
 
 
 @onnxscript.script(common_opset)
 def IsScalar(input: tensor_typing.TTensor) -> BOOL:
-    """Return whether the input has rank 0, or is a scalar."""
+    """Deprecated.
+
+    NOTE: Do not remove, for backward compatibility with PyTorch < 2.10.
+
+    Return whether the input has rank 0, or is a scalar.
+    """
 
     return op.Equal(op.Size(op.Shape(input)), op.Constant(value_int=0))
 
@@ -78,3 +90,22 @@ def constant(
         A constant node.
     """
     return op.Constant(value=ir.tensor(array, dtype=ir.DataType(dtype)))
+
+
+def merge_dims(dims: Sequence[int | INT64]) -> INT64:
+    """Concatenate dimensions into a single value."""
+
+    if not dims:
+        return op.Constant(value_ints=ir.AttrInt64s("value_ints", []))
+
+    neg_one_1d = op.Constant(value_ints=ir.AttrInt64s("value_ints", [-1]))
+
+    result_dims = [
+        op.Constant(value_ints=[d]) if isinstance(d, int) else op.Reshape(d, neg_one_1d)
+        for d in dims
+    ]
+
+    # Set the output type to INT64 so op.Concat can be used
+    for dim in result_dims:
+        dim.dtype = ir.DataType.INT64
+    return op.Concat(*result_dims, axis=0)

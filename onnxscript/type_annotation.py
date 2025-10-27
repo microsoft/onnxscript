@@ -11,7 +11,6 @@ import onnx
 import onnx_ir as ir
 
 from onnxscript import onnx_types
-from onnxscript._internal import version_utils
 
 # TypeAnnotationValue represents the (value of) valid type-annotations recognized
 # by ONNX Script. TODO: Flesh out a formal definition. Currently, it supports
@@ -68,9 +67,18 @@ ALL_TENSOR_TYPE_STRINGS = tuple(
     sorted(
         tensor_type.to_string()
         for tensor_type in onnx_types.tensor_type_registry.values()
-        # Skip FLOAT4E2M1 for versions older than 1.18
+        # Skip FLOAT4E2M1 for versions older than 1.18, and FLOAT8E8M0 for versions older than 1.19
         # TODO(after onnx requirement bump): Remove this check
-        if not (version_utils.onnx_older_than("1.18") and tensor_type == onnx_types.FLOAT4E2M1)
+        if (
+            not (
+                not hasattr(onnx.TensorProto, "FLOAT4E2M1")
+                and tensor_type == onnx_types.FLOAT4E2M1
+            )
+            and not (
+                not hasattr(onnx.TensorProto, "FLOAT8E8M0")
+                and tensor_type == onnx_types.FLOAT8E8M0
+            )
+        )
     )
 )
 

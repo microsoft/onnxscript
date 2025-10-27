@@ -76,18 +76,31 @@ class PrefixPattern(StringPattern):
 class AttrPattern(Pattern[ir.Attr]):
     """Base class for an attribute pattern. Matches any attribute value by default."""
 
-    def __init__(self, name: str | None):
+    def __init__(self, name: str | None, *, can_match_none: bool = False):
         self._name = name
+        self._can_match_none = can_match_none
 
     @property
     def name(self) -> str | None:
         return self._name
+
+    @property
+    def can_match_none(self) -> bool:
+        """Indicates whether this pattern can match a None attribute."""
+        return self._can_match_none
 
     def matches(self, attr: ir.Attr) -> bool:
         return True
 
     def __str__(self) -> str:
         return self._name if self._name is not None else "anonymous:" + str(id(self))
+
+
+class AttrVar(AttrPattern):
+    """Represents a pattern variable used to match against attribute values."""
+
+    def __init__(self, name: str | None, *, can_match_none: bool = False):
+        super().__init__(name, can_match_none=can_match_none)
 
 
 # TODO: Support tensors. Align with usage elsewhere.
@@ -113,7 +126,14 @@ class AttrConstantPattern(AttrPattern):
         self._value = value
 
     def matches(self, attr: ir.Attr) -> bool:
-        return isinstance(attr, ir.Attr) and attr.value == self._value
+        if attr.type in {
+            ir.AttributeType.INTS,
+            ir.AttributeType.FLOATS,
+            ir.AttributeType.STRINGS,
+        }:
+            # Since the type of attr.value is Sequence, we need to convert to the same type for comparison.
+            return tuple(attr.value) == tuple(self._value)
+        return attr.value == self._value
 
     def __str__(self) -> str:
         return str(self._value)
@@ -129,11 +149,11 @@ def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> 
         # annotations to distinguish between ValuePattern and AttrPattern, but forces users to
         # use these type annotations.
         # TODO: check for misuse at rule-creation time. (Currently will be caught by matcher at match-time.)
-        if value.can_match_none or value.check_method is not None:
+        if value.check_method is not None:
             raise ValueError(
-                "Pattern variables used in attributes must not have can_match_none or check_method set."
+                "Pattern variables used in attributes must not have check_method set."
             )
-        return AttrPattern(value.name)
+        return AttrVar(value.name, can_match_none=value.can_match_none)
     if isinstance(value, (int, float, str)):
         return AttrConstantPattern(value)
     if isinstance(value, Sequence):
@@ -493,8 +513,9 @@ class NodePattern:
         for name, attr_pattern in self.attributes.items():
             attr_value = node.attributes.get(name)
             if attr_value is None:
-                return match.fail(f"Attribute {name} not found in node.", node)
-            if not attr_pattern.matches(attr_value):
+                if not attr_pattern.can_match_none:
+                    return match.fail(f"Attribute {name} not found in node.", node)
+            elif not attr_pattern.matches(attr_value):
                 return match.fail(
                     f"Attribute {name} mismatch: expected {attr_pattern}, got {attr_value}.",
                     node,
