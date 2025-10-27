@@ -242,12 +242,12 @@ class TorchLibe2eTest(unittest.TestCase):
         class Model(torch.nn.Module):
             def forward(self, x2d, x3d, x4d, x5d):
                 return (
-                    torch.nn.functional.avg_pool1d(x2d, 2),
-                    torch.nn.functional.avg_pool1d(x3d, 2),
-                    torch.nn.functional.avg_pool2d(x3d, 2),
-                    torch.nn.functional.avg_pool2d(x4d, 2),
-                    torch.nn.functional.avg_pool3d(x4d, 2),
-                    torch.nn.functional.avg_pool3d(x5d, 2),
+                    torch.nn.functional.avg_pool1d(x2d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool1d(x3d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool2d(x3d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool2d(x4d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool3d(x4d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool3d(x5d, 2),  # pylint: disable=not-callable
                 )
 
         x2d = torch.randn(10, 10)
