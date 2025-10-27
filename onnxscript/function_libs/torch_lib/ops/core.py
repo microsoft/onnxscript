@@ -8536,9 +8536,7 @@ def aten_trunc(self: TFloat) -> TFloat:
 @torch_op("math::trunc", trace_only=True)
 def python_math_trunc(self: TFloat) -> TInt:
     """trunc(Tensor self) -> Tensor"""
-    # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-2658170591
-    result = op.Floor(op.Abs(self)) * op.Sign(self)
-    return op.Cast(result, to=INT64.dtype)
+    return op.Cast(self, to=INT64.dtype)
 
 
 @torch_op("aten::type_as", trace_only=True)
