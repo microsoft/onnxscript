@@ -12,7 +12,7 @@ from typing import Generator
 import parameterized
 
 import onnxscript
-import onnxscript.function_libs.torch_lib.ops  # Import to populate registry
+import onnxscript.function_libs.torch_lib.ops  # Import to populate registry  # noqa: F401
 from onnxscript.function_libs.tools.torch_lib import deduce_type_constraints
 from onnxscript.function_libs.torch_lib import registration
 
