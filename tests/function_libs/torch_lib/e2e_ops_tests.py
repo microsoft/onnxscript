@@ -238,6 +238,20 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_dft_axis_promoted_from_attribute_to_input(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten._fft_r2c(x, [0], normalization=1, onesided=True)  # pylint: disable=protected-access
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.randn(2, 3),),
+            opset_version=20,
+            dynamic_shapes=({0: "dim_x"},),
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_avg_pool(self):
         class Model(torch.nn.Module):
             def forward(self, x2d, x3d, x4d, x5d):
