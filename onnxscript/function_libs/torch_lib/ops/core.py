@@ -4233,10 +4233,10 @@ def aten_index_put(
     ):
         return _aten_index_put_dynamic(self, indices, values, accumulate=accumulate)
 
-    n_none = [i for i, ind in enumerate(indices) if ind is not None]
+    not_none = [i for i, ind in enumerate(indices) if ind is not None]
     if (
-        len(n_none) == 1
-        and len(indices[n_none[0]].shape) == 1
+        len(not_none) == 1
+        and len(indices[not_none[0]].shape) == 1
         and len(self.shape) == len(values.shape)
     ):
         return _aten_index_put_scatter_nd(self, indices, values, accumulate)
@@ -4343,14 +4343,14 @@ def _aten_index_put_scatter_nd(
     def _1dint(i: int):
         return op.Constant(value_ints=ir.AttrInt64s("value_ints", [i]))
 
-    n_none = [i for i, ind in enumerate(indices) if ind is not None]
-    assert len(n_none) == 1, f"Unable to handle that case: n_none={n_none}"
-    unsq = op.Unsqueeze(indices[n_none[0]], _1dint(1))
-    if n_none[0] == 0:
+    not_none = [i for i, ind in enumerate(indices) if ind is not None]
+    assert len(not_none) == 1, f"Unable to handle that case: not_none={not_none}"
+    unsq = op.Unsqueeze(indices[not_none[0]], _1dint(1))
+    if not_none[0] == 0:
         return op.ScatterND(x, unsq, values, reduction="add" if accumulate else "none")
 
     perm = list(range(len(x.shape)))
-    perm[n_none[0]], perm[0] = perm[0], perm[n_none[0]]
+    perm[not_none[0]], perm[0] = perm[0], perm[not_none[0]]
     return op.Transpose(
         op.ScatterND(
             op.Transpose(x, perm=perm),
@@ -4421,21 +4421,21 @@ def _aten_index_put_dynamic(
         return op.ReduceProd(op.Shape(x, start=i + 1), keepdims=1)
 
     shape = [1] * (len(x.shape) + 1)
-    r_fixed = []
+    reshaped_fixed = []
     if fixed:
         new_shape = shape.copy()
         new_shape[-1] = -1
-        r_fixed = [op.Reshape(op.Mul(_mkstride(x, i), f), new_shape) for i, f in fixed]
+        reshaped_fixed = [op.Reshape(op.Mul(_mkstride(x, i), f), new_shape) for i, f in fixed]
 
-    r_exped = []
+    reshaped_exped = []
     for i, e in exped:
         new_shape = shape.copy()
         new_shape[i] = -1
-        r_exped.append(op.Reshape(op.Mul(_mkstride(x, i), e), new_shape))
+        reshaped_exped.append(op.Reshape(op.Mul(_mkstride(x, i), e), new_shape))
 
     # final sum
     unflat = None
-    for a in [*r_fixed, *r_exped]:
+    for a in [*reshaped_fixed, *reshaped_exped]:
         if unflat is None:
             unflat = a
             continue
