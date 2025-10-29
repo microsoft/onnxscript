@@ -1,12 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""Analysis utilities for Python AST."""
 from __future__ import annotations
 
 import ast
-from typing import Any, Optional, Sequence, Set
+from typing import Any, Optional, Sequence, TYPE_CHECKING
+from collections import defaultdict
 
 from onnxscript import sourceinfo
 from onnxscript._internal import ast_utils
+
+if TYPE_CHECKING:
+    from onnxscript import _converter
 
 
 def _get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
@@ -15,7 +20,7 @@ def _get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
     return for_stmt.target.id
 
 
-def _used_vars(expr: Optional[ast.expr]) -> Set[str]:
+def _used_vars(expr: Optional[ast.expr]) -> set[str]:
     """Return set of all variables used, including function names, in an expression."""
     if expr is None:
         return set()
@@ -35,7 +40,7 @@ def _used_vars(expr: Optional[ast.expr]) -> Set[str]:
     return result
 
 
-def _lhs_vars(lhs: ast.expr) -> Set[str]:
+def _lhs_vars(lhs: ast.expr) -> set[str]:
     """Return set of assigned variables in the lhs of an assignment statement."""
 
     def get_id(e):
@@ -49,12 +54,12 @@ def _lhs_vars(lhs: ast.expr) -> Set[str]:
 
 def assigned_vars(
     stmt: ast.stmt | list[ast.stmt], formatter: sourceinfo.Formatter
-) -> Set[str]:
+) -> set[str]:
     """Return the set of all variables that may be assigned to in an execution of input stmt
     or sequence of statements.
     """
 
-    def assigned_in_block(block: Sequence[ast.stmt]) -> Set[str]:
+    def assigned_in_block(block: Sequence[ast.stmt]) -> set[str]:
         result: set[Any] = set()
         for s in block:
             result = result | assigned_vars(s, formatter)
@@ -84,20 +89,26 @@ def assigned_vars(
     raise ValueError(error_message)
 
 
-def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
-    """Perform liveness analysis of the given function-ast. The results of the
-    analysis are stored directly with each statement-ast `s` as attributes `s.live_in`
-    and `s.live_out`.
+def do_liveness_analysis(
+    fun: ast.FunctionDef,
+    formatter: sourceinfo.Formatter,
+    meta: defaultdict[ast.AST, _converter.ASTMeta],
+):
+    """Perform liveness analysis of the given function-ast.
+
+    The results of the analysis are stored in the `meta` dictionary, which maps
+    each AST node to its metadata. The metadata includes the set of live variables
+    at the entry and exit of each node.
     """
 
-    def visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
-        stmt.live_out = live_out  # type: ignore[attr-defined]
+    def visit(stmt: ast.stmt, live_out: set[str]) -> set[str]:
+        meta[stmt].live_out = live_out
         live = do_visit(stmt, live_out)
-        stmt.live_in = live  # type: ignore[attr-defined]
+        meta[stmt].live_in = live
         return live
 
-    def do_visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
-        def visitBlock(block: Sequence[ast.stmt], live_out: Set[str]) -> Set[str]:
+    def do_visit(stmt: ast.stmt, live_out: set[str]) -> set[str]:
+        def visitBlock(block: Sequence[ast.stmt], live_out: set[str]) -> set[str]:
             for s in reversed(block):
                 live_out = visit(s, live_out)
             return live_out
@@ -165,12 +176,12 @@ def exposed_uses(stmts: Sequence[ast.stmt], formatter: sourceinfo.Formatter):
     (in the first statement). Hence x is included in the exposed_uses.
     """
 
-    def visitBlock(block: Sequence[ast.stmt], live_out: Set[str]) -> Set[str]:
+    def visitBlock(block: Sequence[ast.stmt], live_out: set[str]) -> set[str]:
         for stmt in reversed(block):
             live_out = visit(stmt, live_out)
         return live_out
 
-    def visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
+    def visit(stmt: ast.stmt, live_out: set[str]) -> set[str]:
         if isinstance(stmt, ast.Assign):
             return live_out.difference(_lhs_vars(stmt.targets[0])) | _used_vars(stmt.value)
         if isinstance(stmt, ast.AnnAssign):
