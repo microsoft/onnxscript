@@ -132,7 +132,7 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True)
+@torch_op("aten::add.Tensor", trace_only=True)
 def aten_add(self: TTensor, other: TTensor, alpha: float = 1.0) -> TTensor:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
@@ -145,6 +145,19 @@ def aten_add(self: TTensor, other: TTensor, alpha: float = 1.0) -> TTensor:
     if alpha != 1.0:
         alpha = op.CastLike(alpha, other)
         other = op.Mul(other, alpha)
+    return op.Add(self, other)
+
+
+@torch_op("aten::add.Scalar", trace_only=True)
+def aten_add_scalar(self: TTensor, other: float, alpha: float = 1.0) -> TTensor:
+    """add.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor"""
+
+    other = op.Constant(value=ir.tensor(other, dtype=self.dtype))
+    return aten_add(self, other, alpha=alpha)
+
+
+@torch_op("_operator::add", trace_only=True)
+def operator_add(self: TTensor, other: TTensor) -> TTensor:
     return op.Add(self, other)
 
 
@@ -1508,7 +1521,7 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::cat", trace_only=True, complex=True)
+@torch_op(("aten::cat", "aten::concat", "aten::concatenate"), trace_only=True, complex=True)
 def aten_cat_complex(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """cat(Tensor[] tensors, int dim=0) -> Tensor"""
     # Real representation unsqueezes the last dimension
@@ -1521,8 +1534,18 @@ def aten_cat_complex(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
 def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """cat(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    # Remove None tensors
-    tensors = [tensor for tensor in tensors if tensor is not None]
+    filtered_tensors = []
+    for tensor in tensors:
+        # Remove None tensors
+        if tensor is None:
+            continue
+        # Remove empty tensors
+        if tensor.shape == (0,):
+            continue
+        filtered_tensors.append(tensor)
+    assert filtered_tensors, "aten::cat received all None or empty tensors"
+    if len(filtered_tensors) == 1:
+        return op.Identity(filtered_tensors[0])
     return op.Concat(*tensors, axis=dim)
 
 
@@ -5577,7 +5600,7 @@ def aten_msort(self: TensorType) -> TensorType:
 
 
 @torch_op(
-    ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
+    ("aten::mul", "aten::mul.Tensor", "aten::multiply.Tensor"),
     trace_only=True,
 )
 def aten_mul(self: TTensor, other: TTensor) -> TTensor:
@@ -5586,6 +5609,11 @@ def aten_mul(self: TTensor, other: TTensor) -> TTensor:
     if self.dtype == ir.DataType.BOOL:
         return op.And(self, other)
 
+    return op.Mul(self, other)
+
+
+@torch_op("_operator::mul", trace_only=True)
+def operator_mul(self: TTensor, other: TTensor) -> TTensor:
     return op.Mul(self, other)
 
 
@@ -8113,9 +8141,7 @@ def aten_std_mean_correction(
 @torch_op(
     (
         "aten::sub.Tensor",
-        "aten::sub.Scalar",
         "aten::subtract.Tensor",
-        "aten::subtract.Scalar",
         "_operator::sub",
     ),
     trace_only=True,
@@ -8126,6 +8152,14 @@ def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
         alpha = op.CastLike(alpha, other)
         other = op.Mul(other, alpha)
     return op.Sub(self, other)
+
+
+@torch_op(("aten::sub.Scalar", "aten::subtract.Scalar"), trace_only=True)
+def aten_sub_scalar(self: TTensor, other: float, alpha: float = 1.0) -> TTensor:
+    """sub.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor"""
+
+    other = op.Constant(value=ir.tensor(other, dtype=self.dtype))
+    return aten_sub(self, other, alpha=alpha)
 
 
 @torch_op(
@@ -8517,6 +8551,14 @@ def aten_trunc(self: TFloat) -> TFloat:
     """trunc(Tensor self) -> Tensor"""
     # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-2658170591
     return op.Floor(op.Abs(self)) * op.Sign(self)
+
+
+@torch_op("math::trunc", trace_only=True)
+def python_math_trunc(self: TFloat) -> TInt:
+    """trunc(Tensor self) -> Tensor"""
+    # NOTE: This is used in SymInt/SymBool/SymFloat context, so
+    # we don't expect overflow to happen here.
+    return op.Cast(self, to=INT64.dtype)
 
 
 @torch_op("aten::type_as", trace_only=True)

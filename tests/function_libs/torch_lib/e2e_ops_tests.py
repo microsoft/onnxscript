@@ -238,6 +238,70 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_dft_axis_promoted_from_attribute_to_input(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten._fft_r2c(x, [0], normalization=1, onesided=True)  # pylint: disable=protected-access
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.randn(2, 3),),
+            opset_version=20,
+            dynamic_shapes=({0: "dim_x"},),
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_avg_pool(self):
+        class Model(torch.nn.Module):
+            def forward(self, x2d, x3d, x4d, x5d):
+                return (
+                    torch.nn.functional.avg_pool1d(x2d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool1d(x3d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool2d(x3d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool2d(x4d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool3d(x4d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool3d(x5d, 2),  # pylint: disable=not-callable
+                )
+
+        x2d = torch.randn(10, 10)
+        x3d = torch.randn(10, 10, 10)
+        x4d = torch.randn(10, 10, 10, 10)
+        x5d = torch.randn(10, 10, 10, 10, 10)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x2d, x3d, x4d, x5d),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_concat_with_empty_tensor(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.cat([x, torch.tensor([]), x], dim=0)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([1, 2]),),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_concat_with_empty_tensor_single_element(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.cat([x, torch.tensor([])], dim=1)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([[1, 2]]),),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
