@@ -276,6 +276,32 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_concat_with_empty_tensor(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.cat([x, torch.tensor([]), x], dim=0)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([1, 2]),),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_concat_with_empty_tensor_single_element(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.cat([x, torch.tensor([])], dim=1)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([[1, 2]]),),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
