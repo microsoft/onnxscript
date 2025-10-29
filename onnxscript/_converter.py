@@ -5,13 +5,14 @@
 from __future__ import annotations
 
 import ast
+from collections import defaultdict
 import dataclasses
 import logging
-from collections import defaultdict
 from typing import (
     Any,
     Dict,
     List,
+    Mapping,
     NoReturn,
     Optional,
     Sequence,
@@ -20,11 +21,13 @@ from typing import (
 )
 
 import onnx_ir as ir
+from onnxscript.ir import _schemas
 
 import onnxscript
 from onnxscript import onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
 from onnxscript._internal import analysis, ast_utils, autocast
+
 
 logger = logging.getLogger(__name__)
 
@@ -243,28 +246,14 @@ class Converter:
 
         if global_names is not None:
             # We make a copy in case function eval modifies it.
-            self.globals = global_names.copy()
-        self.this_module = opset
-        self.default_opset_ = default_opset
+            self._globals = global_names.copy()
+        else:
+            self._globals = {}
 
-        # States initialized by `_init_function_translation`
-        self._outer: List[irbuilder.IRFunction] = []
-        self._current_fn: irbuilder.IRFunction = None
-        self._nextvar: int = 0
-        self._used_vars: set[str] = set()
-        self._locals: List[Dict[str, LocalSymValue]] = [{}]
-        self._analyzer: analysis.AstAnalyzer | None = None
-
-    @property
-    def analyzer(self) -> analysis.AstAnalyzer:
-        if self._analyzer is None:
-            raise RuntimeError("Analyzer not initialized.")
-        return self._analyzer
-
-    @property
-    def default_opset(self) -> values.Opset:
-        if self.default_opset_ is None:
-            raise RuntimeError(
+        self._source = source
+        self._default_opset = default_opset or _find_onnx_opset(root, self._globals)
+        if self._default_opset is None:
+            raise ValueError(
                 "default_opset must be specified in script for functions "
                 "that do not contain any use of an ONNX opset."
             )
@@ -288,7 +277,14 @@ class Converter:
         self._locals: list[dict[str, LocalSymValue]] = [{}]
         self._finalized = False
         self._value_env = _ValueEnvironment(self)
+        self._analyzer: analysis.AstAnalyzer | None = None
         self.meta: defaultdict[ast.AST, ASTMeta] = defaultdict(ASTMeta)
+
+    @property
+    def analyzer(self) -> analysis.AstAnalyzer:
+        if self._analyzer is None:
+            raise RuntimeError("Analyzer not initialized.")
+        return self._analyzer
 
     def _source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
         return sourceinfo.SourceInfo(node, self._source, self._current_fn.name)
@@ -1427,27 +1423,163 @@ class Converter:
         # Update docstring if available
         if docstring := ast.get_docstring(node):
             self._current_fn.doc_string = docstring
+
+    def _finalize(self) -> None:
+        self._analyzer = None
+        self._finalized = True
+
+    def convert(self) -> ir.Function:
+        """Convert the Python AST to an ONNX IR function."""
+        if self._finalized:
+            return self._current_fn
+
+        func_def = self._ast_root
+        self._analyzer = analysis.AstAnalyzer(func_def, self._message, self.globals)
+        self._translate_function_def(func_def)
+        self._finalize()
         return self._current_fn
+        # TODO(justinchuby): Handle function registration to the opset
+        # self._opset.add_function_def(fn_ir)
 
-    def translate_function_def(self, stmt: ast.FunctionDef) -> irbuilder.IRFunction:
-        if isinstance(stmt, ast.FunctionDef):
-            self._init_function_translation()
-            if self.default_opset_ is None:
-                opset = self._find_onnx_opset(stmt)
-                if opset:
-                    self._set_default_opset(opset, stmt)
-            domain = self.this_module.domain
-            self._current_fn = self.ir_builder.new_function(stmt.name, domain, True)
-            self._analyzer = analysis.AstAnalyzer(stmt, self._message, self.globals)
-            fn_ir = self._translate_function_def_common(stmt)
-            fn_ir.debug_print()
-            self.this_module.add_function_def(fn_ir)
-            self._analyzer = None
-            return fn_ir
-        raise ValueError(f"Unsupported top-level statement type {type(stmt)!r}.")
 
-    def translate_function_signature(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
-        """Translate a (top-level) function signature."""
-        domain = self.this_module.domain
-        self._current_fn = self.ir_builder.new_function(fn.name, domain, True)
-        return self._translate_function_signature_common(fn)
+def _is_constant_expr(node: ast.AST) -> bool:
+    """Check if the AST node is a constant expression."""
+    if isinstance(node, ast.UnaryOp):
+        return _is_constant_expr(node.operand)
+    if isinstance(
+        node,
+        (
+            ast.Call,
+            ast.BinOp,
+            ast.UnaryOp,
+            ast.Compare,
+            ast.Attribute,
+            ast.List,
+            ast.Load,
+            ast.Constant,
+        ),
+    ):
+        return all(_is_constant_expr(c) for c in ast.iter_child_nodes(node))
+    return False
+
+
+def _separate_inputs_and_attrs(
+    signature: _schemas.OpSignature,
+    args: Sequence[ast.expr],
+    kwargs: Mapping[str, ast.expr],
+) -> tuple[Sequence[ast.expr], dict[str, ast.expr]]:
+    """Construct two mappings: name to inputs and named to attributes based on the signature and args/kwargs.
+
+    This function uses the OpSignature to determine which argument in args and kwargs corresponds to
+    which parameter in the signature. ONNX node inputs are stored in named_inputs, and attributes are
+    stored in named_attrs. If an _optional input_ is not provided, it is filled with None.
+
+    Args:
+        signature: The OpSignature for the node.
+        args: The positional arguments for the node.
+        kwargs: The keyword arguments for the node.
+
+    Returns:
+        A tuple of two mappings: named_inputs and named_attrs.
+
+    Raises:
+        ValueError: If a required parameter is not provided.
+    """
+    # 1. Construct inputs, attrs based on (args, kwargs) and the signature.
+    #   a. Loop over all parameters in the signature and args together
+    #   b. Depending on param.is_input, Record inputs or named_attrs[param.name] = arg
+    #   c. Handle kwargs as well
+    inputs_reversed: Sequence[Any] = []
+    named_attrs: dict[str, Any] = {}
+    reversed_args_stack = list(reversed(args))
+    for param in signature.params:
+        if isinstance(param, _schemas.Parameter):
+            # Handle inputs
+            if reversed_args_stack:
+                # First exhaust the positional arguments
+                if param.variadic:
+                    # Handle variadic arguments
+                    inputs_reversed = [*reversed(args)]
+                    reversed_args_stack.clear()
+                else:
+                    inputs_reversed.append(reversed_args_stack.pop())
+            elif param.name in kwargs:
+                inputs_reversed.append(kwargs[param.name])
+            elif param.required:
+                raise ValueError(
+                    f"Required parameter '{param.name}' is not provided. "
+                    f"Signature: {signature}. Args: {args}. Kwargs: {kwargs}."
+                )
+            else:
+                logger.debug(
+                    "Optional parameter '%s' is not provided. Added as None. Signature: %s",
+                    param.name,
+                    signature,
+                )
+                inputs_reversed.append(None)
+        else:
+            # Handle attributes
+            attribute: ir.Attr | None
+            assert isinstance(param, _schemas.AttributeParameter), (
+                f"Expected AttributeParameter, got {type(param)}"
+            )
+            if reversed_args_stack:
+                # First exhaust the positional arguments
+                attribute = reversed_args_stack.pop()  # type: ignore[assignment]
+            elif kwargs.get(param.name) is not None:
+                attribute = kwargs[param.name]  # type: ignore[assignment]
+            else:
+                if param.required:
+                    raise ValueError(
+                        f"Required attribute '{param.name}' is not provided. "
+                        f"Signature: {signature}. Args: {args}. Kwargs: {kwargs}."
+                    )
+                else:
+                    logger.debug(
+                        "Optional attribute '%s' is None. Dropped. Signature: %s",
+                        param.name,
+                        signature,
+                    )
+                    continue
+            named_attrs[param.name] = attribute
+    return tuple(reversed(inputs_reversed)), named_attrs
+
+
+def _to_onnx_ref_attr(val: values.AttrRef, info: sourceinfo.SourceInfo | None) -> ir.Attr:
+    """Convert an attribute reference to an ONNX ref attribute."""
+
+    # TODO(justinchuby): Consider using a convenience function
+    pytype = val.typeinfo
+    attrtype = _schemas.get_attr_type(pytype)
+    attrname = None
+    if attrtype is ir.AttributeType.FLOAT:
+        attrname = "value_float"
+    elif attrtype is ir.AttributeType.INT:
+        attrname = "value_int"
+    elif attrtype is ir.AttributeType.STRING:
+        attrname = "value_string"
+    elif attrtype is ir.AttributeType.INTS:
+        attrname = "value_ints"
+    else:
+        msg = f"Unsupported attribute type {pytype!r}."
+        fail(info.msg(msg) if info else msg)
+    # TODO(justinchuby): What is the ref attr name?
+    return ir.RefAttr(attrname, val.value, attrtype)
+
+
+def _find_onnx_opset(node: ast.AST, globals: dict[str, Any]) -> values.Opset | None:
+    """Find the (first) ONNX opset used in the function, if any."""
+    # Search for a Call expression of form "op.OpName(...)"
+    if isinstance(node, ast.Call):
+        if isinstance(node.func, ast.Attribute):
+            opset_expr = node.func.value
+            if isinstance(opset_expr, ast.Name):
+                if opset_expr.id in globals:
+                    opset = globals[opset_expr.id]
+                    if isinstance(opset, values.Opset) and opset.domain == "":
+                        return opset
+    for child in ast.iter_child_nodes(node):
+        res = _find_onnx_opset(child, globals)
+        if res is not None:
+            return res
+    return None
