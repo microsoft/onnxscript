@@ -8,7 +8,6 @@ import inspect
 import logging
 import types
 import typing
-from enum import IntFlag
 from typing import (  # type: ignore[attr-defined]
     Any,
     Callable,
@@ -18,14 +17,13 @@ from typing import (  # type: ignore[attr-defined]
     Protocol,
     Sequence,
     TypeVar,
-    _GenericAlias,
 )
 
 import onnx
 import onnx.defs
 from typing_extensions import ParamSpec
 
-from onnxscript import _converter, irbuilder, sourceinfo, type_annotation
+from onnxscript import _converter, irbuilder, type_annotation
 from onnxscript._internal import ast_utils, deprecation
 from onnxscript.ir import _schemas
 

@@ -5,31 +5,26 @@
 from __future__ import annotations
 
 import ast
-from collections import defaultdict
 import dataclasses
 import logging
+from collections import defaultdict
 from typing import (
-    TYPE_CHECKING,
     Any,
     Dict,
     List,
-    Mapping,
     NoReturn,
     Optional,
     Sequence,
     Tuple,
     Union,
-    _GenericAlias
 )
 
 import onnx_ir as ir
-from onnxscript.ir import _schemas
 
 import onnxscript
 from onnxscript import onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
-from onnxscript._internal import _analysis, ast_utils, autocast
-
+from onnxscript._internal import analysis, ast_utils, autocast
 
 logger = logging.getLogger(__name__)
 

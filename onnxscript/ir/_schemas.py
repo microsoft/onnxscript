@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import collections.abc
-import copy
 import dataclasses
 import inspect
 import logging

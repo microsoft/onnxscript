@@ -4,14 +4,10 @@
 from __future__ import annotations
 
 import ast
-from typing import Any, Optional, Sequence, TYPE_CHECKING
-from collections import defaultdict
+from typing import Any, Optional, Sequence
 
 from onnxscript import sourceinfo
 from onnxscript._internal import ast_utils
-
-if TYPE_CHECKING:
-    from onnxscript import _converter
 
 
 def _get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:

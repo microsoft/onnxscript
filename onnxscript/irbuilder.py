@@ -194,6 +194,7 @@ class IRStmt:
     - `sub_functions`: A dictionary of sub-functions that this statement may call, mapping
       function names to `onnx.FunctionProto` instances.
     """
+
     def __init__(
         self,
         result: Sequence[str],

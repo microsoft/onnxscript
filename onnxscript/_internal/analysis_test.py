@@ -6,7 +6,7 @@ import ast
 import unittest
 from typing import Any
 
-from onnxscript._internal import _analysis, ast_utils
+from onnxscript._internal import analysis, ast_utils
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.sourceinfo import formatter
 
@@ -33,7 +33,7 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
 class TestLivenessAnalysis(unittest.TestCase):
     def analyze(self, fun):
         source, parse_tree = ast_utils.get_src_and_ast(fun)
-        analyzer = _analysis.AstAnalyzer(parse_tree, formatter(source))
+        analyzer = analysis.AstAnalyzer(parse_tree, formatter(source))
         visitor = AnalysisResultsVisitor(analyzer)
         visitor.visit(parse_tree)
         return visitor.results
