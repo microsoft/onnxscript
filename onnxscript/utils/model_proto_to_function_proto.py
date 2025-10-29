@@ -39,16 +39,14 @@ def _initializers_to_constants(model: onnx.ModelProto) -> onnx.ModelProto:
 
 
 def convert_model_proto_to_function_proto(
-    model: onnx.ModelProto, domain, name
+    model: onnx.ModelProto, domain: str, name: str
 ) -> onnx.FunctionProto:
     """Converts an arbitrary ModelProto to a FunctionProto.
 
     Since function protos don't support initializers (or rather it does not make sense in the context of a function)
     we need to convert them to constants first.
     """
-    model = _initializers_to_constants(
-        model
-    )  # theres some work to do here...maybe contribute to open source?
+    model = _initializers_to_constants(model)
     model_ir = onnx_ir.serde.deserialize_model(model)
     function_ir = onnx_ir.Function(
         domain=domain, name=name, graph=model_ir.graph, attributes={}

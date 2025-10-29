@@ -31,16 +31,11 @@ class TestModelProtoToFunctionProto(unittest.TestCase):
             return op.ReduceSum(z, keepdims=1)
 
         @script()
-        def l2norm(x: FLOAT["N"], y: FLOAT["N"]) -> FLOAT[1]:  # noqa: F821
-            return op.Sqrt(sum_func(diff_square(x, y)))
-
-        @script()
         def l2norm_with_functions(x: FLOAT["N"], y: FLOAT["N"]) -> FLOAT[1]:  # noqa: F821
             return op.Sqrt(sum_func(diff_square(x, y)))
 
         self.diff_square = diff_square
         self.sum_func = sum_func
-        self.l2norm = l2norm
         self.l2norm_with_functions = l2norm_with_functions
 
     def test_multiple_functions_in_model_proto(self):
