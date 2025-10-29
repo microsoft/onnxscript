@@ -1540,7 +1540,7 @@ def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
         if tensor is None:
             continue
         # Remove empty tensors
-        if tensor.shape is not None and 0 in tensor.shape:
+        if tensor.shape == (0,):
             continue
         filtered_tensors.append(tensor)
     assert filtered_tensors, "aten::cat received all None or empty tensors"
