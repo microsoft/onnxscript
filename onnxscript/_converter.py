@@ -248,14 +248,28 @@ class Converter:
 
         if global_names is not None:
             # We make a copy in case function eval modifies it.
-            self._globals = global_names.copy()
-        else:
-            self._globals = {}
+            self.globals = global_names.copy()
+        self.this_module = opset
+        self.default_opset_ = default_opset
 
-        self._source = source
-        self._default_opset = default_opset or _find_onnx_opset(root, self._globals)
-        if self._default_opset is None:
-            raise ValueError(
+        # States initialized by `_init_function_translation`
+        self._outer: List[irbuilder.IRFunction] = []
+        self._current_fn: irbuilder.IRFunction = None
+        self._nextvar: int = 0
+        self._used_vars: set[str] = set()
+        self._locals: List[Dict[str, LocalSymValue]] = [{}]
+        self._analyzer: analysis.AstAnalyzer | None = None
+
+    @property
+    def analyzer(self) -> analysis.AstAnalyzer:
+        if self._analyzer is None:
+            raise RuntimeError("Analyzer not initialized.")
+        return self._analyzer
+
+    @property
+    def default_opset(self) -> values.Opset:
+        if self.default_opset_ is None:
+            raise RuntimeError(
                 "default_opset must be specified in script for functions "
                 "that do not contain any use of an ONNX opset."
             )
@@ -1052,12 +1066,24 @@ class Converter:
         return ret(val, 0, "")
 
     def _translate_if_stmt(self, stmt: ast.If) -> None:
-        if (live_out := self.meta[stmt].live_out) is not None:
-            live_defs = list(
-                live_out.intersection(_analysis.assigned_vars(stmt, self._message))
-            )
-        else:
-            live_defs = list(_analysis.assigned_vars(stmt, self._message))
+        constant_cond = self.analyzer.constant_if_condition(stmt)
+        if constant_cond is True:
+            # Translate only the "then" branch
+            for s in stmt.body:
+                self._translate_stmt(s)
+            return
+        if constant_cond is False:
+            # Translate only the "else" branch
+            for s in stmt.orelse:
+                self._translate_stmt(s)
+            return
+        live_def_set = self.analyzer.assigned_vars(stmt)
+        live_out = self.analyzer.live_out(stmt)
+        if live_out is not None:
+            # Ideally, live_out should never be None here. But handle this conditionally
+            # due to some existing usage.
+            live_def_set = live_out.intersection(live_def_set)
+        live_defs = list(live_def_set)
         test = self._translate_expr(stmt.test, "cond").name
         lineno = self._source_of(stmt).lineno
 
@@ -1140,9 +1166,10 @@ class Converter:
         else:
             self.fail(loop_stmt, f"Unexpected loop type {type(loop_stmt)!r}.")
         # analyze loop body
-        exposed_uses = _analysis.exposed_uses(loop_stmt.body, self._message)
-        vars_def_in_loop = _analysis.assigned_vars(loop_stmt.body, self._message)
-        live_out = self.meta[loop_stmt].live_out or set()
+        exposed_uses = self.analyzer.exposed_uses(loop_stmt.body)
+        vars_def_in_loop = self.analyzer.assigned_vars(loop_stmt.body)
+        live_out = self.analyzer.live_out(loop_stmt)
+        assert live_out is not None, "live_out cannot be None here."
         loop_state_vars = vars_def_in_loop.intersection(exposed_uses | live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
@@ -1328,7 +1355,7 @@ class Converter:
         self._enter_scope(fn.name, fn)
         self._translate_function_def(fn)
         function_ir = self._exit_scope()
-        outer_scope_vars = _analysis.outer_scope_variables(fn, self._message)
+        outer_scope_vars = self.analyzer.outer_scope_variables(fn)
         function_ir.outer_scope_variables = [
             (var, self._lookup(var, self._source_of(fn))) for var in outer_scope_vars
         ]
@@ -1407,159 +1434,25 @@ class Converter:
             self._current_fn.doc_string = docstring
         return self._current_fn
 
-    def _finalize(self) -> None:
-        self._finalized = True
+    def translate_function_def(self, stmt: ast.FunctionDef) -> irbuilder.IRFunction:
+        if isinstance(stmt, ast.FunctionDef):
+            self._init_function_translation()
+            if self.default_opset_ is None:
+                opset = self._find_onnx_opset(stmt)
+                if opset:
+                    self._set_default_opset(opset, stmt)
+            domain = self.this_module.domain
+            self._current_fn = self.ir_builder.new_function(stmt.name, domain, True)
+            self._analyzer = analysis.AstAnalyzer(stmt, self._message, self.globals)
+            fn_ir = self._translate_function_def_common(stmt)
+            fn_ir.debug_print()
+            self.this_module.add_function_def(fn_ir)
+            self._analyzer = None
+            return fn_ir
+        raise ValueError(f"Unsupported top-level statement type {type(stmt)!r}.")
 
-    def convert(self) -> ir.Function:
-        """Convert the Python AST to an ONNX IR function."""
-        if self._finalized:
-            return self._current_fn
-
-        func_def = self._ast_root
-        _analysis.do_liveness_analysis(func_def, self._message, self.meta)
-        return self._translate_function_def(func_def)
-        # TODO(justinchuby): Handle function registration to the opset
-        # self._opset.add_function_def(fn_ir)
-
-
-def _is_constant_expr(node: ast.AST) -> bool:
-    """Check if the AST node is a constant expression."""
-    if isinstance(node, ast.UnaryOp):
-        return _is_constant_expr(node.operand)
-    if isinstance(
-        node,
-        (
-            ast.Call,
-            ast.BinOp,
-            ast.UnaryOp,
-            ast.Compare,
-            ast.Attribute,
-            ast.List,
-            ast.Load,
-            ast.Constant,
-        ),
-    ):
-        return all(_is_constant_expr(c) for c in ast.iter_child_nodes(node))
-    return False
-
-
-def _separate_inputs_and_attrs(
-    signature: _schemas.OpSignature,
-    args: Sequence[ast.expr],
-    kwargs: Mapping[str, ast.expr],
-) -> tuple[Sequence[ast.expr], dict[str, ast.expr]]:
-    """Construct two mappings: name to inputs and named to attributes based on the signature and args/kwargs.
-
-    This function uses the OpSignature to determine which argument in args and kwargs corresponds to
-    which parameter in the signature. ONNX node inputs are stored in named_inputs, and attributes are
-    stored in named_attrs. If an _optional input_ is not provided, it is filled with None.
-
-    Args:
-        signature: The OpSignature for the node.
-        args: The positional arguments for the node.
-        kwargs: The keyword arguments for the node.
-
-    Returns:
-        A tuple of two mappings: named_inputs and named_attrs.
-
-    Raises:
-        ValueError: If a required parameter is not provided.
-    """
-    # 1. Construct inputs, attrs based on (args, kwargs) and the signature.
-    #   a. Loop over all parameters in the signature and args together
-    #   b. Depending on param.is_input, Record inputs or named_attrs[param.name] = arg
-    #   c. Handle kwargs as well
-    inputs_reversed: Sequence[Any] = []
-    named_attrs: dict[str, Any] = {}
-    reversed_args_stack = list(reversed(args))
-    for param in signature.params:
-        if isinstance(param, _schemas.Parameter):
-            # Handle inputs
-            if reversed_args_stack:
-                # First exhaust the positional arguments
-                if param.variadic:
-                    # Handle variadic arguments
-                    inputs_reversed = [*reversed(args)]
-                    reversed_args_stack.clear()
-                else:
-                    inputs_reversed.append(reversed_args_stack.pop())
-            elif param.name in kwargs:
-                inputs_reversed.append(kwargs[param.name])
-            elif param.required:
-                raise ValueError(
-                    f"Required parameter '{param.name}' is not provided. "
-                    f"Signature: {signature}. Args: {args}. Kwargs: {kwargs}."
-                )
-            else:
-                logger.debug(
-                    "Optional parameter '%s' is not provided. Added as None. Signature: %s",
-                    param.name,
-                    signature,
-                )
-                inputs_reversed.append(None)
-        else:
-            # Handle attributes
-            attribute: ir.Attr | None
-            assert isinstance(param, _schemas.AttributeParameter), (
-                f"Expected AttributeParameter, got {type(param)}"
-            )
-            if reversed_args_stack:
-                # First exhaust the positional arguments
-                attribute = reversed_args_stack.pop()  # type: ignore[assignment]
-            elif kwargs.get(param.name) is not None:
-                attribute = kwargs[param.name]  # type: ignore[assignment]
-            else:
-                if param.required:
-                    raise ValueError(
-                        f"Required attribute '{param.name}' is not provided. "
-                        f"Signature: {signature}. Args: {args}. Kwargs: {kwargs}."
-                    )
-                else:
-                    logger.debug(
-                        "Optional attribute '%s' is None. Dropped. Signature: %s",
-                        param.name,
-                        signature,
-                    )
-                    continue
-            named_attrs[param.name] = attribute
-    return tuple(reversed(inputs_reversed)), named_attrs
-
-
-def _to_onnx_ref_attr(val: values.AttrRef, info: sourceinfo.SourceInfo | None) -> ir.Attr:
-    """Convert an attribute reference to an ONNX ref attribute."""
-
-    # TODO(justinchuby): Consider using a convenience function
-    pytype = val.typeinfo
-    attrtype = _schemas.get_attr_type(pytype)
-    attrname = None
-    if attrtype is ir.AttributeType.FLOAT:
-        attrname = "value_float"
-    elif attrtype is ir.AttributeType.INT:
-        attrname = "value_int"
-    elif attrtype is ir.AttributeType.STRING:
-        attrname = "value_string"
-    elif attrtype is ir.AttributeType.INTS:
-        attrname = "value_ints"
-    else:
-        msg = f"Unsupported attribute type {pytype!r}."
-        fail(info.msg(msg) if info else msg)
-    # TODO(justinchuby): What is the ref attr name?
-    return ir.RefAttr(attrname, val.value, attrtype)
-
-
-def _find_onnx_opset(node: ast.AST, globals: dict[str, Any]) -> values.Opset | None:
-    """Find the (first) ONNX opset used in the function, if any."""
-    # Search for a Call expression of form "op.OpName(...)"
-    if isinstance(node, ast.Call):
-        if isinstance(node.func, ast.Attribute):
-            opset_expr = node.func.value
-            if isinstance(opset_expr, ast.Name):
-                if opset_expr.id in globals:
-                    opset = globals[opset_expr.id]
-                    if isinstance(opset, values.Opset) and opset.domain == "":
-                        return opset
-    for child in ast.iter_child_nodes(node):
-        res = _find_onnx_opset(child, globals)
-        if res is not None:
-            return res
-    return None
+    def translate_function_signature(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
+        """Translate a (top-level) function signature."""
+        domain = self.this_module.domain
+        self._current_fn = self.ir_builder.new_function(fn.name, domain, True)
+        return self._translate_function_signature_common(fn)

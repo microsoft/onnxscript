@@ -5,7 +5,6 @@ import unittest
 
 import onnx_ir as ir
 
-import onnxscript
 import onnxscript.optimizer
 import onnxscript.rewriter.testing
 from onnxscript import FLOAT, OnnxFunction, script

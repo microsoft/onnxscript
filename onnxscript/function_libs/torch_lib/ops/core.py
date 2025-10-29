@@ -1521,7 +1521,7 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::cat", trace_only=True, complex=True)
+@torch_op(("aten::cat", "aten::concat", "aten::concatenate"), trace_only=True, complex=True)
 def aten_cat_complex(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """cat(Tensor[] tensors, int dim=0) -> Tensor"""
     # Real representation unsqueezes the last dimension
@@ -1534,8 +1534,18 @@ def aten_cat_complex(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
 def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """cat(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    # Remove None tensors
-    tensors = [tensor for tensor in tensors if tensor is not None]
+    filtered_tensors = []
+    for tensor in tensors:
+        # Remove None tensors
+        if tensor is None:
+            continue
+        # Remove empty tensors
+        if tensor.shape == (0,):
+            continue
+        filtered_tensors.append(tensor)
+    assert filtered_tensors, "aten::cat received all None or empty tensors"
+    if len(filtered_tensors) == 1:
+        return op.Identity(filtered_tensors[0])
     return op.Concat(*tensors, axis=dim)
 
 
@@ -8531,6 +8541,14 @@ def aten_trunc(self: TFloat) -> TFloat:
     """trunc(Tensor self) -> Tensor"""
     # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-2658170591
     return op.Floor(op.Abs(self)) * op.Sign(self)
+
+
+@torch_op("math::trunc", trace_only=True)
+def python_math_trunc(self: TFloat) -> TInt:
+    """trunc(Tensor self) -> Tensor"""
+    # NOTE: This is used in SymInt/SymBool/SymFloat context, so
+    # we don't expect overflow to happen here.
+    return op.Cast(self, to=INT64.dtype)
 
 
 @torch_op("aten::type_as", trace_only=True)

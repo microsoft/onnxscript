@@ -14,24 +14,27 @@ from onnxscript.sourceinfo import formatter
 class AnalysisResultsVisitor(ast.NodeVisitor):
     """Visitor class to flatten the results of liveness analysis in a pre-order traversal."""
 
-    def __init__(self) -> None:
+    def __init__(self, analyzer: analysis.AstAnalyzer) -> None:
         super().__init__()
         self.results: list[Any] = []
+        self.analyzer = analyzer
 
     def generic_visit(self, node):
-        if hasattr(node, "live_in"):
-            self.results.append(node.live_in)
+        live_in = self.analyzer.live_in(node)
+        if live_in is not None:
+            self.results.append(live_in)
         ast.NodeVisitor.generic_visit(self, node)
         if isinstance(node, (ast.For, ast.While)):
             last = node.body[-1]
-            self.results.append(last.live_out)  # type: ignore
+            live_out = self.analyzer.live_out(last)
+            self.results.append(live_out)  # type: ignore
 
 
 class TestLivenessAnalysis(unittest.TestCase):
     def analyze(self, fun):
         source, parse_tree = ast_utils.get_src_and_ast(fun)
-        _analysis.do_liveness_analysis(parse_tree, formatter(source))
-        visitor = AnalysisResultsVisitor()
+        analyzer = _analysis.AstAnalyzer(parse_tree, formatter(source))
+        visitor = AnalysisResultsVisitor(analyzer)
         visitor.visit(parse_tree)
         return visitor.results
 
@@ -113,7 +116,8 @@ class TestLivenessAnalysis(unittest.TestCase):
 class TestExposedUses(unittest.TestCase):
     def assertUses(self, f, expected):
         source, parse_tree = ast_utils.get_src_and_ast(f)
-        result = _analysis.exposed_uses(parse_tree.body, formatter(source))
+        analyzer = analysis.AstAnalyzer(parse_tree, formatter(source))
+        result = analyzer.exposed_uses(parse_tree.body)
         self.assertEqual(result, set(expected))
 
     def test_basic(self):
@@ -190,7 +194,8 @@ class TestExposedUses(unittest.TestCase):
 class TestAssignedVarAnalysis(unittest.TestCase):
     def assert_assigned_vars(self, f, expected: set[str]):
         source, parse_tree = ast_utils.get_src_and_ast(f)
-        result = _analysis.assigned_vars(parse_tree.body, formatter(source))
+        analyzer = analysis.AstAnalyzer(parse_tree, formatter(source))
+        result = analyzer.assigned_vars(parse_tree.body)
         self.assertEqual(result, expected)
 
     def test_basic_defs(self):
@@ -246,6 +251,43 @@ class TestAssignedVarAnalysis(unittest.TestCase):
             return y
 
         self.assert_assigned_vars(f, {"x", "y"})
+
+
+class ConstantIfAnalysisTest(unittest.TestCase):
+    def test_constant_ifs(self):
+        cond1 = True
+        cond2 = False
+
+        def f(x):
+            if cond1:
+                y = x + 1
+            else:
+                y = x + 2
+            if cond2:
+                z = y * 2
+            else:
+                z = y * 3
+            if x > 0:
+                w = z - 1
+            else:
+                w = z + 1
+            return w
+
+        source, parse_tree = ast_utils.get_src_and_ast(f)
+
+        analyzer = analysis.AstAnalyzer(
+            parse_tree, formatter(source), {"cond1": True, "cond2": False}
+        )
+        for node in ast.walk(parse_tree):
+            if isinstance(node, ast.If):
+                result = analyzer.constant_if_condition(node)
+                if isinstance(node.test, ast.Name):
+                    if node.test.id == "cond1":
+                        self.assertEqual(result, True)
+                    elif node.test.id == "cond2":
+                        self.assertEqual(result, False)
+                else:
+                    self.assertIsNone(result)
 
 
 if __name__ == "__main__":
