@@ -309,7 +309,6 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
         # or check Reshape's shape-input value
 
-        
         num_heads = _ir_utils.get_dim(query_BSHDh, 2)
         kv_num_heads = _ir_utils.get_dim(key_BSHkvDh, 2)
         if not isinstance(num_heads, int):
