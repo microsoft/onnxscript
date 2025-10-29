@@ -209,6 +209,8 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # that share key/value.
 
         key_seq_BHkvTDh = op.Concat(past_key, key_BHkvSDh_rope, axis=-2)
+        # Concat with past_key is optional:
+        key_seq_BHkvTDh = pattern.OrValue([key_seq_BHkvTDh, key_BHkvSDh_rope])
         key_seq_BHkv1TDh = op.Unsqueeze(key_seq_BHkvTDh, 2)
         key_seq_BHkvGTDh = op.Expand(key_seq_BHkv1TDh, pattern.ANY_VALUE)
         key_seq_BHTDh = op.Reshape(
@@ -218,6 +220,8 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # Concatenate past_value cache and current value, expand across heads
         # that share key/value.
         value_seq_BHkvTDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
+        # Concat with past_value is optional:
+        value_seq_BHkvTDh = pattern.OrValue([value_seq_BHkvTDh, value_BHkvSDh])
         value_seq_BHkv1TDh = op.Unsqueeze(value_seq_BHkvTDh, 2)
         value_seq_BHkvGTDh = op.Expand(value_seq_BHkv1TDh, pattern.ANY_VALUE)
         value_seq_BHTDh = op.Reshape(
@@ -268,9 +272,9 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         if no_match(value_BSDkv, ["B", "S", "Dkv"]):
             return False
 
-        if no_match(past_key, ["B", "Hkv", "P", "Dh"]):
+        if past_key is not None and no_match(past_key, ["B", "Hkv", "P", "Dh"]):
             return False
-        if no_match(past_value, ["B", "Hkv", "P", "Dv"]):
+        if past_value is not None and no_match(past_value, ["B", "Hkv", "P", "Dv"]):
             return False
 
         # TODO: verify Reshapes:
