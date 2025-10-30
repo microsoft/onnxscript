@@ -1343,14 +1343,13 @@ def _sym_value_can_replace_graph_output(
 
 def _clear_unused_initializers(removed_node: ir.Node) -> None:
     # Detach all inputs to the node, then check for unused initializers
-    initialized_values: set[ir.Value] = set()
     for i, value in enumerate(removed_node.inputs):
         removed_node.replace_input_with(i, None)
-        if value is not None and value.is_initializer():
-            initialized_values.add(value)
+        if value is None or not value.is_initializer():
+            continue
 
-    for value in initialized_values:
         if not value.uses():
+            assert value.is_initializer()
             assert value.graph is not None
             assert value.name is not None
             value.graph.initializers.pop(value.name)
