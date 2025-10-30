@@ -1260,6 +1260,11 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
+        if isinstance(root, ir.Graph):
+            # The old node should now be detached from the graph
+            assert node.graph is None
+            _clear_unused_initializers(node)
+
         self._modified = True
 
         # TODO: what about new opset_imports?
@@ -1334,6 +1339,21 @@ def _sym_value_can_replace_graph_output(
         # will lose its name.
         return False
     return True
+
+
+def _clear_unused_initializers(removed_node: ir.Node) -> None:
+    # Detach all inputs to the node, then check for unused initializers
+    initialized_values: set[ir.Value] = set()
+    for i, value in enumerate(removed_node.inputs):
+        removed_node.replace_input_with(i, None)
+        if value is not None and value.is_initializer():
+            initialized_values.add(value)
+
+    for value in initialized_values:
+        if not value.uses():
+            assert value.graph is not None
+            assert value.name is not None
+            value.graph.initializers.pop(value.name)
 
 
 @dataclasses.dataclass
