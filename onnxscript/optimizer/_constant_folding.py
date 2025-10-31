@@ -602,7 +602,16 @@ def identity(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     output = node.outputs[0]
     if input is not None and output is not None:
         # NOTE: backward shape inference
-        input.shape = _merge_shapes(input.shape, output.shape)
+        try:
+            input.shape = _merge_shapes(input.shape, output.shape)
+        except Exception as e:
+            logger.warning(
+                "[Constant folder] Cannot merge shapes on Identity node '%s' "
+                "(folded from: %s) because of error: %s",
+                node.name,
+                input.meta.get(FOLDED_FROM_KEY, set()),
+                e,
+            )
         if input.type is None:
             input.type = output.type
         state.set_sym_value(output, input)
@@ -919,7 +928,9 @@ def _merge_shapes(
     if other_shape is None:
         return preferred_shape
     if len(preferred_shape) != len(other_shape):
-        raise ValueError(f"Shapes must have the same rank, got preferred_shape={preferred_shape}, other_shape={other_shape}")
+        raise ValueError(
+            f"Shapes must have the same rank, got preferred_shape={preferred_shape}, other_shape={other_shape}"
+        )
     return ir.Shape(
         [merge_dims(dim1, dim2) for dim1, dim2 in zip(preferred_shape, other_shape)]
     )
