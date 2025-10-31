@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""Analysis utilities for Python AST."""
 from __future__ import annotations
 
 import ast
-from typing import Any, Optional, Sequence, Set
+from typing import Any, Optional, Sequence
 
 from onnxscript import sourceinfo
 from onnxscript._internal import ast_utils
@@ -15,7 +16,7 @@ def _get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
     return for_stmt.target.id
 
 
-def _used_vars(expr: Optional[ast.expr]) -> Set[str]:
+def _used_vars(expr: Optional[ast.expr]) -> set[str]:
     """Return set of all variables used, including function names, in an expression."""
     if expr is None:
         return set()
@@ -35,7 +36,7 @@ def _used_vars(expr: Optional[ast.expr]) -> Set[str]:
     return result
 
 
-def _lhs_vars(lhs: ast.expr) -> Set[str]:
+def _lhs_vars(lhs: ast.expr) -> set[str]:
     """Return set of assigned variables in the lhs of an assignment statement."""
 
     def get_id(e):
