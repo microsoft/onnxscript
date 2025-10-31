@@ -195,11 +195,11 @@ class GQAFusionTest(unittest.TestCase):
             value_seq_BHkvSkvDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
 
             # Now, expand from shared heads to all heads
-            key_BHkv1SDh = op.Unsqueeze(key_seq_BHkvSkvDh, 2)
+            key_BHkv1SDh = op.Unsqueeze(key_seq_BHkvSkvDh, [2])
             key_BHkvGSDh = op.Expand(key_BHkv1SDh, shape_BHkvGSDh)
             key_BHSDh = op.Reshape(key_BHkvGSDh, shape_BHSDh)
 
-            value_BHkv1SDh = op.Unsqueeze(value_seq_BHkvSkvDh, 2)
+            value_BHkv1SDh = op.Unsqueeze(value_seq_BHkvSkvDh, [2])
             value_BHkvGSDh = op.Expand(value_BHkv1SDh, shape_BHkvGSDh)
             value_BHSDh = op.Reshape(value_BHkvGSDh, shape_BHSDh)
 
@@ -527,11 +527,11 @@ class GemmaGQAFusionTest(unittest.TestCase):
                 value_seq_BHkvSkvDh = value_BHkvSDh
 
             # Now, expand from shared heads to all heads
-            key_BHkv1SDh = op.Unsqueeze(key_seq_BHkvSkvDh, 2)
+            key_BHkv1SDh = op.Unsqueeze(key_seq_BHkvSkvDh, [2])
             key_BHkvGSDh = op.Expand(key_BHkv1SDh, shape_BHkvGSDh)
             key_BHSDh = op.Reshape(key_BHkvGSDh, shape_BHSDh)
 
-            value_BHkv1SDh = op.Unsqueeze(value_seq_BHkvSkvDh, 2)
+            value_BHkv1SDh = op.Unsqueeze(value_seq_BHkvSkvDh, [2])
             value_BHkvGSDh = op.Expand(value_BHkv1SDh, shape_BHkvGSDh)
             value_BHSDh = op.Reshape(value_BHkvGSDh, shape_BHSDh)
 
