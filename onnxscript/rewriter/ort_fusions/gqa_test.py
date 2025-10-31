@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import unittest
 
+import parameterized
 import numpy as np
 import onnx
 import onnx_ir as ir
@@ -424,7 +425,7 @@ class GemmaGQAFusionTest(unittest.TestCase):
             "key_scale": np.random.rand(Dh).astype(np.float32),
         }
 
-    def source_model_script(self):
+    def source_model_script(self, with_past: bool, transpose_first: bool):
         scale_factor = math.sqrt(math.sqrt(self.head_size))
         minval = torch.finfo(torch.float32).min
         minval_tp = onnx.helper.make_tensor("minval", onnx.TensorProto.FLOAT, [1], [minval])
@@ -458,16 +459,26 @@ class GemmaGQAFusionTest(unittest.TestCase):
             # We convert them into BHSDh (i.e., BHSd) format. In this version, we have only
             # one sequence length (S) for all Q, K, and V (with no cache).
             query_BSHDh = op.Reshape(query, shape_BSHDh)
-            query_BHSDh = op.Transpose(query_BSHDh, perm=[0, 2, 1, 3])
-            query_BHSDh_normalized = op.SimplifiedLayerNormalization(
-                query_BHSDh, query_scale, axis=-1, epsilon=1e-06, stash_type=1
-            )
-
             key_BSHkvDh = op.Reshape(key, shape_BSHkvDh)
-            key_BHkvSDh = op.Transpose(key_BSHkvDh, perm=[0, 2, 1, 3])
-            key_BHkvSDh_normalized = op.SimplifiedLayerNormalization(
-                key_BHkvSDh, key_scale, axis=-1, epsilon=1e-06, stash_type=1
-            )
+
+            if transpose_first:
+                query_BHSDh = op.Transpose(query_BSHDh, perm=[0, 2, 1, 3])
+                query_BHSDh_normalized = op.SimplifiedLayerNormalization(
+                    query_BHSDh, query_scale, axis=-1, epsilon=1e-06, stash_type=1
+                )
+                key_BHkvSDh = op.Transpose(key_BSHkvDh, perm=[0, 2, 1, 3])
+                key_BHkvSDh_normalized = op.SimplifiedLayerNormalization(
+                    key_BHkvSDh, key_scale, axis=-1, epsilon=1e-06, stash_type=1
+                )
+            else:
+                query_BSHDh_normalized = op.SimplifiedLayerNormalization(
+                    query_BSHDh, query_scale, axis=-1, epsilon=1e-06, stash_type=1
+                )
+                query_BHSDh_normalized = op.Transpose(query_BSHDh_normalized, perm=[0, 2, 1, 3])
+                key_BSHkvDh_normalized = op.SimplifiedLayerNormalization(
+                    key_BSHkvDh, key_scale, axis=-1, epsilon=1e-06, stash_type=1
+                )
+                key_BHkvSDh_normalized = op.Transpose(key_BSHkvDh_normalized, perm=[0, 2, 1, 3])
 
             value_BSHkvDh = op.Reshape(value, shape_BSHkvDh)
             value_BHkvSDh = op.Transpose(value_BSHkvDh, perm=[0, 2, 1, 3])
@@ -489,9 +500,13 @@ class GemmaGQAFusionTest(unittest.TestCase):
                 cos,
                 sin,
             )
-            key_seq_BHkvSkvDh = op.Concat(past_key, key_BHkvSDh_rope, axis=-2)
 
-            value_seq_BHkvSkvDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
+            if with_past:
+                key_seq_BHkvSkvDh = op.Concat(past_key, key_BHkvSDh_rope, axis=-2)
+                value_seq_BHkvSkvDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
+            else:
+                key_seq_BHkvSkvDh = key_BHkvSDh_rope
+                value_seq_BHkvSkvDh = value_BHkvSDh
 
             # Now, expand from shared heads to all heads
             key_BHkv1SDh = op.Unsqueeze(key_seq_BHkvSkvDh, 2)
@@ -552,11 +567,17 @@ class GemmaGQAFusionTest(unittest.TestCase):
 
         return gqa
 
-    def test_fusion(self):
+    @parameterized.parameterized.expand([
+        (True, True),   # with_past=True, transpose_first=True
+        (True, False),  # with_past=True, transpose_first=False
+        (False, True),  # with_past=False, transpose_first=True
+        (False, False), # with_past=False, transpose_first=False
+    ])
+    def test_fusion(self, with_past, transpose_first):
         """Test that GQA fusion is successful on source model and produces an equivalent model."""
         inputs = self.inputs
 
-        source_model = self.source_model_script().to_model_proto(
+        source_model = self.source_model_script(with_past, transpose_first).to_model_proto(
             input_types=self.input_types,
             output_types=self.output_types,
         )
