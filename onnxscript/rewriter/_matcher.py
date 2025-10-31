@@ -112,7 +112,7 @@ class SimplePatternMatcher(PatternMatcher):
             return True
 
         # TODO (rama): allow users to specify shape requirement, if desired.
-        if constant_value_numpy.size != 1:
+        if constant_value_numpy.ndim != 0:
             return self.fail(
                 f"Value {value.name} is not a scalar, expecting {pattern_constant_value}.",
             )
