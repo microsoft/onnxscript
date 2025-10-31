@@ -5,12 +5,12 @@ from __future__ import annotations
 import math
 import unittest
 
-import parameterized
 import numpy as np
 import onnx
 import onnx_ir as ir
 import onnx_ir.passes.common.shape_inference as shape_inference
 import onnxruntime as ort
+import parameterized
 import torch
 
 import onnxscript
@@ -362,14 +362,23 @@ class GQAFusionTest(unittest.TestCase):
         assert_allclose(outputs3, source_model_outputs)
 
 
+@parameterized.parameterized_class([
+    {"with_past": True, "transpose_first": True},
+    {"with_past": True, "transpose_first": False},
+    {"with_past": False, "transpose_first": True},
+    {"with_past": False, "transpose_first": False},
+])
 class GemmaGQAFusionTest(unittest.TestCase):
+    with_past = True
+    transpose_first = True
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         # Config parameters
         self.batchsize = 1  # Note: GQA (cpu) seems to require batch-size 1?
         self.seqlen = 8
         self.kv_seqlen = self.seqlen
-        self.past_seqlen = 16
+        self.past_seqlen = 16 if self.with_past else 0
         self.head_size = 16
         self.num_heads = 20
         self.kv_num_heads = 10
@@ -425,7 +434,9 @@ class GemmaGQAFusionTest(unittest.TestCase):
             "key_scale": np.random.rand(Dh).astype(np.float32),
         }
 
-    def source_model_script(self, with_past: bool, transpose_first: bool):
+    def source_model_script(self):
+        with_past = self.with_past
+        transpose_first = self.transpose_first
         scale_factor = math.sqrt(math.sqrt(self.head_size))
         minval = torch.finfo(torch.float32).min
         minval_tp = onnx.helper.make_tensor("minval", onnx.TensorProto.FLOAT, [1], [minval])
@@ -567,17 +578,11 @@ class GemmaGQAFusionTest(unittest.TestCase):
 
         return gqa
 
-    @parameterized.parameterized.expand([
-        (True, True),   # with_past=True, transpose_first=True
-        (True, False),  # with_past=True, transpose_first=False
-        (False, True),  # with_past=False, transpose_first=True
-        (False, False), # with_past=False, transpose_first=False
-    ])
-    def test_fusion(self, with_past, transpose_first):
+    def test_fusion(self):
         """Test that GQA fusion is successful on source model and produces an equivalent model."""
         inputs = self.inputs
 
-        source_model = self.source_model_script(with_past, transpose_first).to_model_proto(
+        source_model = self.source_model_script().to_model_proto(
             input_types=self.input_types,
             output_types=self.output_types,
         )
