@@ -362,15 +362,18 @@ class GQAFusionTest(unittest.TestCase):
         assert_allclose(outputs3, source_model_outputs)
 
 
-@parameterized.parameterized_class([
-    {"with_past": True, "transpose_first": True},
-    {"with_past": True, "transpose_first": False},
-    {"with_past": False, "transpose_first": True},
-    {"with_past": False, "transpose_first": False},
-])
+@parameterized.parameterized_class(
+    [
+        {"with_past": True, "transpose_first": True},
+        {"with_past": True, "transpose_first": False},
+        {"with_past": False, "transpose_first": True},
+        {"with_past": False, "transpose_first": False},
+    ]
+)
 class GemmaGQAFusionTest(unittest.TestCase):
     with_past = True
     transpose_first = True
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -485,11 +488,15 @@ class GemmaGQAFusionTest(unittest.TestCase):
                 query_BSHDh_normalized = op.SimplifiedLayerNormalization(
                     query_BSHDh, query_scale, axis=-1, epsilon=1e-06, stash_type=1
                 )
-                query_BHSDh_normalized = op.Transpose(query_BSHDh_normalized, perm=[0, 2, 1, 3])
+                query_BHSDh_normalized = op.Transpose(
+                    query_BSHDh_normalized, perm=[0, 2, 1, 3]
+                )
                 key_BSHkvDh_normalized = op.SimplifiedLayerNormalization(
                     key_BSHkvDh, key_scale, axis=-1, epsilon=1e-06, stash_type=1
                 )
-                key_BHkvSDh_normalized = op.Transpose(key_BSHkvDh_normalized, perm=[0, 2, 1, 3])
+                key_BHkvSDh_normalized = op.Transpose(
+                    key_BSHkvDh_normalized, perm=[0, 2, 1, 3]
+                )
 
             value_BSHkvDh = op.Reshape(value, shape_BSHkvDh)
             value_BHkvSDh = op.Transpose(value_BSHkvDh, perm=[0, 2, 1, 3])
