@@ -1256,9 +1256,19 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         # Record the names of the values that has contributed to the replacement
         _record_contributing_values(node, replacement)
+
+        # Obtain the list of non-None inputs to the node before it is cleared by
+        # replace_nodes_and_values to check for unused initializers later.
+        node_inputs = [v for v in node.inputs if v is not None]
+
         ir.convenience.replace_nodes_and_values(
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
+
+        if isinstance(root, ir.Graph):
+            # The old node should now be detached from the graph
+            assert node.graph is None
+            _clear_unused_initializers(node_inputs)
 
         self._modified = True
 
@@ -1334,6 +1344,19 @@ def _sym_value_can_replace_graph_output(
         # will lose its name.
         return False
     return True
+
+
+def _clear_unused_initializers(values: Sequence[ir.Value]) -> None:
+    # Detach all inputs to the node, then check for unused initializers
+    for value in values:
+        if value is None or not value.is_initializer():
+            continue
+
+        if not value.uses():
+            assert value.is_initializer()
+            assert value.graph is not None
+            assert value.name is not None
+            value.graph.initializers.pop(value.name)
 
 
 @dataclasses.dataclass
