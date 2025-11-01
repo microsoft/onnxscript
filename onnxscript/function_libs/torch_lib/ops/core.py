@@ -8118,29 +8118,6 @@ def aten_std_mean_correction(
     return op.Sqrt(var), mean
 
 
-def _center_window_around_zeros_if_needed(
-    window: TFloat, n_fft: int
-) -> TFloat:
-    # first dimension
-    n_win = op.Shape(window, start=0, end=1)
-
-    left = op.Div(op.Sub(n_fft, n_win), op.Constant(value_ints=[2]))
-
-    right = op.Sub(op.Sub(n_fft, left), n_win)
-    left = op.Reshape(left, op.Constant(value_ints=[1]))
-    right = op.Reshape(right, op.Constant(value_ints=[1]))
-
-    left_win = op.Expand(op.Constant(value_ints=[0]), left)
-    right_win = op.Expand(op.Constant(value_ints=[0]), right)
-    right_win = op.CastLike(right_win, window)
-    left_win = op.CastLike(left_win, window)
-    window_padded = op.Concat(left_win, window, right_win, axis=0)
-
-    # Center window around zeros if needed (required by ONNX's STFT)
-    window = op.Where(op.Less(op.Squeeze(n_win), n_fft), window_padded, window)
-    return window
-
-
 def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloat:
     left = op.Div(op.Sub(n_fft, win_length), op.Constant(value_ints=[2]))
 
@@ -8161,9 +8138,7 @@ def _create_window_from_n_fft(n_fft: int) -> TFloat:
     return window
 
 
-def _normalize_fft_result(
-    signal: TFloat, result: TFloat, n_fft: int
-) -> TFloat:
+def _normalize_fft_result(signal: TFloat, result: TFloat, n_fft: int) -> TFloat:
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
     sqrt_nfft = op.Sqrt(op.CastLike(n_fft_tensor, signal))
     result = op.Div(result, sqrt_nfft)
@@ -8208,14 +8183,28 @@ def aten_stft(
     frame_length_const = op.Reshape(n_fft, op.Constant(value_ints=[1]))
 
     # Pre-process input if needed
-    is_signal_rank1 = self.shape is not None and len(self.shape) == 1
+    is_signal_rank1 = len(self.shape) == 1
     if is_signal_rank1:
         # Add a batch dimension
         self = op.Identity(op.Unsqueeze(self, op.Constant(value_ints=[0])))
 
     # Get window and make sure it's the same size as `win_length` or `n_fft`
     if window is not None and window.shape[0] is not None:
-        window = _center_window_around_zeros_if_needed(window, n_fft)
+        # first dimension
+        n_win = op.Shape(window, start=0, end=1)
+        # Center window around zeros if needed (required by ONNX's STFT)
+        if n_win < n_fft:
+            left = op.Div(op.Sub(n_fft, n_win), op.Constant(value_ints=[2]))
+
+            right = op.Sub(op.Sub(n_fft, left), n_win)
+            left = op.Reshape(left, op.Constant(value_ints=[1]))
+            right = op.Reshape(right, op.Constant(value_ints=[1]))
+
+            left_win = op.Expand(op.Constant(value_ints=[0]), left)
+            right_win = op.Expand(op.Constant(value_ints=[0]), right)
+            right_win = op.CastLike(right_win, window)
+            left_win = op.CastLike(left_win, window)
+            window = op.Concat(left_win, window, right_win, axis=0)
     elif window is None:
         if win_length is not None:
             window = _create_window_from_win_length(win_length, n_fft)
@@ -8226,9 +8215,7 @@ def aten_stft(
         onesided = 1
     else:
         onesided = 0
-    result = _aten_stft_onnx(
-        self, frame_step_const, window, frame_length_const, onesided
-    )
+    result = _aten_stft_onnx(self, frame_step_const, window, frame_length_const, onesided)
     # Remove batch dimension, if needed
     if is_signal_rank1:
         result = op.Squeeze(result, op.Constant(value_ints=[0]))
