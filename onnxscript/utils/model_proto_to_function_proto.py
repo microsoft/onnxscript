@@ -48,7 +48,15 @@ def convert_model_proto_to_function_proto(
     """
     model = _initializers_to_constants(model)
     model_ir = onnx_ir.serde.deserialize_model(model)
+    doc_string = model.doc_string if model.doc_string else ""
+    graph = model_ir.graph
+
     function_ir = onnx_ir.Function(
-        domain=domain, name=name, graph=model_ir.graph, attributes={}
+        domain=domain, name=name, graph=graph, attributes={}
     )
+
+    # set metadata
+    function_ir.doc_string(doc_string)
+    function_ir.metadata_props = graph.metadata_props  # I believe the docs suggest directly modifying the attr?
+    # function_ir.value_infos(graph.value_infos)  # theres no setter defined?
     return onnx_ir.to_proto(function_ir)
