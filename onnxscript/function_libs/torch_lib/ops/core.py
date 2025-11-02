@@ -8597,7 +8597,6 @@ def aten_stft(
         # hop_length = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
         hop_length = n_fft // 4
     frame_step_const = op.Reshape(hop_length, op.Constant(value_ints=[1]))
-    frame_length_const = op.Reshape(n_fft, op.Constant(value_ints=[1]))
 
     # Pre-process input if needed
     is_signal_rank1 = len(self.shape) == 1
@@ -8633,7 +8632,7 @@ def aten_stft(
     else:
         onesided = 0
     window = op.CastLike(window, self)
-    result = op.STFT(self, frame_step_const, window, frame_length_const, onesided=onesided)
+    result = op.STFT(self, frame_step_const, window, n_fft, onesided=onesided)
     result = op.Transpose(result, perm=[0, 2, 1, 3])
     # Remove batch dimension, if needed
     if is_signal_rank1:
