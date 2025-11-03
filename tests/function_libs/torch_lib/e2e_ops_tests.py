@@ -344,6 +344,48 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_gru_unidirectional(self):
+        class GRUModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.gru = torch.nn.GRU(input_size=10, hidden_size=20, num_layers=1, batch_first=True)
+
+            def forward(self, x):
+                return self.gru(x)
+
+        model = GRUModel()
+        x = torch.randn(5, 3, 10)  # (batch, seq, input_size)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_gru_bidirectional(self):
+        class GRUModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.gru = torch.nn.GRU(input_size=10, hidden_size=20, num_layers=1, batch_first=True, bidirectional=True)
+
+            def forward(self, x):
+                return self.gru(x)
+
+        model = GRUModel()
+        x = torch.randn(5, 3, 10)  # (batch, seq, input_size)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_gru_multilayer(self):
+        class GRUModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.gru = torch.nn.GRU(input_size=10, hidden_size=20, num_layers=3, batch_first=True)
+
+            def forward(self, x):
+                return self.gru(x)
+
+        model = GRUModel()
+        x = torch.randn(5, 3, 10)  # (batch, seq, input_size)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
