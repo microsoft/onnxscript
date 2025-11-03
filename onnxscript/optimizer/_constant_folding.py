@@ -1092,8 +1092,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             value.shape,
         )
 
-        attributes = ir.convenience.convert_attributes({"value": tensor})
-        node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
+        node = ir.Node("", "Constant", inputs=[], attributes=(ir.AttrTensor("value", tensor),))
         return node
 
     def new_initializer(self, node: ir.Node, array) -> ir.Value | None:
