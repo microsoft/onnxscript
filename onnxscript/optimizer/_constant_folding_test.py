@@ -725,13 +725,13 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         model = """
             <ir_version: 9, opset_import: ["this" : 1, "" : 19]>
             model (float x) => (float return_val) {
-                [n0] return_val = this.function (x)
+                return_val = this.function (x)
             }
             <domain: "this", opset_import: ["" : 19]>
             function (x) => (return_val) {
-                [n0] tmp = Constant <value_int: int = 1> ()
-                [n1] tmp_0 = Cast <to: int = 1> (tmp)
-                [n2] return_val = Sub (tmp_0, x)
+                tmp = Constant <value_int=1> ()
+                tmp_0 = Cast <to=1> (tmp)
+                return_val = Sub (tmp_0, x)
             }
         """
         optimized = self._fold(model)
