@@ -25,6 +25,11 @@ T = TypeVar("T")
 
 RewriterContext = _tape.Builder
 
+# TODO(rama): Standardize metadata property keys. May be worth standardizing at ONNX level for
+# source/producer metadata.
+
+RULE_NAME_TAG = "pkg.onnxscript.rewriter.rule_name"
+
 
 @dataclasses.dataclass
 class ReplacementSubgraph:
@@ -718,6 +723,10 @@ class RewriteRuleSet:
                     print("++++Replacement Nodes++++")
                     _ir_utils.display_nodes(delta.new_nodes)
                     print("++++End Replacement Nodes++++")
+
+                if rule.name:
+                    for n in delta.new_nodes:
+                        n.metadata_props[RULE_NAME_TAG] = rule.name
 
                 convenience.replace_nodes_and_values(
                     graph_or_function,
