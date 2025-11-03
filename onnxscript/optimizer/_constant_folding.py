@@ -1050,6 +1050,52 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     e,
                 )
 
+    def new_constant(self, node: ir.Node, value) -> ir.Node | None:
+        irvalue = node.outputs[0]
+        if not isinstance(value, np.ndarray):
+            # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
+            # So, a constant-value of type sequence is not folded, but it can be used
+            # to optimize subsequent operations when possible.
+            logger.info(
+                "Skip storing constant folded value %s due to unsupported type %s.",
+                irvalue.name,
+                type(value),
+            )
+            return None
+
+        tensor = ir.tensor(value)
+        tensor.name = irvalue.name
+        irvalue.const_value = tensor
+
+        if value.size > self.output_size_limit:
+            # Handle examples like Transpose(weight) to be folded even if the size is large,
+            # as long as weight has no other uses. This won't increase model size.
+            removed_input_size = 0
+            for input in node.inputs:
+                if (input is not None) and (len(input.uses()) == 1):
+                    array = _get_numpy_value(input)
+                    if array is not None:
+                        removed_input_size += array.size
+            increased_size = value.size - removed_input_size
+            if increased_size > 0:
+                logger.info(
+                    "Skip storing constant folded nvalue %s due to large size %s.",
+                    irvalue.name,
+                    value.size,
+                )
+                return None
+
+        logger.debug(
+            "New constant for value %s dtype: %s shape: %s",
+            irvalue.name,
+            value.dtype,
+            value.shape,
+        )
+
+        attributes = ir.convenience.convert_attributes({"value": tensor})
+        node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
+        return node
+
     def new_initializer(self, node: ir.Node, array) -> ir.Value | None:
         original_value = node.outputs[0]
         if not isinstance(array, np.ndarray):
@@ -1099,7 +1145,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         return initializer
 
-    def process_node(self, node: ir.Node) -> Replacement | None:
+    def process_node(self, node: ir.Node, is_function: bool = False) -> Replacement | None:
         """Process a node and return a Replacement if the node can be replaced."""
         for i, value in enumerate(node.inputs):
             sym_value = self._state.get_sym_value(value)
@@ -1252,6 +1298,12 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         if outputs is None:
             return None
         if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
+            # TODO: We don't support initializers in functions yet, so we need to create Constant nodes
+            if is_function:
+                replacement = self.new_constant(node, outputs)
+                if replacement is None:
+                    return None
+                return Replacement(replacement.outputs, [replacement])
             new_initializer_value = self.new_initializer(node, outputs)
             if new_initializer_value is None:
                 return None
@@ -1301,7 +1353,8 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 self.visit_graph(graph)
 
     def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function) -> None:
-        replacement = self.process_node(node)
+        is_function = isinstance(root, ir.Function)
+        replacement = self.process_node(node, is_function=is_function)
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():
