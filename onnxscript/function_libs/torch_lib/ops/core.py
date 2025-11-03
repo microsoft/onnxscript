@@ -4991,7 +4991,7 @@ def aten_lstm_mps_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::lstm", trace_only=True)
+@torch_op("aten::lstm.input", trace_only=True)
 def aten_lstm(
     input: TFloat,
     hx: Sequence[TFloat],
@@ -5173,7 +5173,7 @@ def aten_lstm(
     return current_input, final_h, final_c
 
 
-@torch_op("aten::gru", trace_only=True)
+@torch_op("aten::gru.input", trace_only=True)
 def aten_gru(
     input: TFloat,
     hx: TFloat,
