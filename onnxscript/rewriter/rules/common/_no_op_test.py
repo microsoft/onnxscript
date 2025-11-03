@@ -15,6 +15,11 @@ class NoOpTest(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertEqual(model.graph[-1].op_type, "Identity")
 
+    def _check_no_optimization(self, model_text: str) -> None:
+        model = ir.from_onnx_text(model_text)
+        count = _no_op.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
     @parameterized.parameterized.expand(
         [
             ("float one input", "float[M]", "value_float=1.0", "one, input"),
@@ -194,6 +199,17 @@ class NoOpTest(unittest.TestCase):
         """
         )
         # TODO: Test the negative cases
+
+    def test_broadcast_is_not_eliminated(self):
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[M] input) => (float[1, 1, M] output)
+            <float[1,1,1] zero = {0.0}>
+            {
+                output = Add(zero, input)
+            }
+        """
+        self._check_no_optimization(model_text)
 
 
 if __name__ == "__main__":
