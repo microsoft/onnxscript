@@ -724,6 +724,9 @@ class RewriteRuleSet:
                     _ir_utils.display_nodes(delta.new_nodes)
                     print("++++End Replacement Nodes++++")
 
+                # Capture rewrite rule name as metadata.
+                # TODO(rama): This is just a basic version. We may wish to compose "source" metadata
+                # from multiple rules in future.
                 if rule.name:
                     for n in delta.new_nodes:
                         n.metadata_props[RULE_NAME_TAG] = rule.name
