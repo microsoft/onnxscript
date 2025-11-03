@@ -3867,11 +3867,8 @@ def aten_gru(
         # Call ONNX GRU operator
         direction = "bidirectional" if bidirectional else "forward"
         
-        # Extract hidden_size from weight matrix shape: W shape is [num_directions, 3*hidden_size, input_size]
-        # So hidden_size = W.shape[1] // 3
-        W_shape = op.Shape(W)
-        hidden_size_times_3 = op.Slice(W_shape, [1], [2], axes=[0])
-        hidden_size_attr = op.Div(hidden_size_times_3, op.Constant(value_ints=[3]))
+        # Extract hidden_size from hx shape: [num_layers * num_directions, batch, hidden_size]
+        hidden_size_attr = hx.shape[2]
         
         if B is not None:
             Y, Y_h = op.GRU(
@@ -5275,11 +5272,8 @@ def aten_lstm(
         # Call ONNX LSTM operator
         direction = "bidirectional" if bidirectional else "forward"
         
-        # Extract hidden_size from weight matrix shape: W shape is [num_directions, 4*hidden_size, input_size]
-        # So hidden_size = W.shape[1] // 4
-        W_shape = op.Shape(W)
-        hidden_size_times_4 = op.Slice(W_shape, [1], [2], axes=[0])
-        hidden_size_attr = op.Div(hidden_size_times_4, op.Constant(value_ints=[4]))
+        # Extract hidden_size from initial_h shape: [num_layers * num_directions, batch, hidden_size]
+        hidden_size_attr = initial_h.shape[2]
         
         if B is not None:
             Y, Y_h, Y_c = op.LSTM(
