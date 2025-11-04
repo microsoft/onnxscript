@@ -1098,9 +1098,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         if tensor is None:
             return None
 
-        # previous node output value is updated
-        original_value.const_value = tensor
-
         logger.debug(
             "New constant for value %s dtype: %s shape: %s",
             original_value.name,
