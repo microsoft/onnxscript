@@ -306,7 +306,9 @@ class TorchLibe2eTest(unittest.TestCase):
         class LSTMModel(torch.nn.Module):
             def __init__(self):
                 super().__init__()
-                self.lstm = torch.nn.LSTM(input_size=10, hidden_size=20, num_layers=1, batch_first=True)
+                self.lstm = torch.nn.LSTM(
+                    input_size=10, hidden_size=20, num_layers=1, batch_first=True
+                )
 
             def forward(self, x):
                 return self.lstm(x)
@@ -320,7 +322,13 @@ class TorchLibe2eTest(unittest.TestCase):
         class LSTMModel(torch.nn.Module):
             def __init__(self):
                 super().__init__()
-                self.lstm = torch.nn.LSTM(input_size=10, hidden_size=20, num_layers=1, batch_first=True, bidirectional=True)
+                self.lstm = torch.nn.LSTM(
+                    input_size=10,
+                    hidden_size=20,
+                    num_layers=1,
+                    batch_first=True,
+                    bidirectional=True,
+                )
 
             def forward(self, x):
                 return self.lstm(x)
@@ -334,7 +342,9 @@ class TorchLibe2eTest(unittest.TestCase):
         class LSTMModel(torch.nn.Module):
             def __init__(self):
                 super().__init__()
-                self.lstm = torch.nn.LSTM(input_size=10, hidden_size=20, num_layers=3, batch_first=True)
+                self.lstm = torch.nn.LSTM(
+                    input_size=10, hidden_size=20, num_layers=3, batch_first=True
+                )
 
             def forward(self, x):
                 return self.lstm(x)
@@ -348,7 +358,9 @@ class TorchLibe2eTest(unittest.TestCase):
         class GRUModel(torch.nn.Module):
             def __init__(self):
                 super().__init__()
-                self.gru = torch.nn.GRU(input_size=10, hidden_size=20, num_layers=1, batch_first=True)
+                self.gru = torch.nn.GRU(
+                    input_size=10, hidden_size=20, num_layers=1, batch_first=True
+                )
 
             def forward(self, x):
                 return self.gru(x)
@@ -362,7 +374,13 @@ class TorchLibe2eTest(unittest.TestCase):
         class GRUModel(torch.nn.Module):
             def __init__(self):
                 super().__init__()
-                self.gru = torch.nn.GRU(input_size=10, hidden_size=20, num_layers=1, batch_first=True, bidirectional=True)
+                self.gru = torch.nn.GRU(
+                    input_size=10,
+                    hidden_size=20,
+                    num_layers=1,
+                    batch_first=True,
+                    bidirectional=True,
+                )
 
             def forward(self, x):
                 return self.gru(x)
@@ -376,7 +394,9 @@ class TorchLibe2eTest(unittest.TestCase):
         class GRUModel(torch.nn.Module):
             def __init__(self):
                 super().__init__()
-                self.gru = torch.nn.GRU(input_size=10, hidden_size=20, num_layers=3, batch_first=True)
+                self.gru = torch.nn.GRU(
+                    input_size=10, hidden_size=20, num_layers=3, batch_first=True
+                )
 
             def forward(self, x):
                 return self.gru(x)

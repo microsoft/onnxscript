@@ -3810,8 +3810,12 @@ def aten_gru(
 
         for dir_idx in range(num_directions):
             dir_param_start = param_start_idx + dir_idx * params_per_direction
-            W_ih = params[dir_param_start]  # [3*hidden_size, input_size] - PyTorch order: [r,z,n]
-            W_hh = params[dir_param_start + 1]  # [3*hidden_size, hidden_size] - PyTorch order: [r,z,n]
+            W_ih = params[
+                dir_param_start
+            ]  # [3*hidden_size, input_size] - PyTorch order: [r,z,n]
+            W_hh = params[
+                dir_param_start + 1
+            ]  # [3*hidden_size, hidden_size] - PyTorch order: [r,z,n]
 
             # Reorder gates from PyTorch [r,z,n] to ONNX [z,r,n]
             # Split into individual gates
@@ -3824,12 +3828,18 @@ def aten_gru(
             W_hn = op.Slice(W_hh, starts=hidden_size * 2, ends=hidden_size * 3, axes=[0])
 
             # Reorder: [z,r,n]
-            W_ih_reordered = op.Concat(W_iz, W_ir, W_in, axis=0)  # [3*hidden_size, input_size] - ONNX order
-            W_hh_reordered = op.Concat(W_hz, W_hr, W_hn, axis=0)  # [3*hidden_size, hidden_size] - ONNX order
+            W_ih_reordered = op.Concat(
+                W_iz, W_ir, W_in, axis=0
+            )  # [3*hidden_size, input_size] - ONNX order
+            W_hh_reordered = op.Concat(
+                W_hz, W_hr, W_hn, axis=0
+            )  # [3*hidden_size, hidden_size] - ONNX order
 
             # Add direction dimension
             W_ih_expanded = op.Unsqueeze(W_ih_reordered, [0])  # [1, 3*hidden_size, input_size]
-            W_hh_expanded = op.Unsqueeze(W_hh_reordered, [0])  # [1, 3*hidden_size, hidden_size]
+            W_hh_expanded = op.Unsqueeze(
+                W_hh_reordered, [0]
+            )  # [1, 3*hidden_size, hidden_size]
 
             W_list.append(W_ih_expanded)
             R_list.append(W_hh_expanded)
@@ -3848,18 +3858,28 @@ def aten_gru(
                 b_hn = op.Slice(b_hh, starts=hidden_size * 2, ends=hidden_size * 3, axes=[0])
 
                 # Reorder: [z,r,n]
-                b_ih_reordered = op.Concat(b_iz, b_ir, b_in, axis=0)  # [3*hidden_size] - ONNX order
-                b_hh_reordered = op.Concat(b_hz, b_hr, b_hn, axis=0)  # [3*hidden_size] - ONNX order
+                b_ih_reordered = op.Concat(
+                    b_iz, b_ir, b_in, axis=0
+                )  # [3*hidden_size] - ONNX order
+                b_hh_reordered = op.Concat(
+                    b_hz, b_hr, b_hn, axis=0
+                )  # [3*hidden_size] - ONNX order
 
                 # ONNX expects biases concatenated: [Wb[zrh], Rb[zrh]]
-                b_combined = op.Concat(b_ih_reordered, b_hh_reordered, axis=0)  # [6*hidden_size]
+                b_combined = op.Concat(
+                    b_ih_reordered, b_hh_reordered, axis=0
+                )  # [6*hidden_size]
                 b_expanded = op.Unsqueeze(b_combined, [0])  # [1, 6*hidden_size]
                 B_list.append(b_expanded)
 
         # Concatenate weights for all directions
         W = op.Concat(*W_list, axis=0) if len(W_list) > 1 else W_list[0]
         R = op.Concat(*R_list, axis=0) if len(R_list) > 1 else R_list[0]
-        B = op.Concat(*B_list, axis=0) if has_biases and len(B_list) > 1 else (B_list[0] if has_biases else None)
+        B = (
+            op.Concat(*B_list, axis=0)
+            if has_biases and len(B_list) > 1
+            else (B_list[0] if has_biases else None)
+        )
 
         # Call ONNX GRU operator
         direction = "bidirectional" if bidirectional else "forward"
@@ -3889,7 +3909,9 @@ def aten_gru(
 
         # Y shape: [seq_length, num_directions, batch_size, hidden_size]
         # Reshape to [seq_length, batch_size, num_directions * hidden_size]
-        Y = op.Transpose(Y, perm=[0, 2, 1, 3])  # [seq_length, batch_size, num_directions, hidden_size]
+        Y = op.Transpose(
+            Y, perm=[0, 2, 1, 3]
+        )  # [seq_length, batch_size, num_directions, hidden_size]
         Y_shape = op.Shape(Y)
         new_shape = op.Concat(
             op.Slice(Y_shape, [0], [1]),  # seq_length
@@ -3913,7 +3935,9 @@ def aten_gru(
         output_h_list.append(Y_h)
 
     # Concatenate all layer outputs
-    final_h = output_h_list[0] if len(output_h_list) == 1 else op.Concat(*output_h_list, axis=0)
+    final_h = (
+        output_h_list[0] if len(output_h_list) == 1 else op.Concat(*output_h_list, axis=0)
+    )
 
     # Handle batch_first for output
     if batch_first:
@@ -5208,8 +5232,12 @@ def aten_lstm(
 
         for dir_idx in range(num_directions):
             dir_param_start = param_start_idx + dir_idx * params_per_direction
-            W_ih = params[dir_param_start]  # [4*hidden_size, input_size] - PyTorch order: [i,f,g,o]
-            W_hh = params[dir_param_start + 1]  # [4*hidden_size, hidden_size] - PyTorch order: [i,f,g,o]
+            W_ih = params[
+                dir_param_start
+            ]  # [4*hidden_size, input_size] - PyTorch order: [i,f,g,o]
+            W_hh = params[
+                dir_param_start + 1
+            ]  # [4*hidden_size, hidden_size] - PyTorch order: [i,f,g,o]
 
             # Reorder gates from PyTorch [i,f,g,o] to ONNX [i,o,f,g]
             # Split into individual gates
@@ -5224,19 +5252,29 @@ def aten_lstm(
             W_ho = op.Slice(W_hh, starts=hidden_size * 3, ends=hidden_size * 4, axes=[0])
 
             # Reorder: [i,o,f,g]
-            W_ih_reordered = op.Concat(W_ii, W_io, W_if, W_ig, axis=0)  # [4*hidden_size, input_size] - ONNX order
-            W_hh_reordered = op.Concat(W_hi, W_ho, W_hf, W_hg, axis=0)  # [4*hidden_size, hidden_size] - ONNX order
+            W_ih_reordered = op.Concat(
+                W_ii, W_io, W_if, W_ig, axis=0
+            )  # [4*hidden_size, input_size] - ONNX order
+            W_hh_reordered = op.Concat(
+                W_hi, W_ho, W_hf, W_hg, axis=0
+            )  # [4*hidden_size, hidden_size] - ONNX order
 
             # Add direction dimension
             W_ih_expanded = op.Unsqueeze(W_ih_reordered, [0])  # [1, 4*hidden_size, input_size]
-            W_hh_expanded = op.Unsqueeze(W_hh_reordered, [0])  # [1, 4*hidden_size, hidden_size]
+            W_hh_expanded = op.Unsqueeze(
+                W_hh_reordered, [0]
+            )  # [1, 4*hidden_size, hidden_size]
 
             W_list.append(W_ih_expanded)
             R_list.append(W_hh_expanded)
 
             if has_biases:
-                b_ih = params[dir_param_start + 2]  # [4*hidden_size] - PyTorch order: [i,f,g,o]
-                b_hh = params[dir_param_start + 3]  # [4*hidden_size] - PyTorch order: [i,f,g,o]
+                b_ih = params[
+                    dir_param_start + 2
+                ]  # [4*hidden_size] - PyTorch order: [i,f,g,o]
+                b_hh = params[
+                    dir_param_start + 3
+                ]  # [4*hidden_size] - PyTorch order: [i,f,g,o]
 
                 # Reorder biases from PyTorch [i,f,g,o] to ONNX [i,o,f,g]
                 b_ii = op.Slice(b_ih, starts=[0], ends=hidden_size, axes=[0])
@@ -5250,18 +5288,28 @@ def aten_lstm(
                 b_ho = op.Slice(b_hh, starts=hidden_size * 3, ends=hidden_size * 4, axes=[0])
 
                 # Reorder: [i,o,f,g]
-                b_ih_reordered = op.Concat(b_ii, b_io, b_if, b_ig, axis=0)  # [4*hidden_size] - ONNX order
-                b_hh_reordered = op.Concat(b_hi, b_ho, b_hf, b_hg, axis=0)  # [4*hidden_size] - ONNX order
+                b_ih_reordered = op.Concat(
+                    b_ii, b_io, b_if, b_ig, axis=0
+                )  # [4*hidden_size] - ONNX order
+                b_hh_reordered = op.Concat(
+                    b_hi, b_ho, b_hf, b_hg, axis=0
+                )  # [4*hidden_size] - ONNX order
 
                 # ONNX expects biases concatenated: [Wb[iofc], Rb[iofc]]
-                b_combined = op.Concat(b_ih_reordered, b_hh_reordered, axis=0)  # [8*hidden_size]
+                b_combined = op.Concat(
+                    b_ih_reordered, b_hh_reordered, axis=0
+                )  # [8*hidden_size]
                 b_expanded = op.Unsqueeze(b_combined, [0])  # [1, 8*hidden_size]
                 B_list.append(b_expanded)
 
         # Concatenate weights for all directions
         W = op.Concat(*W_list, axis=0) if len(W_list) > 1 else W_list[0]
         R = op.Concat(*R_list, axis=0) if len(R_list) > 1 else R_list[0]
-        B = op.Concat(*B_list, axis=0) if has_biases and len(B_list) > 1 else (B_list[0] if has_biases else None)
+        B = (
+            op.Concat(*B_list, axis=0)
+            if has_biases and len(B_list) > 1
+            else (B_list[0] if has_biases else None)
+        )
 
         # Call ONNX LSTM operator
         direction = "bidirectional" if bidirectional else "forward"
@@ -5293,7 +5341,9 @@ def aten_lstm(
 
         # Y shape: [seq_length, num_directions, batch_size, hidden_size]
         # Reshape to [seq_length, batch_size, num_directions * hidden_size]
-        Y = op.Transpose(Y, perm=[0, 2, 1, 3])  # [seq_length, batch_size, num_directions, hidden_size]
+        Y = op.Transpose(
+            Y, perm=[0, 2, 1, 3]
+        )  # [seq_length, batch_size, num_directions, hidden_size]
         Y_shape = op.Shape(Y)
         new_shape = op.Concat(
             op.Slice(Y_shape, [0], [1]),  # seq_length
@@ -5318,8 +5368,12 @@ def aten_lstm(
         output_c_list.append(Y_c)
 
     # Concatenate all layer outputs
-    final_h = output_h_list[0] if len(output_h_list) == 1 else op.Concat(*output_h_list, axis=0)
-    final_c = output_c_list[0] if len(output_c_list) == 1 else op.Concat(*output_c_list, axis=0)
+    final_h = (
+        output_h_list[0] if len(output_h_list) == 1 else op.Concat(*output_h_list, axis=0)
+    )
+    final_c = (
+        output_c_list[0] if len(output_c_list) == 1 else op.Concat(*output_c_list, axis=0)
+    )
 
     # Handle batch_first for output
     if batch_first:
