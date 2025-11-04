@@ -49,16 +49,17 @@ jobs:
         with:
           # Version range or exact version of Python to use, using SemVer's version range syntax. Reads from .python-version if unset.
           python-version: "3.10"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
       - name: Install ONNXScript
         run: |
           # Install dependencies
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade setuptools
-          python -m pip install -r requirements-dev.txt
+          uv pip install --system setuptools
+          uv pip install --system -r requirements-dev.txt
           # FIXME: numpy 2.2 has some typing changes that break the mypy CI but it's otherwise fine
-          python -m pip install "numpy<2.2"
+          uv pip install --system "numpy<2.2"
           # Install packages
-          python -m pip install -e .
+          uv pip install --system -e .
           lintrunner init
       - name: Run lintrunner on all files
         run: |
