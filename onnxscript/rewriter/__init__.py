@@ -16,6 +16,7 @@ __all__ = [
     "RewriterContext",
     "MatchingTracer",
     "MatchStatus",
+    "RULE_NAME_TAG",
 ]
 
 import onnx
@@ -25,6 +26,7 @@ from onnxscript import ir
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchContext, MatchingTracer, MatchResult, MatchStatus
 from onnxscript.rewriter._rewrite_rule import (
+    RULE_NAME_TAG,
     RewriterContext,
     RewriteRule,
     RewriteRuleClassBase,
