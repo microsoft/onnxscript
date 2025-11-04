@@ -14,10 +14,12 @@ import onnx_ir as ir
 # special cases like empty string. (This does assume that an empty string is
 # the same as no metadata, which is a reasonable assumption for most metadata.)
 
-StringMerger = Callable[[str,str], str]
+StringMerger = Callable[[str, str], str]
+
 
 def overwrite(_: str, new: str) -> str:
     return new
+
 
 def join(separator: str) -> StringMerger:
     """Creates a StringMerger that joins two strings with the given separator.
@@ -28,11 +30,15 @@ def join(separator: str) -> StringMerger:
     Returns:
         StringMerger: A function that joins two strings with the specified separator.
     """
+
     def merger(first: str, second: str) -> str:
         return f"{first}{separator}{second}"
+
     return merger
 
+
 comma_separator_merger = join(", ")
+
 
 class MetadataMerger:
     """Merges metadata properties using specified merging logic.
@@ -43,13 +49,15 @@ class MetadataMerger:
            If None, the first value is used. (Specify `overwrite` to always use the second value.)
     """
 
-    def __init__(self, mergers: dict[str, StringMerger], default: StringMerger | None = None) -> None:
+    def __init__(
+        self, mergers: dict[str, StringMerger], default: StringMerger | None = None
+    ) -> None:
         self.mergers = mergers
         self.default = default
 
     def update_dict(self, updated: dict[str, str], updates: dict[str, str]) -> None:
         """Updates the first metadata property dictionary with values from the second.
-    
+
         Args:
             updated: The metadata dictionary to be updated.
             updates: The updates metadata dictionary.
@@ -64,7 +72,9 @@ class MetadataMerger:
             else:
                 updated[key] = new_value
 
-    def copy_merged_metadata(self, from_nodes: Iterable[ir.Node], to: ir.Node | Iterable[ir.Node]) -> None:
+    def copy_merged_metadata(
+        self, from_nodes: Iterable[ir.Node], to: ir.Node | Iterable[ir.Node]
+    ) -> None:
         """Merges metadata from multiple nodes and assigns it to a target node.
 
         Args:
