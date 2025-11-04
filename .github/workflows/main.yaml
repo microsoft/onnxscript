@@ -110,9 +110,9 @@ jobs:
           uv pip install --system -r requirements-dev.txt
       - name: Versions
         run: |
-          pip list | grep numpy
-          pip list | grep onnx
-          pip list | grep torch
+          uv pip list | grep numpy
+          uv pip list | grep onnx
+          uv pip list | grep torch
       - name: Install package
         run: uv pip install --system .
       - name: Build documentation
