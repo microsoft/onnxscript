@@ -1050,90 +1050,79 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     e,
                 )
 
-    def new_constant(self, node: ir.Node, value) -> ir.Node | None:
-        irvalue = node.outputs[0]
-        if not isinstance(value, np.ndarray):
-            # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
-            # So, a constant-value of type sequence is not folded, but it can be used
-            # to optimize subsequent operations when possible.
+    def _prepare_folded_tensor(
+        self, node: ir.Node, output_name: str, output_array: np.ndarray | Any
+    ) -> ir.Tensor | None:
+        """
+        Shared helper for constant/init creation:
+        - Validates the folded Python value is a numpy ndarray.
+        - Wraps it in an ir.Tensor and names it.
+        - Applies output_size_limit logic with input-usage compensation.
+        Returns the ir.Tensor or None if it should be skipped.
+        """
+        if not isinstance(output_array, np.ndarray):
             logger.info(
                 "Skip storing constant folded value %s due to unsupported type %s.",
-                irvalue.name,
-                type(value),
+                output_name,
+                type(output_array),
             )
             return None
 
-        tensor = ir.tensor(value)
-        tensor.name = irvalue.name
-        irvalue.const_value = tensor
+        tensor = ir.tensor(output_array)
+        tensor.name = output_name
 
-        if value.size > self.output_size_limit:
-            # Handle examples like Transpose(weight) to be folded even if the size is large,
-            # as long as weight has no other uses. This won't increase model size.
+        # Size gating (shared logic)
+        if output_array.size > self.output_size_limit:
             removed_input_size = 0
-            for input in node.inputs:
-                if (input is not None) and (len(input.uses()) == 1):
-                    array = _get_numpy_value(input)
-                    if array is not None:
-                        removed_input_size += array.size
-            increased_size = value.size - removed_input_size
+            for input_val in node.inputs:
+                if (input_val is not None) and (len(input_val.uses()) == 1):
+                    input_array = _get_numpy_value(input_val)
+                    if input_array is not None:
+                        removed_input_size += input_array.size
+            increased_size = output_array.size - removed_input_size
             if increased_size > 0:
                 logger.info(
-                    "Skip storing constant folded nvalue %s due to large size %s.",
-                    irvalue.name,
-                    value.size,
+                    "Skip storing constant folded array %s due to large size %s.",
+                    output_name,
+                    output_array.size,
                 )
                 return None
 
+        return tensor
+
+    def new_constant(self, node: ir.Node, array: np.ndarray | Any) -> ir.Node | None:
+        original_value = node.outputs[0]
+
+        tensor = self._prepare_folded_tensor(node, original_value.name, array)
+        if tensor is None:
+            return None
+
+        # previous node output value is updated
+        original_value.const_value = tensor
+
         logger.debug(
             "New constant for value %s dtype: %s shape: %s",
-            irvalue.name,
-            value.dtype,
-            value.shape,
+            original_value.name,
+            array.dtype,
+            array.shape,
         )
 
         node = ir.Node("", "Constant", inputs=[], attributes=(ir.AttrTensor("value", tensor),))
         return node
 
-    def new_initializer(self, node: ir.Node, array) -> ir.Value | None:
+    def new_initializer(self, node: ir.Node, array: np.ndarray | Any) -> ir.Value | None:
         original_value = node.outputs[0]
-        if not isinstance(array, np.ndarray):
-            # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
-            # So, a constant-value of type sequence is not folded, but it can be used
-            # to optimize subsequent operations when possible.
-            logger.info(
-                "Skip storing constant folded value %s due to unsupported type %s.",
-                original_value.name,
-                type(array),
-            )
+
+        tensor = self._prepare_folded_tensor(node, original_value.name, array)
+        if tensor is None:
             return None
 
-        tensor = ir.tensor(array)
-        tensor.name = original_value.name
         initializer = ir.Value(
             name=original_value.name,
             type=ir.TensorType(ir.DataType(tensor.dtype)),
             shape=tensor.shape,  # type: ignore[arg-type]
             const_value=tensor,
         )
-
-        if array.size > self.output_size_limit:
-            # Handle examples like Transpose(weight) to be folded even if the size is large,
-            # as long as weight has no other uses. This won't increase model size.
-            removed_input_size = 0
-            for input in node.inputs:
-                if (input is not None) and (len(input.uses()) == 1):
-                    array = _get_numpy_value(input)
-                    if array is not None:
-                        removed_input_size += array.size
-            increased_size = array.size - removed_input_size
-            if increased_size > 0:
-                logger.info(
-                    "Skip storing constant folded nvalue %s due to large size %s.",
-                    original_value.name,
-                    array.size,
-                )
-                return None
 
         logger.debug(
             "New Initializer for value %s dtype: %s shape: %s",
