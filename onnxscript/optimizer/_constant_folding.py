@@ -1132,7 +1132,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         return initializer
 
-    def process_node(self, node: ir.Node, is_function: bool = False) -> Replacement | None:
+    def process_node(self, node: ir.Node, is_function: bool) -> Replacement | None:
         """Process a node and return a Replacement if the node can be replaced."""
         for i, value in enumerate(node.inputs):
             sym_value = self._state.get_sym_value(value)
@@ -1285,7 +1285,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         if outputs is None:
             return None
         if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
-            # TODO: We don't support initializers in functions yet, so we need to create Constant nodes
+            # We don't support initializers in functions, so we need to create Constant nodes
             if is_function:
                 replacement = self.new_constant(node, outputs)
                 if replacement is None:
