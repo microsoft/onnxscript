@@ -1091,6 +1091,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         return tensor
 
     def new_constant(self, node: ir.Node, array: np.ndarray | Any) -> ir.Node | None:
+        """Create a new Constant node with the given array as its value."""
         original_value = node.outputs[0]
 
         tensor = self._prepare_folded_tensor(node, original_value.name, array)
@@ -1111,6 +1112,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         return node
 
     def new_initializer(self, node: ir.Node, array: np.ndarray | Any) -> ir.Value | None:
+        """Create a new initializer value with the given array as its value."""
         original_value = node.outputs[0]
 
         tensor = self._prepare_folded_tensor(node, original_value.name, array)
