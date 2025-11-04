@@ -615,12 +615,13 @@ def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
         overload += 1
 
 
-# TODO(rama): Make this user-configurable. Perhaps allowing RewriteRuleSet to accept
-# a MetadataMerger object should be sufficient. Using None will avoid expensive
-# metadata merging when efficiency is important.
-_default_metadata_merger: metadata_merger.MetadataMerger | None = (
-    metadata_merger.MetadataMerger({RULE_NAME_TAG: metadata_merger.comma_separator_merger})
+_default_metadata_merger: metadata_merger.MetadataMerger = metadata_merger.MetadataMerger(
+    {RULE_NAME_TAG: metadata_merger.comma_separator_merger}
 )
+
+# TODO(rama): Generalize this to support custom metadata mergers. For now, we just allow
+# enabling/disabling the default merger.
+merge_metadata: bool = True
 
 
 class RewriteRuleSet:
@@ -749,9 +750,10 @@ class RewriteRuleSet:
                     delta.new_outputs,
                 )
 
-                merger = _default_metadata_merger
-                if merger is not None:
-                    merger.copy_merged_metadata(delta.match.nodes, delta.new_nodes)
+                if merge_metadata:
+                    _default_metadata_merger.copy_merged_metadata(
+                        delta.match.nodes, delta.new_nodes
+                    )
 
                 count += 1
                 break
