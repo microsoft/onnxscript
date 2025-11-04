@@ -69,7 +69,8 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
         else:
             original_bias = np.zeros_like(input_mean)
             # Use inbound input 1 (should be weight) to derive a name for the bias
-            # to avoid name collision on initializer creation.
+            # to avoid name collision on initializer creation when there are multiple patterns
+            # sharing the same parent nodes.
             bias_name = inbound_node.inputs[1].name + "_bias"
         fused_bias = ir.tensor((original_bias - input_mean) * scale_factor + beta)
 
