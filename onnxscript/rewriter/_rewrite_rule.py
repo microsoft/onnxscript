@@ -18,6 +18,7 @@ import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._ir_utils as _ir_utils
 import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
+import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
 from onnxscript.ir import _tape, convenience
 
@@ -614,6 +615,14 @@ def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
         overload += 1
 
 
+# TODO(rama): Make this user-configurable. Perhaps allowing RewriteRuleSet to accept
+# a MetadataMerger object should be sufficient. Using None will avoid expensive
+# metadata merging when efficiency is important.
+_default_metadata_merger: metadata_merger.MetadataMerger | None = (
+    metadata_merger.MetadataMerger({RULE_NAME_TAG: metadata_merger.comma_separator_merger})
+)
+
+
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
         if not rules:
@@ -739,6 +748,10 @@ class RewriteRuleSet:
                     delta.match.outputs,
                     delta.new_outputs,
                 )
+
+                merger = _default_metadata_merger
+                if merger is not None:
+                    merger.copy_merged_metadata(delta.match.nodes, delta.new_nodes)
 
                 count += 1
                 break
