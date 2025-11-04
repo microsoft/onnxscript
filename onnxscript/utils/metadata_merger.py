@@ -75,11 +75,11 @@ class MetadataMerger:
     def copy_merged_metadata(
         self, from_nodes: Iterable[ir.Node], to: ir.Node | Iterable[ir.Node]
     ) -> None:
-        """Merges metadata from multiple nodes and assigns it to a target node.
+        """Merges metadata from multiple nodes and assigns it to one or more target nodes.
 
         Args:
             from_nodes: The source nodes from which to merge metadata.
-            to_node: The target node to which the merged metadata will be assigned.
+            to: The target node(s) to which the merged metadata will be assigned.
         """
         if isinstance(to, ir.Node):
             updated = to.metadata_props
