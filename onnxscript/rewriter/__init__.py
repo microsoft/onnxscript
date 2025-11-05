@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Sequence, TypeVar, Union
 
 __all__ = [
+    "merge_metadata",
     "pattern",
     "rewrite",
     "RewritePass",
@@ -31,6 +32,7 @@ from onnxscript.rewriter._rewrite_rule import (
     RewriteRule,
     RewriteRuleClassBase,
     RewriteRuleSet,
+    merge_metadata,
 )
 from onnxscript.rewriter.rules.common import (
     _basic_rules,
