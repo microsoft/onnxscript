@@ -8958,9 +8958,10 @@ def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
         # We can create a definitive split op if the input shape is static
         # Only torch>=2.7 supports correctly generating the correct number of outputs for Split
         num_outputs = self.shape[dim]
-        outputs = op.Split(self, axis=dim, num_outputs=num_outputs)
-        if num_outputs == 1:
-            outputs = [outputs]
+        if num_outputs != 1:
+            outputs = op.Split(self, axis=dim, num_outputs=num_outputs)
+        else:
+            outputs = [self]
 
         return [op.Squeeze(out, [dim]) for out in outputs]
 
