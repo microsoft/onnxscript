@@ -29,6 +29,7 @@ from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_rotary_embedding,
 )
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
+from onnxscript.rewriter.ort_fusions.sdpa_via_mha import replace_sdpa_by_mha
 from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
     fuse_skip_rms_normalization,
@@ -104,6 +105,7 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
         fusion_count["attention"] = fuse(fuse_attention)
     fusion_count["gelu"] = fuse(fuse_gelu)
     fusion_count["bias_gelu"] = fuse(fuse_bias_gelu)
+    fusion_count["sdpa_via_mha"] = fuse(replace_sdpa_by_mha)
     # Finally: inline any intermediate fusion functions introduced that were not
     # consumed by other fusions, and eliminate any remaining unused nodes.
     optimize(model)
