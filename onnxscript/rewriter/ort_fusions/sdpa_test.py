@@ -292,20 +292,41 @@ def _masked_custom_scale_post_mul_sdpa_script(query, key, value, mask):
     return attn_output
 
 
+# This tests a scenario where the key is in BSHd format instead of BHSd, which
+# happens due to an optimization that fuses two transposes together, the one
+# to convert from BSHd to BHSd and then to BHdS before MatMul. Hence, the first
+# transpose down below is different from other test cases.
+@script()
+def _unmasked_pre_div_sdpa_BSHd_key_script(query, key, value):
+    key_transposed = op.Transpose(key, perm=[0, 2, 3, 1])  # BSHd to BHdS
+    divisor = op.Constant(value_float=SQRT_SCALE_FACTOR)
+    scaled_query = op.Div(query, divisor)
+    scaled_key = op.Div(key_transposed, divisor)
+    attn_score = op.MatMul(scaled_query, scaled_key)
+    attn_weight = op.Softmax(attn_score, axis=-1)
+    is_nan = op.IsNaN(attn_weight)
+    zero = op.Constant(value_float=0.0)
+    adj_attn_weight = op.Where(is_nan, zero, attn_weight)
+    attn_output = op.MatMul(adj_attn_weight, value)
+    return attn_output
+
+
 class SDPATestCase:
-    def __init__(self, script_func, *, with_mask):
+    def __init__(self, script_func, *, with_mask, BSHd_key=False):
         self.script_func = script_func
         self.with_mask = with_mask
+        self.BSHd_key = BSHd_key
 
     def get_onnx_model(self):
         if not hasattr(self, "_onnx_model"):
-            qkv_type = FLOAT[B, N, S, H]
+            qv_type = FLOAT[B, N, S, H]
             mask_type = FLOAT[B, N, S, S]
-            input_types = [qkv_type, qkv_type, qkv_type]
+            k_type = FLOAT[B, S, N, H] if self.BSHd_key else FLOAT[B, N, S, H]
+            input_types = [qv_type, k_type, qv_type]
             if self.with_mask:
                 input_types.append(mask_type)
             model_proto = self.script_func.to_model_proto(
-                input_types=input_types, output_types=[qkv_type]
+                input_types=input_types, output_types=[qv_type]
             )
             self._onnx_model = ir.serde.deserialize_model(model_proto)
         return self._onnx_model
@@ -314,7 +335,9 @@ class SDPATestCase:
         if not hasattr(self, "_ort_inputs"):
             inputs = {
                 "query": numpy.random.rand(B, N, S, H).astype(numpy.float32),
-                "key": numpy.random.rand(B, N, S, H).astype(numpy.float32),
+                "key": numpy.random.rand(B, S, N, H).astype(numpy.float32)
+                if self.BSHd_key
+                else numpy.random.rand(B, N, S, H).astype(numpy.float32),
                 "value": numpy.random.rand(B, N, S, H).astype(numpy.float32),
             }
             if self.with_mask:
@@ -374,10 +397,13 @@ class TestSDPAFusion(unittest.TestCase):
                 "_custom_multi_scale_pre_mul_sdpa_script",
                 _custom_multi_scale_pre_mul_sdpa_script,
             ),
+            ("pre_div_sdpa_BSHd_key", _unmasked_pre_div_sdpa_BSHd_key_script),
         ]
     )
     def test_sdpa_fusion(self, name, script_func):
-        test_case = SDPATestCase(script_func, with_mask="masked" in name)
+        test_case = SDPATestCase(
+            script_func, with_mask="masked" in name, BSHd_key="BSHd_key" in name
+        )
         model = test_case.get_onnx_model()
         onnxscript.optimizer.optimize(model)
 

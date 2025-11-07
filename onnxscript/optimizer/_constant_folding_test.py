@@ -721,6 +721,26 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         optimized = self._fold(model)
         self.assertEqual(len(optimized.graph), 2)
 
+    def test_constant_folding_creates_constant_nodes_in_function(self):
+        model = """
+            <ir_version: 9, opset_import: ["this" : 1, "" : 19]>
+            model (float x) => (float return_val) {
+                return_val = this.function (x)
+            }
+            <domain: "this", opset_import: ["" : 19]>
+            function (x) => (return_val) {
+                tmp = Constant <value_int=1> ()
+                tmp_0 = Cast <to=1> (tmp)
+                return_val = Sub (tmp_0, x)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.functions), 1)
+        for func in optimized.functions.values():
+            # Ensure that constant folding has created constant nodes in the function
+            constant_nodes = [n for n in func.graph if n.op_type == "Constant"]
+            self.assertEqual(len(constant_nodes), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
