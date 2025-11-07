@@ -14,6 +14,7 @@ Dim = Union[int, ir.SymbolicDim]
 
 class SDPAImplementation(pattern.RewriteRuleClassBase):
     def pattern(self, op, query, key, value, key_format):
+        """Pattern matches any call to SDPA. See sdpa.py for documentation on the SDPA op."""
         return op.SDPA(
             query,
             key,
