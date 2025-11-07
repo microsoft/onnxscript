@@ -3732,7 +3732,7 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op(
-    ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor", "_operator::ge"),
+    ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor"),
     trace_only=True,
 )
 def aten_ge(self: TTensor, other: TTensor) -> BOOL:
@@ -3746,6 +3746,12 @@ def aten_ge(self: TTensor, other: TTensor) -> BOOL:
         #    T,    T,    T
         return op.Or(self, op.Not(other))
 
+    return op.GreaterOrEqual(self, other)
+
+
+@torch_op("_operator::ge", trace_only=True)
+def operator_ge(self: TTensor, other: TTensor) -> BOOL:
+    # operator.ge for SymInt
     return op.GreaterOrEqual(self, other)
 
 
@@ -3872,7 +3878,7 @@ def aten_gru_cell(
 
 
 @torch_op(
-    ("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater.Tensor", "_operator::gt"),
+    ("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater.Tensor"),
     trace_only=True,
 )
 def aten_gt(self: TTensor, other: TTensor) -> BOOL:
@@ -3887,6 +3893,12 @@ def aten_gt(self: TTensor, other: TTensor) -> BOOL:
 
         return op.And(self, op.Not(other))
 
+    return op.Greater(self, other)
+
+
+@torch_op("_operator::gt", trace_only=True)
+def operator_gt(self: TTensor, other: TTensor) -> BOOL:
+    # operator.gt for SymInt
     return op.Greater(self, other)
 
 
@@ -4705,7 +4717,7 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op(
-    ("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"),
+    ("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor"),
     trace_only=True,
 )
 def aten_le(self: TTensor, other: TTensor) -> BOOL:
@@ -4720,6 +4732,12 @@ def aten_le(self: TTensor, other: TTensor) -> BOOL:
 
         return op.Or(other, op.Not(self))
 
+    return op.LessOrEqual(self, other)
+
+
+@torch_op("_operator::le", trace_only=True)
+def operator_le(self: TTensor, other: TTensor) -> BOOL:
+    # operator.le for SymInt
     return op.LessOrEqual(self, other)
 
 
@@ -4992,7 +5010,7 @@ def aten_lstm_mps_backward(
 
 
 @torch_op(
-    ("aten::lt.Tensor", "aten::lt.Scalar", "aten::less.Tensor", "_operator::lt"),
+    ("aten::lt.Tensor", "aten::lt.Scalar", "aten::less.Tensor"),
     trace_only=True,
 )
 def aten_lt(self: TTensor, other: TTensor) -> BOOL:
@@ -5006,6 +5024,12 @@ def aten_lt(self: TTensor, other: TTensor) -> BOOL:
         #    T,    T,    F
         return op.And(other, op.Not(self))
 
+    return op.Less(self, other)
+
+
+@torch_op("_operator::lt", trace_only=True)
+def operator_lt(self: TTensor, other: TTensor) -> BOOL:
+    # operator.lt for SymInt
     return op.Less(self, other)
 
 
@@ -7076,9 +7100,7 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(
-    ("aten::remainder.Tensor", "aten::remainder.Scalar", "_operator::mod"), trace_only=True
-)
+@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"), trace_only=True)
 def aten_remainder(self: TTensor, other: TTensor) -> TTensor:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -7092,6 +7114,12 @@ def aten_remainder(self: TTensor, other: TTensor) -> TTensor:
     rounded_quotient = op.Floor(op.Div(self, other))
 
     return op.Sub(self, op.Mul(rounded_quotient, other))
+
+
+@torch_op("_operator::mod", trace_only=True)
+def operator_mod(self: TTensor, other: TTensor) -> TTensor:
+    # Modulus operator % on SymInt
+    return op.Mod(self, other)
 
 
 def aten_rename(self: TensorType, names: Optional[str]) -> TensorType:
