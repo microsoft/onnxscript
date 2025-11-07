@@ -87,7 +87,7 @@ class Variable:
     converter.
     """
 
-    def __init__(self, name: str, castable: bool = False):
+    def __init__(self, name: str):
         """Initialize the instance.
 
         Args:
@@ -98,7 +98,6 @@ class Variable:
               types as needed.
         """
         self.name = name
-        self.is_castable = castable
 
     def __str__(self) -> str:
         return self.name
@@ -184,6 +183,10 @@ class Converter:
         self._used_vars: set[str] = set()
         self._locals: List[Dict[str, LocalSymValue]] = [{}]
         self._analyzer: analysis.AstAnalyzer | None = None
+        self._castable: set[str] = set()
+
+    def is_castable(self, var_name: str) -> bool:
+        return var_name in self._castable
 
     @property
     def analyzer(self) -> analysis.AstAnalyzer:
@@ -358,8 +361,10 @@ class Converter:
                     [result],
                     [cast_attr],
                 )
-                return Variable(result_as_bool, True)
-            return Variable(result, True)
+                self._castable.add(result_as_bool)
+                return Variable(result_as_bool)
+            self._castable.add(result)
+            return Variable(result)
         if isinstance(val, values.Dynamic):
             return Variable(val.value)
         # Assume value is a python-value convertible to a tensor
@@ -421,7 +426,8 @@ class Converter:
             fail(info.msg(str(e)))
         attr = self._make_onnx_attr("value", tensor)
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
-        return Variable(ovar, True)
+        self._castable.add(ovar)
+        return Variable(ovar)
 
     def _emit_copy(self, original_var: str, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
