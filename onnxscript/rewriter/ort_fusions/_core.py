@@ -129,6 +129,7 @@ def optimize_for_ort(
             Typically it identifies the Execution Provider (EP) to optimize for.
             If None, the default configuration will be used.
         debug: If debug is True, enable pattern matching tracer for debugging.
+        clear_metadata: If True, clear metadata and doc strings from the model.
 
     Returns:
         A tuple containing:
@@ -143,9 +144,6 @@ def optimize_for_ort(
     # Apply the ORT pattern rewrite rules.
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
 
-    if clear_metadata:
-        common_passes.ClearMetadataAndDocStringPass()(model)
-
     passes = ir.passes.Sequential(
         # Apply the ORT optimization passes.
         # https://github.com/microsoft/onnxruntime/blob/74dcf7e296639095dfa55d31336998b6f719ed76/onnxruntime/python/tools/transformers/dynamo_onnx_helper.py#L172
@@ -157,4 +155,8 @@ def optimize_for_ort(
     assert passes.in_place
     result = passes(model)
     assert result.model is model
+
+    if clear_metadata:
+        common_passes.ClearMetadataAndDocStringPass()(model)
+
     return model, fusion_count
