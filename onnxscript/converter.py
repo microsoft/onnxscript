@@ -83,8 +83,7 @@ primop_map = {
 class Variable:
     """Represents an ONNX variable.
 
-    TODO(rama): Consider merging this with IRVar. However, "castable" is specific to this
-    converter.
+    TODO(rama): Consider merging this with IRVar.
     """
 
     def __init__(self, name: str):
@@ -186,6 +185,7 @@ class Converter:
         self._castable: set[str] = set()
 
     def is_castable(self, var_name: str) -> bool:
+        """Returns True if the variable with the given name represents a polymorphic constant."""
         return var_name in self._castable
 
     @property
@@ -346,25 +346,26 @@ class Converter:
     ) -> Variable:
         if isinstance(val, values.AttrRef):
             # promote attribute to value
-            result = self.generate_unique_name(target or "tmp")
+            result_name = self.generate_unique_name(target or "tmp")
             attr = self._to_onnx_attr_ref(val, info)
-            self.emit([result], values.Op(self.default_opset, "Constant"), [], [attr])
+            result = self.emit(
+                [result_name], values.Op(self.default_opset, "Constant"), [], [attr]
+            )
             if ta.base_type_is_bool(val.typeinfo):
                 # ONNX attributes use an int-encoding for bools, but ONNX tensor types
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
-                result_as_bool = self.generate_unique_name(result + "_as_bool")
+                result_as_bool = self.generate_unique_name(result_name + "_as_bool")
                 cast_attr = self._make_onnx_attr("to", onnx_types.BOOL.dtype)
-                self.emit(
+                self._castable.add(result_as_bool)
+                return self.emit1(
                     [result_as_bool],
                     values.Op(self.default_opset, "Cast"),
                     [result],
                     [cast_attr],
                 )
-                self._castable.add(result_as_bool)
-                return Variable(result_as_bool)
-            self._castable.add(result)
-            return Variable(result)
+            self._castable.add(result_name)
+            return result
         if isinstance(val, values.Dynamic):
             return Variable(val.value)
         # Assume value is a python-value convertible to a tensor
@@ -382,7 +383,7 @@ class Converter:
         inputs: Sequence[Optional[str]],
         attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
         sub_functions: Optional[dict[str, onnx.FunctionProto]] = None,
-    ):
+    ) -> Sequence[Variable] | Variable:
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
         if attrs is None:
@@ -397,6 +398,14 @@ class Converter:
             attrs,
             sub_functions,
         )
+        if len(outputs) == 1:
+            return Variable(outputs[0])
+        return [Variable(o) for o in outputs]
+
+    def emit1(self, *args, **kwargs) -> Variable:
+        r = self.emit(*args, **kwargs)
+        assert isinstance(r, Variable)
+        return r
 
     def _emit_const(
         self,
@@ -425,9 +434,8 @@ class Converter:
         except ValueError as e:
             fail(info.msg(str(e)))
         attr = self._make_onnx_attr("value", tensor)
-        self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
         self._castable.add(ovar)
-        return Variable(ovar)
+        return self.emit1([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
 
     def _emit_copy(self, original_var: str, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
@@ -579,8 +587,7 @@ class Converter:
         target = "tmp" if target is None else target
         assert isinstance(target, str)
         result = self.generate_unique_name(target)
-        self.emit([result], callee, args, attrs)
-        return Variable(result)
+        return self.emit1([result], callee, args, attrs)
 
     def _translate_opt_expr(self, node: ast.expr) -> Optional[Variable]:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
@@ -726,8 +733,8 @@ class Converter:
                 non_scalar_indices.append((axis, elt))
         if not (sliced_indices or scalar_indices or non_scalar_indices):
             # Edge case: no index specified. Eg. A[:, :]
-            self.emit([target], "Identity", [var_name])
-            return Variable(target)
+            return self.emit1([target], "Identity", [var_name])
+
         if sliced_indices or len(scalar_indices) > 1:
             # We emit a Slice operation if we have any indices like 1:5:2 or if the number of
             # scalar indices (like 2) is more than 1.
@@ -789,20 +796,20 @@ class Converter:
                 squeezed_axes = self._emit_const(squeezed_axes, "squeezed_axes", info)
 
                 if non_scalar_indices:  # use temporary to store result of squeeze
-                    result = self.generate_unique_name(f"{var_name}_squeezed")
+                    result_name = self.generate_unique_name(f"{var_name}_squeezed")
                 else:  # store squeezed result in final target
-                    result = target
+                    result_name = target
 
-                self.emit([result], "Squeeze", [sliced_name, squeezed_axes])
+                result = self.emit([result_name], "Squeeze", [sliced_name, squeezed_axes])
             else:
                 if non_scalar_indices:  # use temporary to store result of Slice
-                    result = self.generate_unique_name(f"{var_name}_sliced")
+                    result_name = self.generate_unique_name(f"{var_name}_sliced")
                 else:  # store result of Slice in final target
-                    result = target
+                    result_name = target
                 slice_inputs = [var_name, start_name, end_name, axes_name, steps_name]
-                self.emit([result], "Slice", slice_inputs)
+                result = self.emit1([result_name], "Slice", slice_inputs)
         else:
-            result = var_name
+            result = var
         non_scalar_indices.extend(scalar_indices)
         if non_scalar_indices:
             last_axis, _ = non_scalar_indices[-1]
@@ -818,10 +825,9 @@ class Converter:
                 gathered = self.generate_unique_name(f"{var_name}_axis_{axis}")
             else:  # store result of Gather in final target
                 gathered = target
-            self.emit([gathered], "Gather", [str(result), index_value], [axis_attr])
-            result = gathered
+            result = self.emit1([gathered], "Gather", [result.name, index_value], [axis_attr])
 
-        return Variable(result)
+        return result
 
     def _translate_call_expr(self, node: ast.Call):
         """Translates a call-expression."""
