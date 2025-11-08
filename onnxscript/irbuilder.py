@@ -10,6 +10,7 @@ import warnings
 from typing import Any, Optional, Protocol, Sequence, Union
 
 import onnx
+import onnx_ir as ir
 from onnx import ValueInfoProto, helper
 from onnx.defs import onnx_opset_version
 
@@ -525,12 +526,15 @@ class IRBuilder:
         fn: IRFunction,
         results: Sequence[str],
         callee: values.Op,
-        args: Sequence[Optional[str]],
+        inputs: Sequence[Optional[ir.Value]],
         attrs: Sequence[IRAttributeValue],
         sub_functions=None,
-    ) -> None:
-        stmt = IRStmt(results, callee, args, attrs, sub_functions=sub_functions)
+    ) -> Sequence[ir.Value]:
+        input_names = [(x.name if x is not None else None) for x in inputs]
+        stmt = IRStmt(results, callee, input_names, attrs, sub_functions=sub_functions)
         fn.append_stmt(stmt)
+        output_values = [ir.Value(name=o) for o in results]
+        return output_values
 
     def add_input(
         self, fn: IRFunction, varname: str, type: IRTypeLike, info: SourceInfo

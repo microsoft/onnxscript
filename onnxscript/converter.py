@@ -375,21 +375,20 @@ class Converter:
             attrs = []
         if sub_functions is None:
             sub_functions = {}
-        self.ir_builder.add_stmt(
+        output_values = self.ir_builder.add_stmt(
             self._current_fn,
             outputs,
             callee,
-            [(x.name if x is not None else None) for x in inputs],
+            inputs,
             attrs,
             sub_functions,
         )
-        if len(outputs) == 1:
-            return ir.Value(name=outputs[0])
-        return [ir.Value(name=o) for o in outputs]
+        return output_values if len(output_values) > 1 else output_values[0]
 
     def emit1(self, *args, **kwargs) -> Variable:
         r = self.emit(*args, **kwargs)
-        assert isinstance(r, Variable)
+        if not isinstance(r, ir.Value):
+            raise TypeError(f"Expected single ONNX IR Value, got {type(r)!r}.")
         return r
 
     def _emit_const(
