@@ -23,6 +23,7 @@ from typing import (  # type: ignore[attr-defined]
 
 import onnx
 import onnx.defs
+import onnx_ir as ir
 from typing_extensions import ParamSpec
 
 from onnxscript import converter as converter_module
@@ -758,7 +759,7 @@ class DynamicKind(IntFlag):
 
 class Dynamic(SymbolValue):
     def __init__(
-        self, onnx_var: str, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
+        self, onnx_var: ir.Value, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
     ) -> None:
         """Initializes Dynamic.
 
@@ -770,6 +771,8 @@ class Dynamic(SymbolValue):
         """
         super().__init__(info)
         assert isinstance(kind, DynamicKind)
+        if not isinstance(onnx_var, ir.Value):
+            raise TypeError(f"onnx_var must be of type ir.Value not {type(onnx_var)!r}.")
         self.value = onnx_var
         self.kind = kind
         self.typeinfo = typeinfo

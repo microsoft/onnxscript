@@ -349,7 +349,7 @@ class Converter:
             self._castable.add(result_name)
             return result
         if isinstance(val, values.Dynamic):
-            return Variable(val.value)
+            return val.value
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error _message otherwise
@@ -366,7 +366,9 @@ class Converter:
         attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
         sub_functions: Optional[dict[str, onnx.FunctionProto]] = None,
     ) -> Sequence[Variable] | Variable:
-        assert all(isinstance(i, ir.Value) for i in inputs if i is not None)
+        for i, x in enumerate(inputs):
+            if (x is not None) and not isinstance(x, ir.Value):
+                    raise TypeError(f"Expected ONNX IR Value for input {i}, got {type(x)!r}.")
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
         if attrs is None:
@@ -420,11 +422,10 @@ class Converter:
         self._castable.add(ovar)
         return self.emit1([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
 
-    def _emit_copy(self, original_var: Variable, suggested_name: str) -> str:
+    def _emit_copy(self, original_var: Variable, suggested_name: str) -> Variable:
         """Emits a copy statement, using the ONNX Identity operator."""
         new_var = self.generate_unique_name(suggested_name)
-        self.emit([new_var], "Identity", [original_var])
-        return new_var
+        return self.emit([new_var], "Identity", [original_var])
 
     def _is_constant_expr(self, node: ast.AST) -> None:
         if isinstance(node, ast.UnaryOp):
@@ -663,12 +664,12 @@ class Converter:
                 else:
                     raise RuntimeError(f"Slice component type must be int, not {type(cst)}")
             else:
-                name = self._translate_expr(node_arg).name
-                reshaped = self.generate_unique_name(f"{name}_reshaped")
+                value = self._translate_expr(node_arg)
+                reshaped = self.generate_unique_name(f"{value.name}_reshaped")
                 reshaped_value = self.emit1(
                     [reshaped],
                     values.Op(self.default_opset, "Reshape"),
-                    [name, one_1d().name],
+                    [value, one_1d()],
                     [],
                 )
                 return reshaped_value, None
@@ -753,28 +754,28 @@ class Converter:
             if len(starts) > 1:
                 axis_0_attr = self._make_onnx_attr("axis", 0)
                 start_name = self.generate_unique_name(f"{var_name}_start")
-                self.emit([start_name], "Concat", starts, [axis_0_attr])
+                start_value = self.emit([start_name], "Concat", starts, [axis_0_attr])
 
                 end_name = self.generate_unique_name(f"{var_name}_end")
-                self.emit([end_name], "Concat", ends, [axis_0_attr])
+                end_value = self.emit([end_name], "Concat", ends, [axis_0_attr])
 
                 axes_name = self.generate_unique_name(f"{var_name}_axis")
-                self.emit([axes_name], "Concat", axes, [axis_0_attr])
+                axes_value = self.emit([axes_name], "Concat", axes, [axis_0_attr])
 
                 steps_name = self.generate_unique_name(f"{var_name}_step")
-                self.emit([steps_name], "Concat", steps, [axis_0_attr])
+                steps_value = self.emit([steps_name], "Concat", steps, [axis_0_attr])
             else:
-                start_name = starts[0]
-                end_name = ends[0]
-                axes_name = axes[0]
-                steps_name = steps[0]
+                start_value = starts[0]
+                end_value = ends[0]
+                axes_value = axes[0]
+                steps_value = steps[0]
 
             if squeezed_axes:
                 sliced_name = self.generate_unique_name(f"{var_name}_sliced")
                 sliced_value = self.emit(
                     [sliced_name],
                     "Slice",
-                    [var, start_name, end_name, axes_name, steps_name],
+                    [var, start_value, end_value, axes_value, steps_value],
                 )
                 squeezed_axes = self._emit_const(squeezed_axes, "squeezed_axes", info)
 
@@ -789,7 +790,7 @@ class Converter:
                     result_name = self.generate_unique_name(f"{var_name}_sliced")
                 else:  # store result of Slice in final target
                     result_name = target
-                slice_inputs = [var_name, start_name, end_name, axes_name, steps_name]
+                slice_inputs = [var, start_value, end_value, axes_value, steps_value]
                 result = self.emit1([result_name], "Slice", slice_inputs)
         else:
             result = var
@@ -993,7 +994,7 @@ class Converter:
                 # Assignments of the form "x = SomeExpression"
                 info = self._source_of(lhs)
                 lhs = lhs.id
-                t = self._translate_expr(rhs, lhs).name
+                t = self._translate_expr(rhs, lhs)
                 if isinstance(stmt, ast.AnnAssign):
                     typeinfo = self._eval_constant_expr(stmt.annotation)
                 else:
@@ -1012,17 +1013,19 @@ class Converter:
                 def generate_onnx_name(x: ast.AST):
                     if not isinstance(x, ast.Name):
                         self.fail(x, f"LHS must be a Name for unpacking, found: '{type(x)!r}'")
-                    onnx_name = self.generate_unique_name(x.id)
+                    return self.generate_unique_name(x.id)
+
+                output_names = [generate_onnx_name(x) for x in lhs.elts]
+                outputs = self.emit(output_names, callee, inputs, attrs)
+                if isinstance(outputs, ir.Value):
+                    outputs = [outputs]
+                for x, output in zip(lhs.elts, outputs):
                     self._bind(
                         x.id,
                         values.Dynamic(
-                            onnx_name, values.DynamicKind.Intermediate, self._source_of(x)
+                            output, values.DynamicKind.Intermediate, self._source_of(x)
                         ),
                     )
-                    return onnx_name
-
-                outputs = [generate_onnx_name(x) for x in lhs.elts]
-                self.emit(outputs, callee, inputs, attrs)
             else:
                 self.fail(lhs, f"Unsupported construct in LHS of assignment: '{type(lhs)!r}'")
 
@@ -1123,12 +1126,7 @@ class Converter:
         elseAttr = self._make_onnx_attr("else_branch", elseGraph)
 
         def rename(x):
-            r = self.generate_unique_name(x)
-            self._bind(
-                x,
-                values.Dynamic(r, values.DynamicKind.Intermediate, self._source_of(stmt)),
-            )
-            return r
+            return self.generate_unique_name(x)
 
         # no break condition
         renamed = [rename(x) for x in live_defs]
@@ -1140,13 +1138,21 @@ class Converter:
         sub_functions.update(sub_fct_else)
         if renamed == [test.name]:
             self.fail(stmt, f"Input and output cannot be the same {renamed!r}.")
-        self.emit(
+        if_outputs = self.emit(
             renamed,
             values.Op(self.default_opset, "If"),
             [test],
             [thenAttr, elseAttr],
             sub_functions=sub_functions,
         )
+        if isinstance(if_outputs, ir.Value):
+            if_outputs = [if_outputs]
+        for x, y in zip(live_defs, if_outputs):
+            self._bind(
+                x,
+                values.Dynamic(y, values.DynamicKind.Intermediate, self._source_of(stmt)),
+            )
+            
 
     def _translate_loop_stmt(self, loop_stmt: Union[ast.For, ast.While]) -> None:
         # loop-variable
@@ -1167,7 +1173,7 @@ class Converter:
                 self.fail(loop_stmt, "Unsupported loop bound, it should be 'range(?)'.")
             assert not iter.keywords, "Unsupported loop bound."
             o_loop_bound = self._translate_expr(iter.args[0], "loop_bound")
-            o_cond_var = ir.Value(self.generate_unique_name("cond_in"))  # TODO(Rama)
+            o_cond_var = ir.Value(name=self.generate_unique_name("cond_in"))  # TODO(Rama)
             i_cond_var = o_cond_var
             cond_while = None
             o_loop_condition = None  # No condition for a for loop.
@@ -1181,8 +1187,8 @@ class Converter:
                 )
             p_loop_var = "infinite_loop"
             o_loop_bound = None
-            i_cond_var = ir.Value(test.id)  # TODO(Rama)
-            cond_while = ir.Value(test.id)  # TODO(Rama)
+            i_cond_var = ir.Value(name=test.id)  # TODO(Rama)
+            cond_while = ir.Value(name=test.id)  # TODO(Rama)
             o_cond_var = None
             o_loop_condition = self._translate_name_expr(test)
             # we need to go through all the instructions to see
@@ -1212,12 +1218,12 @@ class Converter:
         )
         self._bind(
             p_loop_var,
-            values.Dynamic(o_loop_var, values.DynamicKind.Loop, self._source_of(loop_stmt)),
+            values.Dynamic(ir.Value(name=o_loop_var), values.DynamicKind.Loop, self._source_of(loop_stmt)),
         )
 
         self.ir_builder.add_input(
             self._current_fn,
-            i_cond_var,
+            i_cond_var.name,
             onnx_types.BOOL,
             self._source_of(loop_stmt),
         )
@@ -1232,7 +1238,7 @@ class Converter:
             )
             self._bind(
                 pv,
-                values.Dynamic(ov, values.DynamicKind.Loop, self._source_of(loop_stmt)),
+                values.Dynamic(ir.Value(name=ov), values.DynamicKind.Loop, self._source_of(loop_stmt)),
             )
 
         condition_name: Variable | None = None
@@ -1314,17 +1320,20 @@ class Converter:
 
         def rename(x):
             r = self.generate_unique_name(x)
-            self._bind(x, values.Dynamic(r, values.DynamicKind.Output, info))
             return r
 
-        onnx_outputs = [rename(x) for x in outputs]
-        self.emit(
-            onnx_outputs,
+        onnx_output_names = [rename(x) for x in outputs]
+        loop_outputs = self.emit(
+            onnx_output_names,
             "Loop",
             inputs,
             attrs,
             sub_functions=sub_functions,
         )
+        if isinstance(loop_outputs, ir.Value):
+            loop_outputs = [loop_outputs]
+        for x, loop_output in zip(outputs, loop_outputs):
+            self._bind(x, values.Dynamic(loop_output, values.DynamicKind.Output, info))
 
     def _translate_block(
         self,
@@ -1428,7 +1437,7 @@ class Converter:
                 self._used_vars.add(x.arg)
                 self._bind(
                     x.arg,
-                    values.Dynamic(x.arg, values.DynamicKind.Input, self._source_of(x)),
+                    values.Dynamic(ir.Value(name=x.arg), values.DynamicKind.Input, self._source_of(x)),
                 )
         if fn.returns:
             type_annotation = self._eval_constant_expr(fn.returns)
