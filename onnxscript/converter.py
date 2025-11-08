@@ -17,6 +17,7 @@ from typing import (
 )
 
 import onnx
+import onnx_ir as ir
 
 import onnxscript
 from onnxscript import irbuilder, onnx_types, sourceinfo, values
@@ -80,26 +81,7 @@ primop_map = {
 }
 
 
-class Variable:
-    """Represents an ONNX variable.
-
-    TODO(rama): Consider merging this with IRVar.
-    """
-
-    def __init__(self, name: str):
-        """Initialize the instance.
-
-        Args:
-           name: Name of the ONNX variable
-           castable: Whether this variable is castable to a desired target type.
-              Used for ONNX variables representing constants created from python values
-              like 0 or 1 or 0.5 which are treated as polymorphic values castable to other
-              types as needed.
-        """
-        self.name = name
-
-    def __str__(self) -> str:
-        return self.name
+Variable = ir.Value
 
 
 if TYPE_CHECKING:
@@ -380,10 +362,11 @@ class Converter:
         self,
         outputs: Sequence[str],
         callee: values.Op | str,
-        inputs: Sequence[Optional[str]],
+        inputs: Sequence[Optional[Variable]],
         attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
         sub_functions: Optional[dict[str, onnx.FunctionProto]] = None,
     ) -> Sequence[Variable] | Variable:
+        assert all(isinstance(i, ir.Value) for i in inputs if i is not None)
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
         if attrs is None:
@@ -394,13 +377,13 @@ class Converter:
             self._current_fn,
             outputs,
             callee,
-            inputs,
+            [x.name for x in inputs],
             attrs,
             sub_functions,
         )
         if len(outputs) == 1:
-            return Variable(outputs[0])
-        return [Variable(o) for o in outputs]
+            return ir.Value(name=outputs[0])
+        return [ir.Value(name=o) for o in outputs]
 
     def emit1(self, *args, **kwargs) -> Variable:
         r = self.emit(*args, **kwargs)
@@ -437,7 +420,7 @@ class Converter:
         self._castable.add(ovar)
         return self.emit1([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
 
-    def _emit_copy(self, original_var: str, suggested_name: str) -> str:
+    def _emit_copy(self, original_var: Variable, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
         new_var = self.generate_unique_name(suggested_name)
         self.emit([new_var], "Identity", [original_var])
@@ -646,15 +629,15 @@ class Converter:
 
         # Create cached int constants:
         # TODO: Do this at a graph-scope level.
-        cached_int_consts = {}
+        cached_int_consts: dict[int, Variable] = {}
 
-        def const_1d(value, name: Optional[str] = None):
+        def const_1d(value, name: Optional[str] = None) -> Variable:
             nonlocal cached_int_consts
             if value not in cached_int_consts:
                 cached_int_consts[value] = self._emit_const([value], name, info)
             return cached_int_consts[value]
 
-        def one_1d():
+        def one_1d() -> Variable:
             return const_1d(1)
 
         # Max/min 64-bit int values are used to represent default values for start/stop in Slice.
@@ -663,7 +646,7 @@ class Converter:
 
         def translate_slice_component(
             node_arg, default_value: Optional[int] = None
-        ) -> tuple[str, Optional[int]]:
+        ) -> tuple[Variable, Optional[int]]:
             """Translate optional start/stop/step component of a Slice expression."""
             if node_arg is None:
                 if default_value is None:
@@ -682,15 +665,15 @@ class Converter:
             else:
                 name = self._translate_expr(node_arg).name
                 reshaped = self.generate_unique_name(f"{name}_reshaped")
-                self.emit(
+                reshaped_value = self.emit1(
                     [reshaped],
                     values.Op(self.default_opset, "Reshape"),
                     [name, one_1d().name],
                     [],
                 )
-                return reshaped, None
+                return reshaped_value, None
 
-        def translate_slice(slice_expr: ast.Slice) -> tuple[str, str, str]:
+        def translate_slice(slice_expr: ast.Slice) -> tuple[Variable, Variable, Variable]:
             """Translate slice-expression of the form from:to:step."""
             step_name, step = translate_slice_component(slice_expr.step, 1)
             if step is None:
@@ -764,7 +747,7 @@ class Converter:
                 inputs = translate_slice(element)
                 starts.append(inputs[0])
                 ends.append(inputs[1])
-                axes.append(axis_var.name)
+                axes.append(axis_var)
                 steps.append(inputs[2])
 
             if len(starts) > 1:
@@ -788,10 +771,10 @@ class Converter:
 
             if squeezed_axes:
                 sliced_name = self.generate_unique_name(f"{var_name}_sliced")
-                self.emit(
+                sliced_value = self.emit(
                     [sliced_name],
                     "Slice",
-                    [var_name, start_name, end_name, axes_name, steps_name],
+                    [var, start_name, end_name, axes_name, steps_name],
                 )
                 squeezed_axes = self._emit_const(squeezed_axes, "squeezed_axes", info)
 
@@ -800,7 +783,7 @@ class Converter:
                 else:  # store squeezed result in final target
                     result_name = target
 
-                result = self.emit([result_name], "Squeeze", [sliced_name, squeezed_axes])
+                result = self.emit([result_name], "Squeeze", [sliced_value, squeezed_axes])
             else:
                 if non_scalar_indices:  # use temporary to store result of Slice
                     result_name = self.generate_unique_name(f"{var_name}_sliced")
@@ -829,7 +812,9 @@ class Converter:
 
         return result
 
-    def _translate_call_expr(self, node: ast.Call):
+    def _translate_call_expr(
+        self, node: ast.Call
+    ) -> tuple[values.Op, list[Optional[Variable]], list[irbuilder.IRAttributeValue]]:
         """Translates a call-expression."""
         callee = self._translate_callee_expr(node.func)
         param_schemas = callee.param_schemas()
@@ -856,7 +841,7 @@ class Converter:
         attrs = [attr for attr in attrs if attr is not None]
         return callee, args, attrs
 
-    def _cast_like_binary_expression(self, op, left, right):
+    def _cast_like_binary_expression(self, op, left, right) -> tuple[Variable, Variable]:
         schema = op.op_schema
         return autocast.static_cast_inputs(self, schema, (left, right))
 
@@ -1081,14 +1066,14 @@ class Converter:
 
         def ret(exp, i, suffix):
             preferred_name = f"return_val{suffix}"
-            return_var = self._translate_expr(exp, preferred_name).name
-            val = self._lookup(return_var, self._source_of(exp), False)
+            return_var = self._translate_expr(exp, preferred_name)  # TODO(rama)
+            val = self._lookup(return_var.name, self._source_of(exp), False)
             if val and val.kind == values.DynamicKind.Input:
                 # In ONNX, a graph-input cannot be an output of the graph.
                 # We need to insert a copy.
                 return_var = self._emit_copy(return_var, preferred_name)
             for prev_output in self._current_fn.outputs:
-                if prev_output.name == return_var:
+                if prev_output.name == return_var.name:
                     # ONNX does not allow duplicate output names.
                     return_var = self._emit_copy(return_var, f"{return_var}_copy")
                     break
@@ -1126,7 +1111,7 @@ class Converter:
             # due to some existing usage.
             live_def_set = live_out.intersection(live_def_set)
         live_defs = list(live_def_set)
-        test = self._translate_expr(stmt.test, "cond").name
+        test = self._translate_expr(stmt.test, "cond")
         lineno = self._source_of(stmt).lineno
         thenGraph, sub_fct_then = self._translate_block(
             stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
@@ -1153,7 +1138,7 @@ class Converter:
         sub_functions = {}
         sub_functions.update(sub_fct_then)
         sub_functions.update(sub_fct_else)
-        if renamed == [test]:
+        if renamed == [test.name]:
             self.fail(stmt, f"Input and output cannot be the same {renamed!r}.")
         self.emit(
             renamed,
@@ -1181,11 +1166,11 @@ class Converter:
             if not iter.args or len(iter.args) != 1:
                 self.fail(loop_stmt, "Unsupported loop bound, it should be 'range(?)'.")
             assert not iter.keywords, "Unsupported loop bound."
-            o_loop_bound = self._translate_expr(iter.args[0], "loop_bound").name
-            o_cond_var = self.generate_unique_name("cond_in")
+            o_loop_bound = self._translate_expr(iter.args[0], "loop_bound")
+            o_cond_var = ir.Value(self.generate_unique_name("cond_in"))  # TODO(Rama)
             i_cond_var = o_cond_var
             cond_while = None
-            o_loop_condition = ""  # No condition for a for loop.
+            o_loop_condition = None  # No condition for a for loop.
         elif isinstance(loop_stmt, ast.While):
             test = loop_stmt.test
             if not isinstance(test, ast.Name):
@@ -1195,9 +1180,9 @@ class Converter:
                     "it should be 'while <condition_name>:'.",
                 )
             p_loop_var = "infinite_loop"
-            o_loop_bound = ""
-            i_cond_var = test.id
-            cond_while = test.id
+            o_loop_bound = None
+            i_cond_var = ir.Value(test.id)  # TODO(Rama)
+            cond_while = ir.Value(test.id)  # TODO(Rama)
             o_cond_var = None
             o_loop_condition = self._translate_name_expr(test)
             # we need to go through all the instructions to see
@@ -1250,7 +1235,7 @@ class Converter:
                 values.Dynamic(ov, values.DynamicKind.Loop, self._source_of(loop_stmt)),
             )
 
-        condition_name = None
+        condition_name: Variable | None = None
         operator_name = "Identity"
         for i, s in enumerate(loop_stmt.body):
             # We first need to intercept a break instruction in test block.
@@ -1306,8 +1291,8 @@ class Converter:
             self._source_of(loop_stmt),
         )
         for pv in loop_state_vars:
-            ov = self._py_var_to_onnx_var(pv, self._source_of(loop_stmt)).name
-            if ov not in self._current_fn.assigned_names:
+            ov = self._py_var_to_onnx_var(pv, self._source_of(loop_stmt))
+            if ov.name not in self._current_fn.assigned_names:
                 # When converting the loop-body into a graph, we need to handle
                 # identity assignments of the form "x = y" inside the loop body
                 # specially if y represents a value computed outside the loop body.
@@ -1317,12 +1302,11 @@ class Converter:
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
             self.ir_builder.add_output(
-                self._current_fn, ov, typeinfo, self._source_of(loop_stmt)
+                self._current_fn, ov.name, typeinfo, self._source_of(loop_stmt)
             )
         body = self._exit_scope()
         inputs = [o_loop_bound, o_loop_condition] + [
-            self._py_var_to_onnx_var(pv, self._source_of(loop_stmt)).name
-            for pv in loop_state_vars
+            self._py_var_to_onnx_var(pv, self._source_of(loop_stmt)) for pv in loop_state_vars
         ]
         graph, sub_functions = body.to_graph_and_functions()
         attrs = [self._make_onnx_attr("body", graph)]
@@ -1358,14 +1342,14 @@ class Converter:
         for pvar in live_defs:
             if pvar in self._current_scope():
                 pv_val = self._current_scope()[pvar]
-                output = self._to_onnx_var(pv_val, pvar).name
-                if output not in self._current_fn.assigned_names:
+                output = self._to_onnx_var(pv_val, pvar)
+                if output.name not in self._current_fn.assigned_names:
                     # To return an outer-scope variable, an ONNX Graph has to
                     # use an explicit copy via Identity.
                     output = self._emit_copy(output, pvar)
                 self.ir_builder.add_output(
                     self._current_fn,
-                    output,
+                    output.name,
                     pv_val.typeinfo,
                     source,
                 )
@@ -1382,7 +1366,7 @@ class Converter:
                         f"branch, known variables: {list(self._locals)}.",
                     )
                 # introduce a copy
-                ovar = self._emit_copy(self._to_onnx_var(pv_val, pvar).name, pvar)
+                ovar = self._emit_copy(self._to_onnx_var(pv_val, pvar), pvar)
 
                 # TODO: retrieve the annotation if any.
                 typeinfo = None

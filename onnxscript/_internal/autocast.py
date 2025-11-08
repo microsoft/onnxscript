@@ -211,8 +211,7 @@ def static_cast_inputs(
         if converter_.is_castable(x.name) and y is not None:
             # Polymorphic constant x is cast to the type of y:
             x_cast = converter_.generate_unique_name(f"{x.name}_cast")
-            converter_.emit([x_cast], "CastLike", [x.name, y.name])
-            return x_cast
-        return x.name
+            return converter_.emit1([x_cast], "CastLike", [x, y])
+        return x
 
     return cast_inputs(get_type_info, cast_like, op_schema, args)
