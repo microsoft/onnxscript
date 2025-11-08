@@ -377,7 +377,7 @@ class Converter:
             self._current_fn,
             outputs,
             callee,
-            [x.name for x in inputs],
+            [(x.name if x is not None else None) for x in inputs],
             attrs,
             sub_functions,
         )
@@ -808,7 +808,7 @@ class Converter:
                 gathered = self.generate_unique_name(f"{var_name}_axis_{axis}")
             else:  # store result of Gather in final target
                 gathered = target
-            result = self.emit1([gathered], "Gather", [result.name, index_value], [axis_attr])
+            result = self.emit1([gathered], "Gather", [result, index_value], [axis_attr])
 
         return result
 
@@ -1081,7 +1081,7 @@ class Converter:
                 t = None
             else:
                 t = self.returntype[i]
-            self.ir_builder.add_output(self._current_fn, return_var, t, self._source_of(stmt))
+            self.ir_builder.add_output(self._current_fn, return_var.name, t, self._source_of(stmt))
             return return_var
 
         val = stmt.value
