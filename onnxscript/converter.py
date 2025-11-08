@@ -368,7 +368,7 @@ class Converter:
     ) -> Sequence[Variable] | Variable:
         for i, x in enumerate(inputs):
             if (x is not None) and not isinstance(x, ir.Value):
-                    raise TypeError(f"Expected ONNX IR Value for input {i}, got {type(x)!r}.")
+                raise TypeError(f"Expected ONNX IR Value for input {i}, got {type(x)!r}.")
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
         if attrs is None:
@@ -909,9 +909,9 @@ class Converter:
         left, right = self._cast_like_binary_expression(op, left, right)
         if opname == "NotEqual":
             tmp = self.generate_unique_name()
-            self.emit([tmp], op, [left, right])
+            tmp_value = self.emit1([tmp], op, [left, right])
             not_op = values.Op(self.default_opset, "Not")
-            return not_op, [tmp], []
+            return not_op, [tmp_value], []
 
         return op, [left, right], []
 
@@ -1084,7 +1084,9 @@ class Converter:
                 t = None
             else:
                 t = self.returntype[i]
-            self.ir_builder.add_output(self._current_fn, return_var.name, t, self._source_of(stmt))
+            self.ir_builder.add_output(
+                self._current_fn, return_var.name, t, self._source_of(stmt)
+            )
             return return_var
 
         val = stmt.value
@@ -1152,7 +1154,6 @@ class Converter:
                 x,
                 values.Dynamic(y, values.DynamicKind.Intermediate, self._source_of(stmt)),
             )
-            
 
     def _translate_loop_stmt(self, loop_stmt: Union[ast.For, ast.While]) -> None:
         # loop-variable
@@ -1218,7 +1219,9 @@ class Converter:
         )
         self._bind(
             p_loop_var,
-            values.Dynamic(ir.Value(name=o_loop_var), values.DynamicKind.Loop, self._source_of(loop_stmt)),
+            values.Dynamic(
+                ir.Value(name=o_loop_var), values.DynamicKind.Loop, self._source_of(loop_stmt)
+            ),
         )
 
         self.ir_builder.add_input(
@@ -1238,7 +1241,9 @@ class Converter:
             )
             self._bind(
                 pv,
-                values.Dynamic(ir.Value(name=ov), values.DynamicKind.Loop, self._source_of(loop_stmt)),
+                values.Dynamic(
+                    ir.Value(name=ov), values.DynamicKind.Loop, self._source_of(loop_stmt)
+                ),
             )
 
         condition_name: Variable | None = None
@@ -1275,13 +1280,13 @@ class Converter:
         if cond_while is not None:
             # Loop while
             current_scope = self._current_scope()
-            if cond_while not in current_scope:
+            if cond_while.name not in current_scope:
                 self.fail(
                     loop_stmt,
-                    f"Unable to find condition variable {cond_while!r} in known "
+                    f"Unable to find condition variable {cond_while.name} in known "
                     f"variables {list(current_scope)!r}.",
                 )
-            o_cond_var = current_scope[cond_while].value
+            o_cond_var = current_scope[cond_while.name].value
 
         self.emit(
             [o_cond_out],
@@ -1379,7 +1384,7 @@ class Converter:
 
                 # TODO: retrieve the annotation if any.
                 typeinfo = None
-                self.ir_builder.add_output(self._current_fn, ovar, typeinfo, source)
+                self.ir_builder.add_output(self._current_fn, ovar.name, typeinfo, source)
         graph = self._exit_scope()
         return graph.to_graph_and_functions()
 
@@ -1437,7 +1442,9 @@ class Converter:
                 self._used_vars.add(x.arg)
                 self._bind(
                     x.arg,
-                    values.Dynamic(ir.Value(name=x.arg), values.DynamicKind.Input, self._source_of(x)),
+                    values.Dynamic(
+                        ir.Value(name=x.arg), values.DynamicKind.Input, self._source_of(x)
+                    ),
                 )
         if fn.returns:
             type_annotation = self._eval_constant_expr(fn.returns)
