@@ -3409,6 +3409,8 @@ def aten_embedding_bag_padding_idx(
         per_sample_weights = op.CastLike(per_sample_weights, weight)
 
     if padding_idx is not None:
+        if padding_idx < 0:
+            padding_idx = weight.shape[0] + padding_idx
         # Call the existing function for handling padding_idx
         result, offset2bag, bag_size, max_indices = _aten_embedding_bag_1d_padding_idx_onnx(
             weight,

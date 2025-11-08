@@ -1073,7 +1073,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx_int",
-        core_ops.aten_embedding_bag,
+        core_ops.aten_embedding_bag_padding_idx,
         input_wrangler=_embedding_bag_input_wrangler,
     ),
     TorchLibOpInfo(
