@@ -406,6 +406,75 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_aten_stft_1(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.stft(x, n_fft=4, return_complex=True)
+
+        x = torch.randn(4, 16, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_stft_2(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.stft(x, n_fft=4, return_complex=False)
+
+        x = torch.randn(4, 16, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_stft_3(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                window = torch.ones(16, dtype=torch.float32)
+                return torch.ops.aten.stft(x, n_fft=16, window=window, return_complex=False)
+
+        x = torch.randn(100, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_stft_4(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.stft(
+                    x,
+                    n_fft=4,
+                    hop_length=1,
+                    win_length=4,
+                    center=True,
+                    onesided=True,
+                    return_complex=True,
+                )
+
+        x = torch.randn(4, 16, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
