@@ -9106,7 +9106,6 @@ def aten_unique_consecutive(
     if dim is None:
         if rank_x != 1:
             x = op.Reshape(x, minus_one)
-        dim = 0
     else:
         assert rank_x == 1 and dim == 0, (
             f"Not implemented for x={x!r} with rank={rank_x} and dim={dim}."
