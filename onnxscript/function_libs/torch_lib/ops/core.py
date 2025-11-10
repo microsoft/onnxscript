@@ -9192,7 +9192,7 @@ def aten_unique_consecutive(
     dim: Optional[int] = None,
 ) -> tuple[TensorType, TensorType, TensorType]:
     """unique_consecutive(Tensor self, bool return_inverse=False, bool return_counts=False, int? dim=None) -> (Tensor, Tensor, Tensor)"""
-    assert x.dtype == INT64.dtype or x.dtype == INT32.dtype, (
+    assert x.dtype in {INT64.dtype, INT32.dtype}, (
         "unique_consecutive not implemented for other type than int32, int64"
     )
     rank_x = len(x.shape)
