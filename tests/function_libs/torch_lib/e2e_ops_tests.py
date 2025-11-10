@@ -433,6 +433,8 @@ class TorchLibe2eTest(unittest.TestCase):
             (x,),
             dynamic_shapes=({0: "length"},),
             dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
 
     def test_aten_stft_1(self):
         class Model(torch.nn.Module):
