@@ -406,6 +406,51 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_aten_unique_consecutive(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.unique_consecutive(x)
+
+        model = Model()
+        x = torch.tensor([0, 1, 2, 2, 3, 3, 0, 0], dtype=torch.int64)
+        onnx_program = torch.onnx.export(
+            model,
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_unique_consecutive_int32(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.unique_consecutive(x)
+
+        model = Model()
+        x = torch.tensor([0, 1, 2, 2, 3, 3, 0, 0], dtype=torch.int32)
+        onnx_program = torch.onnx.export(
+            model,
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_unique_consecutive_return(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.unique_consecutive(x, return_inverse=True, return_counts=True)
+
+        model = Model()
+        x = torch.tensor([0, 1, 2, 2, 3, 3, 3, 0, 0], dtype=torch.int64)
+        onnx_program = torch.onnx.export(
+            model,
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_aten_stft_1(self):
         class Model(torch.nn.Module):
             def forward(self, x):
