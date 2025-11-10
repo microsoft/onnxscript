@@ -9198,7 +9198,8 @@ def aten_unique_consecutive(
     rank_x = len(x.shape)
 
     zero = op.Constant(value=ir.tensor([0], dtype=x.dtype))
-    minus_one = op.Constant(value=ir.tensor([-1], dtype=x.dtype))
+    zero64 = op.Constant(value=ir.tensor([0], dtype=INT64.dtype))
+    minus_one = op.Constant(value=ir.tensor([-1], dtype=INT64.dtype))
 
     if dim is None:
         if rank_x != 1:
@@ -9212,7 +9213,7 @@ def aten_unique_consecutive(
         # Hopefully this will never be equal to the first value of the tensor x
         # ideally we could do differently but with a higher cost
         op.Constant(value=ir.tensor([_INT32_MAX], dtype=x.dtype)),
-        op.Slice(x, zero, minus_one, zero),
+        op.Slice(x, zero64, minus_one, zero64),
         axis=0,
     )
     eq = op.Equal(x, lag)
