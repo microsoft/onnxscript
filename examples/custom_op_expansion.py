@@ -8,6 +8,7 @@ This is useful to perform certain classes of graph surgery easily.
 import onnx
 
 import onnxscript
+import onnxscript.utils.replace as replace
 
 script = onnxscript.script
 FLOAT = onnxscript.FLOAT
@@ -51,7 +52,6 @@ model = model_script.to_model_proto()
 print("Original Model with custom operations:")
 print(onnx.printer.to_text(model))
 
-import onnxscript.utils.replace as replace
 
 updated_model = replace.replace_functions(model, functions)
 
