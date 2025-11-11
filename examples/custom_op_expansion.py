@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+# ruff: noqa
+
 """A utility and an example showing how onnxscript functions can be used to define function expansions
 and be used with the inliner to replace calls to the custom function with an expanded subgraph.
 This is useful to perform certain classes of graph surgery easily.
