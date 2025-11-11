@@ -185,6 +185,7 @@ class IRAttributeParameter:
 class IRStmt:
     def __init__(
         self,
+        node: ir.Node,
         result: Sequence[str],
         callee: values.Op,
         args: Sequence[Optional[str]],
@@ -193,6 +194,7 @@ class IRStmt:
     ) -> None:
         if not isinstance(callee, values.Op):
             raise TypeError(f"Unexpected type {type(callee)} for callee.")
+        self.node = node
         self.result = result
         self.callee = callee
         self.args = args
@@ -530,8 +532,18 @@ class IRBuilder:
         attrs: Sequence[IRAttributeValue],
         sub_functions=None,
     ) -> Sequence[ir.Value]:
+        output_values = [ir.Value(name=o) for o in results]
         input_names = [(x.name if x is not None else None) for x in inputs]
-        stmt = IRStmt(results, callee, input_names, attrs, sub_functions=sub_functions)
+        attributes = [ir.from_proto(a.attr_proto) for a in attrs]
+        node = ir.Node(
+            domain=callee.opset.domain,
+            version=callee.opset.version,
+            op_type=callee.name,
+            inputs = inputs,
+            outputs=output_values,
+            attributes=attributes,
+        )
+        stmt = IRStmt(node, results, callee, input_names, attrs, sub_functions=sub_functions)
         fn.append_stmt(stmt)
         output_values = [ir.Value(name=o) for o in results]
         return output_values
