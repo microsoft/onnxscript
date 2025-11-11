@@ -3,18 +3,23 @@
 """A utility function to replace custom operations in a model with their expansions"""
 
 from typing import Sequence
+
 import onnx
 import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
 
-def replace_functions(model: onnx.ModelProto, functions: Sequence[onnx.FunctionProto]) -> onnx.ModelProto:
-    '''A utility function to replace custom operations in a model with their expansions:
+
+def replace_functions(
+    model: onnx.ModelProto, functions: Sequence[onnx.FunctionProto]
+) -> onnx.ModelProto:
+    """A utility function to replace custom operations in a model with their expansions:
     Args:
         model: An ONNX ModelProto possibly containing calls to custom operations.
         functions: A sequence of FunctionProto defining the expansions for the custom operations.
+
     Returns:
         An updated ModelProto with custom operations replaced by their expansions.
-    '''
+    """
     irmodel = ir.from_proto(model)
     irfunctions = [ir.from_proto(func) for func in functions]
     model_functions = irmodel.functions
