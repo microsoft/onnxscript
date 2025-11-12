@@ -223,7 +223,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         key_seq_BHkvTDh = op.Concat(past_key, key_BHkvSDh_rope, axis=-2)
         # Concat with past_key is optional:
         key_seq_BHkvTDh = pattern.OrValue([key_seq_BHkvTDh, key_BHkvSDh_rope])
-        key_seq_BHkv1TDh = op.Unsqueeze(key_seq_BHkvTDh, 2)
+        key_seq_BHkv1TDh = op.Unsqueeze(key_seq_BHkvTDh, [2])
         key_seq_BHkvGTDh = op.Expand(key_seq_BHkv1TDh, pattern.ANY_VALUE)
         key_seq_BHTDh = op.Reshape(
             key_seq_BHkvGTDh, pattern.ANY_VALUE, _outputs=["key_seq_BHTDh"]
@@ -234,7 +234,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         value_seq_BHkvTDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
         # Concat with past_value is optional:
         value_seq_BHkvTDh = pattern.OrValue([value_seq_BHkvTDh, value_BHkvSDh])
-        value_seq_BHkv1TDh = op.Unsqueeze(value_seq_BHkvTDh, 2)
+        value_seq_BHkv1TDh = op.Unsqueeze(value_seq_BHkvTDh, [2])
         value_seq_BHkvGTDh = op.Expand(value_seq_BHkv1TDh, pattern.ANY_VALUE)
         value_seq_BHTDh = op.Reshape(
             value_seq_BHkvGTDh, pattern.ANY_VALUE, _outputs=["value_seq_BHTDh"]
