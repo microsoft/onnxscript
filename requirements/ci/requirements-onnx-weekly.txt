@@ -1,1 +1,1 @@
-onnx-weekly==1.21.0.dev20251103
+onnx-weekly==1.21.0.dev20251110
