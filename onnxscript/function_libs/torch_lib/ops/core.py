@@ -23,6 +23,7 @@ from onnxscript import (
     COMPLEX128,
     DOUBLE,
     FLOAT,
+    FLOAT16,
     INT8,
     INT16,
     INT32,
@@ -3317,17 +3318,58 @@ def aten_eye(n: int) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::fake_quantize_per_channel_affine", trace_only=True)
 def aten_fake_quantize_per_channel_affine(
-    self: TensorType,
-    scale: TensorType,
-    zero_point: TensorType,
+    self: TFloat,
+    scale: FLOAT,  # float32 specifically!
+    zero_point: Union[INT32, FLOAT, FLOAT16],  # int32, float32 or float16 only!
     axis: int,
     quant_min: int,
     quant_max: int,
 ) -> TensorType:
     """fake_quantize_per_channel_affine(Tensor self, Tensor scale, Tensor zero_point, int axis, int quant_min, int quant_max) -> Tensor"""
 
-    raise NotImplementedError()
+    # NOTE: (0, 127) is allowed as special case. PyTorch restricts activations to be in the range (0, 127).
+    #   https://github.com/pytorch/pytorch/blob/b34b192d6b97325c9f78e5995c48c8498ede34bd/torch/ao/quantization/observer.py#L1422
+    if (quant_min, quant_max) not in [(0, 255), (-128, 127), (0, 127)]:
+        raise NotImplementedError(
+            "For (quant_min, quant_max), ONNX allows only "
+            "(0, 127), (0, 255) and (-128, 127). "
+            f"Got ({quant_min}, {quant_max})",
+        )
+
+    if quant_min == 0:
+        int_dtype = ir.DataType.UINT8
+    else:
+        int_dtype = ir.DataType.INT8
+
+    # TODO: When opset >= 19, remove this cast
+    orig_dtype = self.type.dtype
+    if self.type.dtype not in {ir.DataType.FLOAT, ir.DataType.INT32}:
+        self = op.Cast(self, to=ir.DataType.FLOAT)
+
+    if zero_point.type.dtype == ir.DataType.INT32:
+        zero_point = op.Cast(zero_point, to=int_dtype)
+    else:
+        raise NotImplementedError(
+            "ONNX only supports integer values for the zero_point parameter. "
+            f"Got {zero_point.type.dtype}",
+        )
+
+    quantized = op.QuantizeLinear(self, scale, zero_point, axis=axis)
+
+    # See comment about, PyTorch-specific (0, 127) handling
+    if (quant_min, quant_max) == (0, 127):
+        const_127 = op.Cast(127, to=int_dtype)
+        quantized = op.Clip(quantized, max=const_127)
+
+    output = op.DequantizeLinear(quantized, scale, zero_point, axis=axis)
+
+    # TODO: When opset >= 23, remove this cast and set output_dtype on DequantizeLinear
+    if orig_dtype != ir.DataType.FLOAT:
+        output = op.Cast(output, to=orig_dtype)
+
+    return output
 
 
 def aten_fake_quantize_per_channel_affine_cachemask(
