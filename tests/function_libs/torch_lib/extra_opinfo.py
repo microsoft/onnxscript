@@ -779,6 +779,60 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
             )
 
 
+def sample_inputs_fake_quantize_per_tensor_affine(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    del op_info, kwargs  # Unused
+    make_arg = functools.partial(
+        opinfo_core.make_tensor,
+        device=device,
+        requires_grad=requires_grad,
+    )
+
+    # Test 1D, empty and scalar tensors (like sample_inputs_elementwise_unary)
+    shapes = [
+        (S,),
+        (1, 0, 3),
+        (),
+    ]
+
+    scale_zero_point_dtypes = [
+        # default (float, int)
+        (None, None)
+    ] + [
+        # tensor_qparams (tensor, tensor)
+        (t1, t2)
+        for t1 in common_dtype.all_types_and()
+        for t2 in common_dtype.all_types_and()
+    ]
+
+    # NOTE: (0, 127) is allowed as special case. PyTorch restricts activations to be in the range (0, 127).
+    #   https://github.com/pytorch/pytorch/blob/b34b192d6b97325c9f78e5995c48c8498ede34bd/torch/ao/quantization/observer.py#L1422
+    quant_vals = [(0, 255), (-128, 127), (0, 127)]
+
+    cases = itertools.product(shapes, scale_zero_point_dtypes, quant_vals)
+    for shape, (scale_dtype, zero_point_dtype), (quant_min, quant_max) in cases:
+        scale = make_arg(
+            (),
+            dtype=scale_dtype or torch.float64,
+        )
+        if scale_dtype is None:
+            scale = scale.item()
+
+        zero_point = make_arg(
+            (),
+            dtype=zero_point_dtype or torch.int64,
+            # zero_point must be between quant_min and quant_max
+            low=quant_min,
+            high=quant_max,
+        )
+        if zero_point_dtype is None:
+            zero_point = zero_point.item()
+
+        args = (scale, zero_point, quant_min, quant_max)
+        yield opinfo_core.SampleInput(make_arg(shape, dtype=dtype), args=args)
+
+
 def sample_inputs_fake_quantize_per_channel_affine(
     op_info, device, dtype, requires_grad, **kwargs
 ):
@@ -2455,6 +2509,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="_fft_r2c",
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs__fft_r2c,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.fake_quantize_per_tensor_affine",
+        aten_name="fake_quantize_per_tensor_affine",
+        op=torch.fake_quantize_per_tensor_affine,
+        dtypes=common_dtype.floating_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_fake_quantize_per_tensor_affine,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
