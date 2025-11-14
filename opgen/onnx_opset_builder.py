@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from textwrap import dedent
-from typing import Annotated, Any, Iterable, Optional, Set, TextIO
+from typing import  Any, Iterable, Optional, Set, TextIO
 
 import onnx
 import pygen as cg
@@ -32,7 +32,7 @@ MODULE_ONNX_SCRIPT_TYPES = "onnxscript.onnx_types"
 MODULE_ONNX_SCRIPT_VALUES = "onnxscript.values"
 
 
-OpsetId = tuple[Annotated[str, "domain"], Annotated[int, "version"]]
+OpsetId = tuple[str, int]
 
 
 def parse_opsetid(opsetid: str) -> OpsetId:
