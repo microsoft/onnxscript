@@ -698,6 +698,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("special.erfcx", special_ops.aten_special_erfcx).xfail(
         reason="fixme: The implementation is numerically unstable: https://github.com/microsoft/onnxscript/issues/1223"
     ),
+    TorchLibOpInfo(
+        "ops.aten.fake_quantize_per_channel_affine",
+        core_ops.aten_fake_quantize_per_channel_affine,
+    ),
     TorchLibOpInfo("fill", core_ops.aten_fill),
     TorchLibOpInfo("flip", core_ops.aten_flip).skip(
         reason="fixme: size 0 inputs are not handled yet",
