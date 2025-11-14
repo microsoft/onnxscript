@@ -82,15 +82,6 @@ ALL_TENSOR_TYPE_STRINGS = tuple(
 )
 
 
-def _remove_annotation(typeinfo: TypeAnnotationValue) -> TypeAnnotationValue:
-    """Remove Annotated wrapper if present, otherwise return typeinfo as is."""
-    if hasattr(typing, "Annotated"):
-        # Present in Python 3.9+
-        if typing.get_origin(typeinfo) is typing.Annotated:
-            return typing.get_args(typeinfo)[0]
-    return typeinfo
-
-
 def _is_primitive_attr_type(typeinfo: TypeAnnotationValue) -> bool:
     return typeinfo in _PYTYPE_TO_ATTRTYPE_MAP
 
@@ -98,7 +89,6 @@ def _is_primitive_attr_type(typeinfo: TypeAnnotationValue) -> bool:
 def pytype_to_attrtype(
     pytype: TypeAnnotationValue,
 ) -> Optional[onnx.AttributeProto.AttributeType]:
-    pytype = _remove_annotation(pytype)
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
     type_constructor = typing.get_origin(pytype)
@@ -117,7 +107,6 @@ def pytype_to_attrtype(
 
 def base_type_is_bool(pytype: TypeAnnotationValue) -> bool:
     """Returns True if base type of pytype is bool, False otherwise."""
-    pytype = _remove_annotation(pytype)
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return pytype is bool
     type_constructor = typing.get_origin(pytype)
