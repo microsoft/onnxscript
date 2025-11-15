@@ -74,7 +74,7 @@ class IRVar:
         self.name = varname
         self.info = sourceinfo
         self.typeinfo = typeinfo
-        if typeinfo is None:
+        if typeinfo is None or not hasattr(typeinfo, "to_type_proto"):
             self.value = ir.Value(name=varname)
         else:
             type_and_shape = ir.from_proto(typeinfo.to_type_proto())
@@ -135,6 +135,7 @@ class IRAttributeParameter:
 
     name: str
     type: onnx.AttributeProto.AttributeType
+    attr: ir.Attr
     default_value: str | int | float | None = None
 
     # TODO(justinchuby): Validate the default_value is the same type as specified in AttributeType.
@@ -193,9 +194,8 @@ class IRStmt:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("%s: %s", type(self), self)
 
-    def to_node_proto(self, node_name: str) -> onnx.NodeProto:
+    def to_node_proto(self) -> onnx.NodeProto:
         n = ir.to_proto(self.node)
-        n.name = node_name
         return n
 
     @property
@@ -208,8 +208,8 @@ class IRFunction:
     """Represents a function in the IR."""
 
     def __init__(self, name: str, domain: str = "") -> None:
-        self.ir_graph = ir.Graph(inputs=[], outputs=[], nodes=[], name=name)
-        self.domain = domain
+        graph = ir.Graph(inputs=[], outputs=[], nodes=[], name=name)
+        self.ir_function = ir.Function(domain, name, graph=graph, attributes=[])
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
@@ -219,14 +219,19 @@ class IRFunction:
         self.ordered_inputs_and_attrs: list[Union[IRVar, IRAttributeParameter]] = []
 
     @property
+    def domain(self) -> str:
+        """Returns the domain of this function."""
+        return self.ir_function.domain
+
+    @property
     def docstring(self) -> str:
         """Returns the docstring of this function."""
-        return self.ir_graph.doc_string or ""
+        return self.ir_function.doc_string or ""
 
     @property
     def name(self) -> str:
         """Returns the name of this function."""
-        return self.ir_graph.name
+        return self.ir_function.name
 
     @property
     def assigned_names(self) -> Sequence[str]:
@@ -253,16 +258,23 @@ class IRFunction:
         return f"{self.name} {attrs}{inputs} => {outputs}{stmts}"
 
     def append_stmt(self, stmt: IRStmt) -> None:
+        count = len(self.stmts)
+        node_name = f"n{count}"
+        stmt.node.name = node_name
         self.stmts.append(stmt)
+        self.ir_function.append(stmt.node)
 
-    def append_input(self, name: IRVar) -> None:
-        self.ordered_inputs_and_attrs.append(name)
+    def append_input(self, var: IRVar) -> None:
+        self.ordered_inputs_and_attrs.append(var)
+        self.ir_function.inputs.append(var.value)
 
-    def append_output(self, name: IRVar) -> None:
-        self.outputs.append(name)
+    def append_output(self, var: IRVar) -> None:
+        self.outputs.append(var)
+        self.ir_function.outputs.append(var.value)
 
     def add_attr_parameter(self, attr: IRAttributeParameter) -> None:
         self.ordered_inputs_and_attrs.append(attr)
+        self.ir_function.attributes.add(attr.attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -407,7 +419,7 @@ class IRFunction:
             called_functions.update(s.functions)
         called_functions.update(self.called_functions)
         graph = helper.make_graph(
-            [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)],
+            [s.to_node_proto() for s in self.stmts],
             self.name,
             [x.to_value_info(use_default_type) for x in self.inputs],
             [y.to_value_info(use_default_type) for y in self.outputs],
@@ -450,7 +462,7 @@ class IRFunction:
         doesn't support it.
         """
         opsets = self.get_opset_import()
-        nodes = [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)]
+        nodes = [s.to_node_proto() for s in self.stmts]
         for n in nodes:
             if n.domain not in opsets:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
@@ -494,7 +506,7 @@ class IRBuilder:
         return function
 
     def add_docstring(self, fn: IRFunction, docstring: str):
-        fn.ir_graph.doc_string = docstring
+        fn.ir_function.doc_string = docstring
 
     def add_stmt(
         self,
@@ -533,7 +545,10 @@ class IRBuilder:
         attribute_type: onnx.AttributeProto.AttributeType,
         default_value: int | float | str | None,
     ) -> None:
-        fn.add_attr_parameter(IRAttributeParameter(varname, attribute_type, default_value))
+        attr = ir.Attr(varname, ir.AttributeType(attribute_type), None, None)
+        fn.add_attr_parameter(
+            IRAttributeParameter(varname, attribute_type, attr, default_value)
+        )
 
     def add_output(self, fn: IRFunction, varname: str, typeinfo, sourceinfo) -> None:
         var = IRVar(varname, typeinfo, sourceinfo)
