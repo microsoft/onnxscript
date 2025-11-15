@@ -247,11 +247,15 @@ class IRFunction:
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
-        self.docstring: str = ""
         # a dictionary of nested function-definitions
         self.nested_functions: dict[str, IRFunction] = {}
         self.outer_scope_variables: dict[Any, Any] = {}
         self.ordered_inputs_and_attrs: list[Union[IRVar, IRAttributeParameter]] = []
+
+    @property
+    def docstring(self) -> str:
+        """Returns the docstring of this function."""
+        return self.ir_graph.doc_string or ""
 
     @property
     def assigned_names(self) -> Sequence[str]:
@@ -276,9 +280,6 @@ class IRFunction:
         outputs = _format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = _format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return f"{self.name} {attrs}{inputs} => {outputs}{stmts}"
-
-    def append_docstring(self, docstring):
-        self.docstring += docstring
 
     def append_stmt(self, stmt: IRStmt) -> None:
         self.stmts.append(stmt)
@@ -522,7 +523,7 @@ class IRBuilder:
         return function
 
     def add_docstring(self, fn: IRFunction, docstring: str):
-        fn.append_docstring(docstring)
+        fn.ir_graph.doc_string = docstring
 
     def add_stmt(
         self,
