@@ -74,13 +74,16 @@ class IRVar:
         self.name = varname
         self.info = sourceinfo
         self.typeinfo = typeinfo
-        if typeinfo is None or not hasattr(typeinfo, "to_type_proto"):
+        if typeinfo is None:
             self.value = ir.Value(name=varname)
         else:
-            type_and_shape = ir.from_proto(typeinfo.to_type_proto())
-            self.value = ir.Value(
-                name=varname, type=type_and_shape.type, shape=type_and_shape.shape
-            )
+            try:
+                type_and_shape = ir.from_proto(typeinfo.to_type_proto())
+                self.value = ir.Value(
+                    name=varname, type=type_and_shape.type, shape=type_and_shape.shape
+                )
+            except AttributeError:
+                self.value = ir.Value(name=varname)
 
     def __str__(self):
         return self.name
