@@ -340,7 +340,7 @@ class IRFunction:
             if value_infos
             else None
         )
-        graph, sub_functions = self._to_graph_and_functions(
+        graph, sub_functions = self.to_graph_and_functions(
             use_default_type=False, value_infos=value_infos
         )
         if io_types is not None:
@@ -397,7 +397,7 @@ class IRFunction:
             graph, opset_imports=opset_imports, functions=functions, **kwargs
         )
 
-    def _to_graph_and_functions(
+    def to_graph_and_functions(
         self,
         use_default_type: bool = True,
         value_infos: Sequence[ValueInfoProto] | None = None,
@@ -437,11 +437,11 @@ class IRFunction:
         Returns:
             an instance of :class:`onnx.GraphProto`
         """
-        graph, _ = self._to_graph_and_functions(use_default_type=use_default_type)
+        graph, _ = self.to_graph_and_functions(use_default_type=use_default_type)
         return graph
 
     def get_opset_import(self) -> dict[str, int]:
-        func_opset_imports = {}
+        func_opset_imports = self.ir_function.opset_imports
         for s in self.stmts:
             if s.callee.opset.domain not in func_opset_imports:
                 func_opset_imports[s.callee.opset.domain] = s.callee.opset.version
@@ -466,27 +466,28 @@ class IRFunction:
         for n in nodes:
             if n.domain not in opsets:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
-        opset_imports = [
-            onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
-        ]
+        f = ir.to_proto(self.ir_function)
+        # opset_imports = [
+        #     onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
+        # ]
 
-        attribute_names = [attr.name for attr in self.attrs if not attr.has_default]
+        # attribute_names = [attr.name for attr in self.attrs if not attr.has_default]
 
-        f = helper.make_function(
-            self.domain,
-            self.name,
-            inputs=[x.name for x in self.inputs],
-            outputs=[y.name for y in self.outputs],
-            nodes=nodes,
-            opset_imports=opset_imports,  # TODO
-            attributes=attribute_names,
-            doc_string=self.docstring,
-        )
-        # In protobuf 4.x fields aren't defined as class attribute so it should check instance attribute instead
-        if hasattr(f, "attribute_proto"):
-            f.attribute_proto.extend(
-                [attr.attr_proto for attr in self.attrs if attr.has_default]
-            )
+        # f = helper.make_function(
+        #     self.domain,
+        #     self.name,
+        #     inputs=[x.name for x in self.inputs],
+        #     outputs=[y.name for y in self.outputs],
+        #     nodes=nodes,
+        #     opset_imports=opset_imports,  # TODO
+        #     attributes=attribute_names,
+        #     doc_string=self.docstring,
+        # )
+        # # In protobuf 4.x fields aren't defined as class attribute so it should check instance attribute instead
+        # if hasattr(f, "attribute_proto"):
+        #     f.attribute_proto.extend(
+        #         [attr.attr_proto for attr in self.attrs if attr.has_default]
+        #     )
         return f
 
 
