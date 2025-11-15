@@ -186,25 +186,23 @@ class IRStmt:
     def __init__(
         self,
         node: ir.Node,
-        result: Sequence[str],
         callee: values.Op,
-        args: Sequence[Optional[str]],
         attrs: Sequence[IRAttributeValue],
         sub_functions=None,
     ) -> None:
         if not isinstance(callee, values.Op):
             raise TypeError(f"Unexpected type {type(callee)} for callee.")
         self.node = node
-        self.result = result
         self.callee = callee
-        self.args = args
         self.attrs = attrs
         self.functions = sub_functions or {}
 
+    @property
+    def args(self) -> Sequence[Optional[str]]:
+        return [x.name if x is not None else None for x in self.node.inputs]
+    
     def __str__(self):
-        if isinstance(self.result, str):
-            logger.debug("unexpected str type for self.result where type(self)=%r", type(self))
-        lhs = ", ".join(self.result)
+        lhs = ", ".join(self.output_names)
         attrs = ""
         if self.attrs:
             attrs = _format(self.attrs, "<", ", ", ">")
@@ -223,7 +221,7 @@ class IRStmt:
         n = helper.make_node(
             self.callee.name,
             [_opt_var_to_str(x) for x in self.args],
-            [str(x) for x in self.result],
+            self.output_names,
             domain=self.callee.opset.domain,
             name=node_name,
         )
@@ -234,7 +232,8 @@ class IRStmt:
     @property
     def output_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this statement."""
-        return [str(x) for x in self.result]
+        return [x.name for x in self.node.outputs]
+    
 
 
 class IRFunction:
@@ -243,7 +242,6 @@ class IRFunction:
     def __init__(self, name: str, domain: str = "") -> None:
         self.ir_graph = ir.Graph(inputs=[], outputs=[], nodes=[], name=name)
         self.domain = domain
-        self.name = name
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
@@ -257,6 +255,11 @@ class IRFunction:
         """Returns the docstring of this function."""
         return self.ir_graph.doc_string or ""
 
+    @property
+    def name(self) -> str:
+        """Returns the name of this function."""
+        return self.ir_graph.name
+    
     @property
     def assigned_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this function."""
@@ -535,7 +538,6 @@ class IRBuilder:
         sub_functions=None,
     ) -> Sequence[ir.Value]:
         output_values = [ir.Value(name=o) for o in results]
-        input_names = [(x.name if x is not None else None) for x in inputs]
         attributes = [ir.from_proto(a.attr_proto) for a in attrs]
         node = ir.Node(
             domain=callee.opset.domain,
@@ -545,7 +547,7 @@ class IRBuilder:
             outputs=output_values,
             attributes=attributes,
         )
-        stmt = IRStmt(node, results, callee, input_names, attrs, sub_functions=sub_functions)
+        stmt = IRStmt(node, callee, attrs, sub_functions=sub_functions)
         fn.append_stmt(stmt)
         output_values = [ir.Value(name=o) for o in results]
         return output_values
