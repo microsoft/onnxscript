@@ -164,6 +164,10 @@ def aten__fft_r2c(
         dim = [d + 1 for d in dim]
     else:
         transformed = op.Unsqueeze(self, axes=[-1])
+        # Adjust dimension indices to account for the new trailing dimension.
+        # Negative indices need to be shifted: -1 becomes -2, -2 becomes -3, etc.
+        # Positive indices remain unchanged as they're not affected by appending.
+        dim = [d - 1 if d < 0 else d for d in dim]
 
     for idx, dimension in enumerate(reversed(dim)):
         transformed = _fftn_onnx_normalization(
