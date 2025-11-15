@@ -119,6 +119,8 @@ class IRAttributeValue:
     """
 
     def __init__(self, attrproto: onnx.AttributeProto) -> None:
+        if not isinstance(attrproto, onnx.AttributeProto):
+            raise TypeError(f"Expected onnx.AttributeProto not {type(attrproto)!r}.")
         self.attr_proto = attrproto
 
     def __str__(self):
@@ -187,20 +189,22 @@ class IRStmt:
         self,
         node: ir.Node,
         callee: values.Op,
-        attrs: Sequence[IRAttributeValue],
         sub_functions=None,
     ) -> None:
         if not isinstance(callee, values.Op):
             raise TypeError(f"Unexpected type {type(callee)} for callee.")
         self.node = node
         self.callee = callee
-        self.attrs = attrs
         self.functions = sub_functions or {}
 
     @property
     def args(self) -> Sequence[Optional[str]]:
         return [x.name if x is not None else None for x in self.node.inputs]
-    
+
+    @property
+    def attrs(self) -> Sequence[IRAttributeValue]:
+        return [IRAttributeValue(ir.to_proto(a)) for a in self.node.attributes.values()]
+
     def __str__(self):
         lhs = ", ".join(self.output_names)
         attrs = ""
@@ -233,7 +237,6 @@ class IRStmt:
     def output_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this statement."""
         return [x.name for x in self.node.outputs]
-    
 
 
 class IRFunction:
@@ -259,7 +262,7 @@ class IRFunction:
     def name(self) -> str:
         """Returns the name of this function."""
         return self.ir_graph.name
-    
+
     @property
     def assigned_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this function."""
@@ -547,7 +550,7 @@ class IRBuilder:
             outputs=output_values,
             attributes=attributes,
         )
-        stmt = IRStmt(node, callee, attrs, sub_functions=sub_functions)
+        stmt = IRStmt(node, callee, sub_functions=sub_functions)
         fn.append_stmt(stmt)
         output_values = [ir.Value(name=o) for o in results]
         return output_values
