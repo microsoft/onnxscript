@@ -736,6 +736,10 @@ def sample_inputs__fft_r2c(self, device, dtype, requires_grad=False, **_):
             (1, 2),
             (0, 1),
             (0, 1, 2),
+            # Test negative indices to ensure dimension adjustment after unsqueeze works correctly
+            (-1,),
+            (-2,),
+            (-1, -2),
         ]:
             yield opinfo_core.SampleInput(
                 nd_tensor(), dim=dim, normalization=normalization, onesided=one_sided
