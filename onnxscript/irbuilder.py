@@ -74,6 +74,13 @@ class IRVar:
         self.name = varname
         self.info = sourceinfo
         self.typeinfo = typeinfo
+        if typeinfo is None:
+            self.value = ir.Value(name=varname)
+        else:
+            type_and_shape = ir.from_proto(typeinfo.to_type_proto())
+            self.value = ir.Value(
+                name=varname, type=type_and_shape.type, shape=type_and_shape.shape
+            )
 
     def __str__(self):
         return self.name
@@ -109,33 +116,7 @@ def _opt_var_to_str(x):
     return "" if x is None else str(x)
 
 
-class IRAttributeValue:
-    """An attribute value (representing an actual parameter).
-
-    Attributes:
-        name: The name of the attribute.
-        type: The type of the attribute.
-        attr_proto: The attribute proto.
-    """
-
-    def __init__(self, attrproto: onnx.AttributeProto) -> None:
-        if not isinstance(attrproto, onnx.AttributeProto):
-            raise TypeError(f"Expected onnx.AttributeProto not {type(attrproto)!r}.")
-        self.attr_proto = attrproto
-
-    def __str__(self):
-        if self.attr_proto.HasField("ref_attr_name"):
-            return f"{self.attr_proto.name} = @{self.attr_proto.ref_attr_name}"
-        # self.name + " = " + self.value
-        return helper.printable_attribute(self.attr_proto)
-
-    @property
-    def name(self) -> str:
-        return self.attr_proto.name
-
-    @property
-    def type(self) -> onnx.AttributeProto.AttributeType:
-        return self.attr_proto.type
+IRAttributeValue = ir.Attr
 
 
 @dataclasses.dataclass(frozen=True)
@@ -202,35 +183,19 @@ class IRStmt:
         return [x.name if x is not None else None for x in self.node.inputs]
 
     @property
-    def attrs(self) -> Sequence[IRAttributeValue]:
-        return [IRAttributeValue(ir.to_proto(a)) for a in self.node.attributes.values()]
+    def attrs(self) -> Sequence[ir.Attr]:
+        return list(self.node.attributes.values())
 
     def __str__(self):
-        lhs = ", ".join(self.output_names)
-        attrs = ""
-        if self.attrs:
-            attrs = _format(self.attrs, "<", ", ", ">")
-
-        args = _format(self.args, "(", ", ", ")", _opt_var_to_str)
-        domain = self.callee.opset.domain
-        opname = self.callee.name
-        callee = f"{domain}.{opname}" if (domain != "") else opname
-        return f"{lhs} = {callee} {attrs}{args}"
+        return str(self.node)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("%s: %s", type(self), self)
 
     def to_node_proto(self, node_name: str) -> onnx.NodeProto:
-        n = helper.make_node(
-            self.callee.name,
-            [_opt_var_to_str(x) for x in self.args],
-            self.output_names,
-            domain=self.callee.opset.domain,
-            name=node_name,
-        )
-        for a in self.attrs:
-            n.attribute.append(a.attr_proto)
+        n = ir.to_proto(self.node)
+        n.name = node_name
         return n
 
     @property
@@ -537,11 +502,11 @@ class IRBuilder:
         results: Sequence[str],
         callee: values.Op,
         inputs: Sequence[Optional[ir.Value]],
-        attrs: Sequence[IRAttributeValue],
+        attrs: Sequence[ir.Attr],
         sub_functions=None,
     ) -> Sequence[ir.Value]:
         output_values = [ir.Value(name=o) for o in results]
-        attributes = [ir.from_proto(a.attr_proto) for a in attrs]
+        attributes = attrs  # [ir.from_proto(a.attr_proto) for a in attrs]
         node = ir.Node(
             domain=callee.opset.domain,
             version=callee.opset.version,
@@ -574,14 +539,9 @@ class IRBuilder:
         var = IRVar(varname, typeinfo, sourceinfo)
         fn.append_output(var)
 
-    def make_attr(self, attrproto: onnx.AttributeProto) -> IRAttributeValue:
-        return IRAttributeValue(attrproto)
+    def make_attr(self, attrproto: onnx.AttributeProto) -> ir.Attr:
+        return ir.from_proto(attrproto)
 
-    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttributeValue:
-        proto = onnx.AttributeProto()
-        proto.name = attrname
-        proto.ref_attr_name = refname
-        attr_type = ta.pytype_to_attrtype(pytype)
-        assert attr_type is not None
-        proto.type = attr_type
-        return IRAttributeValue(proto)
+    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> ir.Attr:
+        attr_type = ir.AttributeType(ta.pytype_to_attrtype(pytype))
+        return ir.Attr(attrname, attr_type, None, refname)
