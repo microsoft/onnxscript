@@ -241,6 +241,7 @@ class IRFunction:
     """Represents a function in the IR."""
 
     def __init__(self, name: str, domain: str = "") -> None:
+        self.ir_graph = ir.Graph(inputs=[], outputs=[], nodes=[], name=name)
         self.domain = domain
         self.name = name
         self.outputs: list[IRVar] = []
@@ -355,7 +356,7 @@ class IRFunction:
             if value_infos
             else None
         )
-        graph, sub_functions = self.to_graph_and_functions(
+        graph, sub_functions = self._to_graph_and_functions(
             use_default_type=False, value_infos=value_infos
         )
         if io_types is not None:
@@ -412,7 +413,7 @@ class IRFunction:
             graph, opset_imports=opset_imports, functions=functions, **kwargs
         )
 
-    def to_graph_and_functions(
+    def _to_graph_and_functions(
         self,
         use_default_type: bool = True,
         value_infos: Sequence[ValueInfoProto] | None = None,
@@ -452,7 +453,7 @@ class IRFunction:
         Returns:
             an instance of :class:`onnx.GraphProto`
         """
-        graph, _ = self.to_graph_and_functions(use_default_type=use_default_type)
+        graph, _ = self._to_graph_and_functions(use_default_type=use_default_type)
         return graph
 
     def get_opset_import(self) -> dict[str, int]:
@@ -539,7 +540,7 @@ class IRBuilder:
             domain=callee.opset.domain,
             version=callee.opset.version,
             op_type=callee.name,
-            inputs = inputs,
+            inputs=inputs,
             outputs=output_values,
             attributes=attributes,
         )
