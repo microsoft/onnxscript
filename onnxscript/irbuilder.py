@@ -293,12 +293,7 @@ class IRFunction:
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
-            st = io.StringIO()
-            for s in self.stmts:
-                for attr in s.attrs:
-                    if attr.attr_proto.HasField("g"):
-                        st.write(helper.printable_graph(attr.attr_proto.g))
-                        st.write("\n")
+            logger.debug(str(self.ir_function))
 
     def add_called_function(self, fun: values.OnnxFunction) -> None:
         for name, fct in fun.function_ir.called_functions.items():
@@ -384,10 +379,7 @@ class IRFunction:
 
             functions = [to_proto(f) for f in functions]
 
-        opsets = {}
-        for n in self.stmts:
-            if n.callee.opset.domain not in opsets:
-                opsets[n.callee.opset.domain] = n.callee.opset.version
+        opsets = self.ir_function.opset_imports.copy()
 
         for proto in functions:
             if proto.domain not in opsets:
@@ -442,8 +434,7 @@ class IRFunction:
         """Converts this instance into a `onnx.GraphProto`.
 
         Args:
-            use_default_type: if True, the function uses a default type
-                for inputs and outputs that do not have a type
+            use_default_type: Unused.
 
         Returns:
             an instance of :class:`onnx.GraphProto`
@@ -451,34 +442,9 @@ class IRFunction:
         del use_default_type  # currently not used
         return ir.to_proto(self.ir_function.graph)
 
-    # def get_opset_import(self) -> dict[str, int]:
-    #     func_opset_imports = self.ir_function.opset_imports
-    #     for s in self.stmts:
-    #         if s.callee.opset.domain not in func_opset_imports:
-    #             func_opset_imports[s.callee.opset.domain] = s.callee.opset.version
-    #         elif func_opset_imports[s.callee.opset.domain] != s.callee.opset.version:
-    #             warnings.warn(
-    #                 f"There is a version conflict in domain: {s.callee.opset.domain!r}, "
-    #                 f"with {self.name!r}.",
-    #                 category=UserWarning,
-    #                 stacklevel=1,
-    #             )
-    #     return func_opset_imports
-
     def to_function_proto(self) -> onnx.FunctionProto:
-        """Converts this instance into a `onnx.FunctionProto`.
-
-        Note: Default values for attributes are an experimental feature in ONNX.
-        Conversion ignores default values for attributes if the ONNX version installed
-        doesn't support it.
-        """
-        # opsets = self.get_opset_import()
-        # nodes = [s.to_node_proto() for s in self.stmts]
-        # for n in nodes:
-        #     if n.domain not in opsets:
-        #         opsets[n.domain] = 1  # TODO: how to get n.version?
-        f = ir.to_proto(self.ir_function)
-        return f
+        """Converts this instance into a `onnx.FunctionProto`."""
+        return ir.to_proto(self.ir_function)
 
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
