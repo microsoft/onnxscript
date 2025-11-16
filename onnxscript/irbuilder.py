@@ -10,6 +10,7 @@ import warnings
 from typing import Any, Optional, Protocol, Sequence, Union
 
 import onnx
+import onnx_ir as ir
 from onnx import ValueInfoProto, helper
 from onnx.defs import onnx_opset_version
 
@@ -73,6 +74,16 @@ class IRVar:
         self.name = varname
         self.info = sourceinfo
         self.typeinfo = typeinfo
+        if typeinfo is None:
+            self.value = ir.Value(name=varname)
+        else:
+            try:
+                type_and_shape = ir.from_proto(typeinfo.to_type_proto())
+                self.value = ir.Value(
+                    name=varname, type=type_and_shape.type, shape=type_and_shape.shape
+                )
+            except AttributeError:
+                self.value = ir.Value(name=varname)
 
     def __str__(self):
         return self.name
@@ -108,31 +119,7 @@ def _opt_var_to_str(x):
     return "" if x is None else str(x)
 
 
-class IRAttributeValue:
-    """An attribute value (representing an actual parameter).
-
-    Attributes:
-        name: The name of the attribute.
-        type: The type of the attribute.
-        attr_proto: The attribute proto.
-    """
-
-    def __init__(self, attrproto: onnx.AttributeProto) -> None:
-        self.attr_proto = attrproto
-
-    def __str__(self):
-        if self.attr_proto.HasField("ref_attr_name"):
-            return f"{self.attr_proto.name} = @{self.attr_proto.ref_attr_name}"
-        # self.name + " = " + self.value
-        return helper.printable_attribute(self.attr_proto)
-
-    @property
-    def name(self) -> str:
-        return self.attr_proto.name
-
-    @property
-    def type(self) -> onnx.AttributeProto.AttributeType:
-        return self.attr_proto.type
+IRAttributeValue = ir.Attr
 
 
 @dataclasses.dataclass(frozen=True)
@@ -151,6 +138,7 @@ class IRAttributeParameter:
 
     name: str
     type: onnx.AttributeProto.AttributeType
+    attr: ir.Attr
     default_value: str | int | float | None = None
 
     # TODO(justinchuby): Validate the default_value is the same type as specified in AttributeType.
@@ -184,70 +172,69 @@ class IRAttributeParameter:
 class IRStmt:
     def __init__(
         self,
-        result: Sequence[str],
+        node: ir.Node,
         callee: values.Op,
-        args: Sequence[Optional[str]],
-        attrs: Sequence[IRAttributeValue],
         sub_functions=None,
     ) -> None:
         if not isinstance(callee, values.Op):
             raise TypeError(f"Unexpected type {type(callee)} for callee.")
-        self.result = result
+        self.node = node
         self.callee = callee
-        self.args = args
-        self.attrs = attrs
         self.functions = sub_functions or {}
 
-    def __str__(self):
-        if isinstance(self.result, str):
-            logger.debug("unexpected str type for self.result where type(self)=%r", type(self))
-        lhs = ", ".join(self.result)
-        attrs = ""
-        if self.attrs:
-            attrs = _format(self.attrs, "<", ", ", ">")
+    @property
+    def args(self) -> Sequence[Optional[str]]:
+        return [x.name if x is not None else None for x in self.node.inputs]
 
-        args = _format(self.args, "(", ", ", ")", _opt_var_to_str)
-        domain = self.callee.opset.domain
-        opname = self.callee.name
-        callee = f"{domain}.{opname}" if (domain != "") else opname
-        return f"{lhs} = {callee} {attrs}{args}"
+    @property
+    def attrs(self) -> Sequence[ir.Attr]:
+        return list(self.node.attributes.values())
+
+    def __str__(self):
+        return str(self.node)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("%s: %s", type(self), self)
 
-    def to_node_proto(self, node_name: str) -> onnx.NodeProto:
-        n = helper.make_node(
-            self.callee.name,
-            [_opt_var_to_str(x) for x in self.args],
-            [str(x) for x in self.result],
-            domain=self.callee.opset.domain,
-            name=node_name,
-        )
-        for a in self.attrs:
-            n.attribute.append(a.attr_proto)
+    def to_node_proto(self) -> onnx.NodeProto:
+        n = ir.to_proto(self.node)
         return n
 
     @property
     def output_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this statement."""
-        return [str(x) for x in self.result]
+        return [x.name for x in self.node.outputs]
 
 
 class IRFunction:
     """Represents a function in the IR."""
 
     def __init__(self, name: str, domain: str = "") -> None:
-        self.domain = domain
-        self.name = name
+        graph = ir.Graph(inputs=[], outputs=[], nodes=[], name=name)
+        self.ir_function = ir.Function(domain, name, graph=graph, attributes=[])
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
-        self.docstring: str = ""
         # a dictionary of nested function-definitions
         self.nested_functions: dict[str, IRFunction] = {}
         self.outer_scope_variables: dict[Any, Any] = {}
         self.ordered_inputs_and_attrs: list[Union[IRVar, IRAttributeParameter]] = []
+
+    @property
+    def domain(self) -> str:
+        """Returns the domain of this function."""
+        return self.ir_function.domain
+
+    @property
+    def docstring(self) -> str:
+        """Returns the docstring of this function."""
+        return self.ir_function.doc_string or ""
+
+    @property
+    def name(self) -> str:
+        """Returns the name of this function."""
+        return self.ir_function.name
 
     @property
     def assigned_names(self) -> Sequence[str]:
@@ -273,20 +260,24 @@ class IRFunction:
         stmts = _format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return f"{self.name} {attrs}{inputs} => {outputs}{stmts}"
 
-    def append_docstring(self, docstring):
-        self.docstring += docstring
-
     def append_stmt(self, stmt: IRStmt) -> None:
+        count = len(self.stmts)
+        node_name = f"n{count}"
+        stmt.node.name = node_name
         self.stmts.append(stmt)
+        self.ir_function.append(stmt.node)
 
-    def append_input(self, name: IRVar) -> None:
-        self.ordered_inputs_and_attrs.append(name)
+    def append_input(self, var: IRVar) -> None:
+        self.ordered_inputs_and_attrs.append(var)
+        self.ir_function.inputs.append(var.value)
 
-    def append_output(self, name: IRVar) -> None:
-        self.outputs.append(name)
+    def append_output(self, var: IRVar) -> None:
+        self.outputs.append(var)
+        self.ir_function.outputs.append(var.value)
 
     def add_attr_parameter(self, attr: IRAttributeParameter) -> None:
         self.ordered_inputs_and_attrs.append(attr)
+        self.ir_function.attributes.add(attr.attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -431,7 +422,7 @@ class IRFunction:
             called_functions.update(s.functions)
         called_functions.update(self.called_functions)
         graph = helper.make_graph(
-            [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)],
+            [s.to_node_proto() for s in self.stmts],
             self.name,
             [x.to_value_info(use_default_type) for x in self.inputs],
             [y.to_value_info(use_default_type) for y in self.outputs],
@@ -453,7 +444,7 @@ class IRFunction:
         return graph
 
     def get_opset_import(self) -> dict[str, int]:
-        func_opset_imports = {}
+        func_opset_imports = self.ir_function.opset_imports
         for s in self.stmts:
             if s.callee.opset.domain not in func_opset_imports:
                 func_opset_imports[s.callee.opset.domain] = s.callee.opset.version
@@ -474,31 +465,32 @@ class IRFunction:
         doesn't support it.
         """
         opsets = self.get_opset_import()
-        nodes = [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)]
+        nodes = [s.to_node_proto() for s in self.stmts]
         for n in nodes:
             if n.domain not in opsets:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
-        opset_imports = [
-            onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
-        ]
+        f = ir.to_proto(self.ir_function)
+        # opset_imports = [
+        #     onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
+        # ]
 
-        attribute_names = [attr.name for attr in self.attrs if not attr.has_default]
+        # attribute_names = [attr.name for attr in self.attrs if not attr.has_default]
 
-        f = helper.make_function(
-            self.domain,
-            self.name,
-            inputs=[x.name for x in self.inputs],
-            outputs=[y.name for y in self.outputs],
-            nodes=nodes,
-            opset_imports=opset_imports,  # TODO
-            attributes=attribute_names,
-            doc_string=self.docstring,
-        )
-        # In protobuf 4.x fields aren't defined as class attribute so it should check instance attribute instead
-        if hasattr(f, "attribute_proto"):
-            f.attribute_proto.extend(
-                [attr.attr_proto for attr in self.attrs if attr.has_default]
-            )
+        # f = helper.make_function(
+        #     self.domain,
+        #     self.name,
+        #     inputs=[x.name for x in self.inputs],
+        #     outputs=[y.name for y in self.outputs],
+        #     nodes=nodes,
+        #     opset_imports=opset_imports,  # TODO
+        #     attributes=attribute_names,
+        #     doc_string=self.docstring,
+        # )
+        # # In protobuf 4.x fields aren't defined as class attribute so it should check instance attribute instead
+        # if hasattr(f, "attribute_proto"):
+        #     f.attribute_proto.extend(
+        #         [attr.attr_proto for attr in self.attrs if attr.has_default]
+        #     )
         return f
 
 
@@ -518,19 +510,31 @@ class IRBuilder:
         return function
 
     def add_docstring(self, fn: IRFunction, docstring: str):
-        fn.append_docstring(docstring)
+        fn.ir_function.doc_string = docstring
 
     def add_stmt(
         self,
         fn: IRFunction,
         results: Sequence[str],
         callee: values.Op,
-        args: Sequence[Optional[str]],
-        attrs: Sequence[IRAttributeValue],
+        inputs: Sequence[Optional[ir.Value]],
+        attrs: Sequence[ir.Attr],
         sub_functions=None,
-    ) -> None:
-        stmt = IRStmt(results, callee, args, attrs, sub_functions=sub_functions)
+    ) -> Sequence[ir.Value]:
+        output_values = [ir.Value(name=o) for o in results]
+        attributes = attrs  # [ir.from_proto(a.attr_proto) for a in attrs]
+        node = ir.Node(
+            domain=callee.opset.domain,
+            version=callee.opset.version,
+            op_type=callee.name,
+            inputs=inputs,
+            outputs=output_values,
+            attributes=attributes,
+        )
+        stmt = IRStmt(node, callee, sub_functions=sub_functions)
         fn.append_stmt(stmt)
+        output_values = [ir.Value(name=o) for o in results]
+        return output_values
 
     def add_input(
         self, fn: IRFunction, varname: str, type: IRTypeLike, info: SourceInfo
@@ -545,20 +549,18 @@ class IRBuilder:
         attribute_type: onnx.AttributeProto.AttributeType,
         default_value: int | float | str | None,
     ) -> None:
-        fn.add_attr_parameter(IRAttributeParameter(varname, attribute_type, default_value))
+        attr = ir.Attr(varname, ir.AttributeType(attribute_type), default_value, None)
+        fn.add_attr_parameter(
+            IRAttributeParameter(varname, attribute_type, attr, default_value)
+        )
 
     def add_output(self, fn: IRFunction, varname: str, typeinfo, sourceinfo) -> None:
         var = IRVar(varname, typeinfo, sourceinfo)
         fn.append_output(var)
 
-    def make_attr(self, attrproto: onnx.AttributeProto) -> IRAttributeValue:
-        return IRAttributeValue(attrproto)
+    def make_attr(self, attrproto: onnx.AttributeProto) -> ir.Attr:
+        return ir.from_proto(attrproto)
 
-    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttributeValue:
-        proto = onnx.AttributeProto()
-        proto.name = attrname
-        proto.ref_attr_name = refname
-        attr_type = ta.pytype_to_attrtype(pytype)
-        assert attr_type is not None
-        proto.type = attr_type
-        return IRAttributeValue(proto)
+    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> ir.Attr:
+        attr_type = ir.AttributeType(ta.pytype_to_attrtype(pytype))
+        return ir.Attr(attrname, attr_type, None, refname)
