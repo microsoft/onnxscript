@@ -266,6 +266,18 @@ class IRFunction:
         stmt.node.name = node_name
         self.stmts.append(stmt)
         self.ir_function.append(stmt.node)
+        domain = stmt.node.domain
+        version = stmt.node.version
+        if domain not in self.ir_function.opset_imports:
+            self.ir_function.opset_imports[domain] = version
+        else:
+            existing_version = self.ir_function.opset_imports[domain]
+            if existing_version != version:
+                warnings.warn(
+                    f"Version conflict: domain: {domain!r}, "
+                    f"versions {existing_version} and {version} used.",
+                    category=UserWarning,
+                )
 
     def append_input(self, var: IRVar) -> None:
         self.ordered_inputs_and_attrs.append(var)
@@ -436,21 +448,22 @@ class IRFunction:
         Returns:
             an instance of :class:`onnx.GraphProto`
         """
+        del use_default_type  # currently not used
         return ir.to_proto(self.ir_function.graph)
 
-    def get_opset_import(self) -> dict[str, int]:
-        func_opset_imports = self.ir_function.opset_imports
-        for s in self.stmts:
-            if s.callee.opset.domain not in func_opset_imports:
-                func_opset_imports[s.callee.opset.domain] = s.callee.opset.version
-            elif func_opset_imports[s.callee.opset.domain] != s.callee.opset.version:
-                warnings.warn(
-                    f"There is a version conflict in domain: {s.callee.opset.domain!r}, "
-                    f"with {self.name!r}.",
-                    category=UserWarning,
-                    stacklevel=1,
-                )
-        return func_opset_imports
+    # def get_opset_import(self) -> dict[str, int]:
+    #     func_opset_imports = self.ir_function.opset_imports
+    #     for s in self.stmts:
+    #         if s.callee.opset.domain not in func_opset_imports:
+    #             func_opset_imports[s.callee.opset.domain] = s.callee.opset.version
+    #         elif func_opset_imports[s.callee.opset.domain] != s.callee.opset.version:
+    #             warnings.warn(
+    #                 f"There is a version conflict in domain: {s.callee.opset.domain!r}, "
+    #                 f"with {self.name!r}.",
+    #                 category=UserWarning,
+    #                 stacklevel=1,
+    #             )
+    #     return func_opset_imports
 
     def to_function_proto(self) -> onnx.FunctionProto:
         """Converts this instance into a `onnx.FunctionProto`.
@@ -459,13 +472,14 @@ class IRFunction:
         Conversion ignores default values for attributes if the ONNX version installed
         doesn't support it.
         """
-        opsets = self.get_opset_import()
-        nodes = [s.to_node_proto() for s in self.stmts]
-        for n in nodes:
-            if n.domain not in opsets:
-                opsets[n.domain] = 1  # TODO: how to get n.version?
+        # opsets = self.get_opset_import()
+        # nodes = [s.to_node_proto() for s in self.stmts]
+        # for n in nodes:
+        #     if n.domain not in opsets:
+        #         opsets[n.domain] = 1  # TODO: how to get n.version?
         f = ir.to_proto(self.ir_function)
         return f
+
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
