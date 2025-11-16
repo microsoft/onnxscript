@@ -20,8 +20,6 @@ from onnxscript._internal import version_utils
 from onnxscript.onnx_types import ONNXType
 from onnxscript.sourceinfo import SourceInfo
 
-# A simple IR (Function, Stmt, Attr, Var):
-
 logger = logging.getLogger("onnxscript")
 
 
@@ -178,8 +176,7 @@ class IRStmt:
         if not isinstance(callee, values.Op):
             raise TypeError(f"Unexpected type {type(callee)} for callee.")
         self.node = node
-        self.callee = callee
-        self.functions = sub_functions or {}
+        node.meta.setdefault("callee", callee)
 
     @property
     def args(self) -> Sequence[Optional[str]]:
@@ -213,8 +210,7 @@ class IRFunction:
         graph = ir.Graph(inputs=[], outputs=[], nodes=[], name=name)
         self.ir_function = ir.Function(domain, name, graph=graph, attributes=[])
         self.outputs: list[IRVar] = []
-        self.stmts: list[IRStmt] = []
-        self.called_functions: dict[str, onnx.FunctionProto] = {}
+
         # a dictionary of nested function-definitions
         self.nested_functions: dict[str, IRFunction] = {}
         self.outer_scope_variables: dict[Any, Any] = {}
@@ -238,7 +234,7 @@ class IRFunction:
     @property
     def assigned_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this function."""
-        return [v for stmt in self.stmts for v in stmt.output_names]
+        return [v.name for n in self.ir_function for v in n.outputs]
 
     @property
     def inputs(self) -> Sequence[IRVar]:
@@ -253,20 +249,14 @@ class IRFunction:
         ]
 
     def __str__(self):
-        attrs = _format(self.attrs, "<", ", ", ">") if self.attrs else ""
-        inputs = _format([x.typed_str() for x in self.inputs], "(", ", ", ")")
-        outputs = _format([x.typed_str() for x in self.outputs], "(", ", ", ")")
-        stmts = _format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
-        return f"{self.name} {attrs}{inputs} => {outputs}{stmts}"
+        return str(self.ir_function)
 
-    def append_stmt(self, stmt: IRStmt) -> None:
-        count = len(self.stmts)
+    def append_stmt(self, node: ir.Node) -> None:
+        count = len(self.ir_function)
         node_name = f"n{count}"
-        stmt.node.name = node_name
-        self.stmts.append(stmt)
-        self.ir_function.append(stmt.node)
-        domain = stmt.node.domain
-        version = stmt.node.version
+        self.ir_function.append(node)
+        domain = node.domain
+        version = node.version
         if domain not in self.ir_function.opset_imports:
             self.ir_function.opset_imports[domain] = version
         else:
@@ -276,6 +266,7 @@ class IRFunction:
                     f"Version conflict: domain: {domain!r}, "
                     f"versions {existing_version} and {version} used.",
                     category=UserWarning,
+                    stacklevel=2,
                 )
 
     def append_input(self, var: IRVar) -> None:
@@ -293,20 +284,6 @@ class IRFunction:
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(str(self.ir_function))
-
-    def add_called_function(self, fun: values.OnnxFunction) -> None:
-        for name, fct in fun.function_ir.called_functions.items():
-            if name in self.called_functions:
-                continue
-            self.called_functions[name] = fct
-        if fun.name in self.called_functions:
-            # Already added.
-            return
-        try:
-            proto = fun.to_function_proto()
-        except (TypeError, AttributeError) as e:
-            raise TypeError(f"Issue with type f{type(fun)}.") from e
-        self.called_functions[fun.name] = proto
 
     def add_nested_function(self, fun: IRFunction) -> None:
         self.nested_functions[fun.name] = fun
@@ -349,9 +326,10 @@ class IRFunction:
             if value_infos
             else None
         )
-        graph, sub_functions = self.to_graph_and_functions(
-            use_default_type=False, value_infos=value_infos
-        )
+        sub_functions = self.get_called_functions()
+        graph = self.to_graph_proto(use_default_type=False)
+        if value_infos:
+            graph.value_info.extend(value_infos)
         if io_types is not None:
             for input in graph.input:
                 if not input.HasField("type"):
@@ -403,31 +381,24 @@ class IRFunction:
             graph, opset_imports=opset_imports, functions=functions, **kwargs
         )
 
-    def to_graph_and_functions(
-        self,
-        use_default_type: bool = True,
-        value_infos: Sequence[ValueInfoProto] | None = None,
-    ) -> tuple[onnx.GraphProto, dict[str, onnx.FunctionProto]]:
-        """Converts this instance into a `onnx.GraphProto` and a map from
-        function-name to `onnx.FunctionProto`.
+    def get_called_functions(self) -> dict[str, onnx.FunctionProto]:
+        called_functions: dict[str, values.OnnxFunction] = {}
 
-        Args:
-            use_default_type: if True, the function uses a default type
-                for inputs and outputs that do not have a type
-            value_infos: a sequence of :class:`onnx.ValueInfoProto` to be added
-                to the graph.
+        def visit(function_ir: IRFunction):
+            for node in ir.traversal.RecursiveGraphIterator(function_ir.ir_function.graph):
+                callee = node.meta.get("callee", None)
+                if isinstance(callee, values.OnnxFunction):
+                    add(callee)
 
-        Returns:
-            a pair of a :class:`onnx.GraphProto` and list of :class:`onnx.FunctionProto`
-        """
-        called_functions: dict[str, onnx.FunctionProto] = {}
-        for s in self.stmts:
-            called_functions.update(s.functions)
-        called_functions.update(self.called_functions)
-        graph = self.to_graph_proto(use_default_type=use_default_type)
-        if value_infos:
-            graph.value_info.extend(value_infos)
-        return graph, called_functions
+        def add(f: values.OnnxFunction):
+            if f.name in called_functions:
+                return
+            called_functions[f.name] = f
+            visit(f.function_ir)
+
+        visit(self)
+
+        return {name: f.to_function_proto() for name, f in called_functions.items()}
 
     def to_graph_proto(self, use_default_type: bool = True) -> onnx.GraphProto:
         """Converts this instance into a `onnx.GraphProto`.
@@ -483,8 +454,10 @@ class IRBuilder:
             outputs=output_values,
             attributes=attributes,
         )
-        stmt = IRStmt(node, callee, sub_functions=sub_functions)
-        fn.append_stmt(stmt)
+        if not isinstance(callee, values.Op):
+            raise TypeError(f"Unexpected type {type(callee)} for callee.")
+        node.meta.setdefault("callee", callee)
+        fn.append_stmt(node)
         output_values = [ir.Value(name=o) for o in results]
         return output_values
 

@@ -291,7 +291,10 @@ class Converter:
 
     def _make_onnx_attr(
         self, attrname: str, attrval: Any, attrtype: int | None = None
-    ) -> irbuilder.IRAttributeValue:
+    ) -> ir.Attr:
+        if isinstance(attrval, ir.Graph):
+            return ir.Attr(attrname, ir.AttributeType.GRAPH, attrval)
+
         def tensor_name_generator() -> str:
             """Return name to be used for tensor, if we need to create one."""
             return self.generate_unique_name(f"attr_{attrname}")
@@ -303,7 +306,7 @@ class Converter:
 
     def _to_onnx_attr_ref(
         self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
-    ) -> irbuilder.IRAttributeValue:
+    ) -> ir.Attr:
         pytype = val.typeinfo
         attrtype = ta.pytype_to_attrtype(pytype)
         attrname = None
@@ -364,7 +367,6 @@ class Converter:
         callee: values.Op | str,
         inputs: Sequence[Optional[Variable]],
         attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
-        sub_functions: Optional[dict[str, onnx.FunctionProto]] = None,
     ) -> Sequence[Variable] | Variable:
         for i, x in enumerate(inputs):
             if (x is not None) and not isinstance(x, ir.Value):
@@ -373,15 +375,12 @@ class Converter:
             callee = values.Op(self.default_opset, callee)
         if attrs is None:
             attrs = []
-        if sub_functions is None:
-            sub_functions = {}
         output_values = self.ir_builder.add_stmt(
             self._current_fn,
             outputs,
             callee,
             inputs,
             attrs,
-            sub_functions,
         )
         return output_values if len(output_values) > 1 else output_values[0]
 
@@ -943,10 +942,10 @@ class Converter:
         if isinstance(node, ast.Name):
             function_name = node.id
             found = self._lookup(function_name, self._source_of(node), raise_exception=False)
-            if isinstance(found, onnxscript.OnnxFunction):
-                self._current_fn.add_called_function(found)
-                return found
-            if isinstance(found, values.Op):
+            # if isinstance(found, onnxscript.OnnxFunction):
+            #     self._current_fn.add_called_function(found)
+            #     return found
+            if isinstance(found, (values.Op, onnxscript.OnnxFunction)):
                 return found
             if not found:
                 if function_name not in self.default_opset:
@@ -1117,11 +1116,11 @@ class Converter:
         live_defs = list(live_def_set)
         test = self._translate_expr(stmt.test, "cond")
         lineno = self._source_of(stmt).lineno
-        thenGraph, sub_fct_then = self._translate_block(
+        thenGraph = self._translate_block(
             stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
         )
         thenAttr = self._make_onnx_attr("then_branch", thenGraph)
-        elseGraph, sub_fct_else = self._translate_block(
+        elseGraph = self._translate_block(
             stmt.orelse, f"elseGraph_{lineno}", live_defs, parent_stmt=stmt
         )
         elseAttr = self._make_onnx_attr("else_branch", elseGraph)
@@ -1134,9 +1133,6 @@ class Converter:
         if not renamed:
             self.fail(stmt, "A subgraph for a test do not have any output variable.")
 
-        sub_functions = {}
-        sub_functions.update(sub_fct_then)
-        sub_functions.update(sub_fct_else)
         if renamed == [test.name]:
             self.fail(stmt, f"Input and output cannot be the same {renamed!r}.")
         if_outputs = self.emit(
@@ -1144,7 +1140,6 @@ class Converter:
             values.Op(self.default_opset, "If"),
             [test],
             [thenAttr, elseAttr],
-            sub_functions=sub_functions,
         )
         if isinstance(if_outputs, ir.Value):
             if_outputs = [if_outputs]
@@ -1318,8 +1313,7 @@ class Converter:
         inputs = [o_loop_bound, o_loop_condition] + [
             self._py_var_to_onnx_var(pv, self._source_of(loop_stmt)) for pv in loop_state_vars
         ]
-        graph, sub_functions = body.to_graph_and_functions()
-        attrs = [self._make_onnx_attr("body", graph)]
+        attrs = [self._make_onnx_attr("body", body.ir_function.graph)]
         info = self._source_of(loop_stmt)
 
         def rename(x):
@@ -1332,7 +1326,6 @@ class Converter:
             "Loop",
             inputs,
             attrs,
-            sub_functions=sub_functions,
         )
         if isinstance(loop_outputs, ir.Value):
             loop_outputs = [loop_outputs]
@@ -1385,7 +1378,7 @@ class Converter:
                 typeinfo = None
                 self.ir_builder.add_output(self._current_fn, ovar.name, typeinfo, source)
         graph = self._exit_scope()
-        return graph.to_graph_and_functions()
+        return graph.ir_function.graph
 
     def _translate_nested_function_def(self, fn: ast.FunctionDef) -> None:
         """Translate a nested function definition."""
