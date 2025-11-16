@@ -549,7 +549,7 @@ class IRBuilder:
         attribute_type: onnx.AttributeProto.AttributeType,
         default_value: int | float | str | None,
     ) -> None:
-        attr = ir.Attr(varname, ir.AttributeType(attribute_type), None, None)
+        attr = ir.Attr(varname, ir.AttributeType(attribute_type), default_value, None)
         fn.add_attr_parameter(
             IRAttributeParameter(varname, attribute_type, attr, default_value)
         )
