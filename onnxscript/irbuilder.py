@@ -421,13 +421,9 @@ class IRFunction:
         for s in self.stmts:
             called_functions.update(s.functions)
         called_functions.update(self.called_functions)
-        graph = helper.make_graph(
-            [s.to_node_proto() for s in self.stmts],
-            self.name,
-            [x.to_value_info(use_default_type) for x in self.inputs],
-            [y.to_value_info(use_default_type) for y in self.outputs],
-            value_info=value_infos,
-        )
+        graph = self.to_graph_proto(use_default_type=use_default_type)
+        if value_infos:
+            graph.value_info.extend(value_infos)
         return graph, called_functions
 
     def to_graph_proto(self, use_default_type: bool = True) -> onnx.GraphProto:
@@ -440,8 +436,7 @@ class IRFunction:
         Returns:
             an instance of :class:`onnx.GraphProto`
         """
-        graph, _ = self.to_graph_and_functions(use_default_type=use_default_type)
-        return graph
+        return ir.to_proto(self.ir_function.graph)
 
     def get_opset_import(self) -> dict[str, int]:
         func_opset_imports = self.ir_function.opset_imports
@@ -470,29 +465,7 @@ class IRFunction:
             if n.domain not in opsets:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
         f = ir.to_proto(self.ir_function)
-        # opset_imports = [
-        #     onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
-        # ]
-
-        # attribute_names = [attr.name for attr in self.attrs if not attr.has_default]
-
-        # f = helper.make_function(
-        #     self.domain,
-        #     self.name,
-        #     inputs=[x.name for x in self.inputs],
-        #     outputs=[y.name for y in self.outputs],
-        #     nodes=nodes,
-        #     opset_imports=opset_imports,  # TODO
-        #     attributes=attribute_names,
-        #     doc_string=self.docstring,
-        # )
-        # # In protobuf 4.x fields aren't defined as class attribute so it should check instance attribute instead
-        # if hasattr(f, "attribute_proto"):
-        #     f.attribute_proto.extend(
-        #         [attr.attr_proto for attr in self.attrs if attr.has_default]
-        #     )
         return f
-
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
