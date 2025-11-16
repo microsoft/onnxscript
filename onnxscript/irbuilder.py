@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import dataclasses
-import io
 import logging
 import warnings
 from typing import Any, Optional, Protocol, Sequence, Union
