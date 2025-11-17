@@ -75,16 +75,17 @@ class IRFunction(ir.Function):
                     stacklevel=2,
                 )
 
-    def append_input(self, var: ir.Value) -> None:
-        self.ordered_inputs_and_attrs.append(var)
-        self.inputs.append(var)
+    def append_parameter(self, parameter: ir.Value | ir.Attr) -> None:
+        self.ordered_inputs_and_attrs.append(parameter)
+        if isinstance(parameter, ir.Value):
+            self.inputs.append(parameter)
+        else:
+            if not isinstance(parameter, ir.Attr):
+                raise TypeError(f"Expected ir.Value or ir.Attr, got {type(parameter)}")
+            self.attributes.add(parameter)
 
     def append_output(self, var: ir.Value) -> None:
         self.outputs.append(var)
-
-    def add_attr_parameter(self, attr: ir.Attr) -> None:
-        self.ordered_inputs_and_attrs.append(attr)
-        self.attributes.add(attr)
 
     def add_nested_function(self, fun: IRFunction) -> None:
         self.nested_functions[fun.name] = fun
@@ -180,7 +181,7 @@ class IRBuilder:
     def add_input(
         self, fn: IRFunction, varname: str, type: TypeAnnotationValue, info: SourceInfo
     ) -> None:
-        fn.append_input(_make_value(varname, type, info))
+        fn.append_parameter(_make_value(varname, type, info))
 
     def add_attr_parameter(
         self,
@@ -190,7 +191,7 @@ class IRBuilder:
         default_value: int | float | str | None,
     ) -> None:
         attr = ir.Attr(varname, ir.AttributeType(attribute_type), default_value, None)
-        fn.add_attr_parameter(attr)
+        fn.append_parameter(attr)
 
     def add_output(self, fn: IRFunction, varname: str, typeinfo, sourceinfo) -> None:
         fn.append_output(_make_value(varname, typeinfo, sourceinfo))

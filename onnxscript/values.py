@@ -662,7 +662,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
             else None
         )
 
-        graph = self.function_ir.to_graph_proto(use_default_type=False)
+        graph = self.function_ir.to_graph_proto()
         if value_infos:
             graph.value_info.extend(value_infos)
         if io_types is not None:

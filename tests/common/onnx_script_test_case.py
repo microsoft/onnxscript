@@ -144,9 +144,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             # there is not way from the onnx test case's model and feed to get TypeProto
             # in order to build a model.
             # we have to resolve the TypeProto from script function.
-            local_function_model_proto = param.function.to_model_proto(
-                ir_version=ir_version
-            )
+            local_function_model_proto = param.function.to_model_proto(ir_version=ir_version)
             input_value_infos = []
             for i, input in enumerate(local_function_model_proto.graph.input):
                 vi = copy.deepcopy(input)
