@@ -39,6 +39,7 @@ include_patterns = [
 exclude_patterns = [
     'tests/**', # Skip linting test files for speed
     # FIXME: Fix typing annotations in these files
+    'examples/custom_op_expansion.py',
     'onnxscript/converter_test.py',
     'onnxscript/converter.py',
     'onnxscript/evaluator_test.py',
