@@ -3,7 +3,6 @@
 # ruff: noqa: TID251
 from __future__ import annotations
 
-import dataclasses
 import logging
 import warnings
 from typing import Any, Optional, Protocol, Sequence, Union
@@ -16,7 +15,6 @@ from onnx.defs import onnx_opset_version
 import onnxscript
 from onnxscript import type_annotation as ta
 from onnxscript import values
-from onnxscript._internal import version_utils
 from onnxscript.onnx_types import ONNXType
 from onnxscript.sourceinfo import SourceInfo
 
@@ -116,91 +114,7 @@ def _opt_var_to_str(x):
     return "" if x is None else str(x)
 
 
-IRAttributeValue = ir.Attr
-
-
-@dataclasses.dataclass(frozen=True)
-class IRAttributeParameter:
-    """An attribute parameter (representing a formal parameter).
-
-    It may or may not carry a default value.
-
-    Attributes:
-        name: The name of the attribute.
-        type: The type of the attribute.
-        default_value: The default value of the attribute.
-        has_default: Whether the attribute has a default value.
-        attr_proto: The attribute proto.
-    """
-
-    name: str
-    type: onnx.AttributeProto.AttributeType
-    attr: ir.Attr
-    default_value: str | int | float | None = None
-
-    # TODO(justinchuby): Validate the default_value is the same type as specified in AttributeType.
-
-    def __str__(self):
-        if self.has_default:
-            return helper.printable_attribute(self.attr_proto)
-        # TODO(justinchuby): Include a readable type name.
-        return self.name
-
-    @property
-    def has_default(self):
-        return self.default_value is not None
-
-    @property
-    def attr_proto(self) -> onnx.AttributeProto:
-        if not self.has_default:
-            raise ValueError(
-                "Attribute has no default value. Only attributes with default "
-                "values can be converted to AttributeProto."
-            )
-        if version_utils.onnx_older_than("1.15"):
-            # TODO(after 1.14 is deprecated): Remove this branch.
-            # Argument 'attr_type' was added after version 1.14.
-            return helper.make_attribute(self.name, self.default_value)
-        # pylint: disable=unexpected-keyword-arg
-        return helper.make_attribute(self.name, self.default_value, attr_type=self.type)  # type: ignore[call-arg]
-        # pylint: enable=unexpected-keyword-arg
-
-
-class IRStmt:
-    def __init__(
-        self,
-        node: ir.Node,
-        callee: values.Op,
-        sub_functions=None,
-    ) -> None:
-        if not isinstance(callee, values.Op):
-            raise TypeError(f"Unexpected type {type(callee)} for callee.")
-        self.node = node
-        node.meta.setdefault("callee", callee)
-
-    @property
-    def args(self) -> Sequence[Optional[str]]:
-        return [x.name if x is not None else None for x in self.node.inputs]
-
-    @property
-    def attrs(self) -> Sequence[ir.Attr]:
-        return list(self.node.attributes.values())
-
-    def __str__(self):
-        return str(self.node)
-
-    def debug_print(self):
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("%s: %s", type(self), self)
-
-    def to_node_proto(self) -> onnx.NodeProto:
-        n = ir.to_proto(self.node)
-        return n
-
-    @property
-    def output_names(self) -> Sequence[str]:
-        """Returns the list of variables assigned to by this statement."""
-        return [x.name for x in self.node.outputs]
+IRAttributeParameter = ir.Attr
 
 
 class IRFunction:
@@ -251,9 +165,9 @@ class IRFunction:
     def __str__(self):
         return str(self.ir_function)
 
-    def append_stmt(self, node: ir.Node) -> None:
+    def append_node(self, node: ir.Node) -> None:
         count = len(self.ir_function)
-        node_name = f"n{count}"
+        node.name = f"n{count}"
         self.ir_function.append(node)
         domain = node.domain
         version = node.version
@@ -279,7 +193,7 @@ class IRFunction:
 
     def add_attr_parameter(self, attr: IRAttributeParameter) -> None:
         self.ordered_inputs_and_attrs.append(attr)
-        self.ir_function.attributes.add(attr.attr)
+        self.ir_function.attributes.add(attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -457,8 +371,7 @@ class IRBuilder:
         if not isinstance(callee, values.Op):
             raise TypeError(f"Unexpected type {type(callee)} for callee.")
         node.meta.setdefault("callee", callee)
-        fn.append_stmt(node)
-        output_values = [ir.Value(name=o) for o in results]
+        fn.append_node(node)
         return output_values
 
     def add_input(
@@ -475,9 +388,7 @@ class IRBuilder:
         default_value: int | float | str | None,
     ) -> None:
         attr = ir.Attr(varname, ir.AttributeType(attribute_type), default_value, None)
-        fn.add_attr_parameter(
-            IRAttributeParameter(varname, attribute_type, attr, default_value)
-        )
+        fn.add_attr_parameter(attr)
 
     def add_output(self, fn: IRFunction, varname: str, typeinfo, sourceinfo) -> None:
         var = IRVar(varname, typeinfo, sourceinfo)

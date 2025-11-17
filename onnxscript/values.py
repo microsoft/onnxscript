@@ -223,9 +223,9 @@ def _param_schema_from_function_ir_attr(attr: irbuilder.IRAttributeParameter):
         type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
             onnx.defs.OpSchema.AttrType(attr.type)  # type: ignore[call-arg]
         ),
-        default=_EmptyDefault if attr.default_value is None else attr.default_value,
+        default=_EmptyDefault if attr.value is None else attr.value,
         is_input=False,
-        required=not attr.has_default,
+        required=attr.value is None,
     )
 
 
@@ -448,15 +448,15 @@ def _op_schema_from_function_ir(
                     type=onnx.defs.OpSchema.AttrType(attr.type),  # type: ignore[call-arg]
                 )
                 for attr in function_ir.attrs
-                if not attr.has_default
+                if attr.value is None
             ],
             *[
                 onnx.defs.OpSchema.Attribute(
                     attr.name,
-                    default_value=attr.attr_proto,
+                    default_value=ir.to_proto(attr),
                 )
                 for attr in function_ir.attrs
-                if attr.has_default
+                if attr.value is not None
             ],
         ],
     )
@@ -592,7 +592,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
     def to_model_proto(self, **kwargs):
         """Converts the function into :class:`onnx.ModelProto`."""
         if self.function_ir.attrs and any(
-            not attr.has_default for attr in self.function_ir.attrs
+            attr.value is None for attr in self.function_ir.attrs
         ):
             raise ValueError(
                 "A function with required attributes cannot be exported as a model."
