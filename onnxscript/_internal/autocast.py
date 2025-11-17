@@ -189,23 +189,21 @@ def dynamic_cast_inputs(op_schema: OpSchema, args):
 def static_cast_inputs(
     converter_: converter.Converter,
     op_schema: Optional[OpSchema],
-    args: Sequence[Optional[converter.Variable]],
+    args: Sequence[Optional[ir.Value]],
 ) -> tuple[str, ...]:
     """Used for autocast during script-translation.
     This is meant to transform expressions like "Add(X, 1)" to "Add(X, CastLike(1, X))"
     Polymorphic constants (like 0 and 1) are cast to the type of other operands as needed.
     """
 
-    def get_type_info(x: Optional[converter.Variable]) -> Optional[converter.Variable]:
+    def get_type_info(x: Optional[ir.Value]) -> Optional[ir.Value]:
         """Returns x back if x can serve as the target-type for a cast (as the second
         argument of CastLike) and None otherwise. In the expression "Add(X, 1), 1 is
         castable, while X can serve as the target-type.
         """
         return None if x is None or converter_.is_castable(x.name) else x
 
-    def cast_like(
-        x: Optional[converter.Variable], y: Optional[converter.Variable]
-    ) -> Optional[str]:
+    def cast_like(x: Optional[ir.Value], y: Optional[ir.Value]) -> Optional[str]:
         if x is None:
             return None
         if converter_.is_castable(x.name) and y is not None:
