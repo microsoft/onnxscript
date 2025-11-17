@@ -9,30 +9,23 @@ from typing import Any, Optional, Sequence, Union
 
 import onnx
 import onnx_ir as ir
-from onnx import helper
-from onnx.defs import onnx_opset_version
 
-import onnxscript
 import onnxscript.type_annotation
 from onnxscript import values
-from onnxscript.onnx_types import ONNXType
 from onnxscript.sourceinfo import SourceInfo
 
 logger = logging.getLogger("onnxscript")
-
-
-def _format(seq: Sequence[Any], prefix: str, sep: str, suffix: str, formatter=str):
-    """Formats a sequence of objects into a string."""
-    return prefix + sep.join([formatter(x) for x in seq]) + suffix
 
 
 def select_ir_version(version: int, domain: str = "") -> int:
     """Selects a suitable ONNX ir_version for a given opset version."""
     if domain == "":
         domain = "ai.onnx"
-    if (domain, version) not in helper.OP_SET_ID_VERSION_MAP:
-        return max(v for k, v in helper.OP_SET_ID_VERSION_MAP.items() if k[0] == "ai.onnx")
-    return helper.OP_SET_ID_VERSION_MAP[domain, version]
+    if (domain, version) not in onnx.helper.OP_SET_ID_VERSION_MAP:
+        return max(
+            v for k, v in onnx.helper.OP_SET_ID_VERSION_MAP.items() if k[0] == "ai.onnx"
+        )
+    return onnx.helper.OP_SET_ID_VERSION_MAP[domain, version]
 
 
 TypeAnnotationValue = onnxscript.type_annotation.TypeAnnotationValue
@@ -76,9 +69,7 @@ class IRFunction:
 
     @property
     def inputs(self) -> Sequence[ir.Value]:
-        return (
-            self.ir_function.inputs
-        )  # [var for var in self.ordered_inputs_and_attrs if isinstance(var, IRVar)]
+        return self.ir_function.inputs
 
     @property
     def attrs(self) -> Sequence[ir.Attr]:
@@ -116,105 +107,8 @@ class IRFunction:
         self.ordered_inputs_and_attrs.append(attr)
         self.ir_function.attributes.add(attr)
 
-    def debug_print(self):
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(str(self.ir_function))
-
     def add_nested_function(self, fun: IRFunction) -> None:
         self.nested_functions[fun.name] = fun
-
-    def to_model_proto(
-        self,
-        functions=None,
-        io_types: Optional[ONNXType] = None,
-        input_types: Optional[Sequence[ONNXType]] = None,
-        output_types: Optional[Sequence[ONNXType]] = None,
-        value_infos: dict[str, ONNXType] | None = None,
-        opset_version: int | None = None,
-        **kwargs,
-    ) -> onnx.ModelProto:
-        """Converts this instance into a `onnx.ModelProto`.
-
-        Args:
-            functions: A list of functions to include in the model.
-                By default, all functions called at least once are included.
-            io_types: When specified, all the inputs/outputs of the model
-                are set to be of this type.
-            input_types: When specified, all the inputs of the model
-                are set to be of the corresponding type in this list.
-            output_types: When specified, all the outputs of the model
-                are set to be of the corresponding type in this list.
-            value_infos: A dictionary mapping intermediate variable names to ONNX types.
-                Used to set value_info for intermediate variables.
-            opset_version: The standard opset version to use for the model if it
-                cannot be inferred. Otherwise defaults to the current opset version.
-            kwargs: Additional parameters given to function :func:`onnx.helper.make_model`.
-
-        Returns:
-            An instance of :class:`onnx.ModelProto`.
-        """
-        value_infos = (
-            [
-                onnx.helper.make_value_info(name, type.to_type_proto())
-                for name, type in value_infos.items()
-            ]
-            if value_infos
-            else None
-        )
-        sub_functions = self.get_called_functions()
-        graph = self.to_graph_proto(use_default_type=False)
-        if value_infos:
-            graph.value_info.extend(value_infos)
-        if io_types is not None:
-            for input in graph.input:
-                if not input.HasField("type"):
-                    input.type.CopyFrom(io_types.to_type_proto())
-            for output in graph.output:
-                if not output.HasField("type"):
-                    output.type.CopyFrom(io_types.to_type_proto())
-        if input_types is not None:
-            for input, type in zip(graph.input, input_types):
-                input.type.CopyFrom(type.to_type_proto())
-        if output_types is not None:
-            for output, type in zip(graph.output, output_types):
-                output.type.CopyFrom(type.to_type_proto())
-        if functions is None:
-            functions = sub_functions.values()
-        else:
-
-            def to_proto(f):
-                if isinstance(f, onnx.FunctionProto):
-                    return f
-                if isinstance(f, onnxscript.OnnxFunction):
-                    return f.to_function_proto()
-                raise TypeError("Expected a value of type FunctionProto of OnnxFunction")
-
-            functions = [to_proto(f) for f in functions]
-
-        opsets = self.ir_function.opset_imports.copy()
-
-        for proto in functions:
-            if proto.domain not in opsets:
-                opsets[proto.domain] = 1
-            # TODO(rama): Handle conflicts with appropriate error/warning message.
-            for opset in proto.opset_import:
-                if opset.domain not in opsets:
-                    opsets[opset.domain] = opset.version
-
-        if "" not in opsets:
-            # No operator is using the standard opset.
-            # Use the specified version if provided or the default value.
-            opsets[""] = opset_version if opset_version is not None else onnx_opset_version()
-
-        if "ir_version" not in kwargs:
-            kwargs["ir_version"] = select_ir_version(opsets[""])
-        opset_imports = [
-            onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
-        ]
-
-        return helper.make_model(
-            graph, opset_imports=opset_imports, functions=functions, **kwargs
-        )
 
     def get_called_functions(self) -> dict[str, onnx.FunctionProto]:
         called_functions: dict[str, values.OnnxFunction] = {}
@@ -297,7 +191,7 @@ class IRBuilder:
         attrs: Sequence[ir.Attr],
     ) -> Sequence[ir.Value]:
         output_values = [ir.Value(name=o) for o in results]
-        attributes = attrs  # [ir.from_proto(a.attr_proto) for a in attrs]
+        attributes = attrs
         node = ir.Node(
             domain=callee.opset.domain,
             version=callee.opset.version,

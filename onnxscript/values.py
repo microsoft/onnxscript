@@ -30,9 +30,21 @@ from onnxscript import converter as converter_module
 from onnxscript import irbuilder, sourceinfo, type_annotation
 from onnxscript._internal import ast_utils, deprecation
 from onnxscript.ir import _schemas
+from onnxscript.onnx_types import ONNXType
 
 _R = TypeVar("_R")
 _P = ParamSpec("_P")
+
+
+def select_ir_version(version: int, domain: str = "") -> int:
+    """Selects a suitable ONNX ir_version for a given opset version."""
+    if domain == "":
+        domain = "ai.onnx"
+    if (domain, version) not in onnx.helper.OP_SET_ID_VERSION_MAP:
+        return max(
+            v for k, v in onnx.helper.OP_SET_ID_VERSION_MAP.items() if k[0] == "ai.onnx"
+        )
+    return onnx.helper.OP_SET_ID_VERSION_MAP[domain, version]
 
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
@@ -609,7 +621,103 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
         # Merge kwargs specified in script-decorator with those specified in this call.
         merged_kw_args = {**self.kwargs, **kwargs}
-        return self.function_ir.to_model_proto(**merged_kw_args)
+        return self._to_model_proto(**merged_kw_args)
+
+    def _to_model_proto(
+        self,
+        functions=None,
+        io_types: Optional[ONNXType] = None,
+        input_types: Optional[Sequence[ONNXType]] = None,
+        output_types: Optional[Sequence[ONNXType]] = None,
+        value_infos: dict[str, ONNXType] | None = None,
+        opset_version: int | None = None,
+        **kwargs,
+    ) -> onnx.ModelProto:
+        """Converts this instance into a `onnx.ModelProto`.
+
+        Args:
+            functions: A list of functions to include in the model.
+                By default, all functions called at least once are included.
+            io_types: When specified, all the inputs/outputs of the model
+                are set to be of this type.
+            input_types: When specified, all the inputs of the model
+                are set to be of the corresponding type in this list.
+            output_types: When specified, all the outputs of the model
+                are set to be of the corresponding type in this list.
+            value_infos: A dictionary mapping intermediate variable names to ONNX types.
+                Used to set value_info for intermediate variables.
+            opset_version: The standard opset version to use for the model if it
+                cannot be inferred. Otherwise defaults to the current opset version.
+            kwargs: Additional parameters given to function :func:`onnx.helper.make_model`.
+
+        Returns:
+            An instance of :class:`onnx.ModelProto`.
+        """
+        value_infos = (
+            [
+                onnx.helper.make_value_info(name, type.to_type_proto())
+                for name, type in value_infos.items()
+            ]
+            if value_infos
+            else None
+        )
+
+        graph = self.function_ir.to_graph_proto(use_default_type=False)
+        if value_infos:
+            graph.value_info.extend(value_infos)
+        if io_types is not None:
+            for input in graph.input:
+                if not input.HasField("type"):
+                    input.type.CopyFrom(io_types.to_type_proto())
+            for output in graph.output:
+                if not output.HasField("type"):
+                    output.type.CopyFrom(io_types.to_type_proto())
+        if input_types is not None:
+            for input, type in zip(graph.input, input_types):
+                input.type.CopyFrom(type.to_type_proto())
+        if output_types is not None:
+            for output, type in zip(graph.output, output_types):
+                output.type.CopyFrom(type.to_type_proto())
+        if functions is None:
+            sub_functions = self.function_ir.get_called_functions()
+            functions = sub_functions.values()
+        else:
+
+            def to_proto(f):
+                if isinstance(f, onnx.FunctionProto):
+                    return f
+                if isinstance(f, OnnxFunction):
+                    return f.to_function_proto()
+                raise TypeError("Expected a value of type FunctionProto of OnnxFunction")
+
+            functions = [to_proto(f) for f in functions]
+
+        opsets = self.function_ir.ir_function.opset_imports.copy()
+
+        for proto in functions:
+            if proto.domain not in opsets:
+                opsets[proto.domain] = 1
+            # TODO(rama): Handle conflicts with appropriate error/warning message.
+            for opset in proto.opset_import:
+                if opset.domain not in opsets:
+                    opsets[opset.domain] = opset.version
+
+        if "" not in opsets:
+            # No operator is using the standard opset.
+            # Use the specified version if provided or the default value.
+            opsets[""] = (
+                opset_version if opset_version is not None else onnx.defs.onnx_opset_version()
+            )
+
+        if "ir_version" not in kwargs:
+            kwargs["ir_version"] = select_ir_version(opsets[""])
+        opset_imports = [
+            onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
+        ]
+
+        return onnx.helper.make_model(
+            graph, opset_imports=opset_imports, functions=functions, **kwargs
+        )
 
 
 class TracedOnnxFunction(Op):

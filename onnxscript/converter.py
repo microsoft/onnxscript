@@ -1475,7 +1475,6 @@ class Converter:
             self._current_fn = self.ir_builder.new_function(stmt.name, domain, True)
             self._analyzer = analysis.AstAnalyzer(stmt, self._message, self.globals)
             fn_ir = self._translate_function_def_common(stmt)
-            fn_ir.debug_print()
             self.this_module.add_function_def(fn_ir)
             self._analyzer = None
             return fn_ir
