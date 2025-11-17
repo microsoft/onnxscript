@@ -766,7 +766,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "linspace",
         core_ops.aten_linspace,
         tolerance={torch.float16: (2e-2, 2e-3)},
-    )
+    ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
     TorchLibOpInfo("lerp", core_ops.aten_lerp, tolerance={torch.float16: (2e-3, 2e-1)}),
