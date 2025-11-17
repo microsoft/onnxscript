@@ -31,12 +31,12 @@ def select_ir_version(version: int, domain: str = "") -> int:
 TypeAnnotationValue = onnxscript.type_annotation.TypeAnnotationValue
 
 
-class IRFunction:
+class IRFunction(ir.Function):
     """Represents a function in the IR."""
 
     def __init__(self, name: str, domain: str = "") -> None:
         graph = ir.Graph(inputs=[], outputs=[], nodes=[], name=name)
-        self.ir_function = ir.Function(domain, name, graph=graph, attributes=[])
+        super().__init__(domain, name, graph=graph, attributes=[])
         self.ordered_inputs_and_attrs: list[Union[ir.Value, ir.Attr]] = []
 
         # a dictionary of nested function-definitions
@@ -44,50 +44,29 @@ class IRFunction:
         self.outer_scope_variables: dict[Any, Any] = {}
 
     @property
-    def outputs(self) -> Sequence[ir.Value]:
-        return self.ir_function.outputs
-
-    @property
-    def domain(self) -> str:
-        """Returns the domain of this function."""
-        return self.ir_function.domain
-
-    @property
     def docstring(self) -> str:
         """Returns the docstring of this function."""
-        return self.ir_function.doc_string or ""
-
-    @property
-    def name(self) -> str:
-        """Returns the name of this function."""
-        return self.ir_function.name
+        return self.doc_string or ""
 
     @property
     def assigned_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this function."""
-        return [v.name for n in self.ir_function for v in n.outputs]
-
-    @property
-    def inputs(self) -> Sequence[ir.Value]:
-        return self.ir_function.inputs
+        return [v.name for n in self for v in n.outputs]
 
     @property
     def attrs(self) -> Sequence[ir.Attr]:
         return [attr for attr in self.ordered_inputs_and_attrs if isinstance(attr, ir.Attr)]
 
-    def __str__(self):
-        return str(self.ir_function)
-
     def append_node(self, node: ir.Node) -> None:
-        count = len(self.ir_function)
+        count = len(self)
         node.name = f"n{count}"
-        self.ir_function.append(node)
+        self.append(node)
         domain = node.domain
         version = node.version
-        if domain not in self.ir_function.opset_imports:
-            self.ir_function.opset_imports[domain] = version
+        if domain not in self.opset_imports:
+            self.opset_imports[domain] = version
         else:
-            existing_version = self.ir_function.opset_imports[domain]
+            existing_version = self.opset_imports[domain]
             if existing_version != version:
                 warnings.warn(
                     f"Version conflict: domain: {domain!r}, "
@@ -98,14 +77,14 @@ class IRFunction:
 
     def append_input(self, var: ir.Value) -> None:
         self.ordered_inputs_and_attrs.append(var)
-        self.ir_function.inputs.append(var)
+        self.inputs.append(var)
 
     def append_output(self, var: ir.Value) -> None:
-        self.ir_function.outputs.append(var)
+        self.outputs.append(var)
 
     def add_attr_parameter(self, attr: ir.Attr) -> None:
         self.ordered_inputs_and_attrs.append(attr)
-        self.ir_function.attributes.add(attr)
+        self.attributes.add(attr)
 
     def add_nested_function(self, fun: IRFunction) -> None:
         self.nested_functions[fun.name] = fun
@@ -114,7 +93,7 @@ class IRFunction:
         called_functions: dict[str, values.OnnxFunction] = {}
 
         def visit(function_ir: IRFunction):
-            for node in ir.traversal.RecursiveGraphIterator(function_ir.ir_function.graph):
+            for node in ir.traversal.RecursiveGraphIterator(function_ir.graph):
                 callee = node.meta.get("callee", None)
                 if isinstance(callee, values.OnnxFunction):
                     add(callee)
@@ -139,11 +118,11 @@ class IRFunction:
             an instance of :class:`onnx.GraphProto`
         """
         del use_default_type  # currently not used
-        return ir.to_proto(self.ir_function.graph)
+        return ir.to_proto(self.graph)
 
     def to_function_proto(self) -> onnx.FunctionProto:
         """Converts this instance into a `onnx.FunctionProto`."""
-        return ir.to_proto(self.ir_function)
+        return ir.to_proto(self)
 
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
@@ -180,7 +159,7 @@ class IRBuilder:
         return function
 
     def add_docstring(self, fn: IRFunction, docstring: str):
-        fn.ir_function.doc_string = docstring
+        fn.doc_string = docstring
 
     def add_stmt(
         self,

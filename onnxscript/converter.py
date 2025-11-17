@@ -1313,7 +1313,7 @@ class Converter:
         inputs = [o_loop_bound, o_loop_condition] + [
             self._py_var_to_onnx_var(pv, self._source_of(loop_stmt)) for pv in loop_state_vars
         ]
-        attrs = [self._make_onnx_attr("body", body.ir_function.graph)]
+        attrs = [self._make_onnx_attr("body", body.graph)]
         info = self._source_of(loop_stmt)
 
         def rename(x):
@@ -1378,7 +1378,7 @@ class Converter:
                 typeinfo = None
                 self.ir_builder.add_output(self._current_fn, ovar.name, typeinfo, source)
         graph = self._exit_scope()
-        return graph.ir_function.graph
+        return graph.graph
 
     def _translate_nested_function_def(self, fn: ast.FunctionDef) -> None:
         """Translate a nested function definition."""

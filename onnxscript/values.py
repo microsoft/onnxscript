@@ -692,7 +692,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
             functions = [to_proto(f) for f in functions]
 
-        opsets = self.function_ir.ir_function.opset_imports.copy()
+        opsets = self.function_ir.opset_imports.copy()
 
         for proto in functions:
             if proto.domain not in opsets:
