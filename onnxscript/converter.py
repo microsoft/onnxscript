@@ -942,9 +942,6 @@ class Converter:
         if isinstance(node, ast.Name):
             function_name = node.id
             found = self._lookup(function_name, self._source_of(node), raise_exception=False)
-            # if isinstance(found, onnxscript.OnnxFunction):
-            #     self._current_fn.add_called_function(found)
-            #     return found
             if isinstance(found, (values.Op, onnxscript.OnnxFunction)):
                 return found
             if not found:
