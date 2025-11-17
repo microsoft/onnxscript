@@ -163,14 +163,13 @@ class IRBuilder:
         attrs: Sequence[ir.Attr],
     ) -> Sequence[ir.Value]:
         output_values = [ir.Value(name=o) for o in results]
-        attributes = attrs
         node = ir.Node(
             domain=callee.opset.domain,
             version=callee.opset.version,
             op_type=callee.name,
             inputs=inputs,
             outputs=output_values,
-            attributes=attributes,
+            attributes=attrs,
         )
         if not isinstance(callee, values.Op):
             raise TypeError(f"Unexpected type {type(callee)} for callee.")

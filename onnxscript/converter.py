@@ -81,9 +81,6 @@ primop_map = {
 }
 
 
-Variable = ir.Value
-
-
 if TYPE_CHECKING:
     # The type-alias LocalSymValue represents the types of values that local names in a
     # script-function may be bound to during translation, (ONNX IR values).
@@ -328,7 +325,7 @@ class Converter:
         val: values.SymbolValue | PyValue,
         target: Optional[PreferredName] = None,
         info: Optional[sourceinfo.SourceInfo] = None,
-    ) -> Variable:
+    ) -> ir.Value:
         if isinstance(val, values.AttrRef):
             # promote attribute to value
             result_name = self.generate_unique_name(target or "tmp")
@@ -358,19 +355,16 @@ class Converter:
         # produce a better error _message otherwise
         return self._emit_const(val, target or "tmp", info)
 
-    def _py_var_to_onnx_var(self, py_var: str, info: sourceinfo.SourceInfo) -> Variable:
+    def _py_var_to_onnx_var(self, py_var: str, info: sourceinfo.SourceInfo) -> ir.Value:
         return self._to_onnx_var(self._lookup(py_var, info), target=py_var, info=info)
 
     def emit(
         self,
         outputs: Sequence[str],
         callee: values.Op | str,
-        inputs: Sequence[Optional[Variable]],
+        inputs: Sequence[Optional[ir.Value]],
         attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
-    ) -> Sequence[Variable] | Variable:
-        for i, x in enumerate(inputs):
-            if (x is not None) and not isinstance(x, ir.Value):
-                raise TypeError(f"Expected ONNX IR Value for input {i}, got {type(x)!r}.")
+    ) -> Sequence[ir.Value] | ir.Value:
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
         if attrs is None:
@@ -384,7 +378,7 @@ class Converter:
         )
         return output_values if len(output_values) > 1 else output_values[0]
 
-    def emit1(self, *args, **kwargs) -> Variable:
+    def emit1(self, *args, **kwargs) -> ir.Value:
         r = self.emit(*args, **kwargs)
         if not isinstance(r, ir.Value):
             raise TypeError(f"Expected single ONNX IR Value, got {type(r)!r}.")
@@ -395,7 +389,7 @@ class Converter:
         pyvalue: PyValue,
         suggested_name: Optional[PreferredName],
         info: sourceinfo.SourceInfo,
-    ) -> Variable:
+    ) -> ir.Value:
         if suggested_name is None:
             if isinstance(pyvalue, int):
                 if pyvalue >= 0:
@@ -420,7 +414,7 @@ class Converter:
         self._castable.add(ovar)
         return self.emit1([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
 
-    def _emit_copy(self, original_var: Variable, suggested_name: str) -> Variable:
+    def _emit_copy(self, original_var: ir.Value, suggested_name: str) -> ir.Value:
         """Emits a copy statement, using the ONNX Identity operator."""
         new_var = self.generate_unique_name(suggested_name)
         return self.emit([new_var], "Identity", [original_var])
@@ -540,7 +534,7 @@ class Converter:
 
     def _translate_expr(
         self, node: ast.AST, target: Optional[PreferredName] = None
-    ) -> Variable:
+    ) -> ir.Value:
         """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
@@ -563,7 +557,7 @@ class Converter:
             raise ValueError(
                 self._message(node, f"Unsupported expression type {type(node)!r}.")
             )
-        if isinstance(r, Variable):
+        if isinstance(r, ir.Value):
             return r
         callee, args, attrs = r
         target = "tmp" if target is None else target
@@ -571,7 +565,7 @@ class Converter:
         result = self.generate_unique_name(target)
         return self.emit1([result], callee, args, attrs)
 
-    def _translate_opt_expr(self, node: ast.expr) -> Optional[Variable]:
+    def _translate_opt_expr(self, node: ast.expr) -> Optional[ir.Value]:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
         None is represented as a Constant in Python 3.9+.
         """
@@ -581,7 +575,7 @@ class Converter:
 
     def _translate_subscript_expr(
         self, node: ast.Subscript, target: Optional[PreferredName]
-    ) -> Variable:
+    ) -> ir.Value:
         """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 
@@ -628,15 +622,15 @@ class Converter:
 
         # Create cached int constants:
         # TODO: Do this at a graph-scope level.
-        cached_int_consts: dict[int, Variable] = {}
+        cached_int_consts: dict[int, ir.Value] = {}
 
-        def const_1d(value, name: Optional[str] = None) -> Variable:
+        def const_1d(value, name: Optional[str] = None) -> ir.Value:
             nonlocal cached_int_consts
             if value not in cached_int_consts:
                 cached_int_consts[value] = self._emit_const([value], name, info)
             return cached_int_consts[value]
 
-        def one_1d() -> Variable:
+        def one_1d() -> ir.Value:
             return const_1d(1)
 
         # Max/min 64-bit int values are used to represent default values for start/stop in Slice.
@@ -645,7 +639,7 @@ class Converter:
 
         def translate_slice_component(
             node_arg, default_value: Optional[int] = None
-        ) -> tuple[Variable, Optional[int]]:
+        ) -> tuple[ir.Value, Optional[int]]:
             """Translate optional start/stop/step component of a Slice expression."""
             if node_arg is None:
                 if default_value is None:
@@ -672,7 +666,7 @@ class Converter:
                 )
                 return reshaped_value, None
 
-        def translate_slice(slice_expr: ast.Slice) -> tuple[Variable, Variable, Variable]:
+        def translate_slice(slice_expr: ast.Slice) -> tuple[ir.Value, ir.Value, ir.Value]:
             """Translate slice-expression of the form from:to:step."""
             step_name, step = translate_slice_component(slice_expr.step, 1)
             if step is None:
@@ -813,7 +807,7 @@ class Converter:
 
     def _translate_call_expr(
         self, node: ast.Call
-    ) -> tuple[values.Op, list[Optional[Variable]], list[irbuilder.IRAttributeValue]]:
+    ) -> tuple[values.Op, list[Optional[ir.Value]], list[irbuilder.IRAttributeValue]]:
         """Translates a call-expression."""
         callee = self._translate_callee_expr(node.func)
         param_schemas = callee.param_schemas()
@@ -840,7 +834,7 @@ class Converter:
         attrs = [attr for attr in attrs if attr is not None]
         return callee, args, attrs
 
-    def _cast_like_binary_expression(self, op, left, right) -> tuple[Variable, Variable]:
+    def _cast_like_binary_expression(self, op, left, right) -> tuple[ir.Value, ir.Value]:
         schema = op.op_schema
         return autocast.static_cast_inputs(self, schema, (left, right))
 
@@ -913,7 +907,7 @@ class Converter:
 
         return op, [left, right], []
 
-    def _translate_name_expr(self, node: ast.Name) -> Variable:
+    def _translate_name_expr(self, node: ast.Name) -> ir.Value:
         return self._py_var_to_onnx_var(node.id, self._source_of(node))
 
     # pylint: disable=inconsistent-return-statements
@@ -1237,7 +1231,7 @@ class Converter:
                 ),
             )
 
-        condition_name: Variable | None = None
+        condition_name: ir.Value | None = None
         operator_name = "Identity"
         for i, s in enumerate(loop_stmt.body):
             # We first need to intercept a break instruction in test block.
@@ -1365,7 +1359,7 @@ class Converter:
                 if pv_val is None:
                     self.fail(
                         stmts[0],
-                        f"Variable {pvar} is not assigned a value along a conditional "
+                        f"ir.Value {pvar} is not assigned a value along a conditional "
                         f"branch, known variables: {list(self._locals)}.",
                     )
                 # introduce a copy
