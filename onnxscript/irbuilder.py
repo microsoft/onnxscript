@@ -108,16 +108,8 @@ class IRFunction(ir.Function):
 
         return {name: f.to_function_proto() for name, f in called_functions.items()}
 
-    def to_graph_proto(self, use_default_type: bool = True) -> onnx.GraphProto:
-        """Converts this instance into a `onnx.GraphProto`.
-
-        Args:
-            use_default_type: Unused.
-
-        Returns:
-            an instance of :class:`onnx.GraphProto`
-        """
-        del use_default_type  # currently not used
+    def to_graph_proto(self) -> onnx.GraphProto:
+        """Converts this instance into a `onnx.GraphProto`."""
         return ir.to_proto(self.graph)
 
     def to_function_proto(self) -> onnx.FunctionProto:
