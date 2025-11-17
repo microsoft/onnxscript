@@ -209,12 +209,17 @@ def _param_schemas_from_op_schema(
     return tuple(schemas)
 
 
+def _typeinfo(var: ir.Value) -> Any:
+    return var.meta.get("typeinfo")
+
+
 def _param_schema_from_function_ir_input(input: irbuilder.IRVar):
-    if type_annotation.is_optional(input.typeinfo):
+    typeinfo = _typeinfo(input)
+    if type_annotation.is_optional(typeinfo):
         required = False
     else:
         required = True
-    return ParamSchema(name=input.name, type=input.typeinfo, is_input=True, required=required)
+    return ParamSchema(name=input.name, type=typeinfo, is_input=True, required=required)
 
 
 def _param_schema_from_function_ir_attr(attr: irbuilder.IRAttributeParameter):
@@ -241,10 +246,10 @@ def _param_schemas_from_function_ir(
     # ONNX OpSchema and FunctionProto does not support interleaving inputs and attributes.
     # This is by design. See more at https://github.com/microsoft/onnxscript/issues/771.
     for arg in function_ir.ordered_inputs_and_attrs:
-        if isinstance(arg, irbuilder.IRVar):
+        if isinstance(arg, ir.Value):
             # input
             schemas.append(_param_schema_from_function_ir_input(arg))
-        elif isinstance(arg, irbuilder.IRAttributeParameter):
+        elif isinstance(arg, ir.Attr):
             # attr
             schemas.append(_param_schema_from_function_ir_attr(arg))
         else:
@@ -393,8 +398,8 @@ def _op_schema_from_function_ir(
     """Construct an ONNX OpSchema from an IRFunction."""
 
     # Find all distinct types in the inputs and outputs
-    distinct_types = {arg.typeinfo for arg in function_ir.inputs}.union(
-        {arg.typeinfo for arg in function_ir.outputs}
+    distinct_types = {_typeinfo(arg) for arg in function_ir.inputs}.union(
+        {_typeinfo(arg) for arg in function_ir.outputs}
     )
     # Create a mapping from type to a unique name
     type_to_constraint = {}
@@ -408,10 +413,10 @@ def _op_schema_from_function_ir(
     formal_inputs = [
         onnx.defs.OpSchema.FormalParameter(
             arg.name,
-            type_to_constraint[arg.typeinfo].name,
+            type_to_constraint[_typeinfo(arg)].name,
             param_option=(
                 onnx.defs.OpSchema.FormalParameterOption.Optional
-                if type_annotation.is_optional(arg.typeinfo)
+                if type_annotation.is_optional(_typeinfo(arg))
                 else onnx.defs.OpSchema.FormalParameterOption.Single
             ),
             # TODO(justinchu): Check this is_homogeneous thing
@@ -422,10 +427,10 @@ def _op_schema_from_function_ir(
     formal_outputs = [
         onnx.defs.OpSchema.FormalParameter(
             arg.name,
-            type_to_constraint[arg.typeinfo].name,
+            type_to_constraint[_typeinfo(arg)].name,
             param_option=(
                 onnx.defs.OpSchema.FormalParameterOption.Optional
-                if type_annotation.is_optional(arg.typeinfo)
+                if type_annotation.is_optional(_typeinfo(arg))
                 else onnx.defs.OpSchema.FormalParameterOption.Single
             ),
             # TODO(justinchu): Check this is_homogeneous thing

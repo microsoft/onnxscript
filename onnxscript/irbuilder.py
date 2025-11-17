@@ -5,14 +5,15 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import Any, Optional, Protocol, Sequence, Union
+from typing import Any, Optional, Sequence, Union
 
 import onnx
 import onnx_ir as ir
-from onnx import ValueInfoProto, helper
+from onnx import helper
 from onnx.defs import onnx_opset_version
 
 import onnxscript
+import onnxscript.type_annotation
 from onnxscript import type_annotation as ta
 from onnxscript import values
 from onnxscript.onnx_types import ONNXType
@@ -55,66 +56,7 @@ class IRTensorType(IRType):
         return f"IRTensorType({self.onnx_type.tensor_type.elem_type})"
 
 
-class IRTypeLike(Protocol):
-    def to_type_proto(self) -> onnx.TypeProto:
-        """Converts IR type representation to onnx.TypeProto"""
-
-
-class IRVar:
-    """A variable (representing a formal parameter)."""
-
-    def __init__(self, varname: str, typeinfo: IRTypeLike, sourceinfo: SourceInfo) -> None:
-        if not isinstance(varname, str):
-            raise TypeError(f"varname must be a string not {type(varname)!r}.")
-        self.name = varname
-        self.info = sourceinfo
-        self.typeinfo = typeinfo
-        if typeinfo is None:
-            self.value = ir.Value(name=varname)
-        else:
-            try:
-                type_and_shape = ir.from_proto(typeinfo.to_type_proto())
-                self.value = ir.Value(
-                    name=varname, type=type_and_shape.type, shape=type_and_shape.shape
-                )
-            except AttributeError:
-                self.value = ir.Value(name=varname)
-
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.name!r}, {self.typeinfo!r})"
-
-    def typed_str(self):
-        return f"{self.name} : {self.typeinfo}"
-
-    def to_value_info(self, use_default_type: bool = True):
-        """Converts the content of this class into :class:`onnx.ValueInfoProto`.
-
-        Args:
-            use_default_type: if True, use a default type if an explicit type
-                is not known. Otherwise, returns a ValueInfoProto without type.
-
-        Returns:
-            an instance of :class:`onnx.ValueInfoProto`
-        """
-        if self.name is None:
-            raise ValueError(self.info.msg("name cannot be None."))
-        value_info_proto = ValueInfoProto()
-        value_info_proto.name = self.name
-        if self.typeinfo is not None:
-            value_info_proto.type.CopyFrom(self.typeinfo.to_type_proto())
-        elif use_default_type:
-            value_info_proto.type.CopyFrom(IRType().to_type_proto())
-        return value_info_proto
-
-
-def _opt_var_to_str(x):
-    return "" if x is None else str(x)
-
-
-IRAttributeParameter = ir.Attr
+TypeAnnotationValue = onnxscript.type_annotation.TypeAnnotationValue
 
 
 class IRFunction:
@@ -123,12 +65,15 @@ class IRFunction:
     def __init__(self, name: str, domain: str = "") -> None:
         graph = ir.Graph(inputs=[], outputs=[], nodes=[], name=name)
         self.ir_function = ir.Function(domain, name, graph=graph, attributes=[])
-        self.outputs: list[IRVar] = []
+        self.ordered_inputs_and_attrs: list[Union[ir.Value, ir.Attr]] = []
 
         # a dictionary of nested function-definitions
         self.nested_functions: dict[str, IRFunction] = {}
         self.outer_scope_variables: dict[Any, Any] = {}
-        self.ordered_inputs_and_attrs: list[Union[IRVar, IRAttributeParameter]] = []
+
+    @property
+    def outputs(self) -> Sequence[ir.Value]:
+        return self.ir_function.outputs
 
     @property
     def domain(self) -> str:
@@ -151,16 +96,14 @@ class IRFunction:
         return [v.name for n in self.ir_function for v in n.outputs]
 
     @property
-    def inputs(self) -> Sequence[IRVar]:
-        return [var for var in self.ordered_inputs_and_attrs if isinstance(var, IRVar)]
+    def inputs(self) -> Sequence[ir.Value]:
+        return (
+            self.ir_function.inputs
+        )  # [var for var in self.ordered_inputs_and_attrs if isinstance(var, IRVar)]
 
     @property
-    def attrs(self) -> Sequence[IRAttributeParameter]:
-        return [
-            attr
-            for attr in self.ordered_inputs_and_attrs
-            if isinstance(attr, IRAttributeParameter)
-        ]
+    def attrs(self) -> Sequence[ir.Attr]:
+        return [attr for attr in self.ordered_inputs_and_attrs if isinstance(attr, ir.Attr)]
 
     def __str__(self):
         return str(self.ir_function)
@@ -183,15 +126,14 @@ class IRFunction:
                     stacklevel=2,
                 )
 
-    def append_input(self, var: IRVar) -> None:
+    def append_input(self, var: ir.Value) -> None:
         self.ordered_inputs_and_attrs.append(var)
-        self.ir_function.inputs.append(var.value)
+        self.ir_function.inputs.append(var)
 
-    def append_output(self, var: IRVar) -> None:
-        self.outputs.append(var)
-        self.ir_function.outputs.append(var.value)
+    def append_output(self, var: ir.Value) -> None:
+        self.ir_function.outputs.append(var)
 
-    def add_attr_parameter(self, attr: IRAttributeParameter) -> None:
+    def add_attr_parameter(self, attr: ir.Attr) -> None:
         self.ordered_inputs_and_attrs.append(attr)
         self.ir_function.attributes.add(attr)
 
@@ -334,6 +276,24 @@ class IRFunction:
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
 
+def _make_value(
+    varname: str, typeinfo: TypeAnnotationValue, sourceinfo: SourceInfo
+) -> ir.Value:
+    if typeinfo is None:
+        value = ir.Value(name=varname)
+    else:
+        try:
+            type_and_shape = ir.from_proto(typeinfo.to_type_proto())
+            value = ir.Value(
+                name=varname, type=type_and_shape.type, shape=type_and_shape.shape
+            )
+        except AttributeError:
+            value = ir.Value(name=varname)
+    value.meta.setdefault("sourceinfo", sourceinfo)
+    value.meta.setdefault("typeinfo", typeinfo)
+    return value
+
+
 class IRBuilder:
     def __init__(self):
         self.functions = {}
@@ -356,7 +316,6 @@ class IRBuilder:
         callee: values.Op,
         inputs: Sequence[Optional[ir.Value]],
         attrs: Sequence[ir.Attr],
-        sub_functions=None,
     ) -> Sequence[ir.Value]:
         output_values = [ir.Value(name=o) for o in results]
         attributes = attrs  # [ir.from_proto(a.attr_proto) for a in attrs]
@@ -375,10 +334,9 @@ class IRBuilder:
         return output_values
 
     def add_input(
-        self, fn: IRFunction, varname: str, type: IRTypeLike, info: SourceInfo
+        self, fn: IRFunction, varname: str, type: TypeAnnotationValue, info: SourceInfo
     ) -> None:
-        var = IRVar(varname, type, info)
-        fn.append_input(var)
+        fn.append_input(_make_value(varname, type, info))
 
     def add_attr_parameter(
         self,
@@ -391,8 +349,7 @@ class IRBuilder:
         fn.add_attr_parameter(attr)
 
     def add_output(self, fn: IRFunction, varname: str, typeinfo, sourceinfo) -> None:
-        var = IRVar(varname, typeinfo, sourceinfo)
-        fn.append_output(var)
+        fn.append_output(_make_value(varname, typeinfo, sourceinfo))
 
     def make_attr(self, attrproto: onnx.AttributeProto) -> ir.Attr:
         return ir.from_proto(attrproto)
