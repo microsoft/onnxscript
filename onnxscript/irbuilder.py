@@ -14,7 +14,6 @@ from onnx.defs import onnx_opset_version
 
 import onnxscript
 import onnxscript.type_annotation
-from onnxscript import type_annotation as ta
 from onnxscript import values
 from onnxscript.onnx_types import ONNXType
 from onnxscript.sourceinfo import SourceInfo
@@ -335,5 +334,5 @@ class IRBuilder:
         return ir.from_proto(attrproto)
 
     def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> ir.Attr:
-        attr_type = ir.AttributeType(ta.pytype_to_attrtype(pytype))
+        attr_type = ir.AttributeType(onnxscript.type_annotation.pytype_to_attrtype(pytype))
         return ir.Attr(attrname, attr_type, None, refname)

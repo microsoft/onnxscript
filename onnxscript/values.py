@@ -213,7 +213,7 @@ def _typeinfo(var: ir.Value) -> Any:
     return var.meta.get("typeinfo")
 
 
-def _param_schema_from_function_ir_input(input: irbuilder.IRVar):
+def _param_schema_from_function_ir_input(input: ir.Value):
     typeinfo = _typeinfo(input)
     if type_annotation.is_optional(typeinfo):
         required = False
@@ -222,7 +222,7 @@ def _param_schema_from_function_ir_input(input: irbuilder.IRVar):
     return ParamSchema(name=input.name, type=typeinfo, is_input=True, required=required)
 
 
-def _param_schema_from_function_ir_attr(attr: irbuilder.IRAttributeParameter):
+def _param_schema_from_function_ir_attr(attr: ir.Attr):
     return ParamSchema(
         name=attr.name,
         type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
