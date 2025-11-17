@@ -36,26 +36,6 @@ def select_ir_version(version: int, domain: str = "") -> int:
     return helper.OP_SET_ID_VERSION_MAP[domain, version]
 
 
-class IRType:
-    def __init__(self):
-        self.onnx_type = onnx.TypeProto()
-
-    def to_type_proto(self):
-        return self.onnx_type
-
-    def __repr__(self) -> str:
-        return "IRType()"
-
-
-class IRTensorType(IRType):
-    def __init__(self, elem_type: onnx.TensorProto.DataType) -> None:
-        super().__init__()
-        self.onnx_type.tensor_type.elem_type = elem_type
-
-    def __repr__(self) -> str:
-        return f"IRTensorType({self.onnx_type.tensor_type.elem_type})"
-
-
 TypeAnnotationValue = onnxscript.type_annotation.TypeAnnotationValue
 
 
