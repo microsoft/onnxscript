@@ -51,6 +51,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
+_INT32_MAX = 2147483647
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
@@ -3732,7 +3733,7 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op(
-    ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor", "_operator::ge"),
+    ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor"),
     trace_only=True,
 )
 def aten_ge(self: TTensor, other: TTensor) -> BOOL:
@@ -3746,6 +3747,12 @@ def aten_ge(self: TTensor, other: TTensor) -> BOOL:
         #    T,    T,    T
         return op.Or(self, op.Not(other))
 
+    return op.GreaterOrEqual(self, other)
+
+
+@torch_op("_operator::ge", trace_only=True)
+def operator_ge(self: TTensor, other: TTensor) -> BOOL:
+    # operator.ge for SymInt
     return op.GreaterOrEqual(self, other)
 
 
@@ -4058,7 +4065,7 @@ def aten_gru_cell(
 
 
 @torch_op(
-    ("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater.Tensor", "_operator::gt"),
+    ("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater.Tensor"),
     trace_only=True,
 )
 def aten_gt(self: TTensor, other: TTensor) -> BOOL:
@@ -4073,6 +4080,12 @@ def aten_gt(self: TTensor, other: TTensor) -> BOOL:
 
         return op.And(self, op.Not(other))
 
+    return op.Greater(self, other)
+
+
+@torch_op("_operator::gt", trace_only=True)
+def operator_gt(self: TTensor, other: TTensor) -> BOOL:
+    # operator.gt for SymInt
     return op.Greater(self, other)
 
 
@@ -4891,7 +4904,7 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op(
-    ("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"),
+    ("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor"),
     trace_only=True,
 )
 def aten_le(self: TTensor, other: TTensor) -> BOOL:
@@ -4906,6 +4919,12 @@ def aten_le(self: TTensor, other: TTensor) -> BOOL:
 
         return op.Or(other, op.Not(self))
 
+    return op.LessOrEqual(self, other)
+
+
+@torch_op("_operator::le", trace_only=True)
+def operator_le(self: TTensor, other: TTensor) -> BOOL:
+    # operator.le for SymInt
     return op.LessOrEqual(self, other)
 
 
@@ -5384,7 +5403,7 @@ def aten_lstm(
 
 
 @torch_op(
-    ("aten::lt.Tensor", "aten::lt.Scalar", "aten::less.Tensor", "_operator::lt"),
+    ("aten::lt.Tensor", "aten::lt.Scalar", "aten::less.Tensor"),
     trace_only=True,
 )
 def aten_lt(self: TTensor, other: TTensor) -> BOOL:
@@ -5398,6 +5417,12 @@ def aten_lt(self: TTensor, other: TTensor) -> BOOL:
         #    T,    T,    F
         return op.And(other, op.Not(self))
 
+    return op.Less(self, other)
+
+
+@torch_op("_operator::lt", trace_only=True)
+def operator_lt(self: TTensor, other: TTensor) -> BOOL:
+    # operator.lt for SymInt
     return op.Less(self, other)
 
 
@@ -7468,9 +7493,7 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(
-    ("aten::remainder.Tensor", "aten::remainder.Scalar", "_operator::mod"), trace_only=True
-)
+@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"), trace_only=True)
 def aten_remainder(self: TTensor, other: TTensor) -> TTensor:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -7484,6 +7507,12 @@ def aten_remainder(self: TTensor, other: TTensor) -> TTensor:
     rounded_quotient = op.Floor(op.Div(self, other))
 
     return op.Sub(self, op.Mul(rounded_quotient, other))
+
+
+@torch_op("_operator::mod", trace_only=True)
+def operator_mod(self: TTensor, other: TTensor) -> TTensor:
+    # Modulus operator % on SymInt
+    return op.Mod(self, other)
 
 
 def aten_rename(self: TensorType, names: Optional[str]) -> TensorType:
@@ -7510,7 +7539,10 @@ def aten_repeat(self: TTensor, repeats: Sequence[TInt]) -> TTensor:
 
 @torch_op("aten::repeat_interleave.self_int", trace_only=True)
 def aten_repeat_interleave_self_int(
-    self: TensorType, repeats: int, dim: Optional[int] = None
+    self: TensorType,
+    repeats: int,
+    dim: Optional[int] = None,
+    output_size: Optional[int] = None,
 ) -> TensorType:
     """repeat_interleave.self_int(Tensor self, SymInt repeats, int? dim=None, *, SymInt? output_size=None) -> Tensor
 
@@ -8520,6 +8552,103 @@ def aten_std_mean_correction(
     return op.Sqrt(var), mean
 
 
+def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloat:
+    left = op.Div(op.Sub(n_fft, win_length), op.Constant(value_ints=[2]))
+
+    right = op.Sub(op.Sub(n_fft, left), win_length)
+    left = op.Reshape(left, op.Constant(value_ints=[1]))
+    right = op.Reshape(right, op.Constant(value_ints=[1]))
+    win_length = op.Reshape(win_length, op.Constant(value_ints=[1]))
+
+    left_win = op.Expand(op.Constant(value_ints=[0]), left)
+    right_win = op.Expand(op.Constant(value_ints=[0]), right)
+    window_list = op.Expand(op.Constant(value_ints=[1]), win_length)
+    return op.Concat(left_win, window_list, right_win, axis=0)
+
+
+def _create_window_from_n_fft(n_fft: int) -> TFloat:
+    n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
+    window = op.Expand(op.Constant(value_ints=[1]), n_fft_tensor)
+    return window
+
+
+def _normalize_fft_result(signal: TFloat, result: TFloat, n_fft: int) -> TFloat:
+    n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
+    sqrt_nfft = op.Sqrt(op.CastLike(n_fft_tensor, signal))
+    result = op.Div(result, sqrt_nfft)
+    return result
+
+
+@torch_op("aten::stft", trace_only=True)
+def aten_stft(
+    self: TFloat,
+    n_fft: int,
+    hop_length: Optional[int] = None,
+    win_length: Optional[int] = None,
+    window: Optional[TFloat] = None,
+    normalized: bool = False,
+    onesided: Optional[bool] = None,
+    return_complex: Optional[bool] = None,
+) -> TFloat:
+    """stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor"""
+
+    # NOTE: regardless of the value of return_complex, we always return a real representation.
+    del return_complex
+
+    # Get STFT sizes
+    if hop_length is None:
+        # core dump
+        # hop_length = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
+        hop_length = n_fft // 4
+    frame_step_const = op.Reshape(hop_length, op.Constant(value_ints=[1]))
+
+    # Pre-process input if needed
+    is_signal_rank1 = len(self.shape) == 1
+    if is_signal_rank1:
+        # Add a batch dimension
+        self = op.Identity(op.Unsqueeze(self, op.Constant(value_ints=[0])))
+
+    # Get window and make sure it's the same size as `win_length` or `n_fft`
+    if window is not None and window.shape[0] is not None:
+        # first dimension
+        n_win = op.Shape(window, start=0, end=1)
+        # Center window around zeros if needed (required by ONNX's STFT)
+        if n_win < n_fft:
+            left = op.Div(op.Sub(n_fft, n_win), op.Constant(value_ints=[2]))
+
+            right = op.Sub(op.Sub(n_fft, left), n_win)
+            left = op.Reshape(left, op.Constant(value_ints=[1]))
+            right = op.Reshape(right, op.Constant(value_ints=[1]))
+
+            left_win = op.Expand(op.Constant(value_ints=[0]), left)
+            right_win = op.Expand(op.Constant(value_ints=[0]), right)
+            right_win = op.CastLike(right_win, window)
+            left_win = op.CastLike(left_win, window)
+            window = op.Concat(left_win, window, right_win, axis=0)
+    elif window is None:
+        if win_length is not None:
+            window = _create_window_from_win_length(win_length, n_fft)
+        else:
+            window = _create_window_from_n_fft(n_fft)
+
+    if onesided is None or onesided:
+        onesided = 1
+    else:
+        onesided = 0
+    window = op.CastLike(window, self)
+    result = op.STFT(self, frame_step_const, window, n_fft, onesided=onesided)
+    result = op.Transpose(result, perm=[0, 2, 1, 3])
+    # Remove batch dimension, if needed
+    if is_signal_rank1:
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+
+    # Normalize, if needed
+    if normalized:
+        result = _normalize_fft_result(self, result, n_fft)
+
+    return result
+
+
 @torch_op(
     (
         "aten::sub.Tensor",
@@ -9058,15 +9187,57 @@ def aten_unfold_copy(self: TensorType, dimension: int, size: int, step: int) -> 
     raise NotImplementedError()
 
 
+@torch_op("aten::unique_consecutive", trace_only=True)
 def aten_unique_consecutive(
-    self: TensorType,
+    x: TensorType,
     return_inverse: bool = False,
     return_counts: bool = False,
     dim: Optional[int] = None,
 ) -> tuple[TensorType, TensorType, TensorType]:
     """unique_consecutive(Tensor self, bool return_inverse=False, bool return_counts=False, int? dim=None) -> (Tensor, Tensor, Tensor)"""
+    assert x.dtype in {INT64.dtype, INT32.dtype}, (
+        "unique_consecutive not implemented for other type than int32, int64"
+    )
+    rank_x = len(x.shape)
 
-    raise NotImplementedError()
+    zero = op.Constant(value=ir.tensor([0], dtype=x.dtype))
+    zero64 = op.Constant(value=ir.tensor([0], dtype=INT64.dtype))
+    minus_one = op.Constant(value=ir.tensor([-1], dtype=INT64.dtype))
+
+    if dim is None:
+        if rank_x != 1:
+            x = op.Reshape(x, minus_one)
+    else:
+        assert rank_x == 1 and dim == 0, (
+            f"Not implemented for x={x!r} with rank={rank_x} and dim={dim}."
+        )
+
+    lag = op.Concat(
+        # Hopefully this will never be equal to the first value of the tensor x
+        # ideally we could do differently but with a higher cost
+        op.Constant(value=ir.tensor([_INT32_MAX], dtype=x.dtype)),
+        op.Slice(x, zero64, minus_one, zero64),
+        axis=0,
+    )
+    eq = op.Equal(x, lag)
+    diff = op.Not(eq)
+    res = op.Compress(x, diff, axis=0)
+
+    zero_no_dim = op.Constant(value=ir.tensor(0, dtype=x.dtype))
+    one_no_dim = op.Constant(value=ir.tensor(1, dtype=x.dtype))
+    one = op.Constant(value=ir.tensor([1], dtype=x.dtype))
+
+    inverse = op.Sub(op.CumSum(op.Cast(diff, to=x.dtype), zero), one)
+    shape_x = op.Shape(x)
+    indices = op.Range(zero_no_dim, op.Squeeze(shape_x), one_no_dim)
+    points = op.Compress(indices, diff, axis=0)
+    lagp = op.Concat(
+        op.Slice(points, one, op.Shape(points), zero),
+        shape_x,
+        axis=0,
+    )
+    counts = op.Sub(lagp, points)
+    return res, inverse, counts
 
 
 @torch_op("aten::_unique", trace_only=True)
