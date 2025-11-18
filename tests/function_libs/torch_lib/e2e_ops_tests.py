@@ -1,10 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-
-# TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
+from __future__ import annotations
 
 import unittest
 
+# TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
 import torch
 from torch.onnx._internal.exporter import _testing
 
@@ -520,6 +520,62 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_my_index_put(self):
+        def test(x_shape, index_list, update_shape, testname):
+            with self.subTest(testname=testname):
+                indices = [
+                    (torch.tensor(index, dtype=torch.int64) if index is not None else None)
+                    for index in index_list
+                ]
 
-if __name__ == "__main__":
-    unittest.main()
+                class Model(torch.nn.Module):
+                    def forward(self, x, update):
+                        return torch.ops.aten.index_put(x, indices, update, accumulate=True)
+
+                x = torch.zeros(x_shape, dtype=torch.float32)
+                update = torch.randn(update_shape, dtype=torch.float32)
+                onnx_program = torch.onnx.export(
+                    Model(),
+                    (x, update),
+                    input_names=["x", "update"],
+                    output_names=["output"],
+                    opset_version=18,
+                    dynamo=True,
+                )
+                _testing.assert_onnx_program(onnx_program)
+
+        # Test cases
+        shape_6x6x6 = (6, 6, 6)
+
+        # Multiple advanced indices, all 1D tensors.
+        # Non-contiguous advanced indices: updates must be broadcastable to (2, 6)
+        base = "non_contiguous_non_broadcast_indices_"
+        test(shape_6x6x6, [[0, 1], None, [2, 3]], (2, 6), base + "no_value_broadcast")
+        test(shape_6x6x6, [[0, 1], None, [2, 3]], (2, 1), base + "expand_dim2")
+        test(shape_6x6x6, [[0, 1], None, [2, 3]], (1, 6), base + "expand_dim1")
+        test(shape_6x6x6, [[0, 1], None, [2, 3]], (6,), base + "new_dim1")
+        test(shape_6x6x6, [[0, 1], None, [2, 3]], (), base + "scalar")
+
+        # Contiguous advanced indices versions of above tests: updates must be broadcastable to (6, 2)
+        base = "contiguous_non_broadcast_indices_"
+        test(shape_6x6x6, [None, [0, 1], [2, 3]], (6, 2), base + "no_value_broadcast")
+        test(shape_6x6x6, [None, [0, 1], [2, 3]], (6, 1), base + "expand_dim2")
+        test(shape_6x6x6, [None, [0, 1], [2, 3]], (1, 2), base + "expand_dim1")
+        test(shape_6x6x6, [None, [0, 1], [2, 3]], (2,), base + "new_dim1")
+        test(shape_6x6x6, [None, [0, 1], [2, 3]], (), base + "scalar")
+
+        # Multiple advanced indices, with broadcasting among indices.
+        # Contiguous advanced indices:
+        # This produces index tuples [(0,2), (0, 3), (1,2), (1,3)] in shape (2,2)
+        # The update values must be broadcastable to (6,2,2)
+        base = "contiguous_broadcast_indices_"
+        test(shape_6x6x6, [None, [[0], [1]], [2, 3]], (6, 2, 2), base + "no_value_broadcast")
+        test(shape_6x6x6, [None, [[0], [1]], [2, 3]], (6, 1, 1), base + "expand_dim2_dim3")
+        test(shape_6x6x6, [None, [[0], [1]], [2, 3]], (2,), base + "extend_dim1_dim2")
+
+        # Non-contiguous advanced indices versions of above tests:
+        # Here, update values must be broadcastable to (2,2,6)
+        base = "non_contiguous_broadcast_indices_"
+        test(shape_6x6x6, [[[0], [1]], None, [2, 3]], (2, 2, 6), base + "no_value_broadcast")
+        test(shape_6x6x6, [[[0], [1]], None, [2, 3]], (1, 1, 6), base + "expand_dim1_dim2")
+        test(shape_6x6x6, [[[0], [1]], None, [2, 3]], (6,), base + "extend_dim1_dim2")
