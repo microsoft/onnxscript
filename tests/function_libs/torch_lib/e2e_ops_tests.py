@@ -520,9 +520,9 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-    def test_my_index_put(self):
+    def test_index_put(self):
         def test(x_shape, index_list, update_shape, testname):
-            with self.subTest(testname="my_index_put_" + testname):
+            with self.subTest(testname="index_put_" + testname):
                 indices = [
                     (torch.tensor(index, dtype=torch.int64) if index is not None else None)
                     for index in index_list
