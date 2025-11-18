@@ -4437,16 +4437,16 @@ def aten_index_put(
     if len(indices) < self_rank:
         indices = list(indices) + [None] * (self_rank - len(indices))
 
-    # Identify advanced indices.    
+    # Identify advanced indices.
     def is_advanced_index(index):
         return index is not None and len(index.shape) > 0
-    
+
     def is_scalar_index(index):
         return index is not None and len(index.shape) == 0
 
-    scalar_indices : list[int] = []
-    advanced_indices : list[int] = []
-    none_indices : list[int] = []
+    scalar_indices: list[int] = []
+    advanced_indices: list[int] = []
+    none_indices: list[int] = []
     num_advanced_indices = 0
     num_scalar_indices = 0
     num_none_indices = 0
@@ -4470,15 +4470,17 @@ def aten_index_put(
     self_shape = op.Shape(self)
     if num_advanced_indices == 0:
         return op.Expand(values, self_shape)
-    
+
     # More than one advanced index may require broadcasting of index values
     if num_advanced_indices > 1:
         # Check for special case where all advanced indices have same shape.
         # But need to ensure none of the shapes have None as a dimension, which
         # will invalidate equality-based check.
         first_shape = indices[advanced_indices[0]].shape
+
         def same_shape(other_shape: ir.Shape) -> bool:
             return (not any(d is None for d in other_shape)) and other_shape == first_shape
+
         all_same_shape = all(same_shape(indices[i].shape) for i in advanced_indices)
         if not all_same_shape:
             # Broadcast advanced indices to a common shape.
@@ -4489,11 +4491,16 @@ def aten_index_put(
                 index_rank = len(index.shape)
                 index_shape = op.Shape(index)
                 if index_rank < advanced_index_rank:
-                    padding = op.Constant(value_ints=[1 for _ in range(advanced_index_rank - index_rank)])
+                    padding = op.Constant(
+                        value_ints=[1 for _ in range(advanced_index_rank - index_rank)]
+                    )
                     index_shape = op.Concat(padding, index_shape, axis=0)
                 shapes.append(index_shape)
             advanced_indices_shape = op.Max(*shapes)
-            indices = [op.Expand(index, advanced_indices_shape) if is_advanced_index(index) else index for index in indices]
+            indices = [
+                op.Expand(index, advanced_indices_shape) if is_advanced_index(index) else index
+                for index in indices
+            ]
         else:
             advanced_indices_shape = op.Shape(indices[advanced_indices[0]])
             advanced_index_rank = len(indices[advanced_indices[0]].shape)
@@ -4513,13 +4520,10 @@ def aten_index_put(
     onnx_index = op.Concat(*advanced_index_values, axis=-1)
 
     # Check if advanced indices are contiguous:
-    non_contiguous = False
+    contiguous = True
     if advanced_indices:
         if advanced_indices[-1] - advanced_indices[0] + 1 != len(advanced_indices):
-            non_contiguous = True
-
-    if non_contiguous:
-        raise NotImplementedError("Non-contiguous advanced indices not yet supported in aten_index_put.")
+            contiguous = False
 
     # Bring advanced indices to front:
     perm = advanced_indices + none_indices
@@ -4527,26 +4531,39 @@ def aten_index_put(
 
     # Expand values to match target shape:
     # First, transpose values if necessary to match advanced indices order!
-    num_padded_dims = target_rank - len(values.shape)
-    if num_padded_dims > 0:
-        unsqueezed_dims = op.Constant(value_ints=list(range(num_padded_dims)))
-        values = op.Unsqueeze(values, unsqueezed_dims)
-    initial_none_index_positions = list(range(0, advanced_indices[0]))
-    advanced_index_replacement_positions = list(range(advanced_indices[0], advanced_indices[0] + advanced_index_rank))
-    final_none_index_positions = list(range(advanced_indices[0] + advanced_index_rank, target_rank))
-    values_perm =  advanced_index_replacement_positions + initial_none_index_positions + final_none_index_positions
-    transposed_values = op.Transpose(values, perm=values_perm)
-    expanded_values = op.Expand(transposed_values, target_shape)
+    if contiguous:
+        # values may need to be transposed before expanding to target shape
+        num_padded_dims = target_rank - len(values.shape)
+        if num_padded_dims > 0:
+            unsqueezed_dims = op.Constant(value_ints=list(range(num_padded_dims)))
+            values = op.Unsqueeze(values, unsqueezed_dims)
+        initial_none_index_positions = list(range(advanced_indices[0]))
+        advanced_index_replacement_positions = list(
+            range(advanced_indices[0], advanced_indices[0] + advanced_index_rank)
+        )
+        final_none_index_positions = list(
+            range(advanced_indices[0] + advanced_index_rank, target_rank)
+        )
+        values_perm = (
+            advanced_index_replacement_positions
+            + initial_none_index_positions
+            + final_none_index_positions
+        )
+        values = op.Transpose(values, perm=values_perm)
 
-    updated = op.ScatterND(transposed, onnx_index, expanded_values, reduction="add" if accumulate else None)
+    expanded_values = op.Expand(values, target_shape)
+
+    updated = op.ScatterND(
+        transposed, onnx_index, expanded_values, reduction="add" if accumulate else None
+    )
 
     # Inverse transpose to restore original dimension order:
+
     inverse_perm = [0] * self_rank
     for i, p in enumerate(perm):
         inverse_perm[p] = i
     result = op.Transpose(updated, perm=inverse_perm)
     return result
-    
 
     # def _make_reshape_list_broadcastable(reshape_list, values_shape):
     #     # Remove ones until the rank of reshape_list matches values_shape.
