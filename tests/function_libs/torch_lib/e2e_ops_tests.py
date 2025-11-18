@@ -522,7 +522,7 @@ class TorchLibe2eTest(unittest.TestCase):
 
     def test_my_index_put(self):
         def test(x_shape, index_list, update_shape, testname):
-            with self.subTest(testname=testname):
+            with self.subTest(testname="my_index_put_" + testname):
                 indices = [
                     (torch.tensor(index, dtype=torch.int64) if index is not None else None)
                     for index in index_list
@@ -534,6 +534,7 @@ class TorchLibe2eTest(unittest.TestCase):
 
                 x = torch.zeros(x_shape, dtype=torch.float32)
                 update = torch.randn(update_shape, dtype=torch.float32)
+
                 onnx_program = torch.onnx.export(
                     Model(),
                     (x, update),
@@ -546,6 +547,7 @@ class TorchLibe2eTest(unittest.TestCase):
 
         # Test cases
         shape_6x6x6 = (6, 6, 6)
+        shape_4x4x4x4 = (4, 4, 4, 4)
 
         # Multiple advanced indices, all 1D tensors.
         # Non-contiguous advanced indices: updates must be broadcastable to (2, 6)
@@ -579,3 +581,18 @@ class TorchLibe2eTest(unittest.TestCase):
         test(shape_6x6x6, [[[0], [1]], None, [2, 3]], (2, 2, 6), base + "no_value_broadcast")
         test(shape_6x6x6, [[[0], [1]], None, [2, 3]], (1, 1, 6), base + "expand_dim1_dim2")
         test(shape_6x6x6, [[[0], [1]], None, [2, 3]], (6,), base + "extend_dim1_dim2")
+
+        test(
+            shape_4x4x4x4, [None, [0, 1], None, [2, 3]], (2, 4, 4), "non_contiguous_non_first"
+        )
+        test(shape_6x6x6, [0, None, None], (6, 6), "single_scalar_index")
+        test(
+            shape_6x6x6, [0, None, [0, 1]], (2, 6), "non_contiguous_scalar_index_and_1d_index"
+        )
+        test(shape_6x6x6, [None, 0, [0, 1]], (6, 2), "contiguous_scalar_index_and_1d_index")
+        # (TODO): Exporter doesn't yet support all None indices
+        # test(shape_6x6x6, [None, None, None], shape_6x6x6, "all_none_indices")
+
+
+if __name__ == "__main__":
+    unittest.main()

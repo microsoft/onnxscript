@@ -4442,34 +4442,23 @@ def aten_index_put(
 
     # Identify advanced indices.
     def is_advanced_index(index):
-        return index is not None and len(index.shape) > 0
+        # Note: In this function, the index is assumed to be either None or an int64 Tensor.
+        return index is not None
 
-    def is_scalar_index(index):
-        return index is not None and len(index.shape) == 0
-
-    scalar_indices: list[int] = []
     advanced_indices: list[int] = []
     none_indices: list[int] = []
     num_advanced_indices = 0
-    num_scalar_indices = 0
     num_none_indices = 0
 
     for i, index in enumerate(indices):
         if is_advanced_index(index):
             advanced_indices.append(i)
             num_advanced_indices += 1
-        elif is_scalar_index(index):
-            scalar_indices.append(i)
-            num_scalar_indices += 1
         elif index is None:
             none_indices.append(i)
             num_none_indices += 1
         else:
             raise ValueError(f"Unhandled index at position {i}: {index}")
-
-    if num_scalar_indices > 0:
-        # TODO: handle scalar indices
-        raise NotImplementedError("Scalar indices not yet supported in aten_index_put.")
 
     self_shape = op.Shape(self)
     if num_advanced_indices == 0:
