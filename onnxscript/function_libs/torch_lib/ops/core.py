@@ -8753,6 +8753,14 @@ def aten_sym_size(self: TensorType, dim: int = 0) -> INT64:
     return op.Squeeze(op.Shape(self, end=dim + 1, start=dim))
 
 
+@torch_op("aten::sym_storage_offset", trace_only=True)
+def aten_sym_storage_offset(self: TensorType, dim: int = 0) -> INT64:
+    """sym_storage_offset(Tensor self, int dim) -> SymInt"""
+    # storage offset is not used in onnx world.
+    # the output of this function is not used.
+    return op.Constant(value_int=0)
+
+
 def aten_symeig(
     self: TensorType, eigenvectors: bool = False, upper: bool = True
 ) -> tuple[TensorType, TensorType]:
