@@ -299,7 +299,7 @@ class Converter:
         proto = autocast.pyvalue_to_onnx_attribute(
             attrname, attrval, tensor_name_generator, attrtype
         )
-        return self.ir_builder.make_attr(proto)
+        return ir.from_proto(proto)
 
     def _to_onnx_attr_ref(
         self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
@@ -318,7 +318,8 @@ class Converter:
         else:
             msg = f"Unsupported attribute type {pytype!r}."
             fail(info.msg(msg) if info else msg)
-        return self.ir_builder.make_attr_ref(attrname, val.value, pytype)
+        attr_type = ir.AttributeType(ta.pytype_to_attrtype(pytype))
+        return ir.Attr(attrname, attr_type, None, val.value)
 
     def _to_onnx_var(
         self,
@@ -492,7 +493,8 @@ class Converter:
         if isinstance(expr, ast.Name):
             val = self._lookup(expr.id, self._source_of(expr))
             if isinstance(val, values.AttrRef):
-                attr_ref = self.ir_builder.make_attr_ref(attr_name, val.value, val.typeinfo)
+                attr_type = ir.AttributeType(ta.pytype_to_attrtype(val.typeinfo))
+                attr_ref = ir.Attr(attr_name, attr_type, None, val.value)
                 if attr_meta is not None and (attr_ref.type != attr_meta.type):
                     self.fail(
                         expr,

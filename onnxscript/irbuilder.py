@@ -197,10 +197,3 @@ class IRBuilder:
 
     def add_output(self, fn: IRFunction, varname: str, typeinfo, sourceinfo) -> None:
         fn.append_output(_make_value(varname, typeinfo, sourceinfo))
-
-    def make_attr(self, attrproto: onnx.AttributeProto) -> ir.Attr:
-        return ir.from_proto(attrproto)
-
-    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> ir.Attr:
-        attr_type = ir.AttributeType(onnxscript.type_annotation.pytype_to_attrtype(pytype))
-        return ir.Attr(attrname, attr_type, None, refname)
