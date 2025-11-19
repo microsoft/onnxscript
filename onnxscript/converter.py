@@ -464,6 +464,16 @@ class Converter:
                 )
             ) from e
 
+    def _get_type_annotation(self, annotation: ast.Expr) -> Optional[ta.TypeAnnotationValue]:
+        typeinfo = self._eval_constant_expr(annotation)
+        if not ta.is_valid_type(typeinfo):
+            self.warn(
+                annotation,
+                "Unsupported type annotation.",
+            )
+            typeinfo = None
+        return typeinfo
+
     def _translate_attr(
         self,
         attr_name: str,
@@ -985,9 +995,11 @@ class Converter:
                 lhs = lhs.id
                 t = self._translate_expr(rhs, lhs)
                 if isinstance(stmt, ast.AnnAssign):
-                    typeinfo = self._eval_constant_expr(stmt.annotation)
+                    typeinfo = self._get_type_annotation(stmt.annotation)
                 else:
                     typeinfo = None
+                if typeinfo is not None:
+                    irbuilder.set_type_info(t, typeinfo)
                 var = values.Dynamic(t, values.DynamicKind.Intermediate, info, typeinfo)
                 self._bind(lhs, var)
             elif isinstance(lhs, ast.Tuple):
@@ -1400,13 +1412,7 @@ class Converter:
             else:
                 default_value = None
             if x.annotation:
-                typeinfo = self._eval_constant_expr(x.annotation)
-                if not ta.is_valid_type(typeinfo):
-                    self.warn(
-                        x.annotation,
-                        f"Unsupported type annotation for argument {x.arg}.",
-                    )
-                    typeinfo = None
+                typeinfo = self._get_type_annotation(x.annotation)
             else:
                 # The code can only be exported as a function.
                 typeinfo = None

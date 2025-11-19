@@ -740,6 +740,37 @@ class TestConverter(testutils.TestBase):
         model_false = make_model(False)
         onnxscript.testing.assert_isomorphic(model_false, sub_model.to_model_proto())
 
+    def test_type_annotation(self):
+        """Test that type annotations are processed correctly."""
+
+        @script()
+        def model(x: FLOAT[10]) -> FLOAT[10]:
+            temp: FLOAT[10] = op.Add(x, x)
+            y = op.Mul(temp, temp)
+            return y
+
+        model_proto = model.to_model_proto()
+        input_type = model_proto.graph.input[0].type.tensor_type
+        output_type = model_proto.graph.output[0].type.tensor_type
+        temp_value_info = None
+        for value_info in model_proto.graph.value_info:
+            if value_info.name == "temp":
+                temp_value_info = value_info
+                break
+        self.assertIsNotNone(temp_value_info, "ValueInfo for 'temp' not found in graph.")
+        temp_type = temp_value_info.type.tensor_type
+        self.assertEqual(temp_type.elem_type, onnx.TensorProto.FLOAT)
+        self.assertEqual(len(temp_type.shape.dim), 1)
+        self.assertEqual(temp_type.shape.dim[0].dim_value, 10)
+
+        self.assertEqual(input_type.elem_type, onnx.TensorProto.FLOAT)
+        self.assertEqual(len(input_type.shape.dim), 1)
+        self.assertEqual(input_type.shape.dim[0].dim_value, 10)
+
+        self.assertEqual(output_type.elem_type, onnx.TensorProto.FLOAT)
+        self.assertEqual(len(output_type.shape.dim), 1)
+        self.assertEqual(output_type.shape.dim[0].dim_value, 10)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

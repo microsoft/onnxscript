@@ -121,21 +121,24 @@ class IRFunction(ir.Function):
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
 
+def set_type_info(value: ir.Value, typeinfo: TypeAnnotationValue) -> None:
+    """Sets the type information on an IR value."""
+    try:
+        type_and_shape = ir.from_proto(typeinfo.to_type_proto())
+        value.type = type_and_shape.type
+        value.shape = type_and_shape.shape
+    except AttributeError:
+        pass
+    value.meta["typeinfo"] = typeinfo
+
+
 def _make_value(
     varname: str, typeinfo: TypeAnnotationValue, sourceinfo: SourceInfo
 ) -> ir.Value:
-    if typeinfo is None:
-        value = ir.Value(name=varname)
-    else:
-        try:
-            type_and_shape = ir.from_proto(typeinfo.to_type_proto())
-            value = ir.Value(
-                name=varname, type=type_and_shape.type, shape=type_and_shape.shape
-            )
-        except AttributeError:
-            value = ir.Value(name=varname)
+    value = ir.Value(name=varname)
     value.meta.setdefault("sourceinfo", sourceinfo)
-    value.meta.setdefault("typeinfo", typeinfo)
+    if typeinfo is not None:
+        set_type_info(value, typeinfo)
     return value
 
 
