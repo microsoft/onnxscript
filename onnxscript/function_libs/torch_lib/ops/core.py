@@ -56,6 +56,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
+_INT32_MAX = 2147483647
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
@@ -3437,17 +3438,58 @@ def aten_eye(n: int) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::fake_quantize_per_channel_affine", trace_only=True)
 def aten_fake_quantize_per_channel_affine(
-    self: TensorType,
-    scale: TensorType,
-    zero_point: TensorType,
+    self: TFloat,
+    scale: FLOAT,  # float32 specifically!
+    zero_point: Union[INT32, FLOAT, FLOAT16],  # int32, float32 or float16 only!
     axis: int,
     quant_min: int,
     quant_max: int,
 ) -> TensorType:
     """fake_quantize_per_channel_affine(Tensor self, Tensor scale, Tensor zero_point, int axis, int quant_min, int quant_max) -> Tensor"""
 
-    raise NotImplementedError()
+    # NOTE: (0, 127) is allowed as special case. PyTorch restricts activations to be in the range (0, 127).
+    #   https://github.com/pytorch/pytorch/blob/b34b192d6b97325c9f78e5995c48c8498ede34bd/torch/ao/quantization/observer.py#L1422
+    if (quant_min, quant_max) not in [(0, 255), (-128, 127), (0, 127)]:
+        raise NotImplementedError(
+            "For (quant_min, quant_max), ONNX allows only "
+            "(0, 127), (0, 255) and (-128, 127). "
+            f"Got ({quant_min}, {quant_max})",
+        )
+
+    if quant_min == 0:
+        int_dtype = ir.DataType.UINT8
+    else:
+        int_dtype = ir.DataType.INT8
+
+    # TODO: When opset >= 19, remove this cast
+    orig_dtype = self.type.dtype
+    if self.type.dtype not in {ir.DataType.FLOAT, ir.DataType.INT32}:
+        self = op.Cast(self, to=ir.DataType.FLOAT)
+
+    if zero_point.type.dtype == ir.DataType.INT32:
+        zero_point = op.Cast(zero_point, to=int_dtype)
+    else:
+        raise NotImplementedError(
+            "ONNX only supports integer values for the zero_point parameter. "
+            f"Got {zero_point.type.dtype}",
+        )
+
+    quantized = op.QuantizeLinear(self, scale, zero_point, axis=axis)
+
+    # See comment about, PyTorch-specific (0, 127) handling
+    if (quant_min, quant_max) == (0, 127):
+        const_127 = op.Cast(127, to=int_dtype)
+        quantized = op.Clip(quantized, max=const_127)
+
+    output = op.DequantizeLinear(quantized, scale, zero_point, axis=axis)
+
+    # TODO: When opset >= 23, remove this cast and set output_dtype on DequantizeLinear
+    if orig_dtype != ir.DataType.FLOAT:
+        output = op.Cast(output, to=orig_dtype)
+
+    return output
 
 
 def aten_fake_quantize_per_channel_affine_cachemask(
@@ -3471,12 +3513,79 @@ def aten_fake_quantize_per_channel_affine_cachemask_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::fake_quantize_per_tensor_affine", trace_only=True)
 def aten_fake_quantize_per_tensor_affine(
-    self: TensorType, scale: float, zero_point: int, quant_min: int, quant_max: int
-) -> TensorType:
+    self: TFloat,
+    scale: float,
+    zero_point: int,
+    quant_min: int,
+    quant_max: int,
+) -> TFloat:
     """fake_quantize_per_tensor_affine(Tensor self, float scale, int zero_point, int quant_min, int quant_max) -> Tensor"""
 
-    raise NotImplementedError()
+    return _aten_fake_quantize_per_tensor_affine(self, scale, zero_point, quant_min, quant_max)
+
+
+@torch_op("aten::fake_quantize_per_tensor_affine.tensor_qparams", trace_only=True)
+def aten_fake_quantize_per_tensor_affine_tensor_qparams(
+    self: TFloat,
+    scale: TReal,
+    zero_point: TReal,
+    quant_min: int,
+    quant_max: int,
+) -> TFloat:
+    """fake_quantize_per_tensor_affine(Tensor self, Tensor scale, Tensor zero_point, int quant_min, int quant_max) -> Tensor"""
+
+    return _aten_fake_quantize_per_tensor_affine(self, scale, zero_point, quant_min, quant_max)
+
+
+def _aten_fake_quantize_per_tensor_affine(
+    self: TFloat,
+    scale: Union[float, TReal],
+    zero_point: Union[int, TReal],
+    quant_min: int,
+    quant_max: int,
+) -> TFloat:
+    # NOTE: (0, 127) is allowed as special case. PyTorch restricts activations to be in the range (0, 127).
+    #   https://github.com/pytorch/pytorch/blob/b34b192d6b97325c9f78e5995c48c8498ede34bd/torch/ao/quantization/observer.py#L1422
+    if (quant_min, quant_max) not in [(0, 255), (-128, 127), (0, 127)]:
+        raise NotImplementedError(
+            "For (quant_min, quant_max), ONNX allows only "
+            "(0, 127), (0, 255) and (-128, 127). "
+            f"Got ({quant_min}, {quant_max})",
+        )
+
+    if quant_min == 0:
+        int_dtype = ir.DataType.UINT8
+    else:
+        int_dtype = ir.DataType.INT8
+
+    # TODO: When opset >= 19, remove this cast
+    orig_dtype = self.type.dtype
+    if self.type.dtype not in {ir.DataType.FLOAT, ir.DataType.INT32}:
+        self = op.Cast(self, to=ir.DataType.FLOAT)
+
+    # TODO: When opset >= 19, relex the condition for this cast
+    if isinstance(scale, float) or scale.type.dtype != ir.DataType.FLOAT:
+        scale = op.Cast(scale, to=ir.DataType.FLOAT)
+
+    if isinstance(zero_point, int) or zero_point.type.dtype != int_dtype:
+        zero_point = op.Cast(zero_point, to=int_dtype)
+
+    quantized = op.QuantizeLinear(self, scale, zero_point)
+
+    # See comment about, PyTorch-specific (0, 127) handling
+    if (quant_min, quant_max) == (0, 127):
+        const_127 = op.Cast(127, to=int_dtype)
+        quantized = op.Clip(quantized, max=const_127)
+
+    output = op.DequantizeLinear(quantized, scale, zero_point)
+
+    # TODO: When opset >= 23, remove this cast and set output_dtype on DequantizeLinear
+    if orig_dtype != ir.DataType.FLOAT:
+        output = op.Cast(output, to=orig_dtype)
+
+    return output
 
 
 def aten_fake_quantize_per_tensor_affine_cachemask(
@@ -8213,6 +8322,103 @@ def aten_std_mean_correction(
     return op.Sqrt(var), mean
 
 
+def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloat:
+    left = op.Div(op.Sub(n_fft, win_length), op.Constant(value_ints=[2]))
+
+    right = op.Sub(op.Sub(n_fft, left), win_length)
+    left = op.Reshape(left, op.Constant(value_ints=[1]))
+    right = op.Reshape(right, op.Constant(value_ints=[1]))
+    win_length = op.Reshape(win_length, op.Constant(value_ints=[1]))
+
+    left_win = op.Expand(op.Constant(value_ints=[0]), left)
+    right_win = op.Expand(op.Constant(value_ints=[0]), right)
+    window_list = op.Expand(op.Constant(value_ints=[1]), win_length)
+    return op.Concat(left_win, window_list, right_win, axis=0)
+
+
+def _create_window_from_n_fft(n_fft: int) -> TFloat:
+    n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
+    window = op.Expand(op.Constant(value_ints=[1]), n_fft_tensor)
+    return window
+
+
+def _normalize_fft_result(signal: TFloat, result: TFloat, n_fft: int) -> TFloat:
+    n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
+    sqrt_nfft = op.Sqrt(op.CastLike(n_fft_tensor, signal))
+    result = op.Div(result, sqrt_nfft)
+    return result
+
+
+@torch_op("aten::stft", trace_only=True)
+def aten_stft(
+    self: TFloat,
+    n_fft: int,
+    hop_length: Optional[int] = None,
+    win_length: Optional[int] = None,
+    window: Optional[TFloat] = None,
+    normalized: bool = False,
+    onesided: Optional[bool] = None,
+    return_complex: Optional[bool] = None,
+) -> TFloat:
+    """stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor"""
+
+    # NOTE: regardless of the value of return_complex, we always return a real representation.
+    del return_complex
+
+    # Get STFT sizes
+    if hop_length is None:
+        # core dump
+        # hop_length = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
+        hop_length = n_fft // 4
+    frame_step_const = op.Reshape(hop_length, op.Constant(value_ints=[1]))
+
+    # Pre-process input if needed
+    is_signal_rank1 = len(self.shape) == 1
+    if is_signal_rank1:
+        # Add a batch dimension
+        self = op.Identity(op.Unsqueeze(self, op.Constant(value_ints=[0])))
+
+    # Get window and make sure it's the same size as `win_length` or `n_fft`
+    if window is not None and window.shape[0] is not None:
+        # first dimension
+        n_win = op.Shape(window, start=0, end=1)
+        # Center window around zeros if needed (required by ONNX's STFT)
+        if n_win < n_fft:
+            left = op.Div(op.Sub(n_fft, n_win), op.Constant(value_ints=[2]))
+
+            right = op.Sub(op.Sub(n_fft, left), n_win)
+            left = op.Reshape(left, op.Constant(value_ints=[1]))
+            right = op.Reshape(right, op.Constant(value_ints=[1]))
+
+            left_win = op.Expand(op.Constant(value_ints=[0]), left)
+            right_win = op.Expand(op.Constant(value_ints=[0]), right)
+            right_win = op.CastLike(right_win, window)
+            left_win = op.CastLike(left_win, window)
+            window = op.Concat(left_win, window, right_win, axis=0)
+    elif window is None:
+        if win_length is not None:
+            window = _create_window_from_win_length(win_length, n_fft)
+        else:
+            window = _create_window_from_n_fft(n_fft)
+
+    if onesided is None or onesided:
+        onesided = 1
+    else:
+        onesided = 0
+    window = op.CastLike(window, self)
+    result = op.STFT(self, frame_step_const, window, n_fft, onesided=onesided)
+    result = op.Transpose(result, perm=[0, 2, 1, 3])
+    # Remove batch dimension, if needed
+    if is_signal_rank1:
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+
+    # Normalize, if needed
+    if normalized:
+        result = _normalize_fft_result(self, result, n_fft)
+
+    return result
+
+
 @torch_op(
     (
         "aten::sub.Tensor",
@@ -8309,6 +8515,14 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
 def aten_sym_size(self: TensorType, dim: int = 0) -> INT64:
     """sym_size.int(Tensor self, int dim) -> SymInt"""
     return op.Squeeze(op.Shape(self, end=dim + 1, start=dim))
+
+
+@torch_op("aten::sym_storage_offset", trace_only=True)
+def aten_sym_storage_offset(self: TensorType, dim: int = 0) -> INT64:
+    """sym_storage_offset(Tensor self, int dim) -> SymInt"""
+    # storage offset is not used in onnx world.
+    # the output of this function is not used.
+    return op.Constant(value_int=0)
 
 
 def aten_symeig(
@@ -8729,15 +8943,57 @@ def aten_unfold_copy(self: TensorType, dimension: int, size: int, step: int) -> 
     raise NotImplementedError()
 
 
+@torch_op("aten::unique_consecutive", trace_only=True)
 def aten_unique_consecutive(
-    self: TensorType,
+    x: TensorType,
     return_inverse: bool = False,
     return_counts: bool = False,
     dim: Optional[int] = None,
 ) -> tuple[TensorType, TensorType, TensorType]:
     """unique_consecutive(Tensor self, bool return_inverse=False, bool return_counts=False, int? dim=None) -> (Tensor, Tensor, Tensor)"""
+    assert x.dtype in {INT64.dtype, INT32.dtype}, (
+        "unique_consecutive not implemented for other type than int32, int64"
+    )
+    rank_x = len(x.shape)
 
-    raise NotImplementedError()
+    zero = op.Constant(value=ir.tensor([0], dtype=x.dtype))
+    zero64 = op.Constant(value=ir.tensor([0], dtype=INT64.dtype))
+    minus_one = op.Constant(value=ir.tensor([-1], dtype=INT64.dtype))
+
+    if dim is None:
+        if rank_x != 1:
+            x = op.Reshape(x, minus_one)
+    else:
+        assert rank_x == 1 and dim == 0, (
+            f"Not implemented for x={x!r} with rank={rank_x} and dim={dim}."
+        )
+
+    lag = op.Concat(
+        # Hopefully this will never be equal to the first value of the tensor x
+        # ideally we could do differently but with a higher cost
+        op.Constant(value=ir.tensor([_INT32_MAX], dtype=x.dtype)),
+        op.Slice(x, zero64, minus_one, zero64),
+        axis=0,
+    )
+    eq = op.Equal(x, lag)
+    diff = op.Not(eq)
+    res = op.Compress(x, diff, axis=0)
+
+    zero_no_dim = op.Constant(value=ir.tensor(0, dtype=x.dtype))
+    one_no_dim = op.Constant(value=ir.tensor(1, dtype=x.dtype))
+    one = op.Constant(value=ir.tensor([1], dtype=x.dtype))
+
+    inverse = op.Sub(op.CumSum(op.Cast(diff, to=x.dtype), zero), one)
+    shape_x = op.Shape(x)
+    indices = op.Range(zero_no_dim, op.Squeeze(shape_x), one_no_dim)
+    points = op.Compress(indices, diff, axis=0)
+    lagp = op.Concat(
+        op.Slice(points, one, op.Shape(points), zero),
+        shape_x,
+        axis=0,
+    )
+    counts = op.Sub(lagp, points)
+    return res, inverse, counts
 
 
 @torch_op("aten::_unique", trace_only=True)
