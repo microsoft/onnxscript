@@ -113,6 +113,27 @@ if TYPE_CHECKING:
     OnnxVarName = str
 
 
+def set_type_info(value: ir.Value, typeinfo: ta.TypeAnnotationValue) -> None:
+    """Sets the type information on an IR value."""
+    try:
+        type_and_shape = ir.from_proto(typeinfo.to_type_proto())
+        value.type = type_and_shape.type
+        value.shape = type_and_shape.shape
+    except AttributeError:
+        pass
+    value.meta["typeinfo"] = typeinfo
+
+
+def make_value(
+    varname: str, typeinfo: ta.TypeAnnotationValue, source_info: sourceinfo.SourceInfo
+) -> ir.Value:
+    value = ir.Value(name=varname)
+    value.meta.setdefault("sourceinfo", source_info)
+    if typeinfo is not None:
+        set_type_info(value, typeinfo)
+    return value
+
+
 class Converter:
     """Main class to translate python code into ONNX operators.
 
@@ -140,13 +161,12 @@ class Converter:
 
     def __init__(
         self,
-        ir_builder: Optional[irbuilder.IRBuilder] = None,
         opset: Optional[values.Opset] = None,
         global_names: Optional[dict[str, Any]] = None,
         source: Optional[str] = None,
         default_opset: Optional[values.Opset] = None,
     ):
-        self.ir_builder = ir_builder or irbuilder.IRBuilder()
+        self.ir_builder = irbuilder.IRBuilder()
         self.source = source
         if global_names is not None:
             # We make a copy in case function eval modifies it.
@@ -246,7 +266,7 @@ class Converter:
         The block is translated into a nested-scope in ONNX.
         """
         self._outer.insert(0, self._current_fn)
-        self._current_fn = self.ir_builder.new_function(name)
+        self._current_fn = self.new_function(name)
         self._locals.insert(0, {})
         logger.debug("Converter:_enter_scope:%d:node:%s", len(self._locals), type(parent_node))
 
@@ -359,6 +379,61 @@ class Converter:
     def _py_var_to_onnx_var(self, py_var: str, info: sourceinfo.SourceInfo) -> ir.Value:
         return self._to_onnx_var(self._lookup(py_var, info), target=py_var, info=info)
 
+    def new_function(self, name: str, domain: str = "", register: bool = False) -> irbuilder.IRFunction:
+        if register and (domain, name) in self.ir_builder.functions:
+            raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
+        function = irbuilder.IRFunction(name, domain)
+        if register:
+            self.ir_builder.functions[domain, name] = function
+        return function
+
+    def add_stmt(
+        self,
+        results: Sequence[str],
+        callee: values.Op,
+        inputs: Sequence[Optional[ir.Value]],
+        attrs: Sequence[ir.Attr],
+    ) -> Sequence[ir.Value]:
+        output_values = [ir.Value(name=o) for o in results]
+        node = ir.Node(
+            domain=callee.opset.domain,
+            version=callee.opset.version,
+            op_type=callee.name,
+            inputs=inputs,
+            outputs=output_values,
+            attributes=attrs,
+        )
+        if not isinstance(callee, values.Op):
+            raise TypeError(f"Unexpected type {type(callee)} for callee.")
+        node.meta.setdefault("callee", callee)
+        self._current_fn.append_node(node)
+        return output_values
+
+    def add_attr_parameter(
+        self,
+        varname: str,
+        attribute_type: onnx.AttributeProto.AttributeType,
+        default_value: int | float | str | None,
+    ) -> None:
+        attr = ir.Attr(varname, ir.AttributeType(attribute_type), default_value, None)
+        self._current_fn.append_parameter(attr)
+
+    def add_input(
+        self,
+        varname: str,
+        typeinfo: ta.TypeAnnotationValue,
+        source_info: sourceinfo.SourceInfo,
+    ) -> None:
+        self._current_fn.append_parameter(make_value(varname, typeinfo, source_info))
+
+    def add_output(
+        self,
+        varname: str,
+        typeinfo: ta.TypeAnnotationValue,
+        source_info: sourceinfo.SourceInfo,
+    ) -> None:
+        self._current_fn.append_output(make_value(varname, typeinfo, source_info))
+
     def emit(
         self,
         outputs: Sequence[str],
@@ -370,8 +445,7 @@ class Converter:
             callee = values.Op(self.default_opset, callee)
         if attrs is None:
             attrs = []
-        output_values = self.ir_builder.add_stmt(
-            self._current_fn,
+        output_values = self.add_stmt(
             outputs,
             callee,
             inputs,
@@ -539,10 +613,11 @@ class Converter:
     def _translate_docstring(self, node: ast.Expr) -> None:
         if hasattr(node.value, "value"):
             # python 3.8+
-            return self.ir_builder.add_docstring(self._current_fn, node.value.value)
-        raise TypeError(
-            f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
-        )
+            self._current_fn.doc_string = node.value.value
+        else:
+            raise TypeError(
+                f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
+            )
 
     def _translate_expr(
         self, node: ast.AST, target: Optional[PreferredName] = None
@@ -1001,7 +1076,7 @@ class Converter:
                 else:
                     typeinfo = None
                 if typeinfo is not None:
-                    irbuilder.set_type_info(t, typeinfo)
+                    set_type_info(t, typeinfo)
                 var = values.Dynamic(t, values.DynamicKind.Intermediate, info, typeinfo)
                 self._bind(lhs, var)
             elif isinstance(lhs, ast.Tuple):
@@ -1087,9 +1162,7 @@ class Converter:
                 t = None
             else:
                 t = self.returntype[i]
-            self.ir_builder.add_output(
-                self._current_fn, return_var.name, t, self._source_of(stmt)
-            )
+            self.add_output(return_var.name, t, self._source_of(stmt))
             return return_var
 
         val = stmt.value
@@ -1210,8 +1283,7 @@ class Converter:
         # build loop_body
         self._enter_scope("loop_body", loop_stmt)
         o_loop_var = self.generate_unique_name(p_loop_var)
-        self.ir_builder.add_input(
-            self._current_fn,
+        self.add_input(
             o_loop_var,
             onnx_types.INT64,
             self._source_of(loop_stmt),
@@ -1223,8 +1295,7 @@ class Converter:
             ),
         )
 
-        self.ir_builder.add_input(
-            self._current_fn,
+        self.add_input(
             i_cond_var.name,
             onnx_types.BOOL,
             self._source_of(loop_stmt),
@@ -1235,9 +1306,7 @@ class Converter:
             # TODO: retrieve the annotation for variable pv is any is specified.
             # typeinfo = self._eval_constant_expr(pv.annotation)
             typeinfo = None
-            self.ir_builder.add_input(
-                self._current_fn, ov, typeinfo, self._source_of(loop_stmt)
-            )
+            self.add_input(ov, typeinfo, self._source_of(loop_stmt))
             self._bind(
                 pv,
                 values.Dynamic(
@@ -1294,8 +1363,7 @@ class Converter:
             [],
         )
 
-        self.ir_builder.add_output(
-            self._current_fn,
+        self.add_output(
             o_cond_out,
             onnx_types.BOOL,
             self._source_of(loop_stmt),
@@ -1311,9 +1379,7 @@ class Converter:
                 ov = self._emit_copy(ov, pv)
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
-            self.ir_builder.add_output(
-                self._current_fn, ov.name, typeinfo, self._source_of(loop_stmt)
-            )
+            self.add_output(ov.name, typeinfo, self._source_of(loop_stmt))
         body = self._exit_scope()
         inputs = [o_loop_bound, o_loop_condition] + [
             self._py_var_to_onnx_var(pv, self._source_of(loop_stmt)) for pv in loop_state_vars
@@ -1358,8 +1424,7 @@ class Converter:
                     # To return an outer-scope variable, an ONNX Graph has to
                     # use an explicit copy via Identity.
                     output = self._emit_copy(output, pvar)
-                self.ir_builder.add_output(
-                    self._current_fn,
+                self.add_output(
                     output.name,
                     pv_val.typeinfo,
                     source,
@@ -1381,7 +1446,7 @@ class Converter:
 
                 # TODO: retrieve the annotation if any.
                 typeinfo = None
-                self.ir_builder.add_output(self._current_fn, ovar.name, typeinfo, source)
+                self.add_output(ovar.name, typeinfo, source)
         graph = self._exit_scope()
         return graph.graph
 
@@ -1419,17 +1484,14 @@ class Converter:
                 # The code can only be exported as a function.
                 typeinfo = None
             if typeinfo and ta.is_attr_type(typeinfo):
-                self.ir_builder.add_attr_parameter(
-                    self._current_fn,
+                self.add_attr_parameter(
                     x.arg,
                     ta.pytype_to_attrtype(typeinfo),
                     default_value,
                 )
                 self._bind(x.arg, values.AttrRef(x.arg, typeinfo, self._source_of(x)))
             else:
-                self.ir_builder.add_input(
-                    self._current_fn, x.arg, typeinfo, self._source_of(x)
-                )
+                self.add_input(x.arg, typeinfo, self._source_of(x))
                 self._used_vars.add(x.arg)
                 self._bind(
                     x.arg,
@@ -1471,7 +1533,7 @@ class Converter:
                 if opset:
                     self._set_default_opset(opset, stmt)
             domain = self.this_module.domain
-            self._current_fn = self.ir_builder.new_function(stmt.name, domain, True)
+            self._current_fn = self.new_function(stmt.name, domain, True)
             self._analyzer = analysis.AstAnalyzer(stmt, self._message, self.globals)
             fn_ir = self._translate_function_def_common(stmt)
             self.this_module.add_function_def(fn_ir)
@@ -1482,5 +1544,5 @@ class Converter:
     def translate_function_signature(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
         """Translate a (top-level) function signature."""
         domain = self.this_module.domain
-        self._current_fn = self.ir_builder.new_function(fn.name, domain, True)
+        self._current_fn = self.new_function(fn.name, domain, True)
         return self._translate_function_signature_common(fn)

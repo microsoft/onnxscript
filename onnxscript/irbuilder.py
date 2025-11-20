@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Sequence, Union
 
 import onnx
 import onnx_ir as ir
@@ -132,7 +132,7 @@ def set_type_info(value: ir.Value, typeinfo: TypeAnnotationValue) -> None:
     value.meta["typeinfo"] = typeinfo
 
 
-def _make_value(
+def make_value(
     varname: str, typeinfo: TypeAnnotationValue, sourceinfo: SourceInfo
 ) -> ir.Value:
     value = ir.Value(name=varname)
@@ -145,55 +145,3 @@ def _make_value(
 class IRBuilder:
     def __init__(self):
         self.functions = {}
-
-    def new_function(self, name: str, domain: str = "", register: bool = False) -> IRFunction:
-        if register and (domain, name) in self.functions:
-            raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
-        function = IRFunction(name, domain)
-        if register:
-            self.functions[domain, name] = function
-        return function
-
-    def add_docstring(self, fn: IRFunction, docstring: str):
-        fn.doc_string = docstring
-
-    def add_stmt(
-        self,
-        fn: IRFunction,
-        results: Sequence[str],
-        callee: values.Op,
-        inputs: Sequence[Optional[ir.Value]],
-        attrs: Sequence[ir.Attr],
-    ) -> Sequence[ir.Value]:
-        output_values = [ir.Value(name=o) for o in results]
-        node = ir.Node(
-            domain=callee.opset.domain,
-            version=callee.opset.version,
-            op_type=callee.name,
-            inputs=inputs,
-            outputs=output_values,
-            attributes=attrs,
-        )
-        if not isinstance(callee, values.Op):
-            raise TypeError(f"Unexpected type {type(callee)} for callee.")
-        node.meta.setdefault("callee", callee)
-        fn.append_node(node)
-        return output_values
-
-    def add_input(
-        self, fn: IRFunction, varname: str, type: TypeAnnotationValue, info: SourceInfo
-    ) -> None:
-        fn.append_parameter(_make_value(varname, type, info))
-
-    def add_attr_parameter(
-        self,
-        fn: IRFunction,
-        varname: str,
-        attribute_type: onnx.AttributeProto.AttributeType,
-        default_value: int | float | str | None,
-    ) -> None:
-        attr = ir.Attr(varname, ir.AttributeType(attribute_type), default_value, None)
-        fn.append_parameter(attr)
-
-    def add_output(self, fn: IRFunction, varname: str, typeinfo, sourceinfo) -> None:
-        fn.append_output(_make_value(varname, typeinfo, sourceinfo))
