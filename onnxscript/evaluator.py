@@ -217,7 +217,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
                 if use_graph_attribute:
                     adapted_attributes[k] = v.function_ir.to_graph_proto()
                     for pyvar, onnxvar in v.function_ir.outer_scope_variables:
-                        closure[onnxvar.value] = v.frame.f_locals[pyvar]
+                        closure[onnxvar.value.name] = v.frame.f_locals[pyvar]
                 else:
                     adapted_attributes[k] = v.function
             elif callable(v):
