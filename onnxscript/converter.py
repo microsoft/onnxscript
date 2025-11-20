@@ -266,7 +266,7 @@ class Converter:
         The block is translated into a nested-scope in ONNX.
         """
         self._outer.insert(0, self._current_fn)
-        self._current_fn = self.new_function(name)
+        self._current_fn = irbuilder.IRFunction(name)
         self._locals.insert(0, {})
         logger.debug("Converter:_enter_scope:%d:node:%s", len(self._locals), type(parent_node))
 
@@ -379,22 +379,18 @@ class Converter:
     def _py_var_to_onnx_var(self, py_var: str, info: sourceinfo.SourceInfo) -> ir.Value:
         return self._to_onnx_var(self._lookup(py_var, info), target=py_var, info=info)
 
-    def new_function(self, name: str, domain: str = "", register: bool = False) -> irbuilder.IRFunction:
-        if register and (domain, name) in self.ir_builder.functions:
-            raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
-        function = irbuilder.IRFunction(name, domain)
-        if register:
-            self.ir_builder.functions[domain, name] = function
-        return function
-
-    def add_stmt(
+    def emit(
         self,
-        results: Sequence[str],
-        callee: values.Op,
+        outputs: Sequence[str],
+        callee: values.Op | str,
         inputs: Sequence[Optional[ir.Value]],
-        attrs: Sequence[ir.Attr],
-    ) -> Sequence[ir.Value]:
-        output_values = [ir.Value(name=o) for o in results]
+        attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
+    ) -> Sequence[ir.Value] | ir.Value:
+        if not isinstance(callee, values.Op):
+            callee = values.Op(self.default_opset, callee)
+        if attrs is None:
+            attrs = []
+        output_values = [ir.Value(name=o) for o in outputs]
         node = ir.Node(
             domain=callee.opset.domain,
             version=callee.opset.version,
@@ -407,50 +403,7 @@ class Converter:
             raise TypeError(f"Unexpected type {type(callee)} for callee.")
         node.meta.setdefault("callee", callee)
         self._current_fn.append_node(node)
-        return output_values
 
-    def add_attr_parameter(
-        self,
-        varname: str,
-        attribute_type: onnx.AttributeProto.AttributeType,
-        default_value: int | float | str | None,
-    ) -> None:
-        attr = ir.Attr(varname, ir.AttributeType(attribute_type), default_value, None)
-        self._current_fn.append_parameter(attr)
-
-    def add_input(
-        self,
-        varname: str,
-        typeinfo: ta.TypeAnnotationValue,
-        source_info: sourceinfo.SourceInfo,
-    ) -> None:
-        self._current_fn.append_parameter(make_value(varname, typeinfo, source_info))
-
-    def add_output(
-        self,
-        varname: str,
-        typeinfo: ta.TypeAnnotationValue,
-        source_info: sourceinfo.SourceInfo,
-    ) -> None:
-        self._current_fn.append_output(make_value(varname, typeinfo, source_info))
-
-    def emit(
-        self,
-        outputs: Sequence[str],
-        callee: values.Op | str,
-        inputs: Sequence[Optional[ir.Value]],
-        attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
-    ) -> Sequence[ir.Value] | ir.Value:
-        if not isinstance(callee, values.Op):
-            callee = values.Op(self.default_opset, callee)
-        if attrs is None:
-            attrs = []
-        output_values = self.add_stmt(
-            outputs,
-            callee,
-            inputs,
-            attrs,
-        )
         return output_values if len(output_values) > 1 else output_values[0]
 
     def emit1(self, *args, **kwargs) -> ir.Value:
@@ -1162,7 +1115,9 @@ class Converter:
                 t = None
             else:
                 t = self.returntype[i]
-            self.add_output(return_var.name, t, self._source_of(stmt))
+            self._current_fn.append_output(
+                make_value(return_var.name, t, self._source_of(stmt))
+            )
             return return_var
 
         val = stmt.value
@@ -1283,10 +1238,12 @@ class Converter:
         # build loop_body
         self._enter_scope("loop_body", loop_stmt)
         o_loop_var = self.generate_unique_name(p_loop_var)
-        self.add_input(
-            o_loop_var,
-            onnx_types.INT64,
-            self._source_of(loop_stmt),
+        self._current_fn.append_parameter(
+            make_value(
+                o_loop_var,
+                onnx_types.INT64,
+                self._source_of(loop_stmt),
+            )
         )
         self._bind(
             p_loop_var,
@@ -1295,10 +1252,12 @@ class Converter:
             ),
         )
 
-        self.add_input(
-            i_cond_var.name,
-            onnx_types.BOOL,
-            self._source_of(loop_stmt),
+        self._current_fn.append_parameter(
+            make_value(
+                i_cond_var.name,
+                onnx_types.BOOL,
+                self._source_of(loop_stmt),
+            )
         )
 
         for pv in loop_state_vars:
@@ -1306,7 +1265,9 @@ class Converter:
             # TODO: retrieve the annotation for variable pv is any is specified.
             # typeinfo = self._eval_constant_expr(pv.annotation)
             typeinfo = None
-            self.add_input(ov, typeinfo, self._source_of(loop_stmt))
+            self._current_fn.append_parameter(
+                make_value(ov, typeinfo, self._source_of(loop_stmt))
+            )
             self._bind(
                 pv,
                 values.Dynamic(
@@ -1363,10 +1324,12 @@ class Converter:
             [],
         )
 
-        self.add_output(
-            o_cond_out,
-            onnx_types.BOOL,
-            self._source_of(loop_stmt),
+        self._current_fn.append_output(
+            make_value(
+                o_cond_out,
+                onnx_types.BOOL,
+                self._source_of(loop_stmt),
+            )
         )
         for pv in loop_state_vars:
             ov = self._py_var_to_onnx_var(pv, self._source_of(loop_stmt))
@@ -1379,7 +1342,9 @@ class Converter:
                 ov = self._emit_copy(ov, pv)
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
-            self.add_output(ov.name, typeinfo, self._source_of(loop_stmt))
+            self._current_fn.append_output(
+                make_value(ov.name, typeinfo, self._source_of(loop_stmt))
+            )
         body = self._exit_scope()
         inputs = [o_loop_bound, o_loop_condition] + [
             self._py_var_to_onnx_var(pv, self._source_of(loop_stmt)) for pv in loop_state_vars
@@ -1424,10 +1389,12 @@ class Converter:
                     # To return an outer-scope variable, an ONNX Graph has to
                     # use an explicit copy via Identity.
                     output = self._emit_copy(output, pvar)
-                self.add_output(
-                    output.name,
-                    pv_val.typeinfo,
-                    source,
+                self._current_fn.append_output(
+                    make_value(
+                        output.name,
+                        pv_val.typeinfo,
+                        source,
+                    )
                 )
             else:
                 pv_val = None
@@ -1446,7 +1413,7 @@ class Converter:
 
                 # TODO: retrieve the annotation if any.
                 typeinfo = None
-                self.add_output(ovar.name, typeinfo, source)
+                self._current_fn.append_output(make_value(ovar.name, typeinfo, source))
         graph = self._exit_scope()
         return graph.graph
 
@@ -1484,14 +1451,14 @@ class Converter:
                 # The code can only be exported as a function.
                 typeinfo = None
             if typeinfo and ta.is_attr_type(typeinfo):
-                self.add_attr_parameter(
-                    x.arg,
-                    ta.pytype_to_attrtype(typeinfo),
-                    default_value,
-                )
+                attribute_type = ta.pytype_to_attrtype(typeinfo)
+                attr = ir.Attr(x.arg, ir.AttributeType(attribute_type), default_value, None)
+                self._current_fn.append_parameter(attr)
                 self._bind(x.arg, values.AttrRef(x.arg, typeinfo, self._source_of(x)))
             else:
-                self.add_input(x.arg, typeinfo, self._source_of(x))
+                self._current_fn.append_parameter(
+                    make_value(x.arg, typeinfo, self._source_of(x))
+                )
                 self._used_vars.add(x.arg)
                 self._bind(
                     x.arg,
@@ -1533,7 +1500,7 @@ class Converter:
                 if opset:
                     self._set_default_opset(opset, stmt)
             domain = self.this_module.domain
-            self._current_fn = self.new_function(stmt.name, domain, True)
+            self._current_fn = irbuilder.IRFunction(stmt.name, domain)
             self._analyzer = analysis.AstAnalyzer(stmt, self._message, self.globals)
             fn_ir = self._translate_function_def_common(stmt)
             self.this_module.add_function_def(fn_ir)
@@ -1544,5 +1511,5 @@ class Converter:
     def translate_function_signature(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
         """Translate a (top-level) function signature."""
         domain = self.this_module.domain
-        self._current_fn = self.new_function(fn.name, domain, True)
+        self._current_fn = irbuilder.IRFunction(fn.name, domain)
         return self._translate_function_signature_common(fn)
