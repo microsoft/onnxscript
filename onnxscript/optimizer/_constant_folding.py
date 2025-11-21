@@ -26,6 +26,14 @@ import onnx_ir as ir
 import onnxscript.utils.utils as utils
 from onnxscript.ir import _tape
 
+DEFAULT_CONSTANT_FOLD_BLACKLIST = [
+    # ConstantOfShape is preserved to avoid increasing model size unnecessarily
+    "ConstantOfShape",
+    # Quantize/DequantizeLinear are preserved to keep the quantization info
+    "QuantizeLinear",
+    "DequantizeLinear",
+]
+
 DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 8192
 
 DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 512 * 512
@@ -1226,14 +1234,17 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         elif should_fold is None:
             # Use default rules to decide whether to fold the node:
-            # - ConstantOfShape is preserved to avoid increasing model size unnecessarily
+            # - Nodes in the DEFAULT_CONSTANT_FOLD_BLACKLIST list are not folded
             # - If the any tensor input size exceeds the input_size_limit, skip folding the node
-            if _is_onnx_op(node, "ConstantOfShape"):
-                logger.info(
-                    "Skipping constant folding for node %r because ConstantOfShape is preserved by default",
-                    node.name,
-                )
-                return None
+            for op_type in DEFAULT_CONSTANT_FOLD_BLACKLIST:
+                if _is_onnx_op(node, op_type):
+                    logger.info(
+                        "Skipping constant folding for node %r because "
+                        "%s is preserved by default",
+                        node.name,
+                        op_type,
+                    )
+                    return None
 
             input_tensors = [x.const_value if x is not None else None for x in node.inputs]
             large_inputs = [
