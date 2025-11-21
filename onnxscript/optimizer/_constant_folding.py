@@ -29,6 +29,9 @@ from onnxscript.ir import _tape
 DEFAULT_CONSTANT_FOLD_BLACKLIST = [
     # ConstantOfShape is preserved to avoid increasing model size unnecessarily
     "ConstantOfShape",
+    # Quantize/DequantizeLinear are preserved to keep the quantization info
+    "QuantizeLinear",
+    "DequantizeLinear",
 ]
 
 DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 8192
