@@ -457,7 +457,7 @@ def _op_schema_from_function_ir(
         function_ir.name,
         opset.domain,
         since_version=opset.version,
-        doc=function_ir.docstring,
+        doc=function_ir.doc_string or "",
         inputs=formal_inputs,
         outputs=formal_outputs,
         type_constraints=[constraint.as_tuple() for constraint in type_to_constraint.values()],

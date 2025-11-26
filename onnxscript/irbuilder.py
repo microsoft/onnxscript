@@ -16,20 +16,7 @@ from onnxscript.sourceinfo import SourceInfo
 
 logger = logging.getLogger("onnxscript")
 
-
-def select_ir_version(version: int, domain: str = "") -> int:
-    """Selects a suitable ONNX ir_version for a given opset version."""
-    if domain == "":
-        domain = "ai.onnx"
-    if (domain, version) not in onnx.helper.OP_SET_ID_VERSION_MAP:
-        return max(
-            v for k, v in onnx.helper.OP_SET_ID_VERSION_MAP.items() if k[0] == "ai.onnx"
-        )
-    return onnx.helper.OP_SET_ID_VERSION_MAP[domain, version]
-
-
 TypeAnnotationValue = onnxscript.type_annotation.TypeAnnotationValue
-
 
 class IRFunction(ir.Function):
     """Represents a function in the IR."""
@@ -42,11 +29,6 @@ class IRFunction(ir.Function):
         # a dictionary of nested function-definitions
         self.nested_functions: dict[str, IRFunction] = {}
         self.outer_scope_variables: dict[Any, Any] = {}
-
-    @property
-    def docstring(self) -> str:
-        """Returns the docstring of this function."""
-        return self.doc_string or ""
 
     @property
     def assigned_names(self) -> Sequence[str]:
@@ -84,9 +66,6 @@ class IRFunction(ir.Function):
                 raise TypeError(f"Expected ir.Value or ir.Attr, got {type(parameter)}")
             self.attributes.add(parameter)
 
-    def append_output(self, var: ir.Value) -> None:
-        self.outputs.append(var)
-
     def add_nested_function(self, fun: IRFunction) -> None:
         self.nested_functions[fun.name] = fun
 
@@ -117,31 +96,3 @@ class IRFunction(ir.Function):
         """Converts this instance into a `onnx.FunctionProto`."""
         return ir.to_proto(self)
 
-
-# IRBuilder: abstracts out details of the IR in the python-to-IR converter
-
-
-def set_type_info(value: ir.Value, typeinfo: TypeAnnotationValue) -> None:
-    """Sets the type information on an IR value."""
-    try:
-        type_and_shape = ir.from_proto(typeinfo.to_type_proto())
-        value.type = type_and_shape.type
-        value.shape = type_and_shape.shape
-    except AttributeError:
-        pass
-    value.meta["typeinfo"] = typeinfo
-
-
-def make_value(
-    varname: str, typeinfo: TypeAnnotationValue, sourceinfo: SourceInfo
-) -> ir.Value:
-    value = ir.Value(name=varname)
-    value.meta.setdefault("sourceinfo", sourceinfo)
-    if typeinfo is not None:
-        set_type_info(value, typeinfo)
-    return value
-
-
-class IRBuilder:
-    def __init__(self):
-        self.functions = {}

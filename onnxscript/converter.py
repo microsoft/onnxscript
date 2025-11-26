@@ -120,6 +120,7 @@ def set_type_info(value: ir.Value, typeinfo: ta.TypeAnnotationValue) -> None:
         value.type = type_and_shape.type
         value.shape = type_and_shape.shape
     except AttributeError:
+        # TODO: This needs to be fixed.
         pass
     value.meta["typeinfo"] = typeinfo
 
@@ -166,7 +167,6 @@ class Converter:
         source: Optional[str] = None,
         default_opset: Optional[values.Opset] = None,
     ):
-        self.ir_builder = irbuilder.IRBuilder()
         self.source = source
         if global_names is not None:
             # We make a copy in case function eval modifies it.
@@ -1115,7 +1115,7 @@ class Converter:
                 t = None
             else:
                 t = self.returntype[i]
-            self._current_fn.append_output(
+            self._current_fn.outputs.append(
                 make_value(return_var.name, t, self._source_of(stmt))
             )
             return return_var
@@ -1324,7 +1324,7 @@ class Converter:
             [],
         )
 
-        self._current_fn.append_output(
+        self._current_fn.outputs.append(
             make_value(
                 o_cond_out,
                 onnx_types.BOOL,
@@ -1342,7 +1342,7 @@ class Converter:
                 ov = self._emit_copy(ov, pv)
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
-            self._current_fn.append_output(
+            self._current_fn.outputs.append(
                 make_value(ov.name, typeinfo, self._source_of(loop_stmt))
             )
         body = self._exit_scope()
@@ -1389,7 +1389,7 @@ class Converter:
                     # To return an outer-scope variable, an ONNX Graph has to
                     # use an explicit copy via Identity.
                     output = self._emit_copy(output, pvar)
-                self._current_fn.append_output(
+                self._current_fn.outputs.append(
                     make_value(
                         output.name,
                         pv_val.typeinfo,
@@ -1413,7 +1413,7 @@ class Converter:
 
                 # TODO: retrieve the annotation if any.
                 typeinfo = None
-                self._current_fn.append_output(make_value(ovar.name, typeinfo, source))
+                self._current_fn.outputs.append(make_value(ovar.name, typeinfo, source))
         graph = self._exit_scope()
         return graph.graph
 

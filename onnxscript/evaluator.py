@@ -447,7 +447,7 @@ def _prepare_model_and_inputs_for_eager(
     model = onnx.helper.make_model(  # noqa: TID251
         graph,
         opset_imports=[opset_id],
-        ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
+        ir_version=values.select_ir_version(schema.since_version, domain=schema.domain),
     )
     model = onnx.shape_inference.infer_shapes(model)
 
