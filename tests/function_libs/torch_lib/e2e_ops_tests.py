@@ -596,6 +596,36 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(model, (tokens, h, c), dynamo=True, verbose=False)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_unbind_dynamic_dim0(self):
+        """Test unbind with dynamic dimension 0 - triggers SplitToSequence"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=0)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(3, 4, 5)
+        onnx_program = torch.onnx.export(
+            model, (x,), dynamo=True, verbose=False, dynamic_shapes=({0: "batch_size"},)
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_dynamic_dim1(self):
+        """Test unbind with dynamic dimension 1 - triggers SplitToSequence"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=1)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(2, 3, 4)
+        onnx_program = torch.onnx.export(
+            model, (x,), dynamo=True, verbose=False, dynamic_shapes=({1: "seq_len"},)
+        )
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
