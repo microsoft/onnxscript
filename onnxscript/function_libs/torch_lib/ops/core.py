@@ -9200,16 +9200,21 @@ def aten_type_as(self: TTensor, other: TTensor2) -> TTensor2:
 def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
     """unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]"""
 
-    if isinstance(self.shape[dim], int) and not version_utils.torch_older_than("2.7"):
-        # We can create a definitive split op if the input shape is static
-        # Only torch>=2.7 supports correctly generating the correct number of outputs for Split
+    if isinstance(self.shape[dim], int):
         num_outputs = self.shape[dim]
-        if num_outputs != 1:
-            outputs = op.Split(self, axis=dim, num_outputs=num_outputs)
-        else:
-            outputs = [self]
-
-        return [op.Squeeze(out, [dim]) for out in outputs]
+        results = []
+        for i in range(num_outputs):
+            # Slice to get a single element at position i along dim
+            sliced = op.Slice(
+                self,
+                starts=op.Constant(value_ints=[i]),
+                ends=op.Constant(value_ints=[i + 1]),
+                axes=op.Constant(value_ints=[dim]),
+            )
+            # Squeeze to remove the dimension of size 1
+            squeezed = op.Squeeze(sliced, axes=[dim])
+            results.append(squeezed)
+        return results
 
     return op.SplitToSequence(self, axis=dim, keepdims=False)
 
