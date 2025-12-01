@@ -52,7 +52,7 @@ class OnnxGroupQueryAttention(pattern.RewriteRuleClassBase):
             _outputs=["attention_BHSDh"],
         )
 
-        return attention_BHSDh
+        return attention_BHSDh, present_key_BHkvStD, present_value_BHkvStD
 
     def check(
         self,
@@ -103,6 +103,7 @@ class OnnxGroupQueryAttention(pattern.RewriteRuleClassBase):
             past_key_BHkvSpD,
             past_value_BHkvSpD,
             **original_attrs,
+            _outputs=3,
         )
 
 

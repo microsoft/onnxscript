@@ -183,6 +183,13 @@ class Converter:
         self._nextvar: int = 0
         self._used_vars: set[str] = set()
         self._locals: List[Dict[str, LocalSymValue]] = [{}]
+        self._analyzer: analysis.AstAnalyzer | None = None
+
+    @property
+    def analyzer(self) -> analysis.AstAnalyzer:
+        if self._analyzer is None:
+            raise RuntimeError("Analyzer not initialized.")
+        return self._analyzer
 
     @property
     def default_opset(self) -> values.Opset:
@@ -1089,12 +1096,24 @@ class Converter:
         return ret(val, 0, "")
 
     def _translate_if_stmt(self, stmt: ast.If) -> None:
-        if hasattr(stmt, "live_out"):
-            live_defs = list(
-                stmt.live_out.intersection(analysis.assigned_vars(stmt, self._message))
-            )
-        else:
-            live_defs = list(analysis.assigned_vars(stmt, self._message))
+        constant_cond = self.analyzer.constant_if_condition(stmt)
+        if constant_cond is True:
+            # Translate only the "then" branch
+            for s in stmt.body:
+                self._translate_stmt(s)
+            return
+        if constant_cond is False:
+            # Translate only the "else" branch
+            for s in stmt.orelse:
+                self._translate_stmt(s)
+            return
+        live_def_set = self.analyzer.assigned_vars(stmt)
+        live_out = self.analyzer.live_out(stmt)
+        if live_out is not None:
+            # Ideally, live_out should never be None here. But handle this conditionally
+            # due to some existing usage.
+            live_def_set = live_out.intersection(live_def_set)
+        live_defs = list(live_def_set)
         test = self._translate_expr(stmt.test, "cond").name
         lineno = self._source_of(stmt).lineno
         thenGraph, sub_fct_then = self._translate_block(
@@ -1174,9 +1193,11 @@ class Converter:
         else:
             self.fail(loop_stmt, f"Unexpected loop type {type(loop_stmt)!r}.")
         # analyze loop body
-        exposed_uses = analysis.exposed_uses(loop_stmt.body, self._message)
-        vars_def_in_loop = analysis.assigned_vars(loop_stmt.body, self._message)
-        loop_state_vars = vars_def_in_loop.intersection(exposed_uses | loop_stmt.live_out)
+        exposed_uses = self.analyzer.exposed_uses(loop_stmt.body)
+        vars_def_in_loop = self.analyzer.assigned_vars(loop_stmt.body)
+        live_out = self.analyzer.live_out(loop_stmt)
+        assert live_out is not None, "live_out cannot be None here."
+        loop_state_vars = vars_def_in_loop.intersection(exposed_uses | live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
 
@@ -1362,7 +1383,7 @@ class Converter:
         self._enter_scope(fn.name, fn)
         self._translate_function_def_common(fn)
         function_ir = self._exit_scope()
-        outer_scope_vars = analysis.outer_scope_variables(fn, self._message)
+        outer_scope_vars = self.analyzer.outer_scope_variables(fn)
         function_ir.outer_scope_variables = [
             (var, self._lookup(var, self._source_of(fn))) for var in outer_scope_vars
         ]
@@ -1448,10 +1469,11 @@ class Converter:
                     self._set_default_opset(opset, stmt)
             domain = self.this_module.domain
             self._current_fn = self.ir_builder.new_function(stmt.name, domain, True)
-            analysis.do_liveness_analysis(stmt, self._message)
+            self._analyzer = analysis.AstAnalyzer(stmt, self._message, self.globals)
             fn_ir = self._translate_function_def_common(stmt)
             fn_ir.debug_print()
             self.this_module.add_function_def(fn_ir)
+            self._analyzer = None
             return fn_ir
         raise ValueError(f"Unsupported top-level statement type {type(stmt)!r}.")
 

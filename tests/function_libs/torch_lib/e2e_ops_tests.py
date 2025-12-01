@@ -238,6 +238,394 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_dft_axis_promoted_from_attribute_to_input(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten._fft_r2c(x, [0], normalization=1, onesided=True)  # pylint: disable=protected-access
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.randn(2, 3),),
+            opset_version=20,
+            dynamic_shapes=({0: "dim_x"},),
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_avg_pool(self):
+        class Model(torch.nn.Module):
+            def forward(self, x2d, x3d, x4d, x5d):
+                return (
+                    torch.nn.functional.avg_pool1d(x2d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool1d(x3d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool2d(x3d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool2d(x4d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool3d(x4d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool3d(x5d, 2),  # pylint: disable=not-callable
+                )
+
+        x2d = torch.randn(10, 10)
+        x3d = torch.randn(10, 10, 10)
+        x4d = torch.randn(10, 10, 10, 10)
+        x5d = torch.randn(10, 10, 10, 10, 10)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x2d, x3d, x4d, x5d),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_concat_with_empty_tensor(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.cat([x, torch.tensor([]), x], dim=0)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([1, 2]),),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_concat_with_empty_tensor_single_element(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.cat([x, torch.tensor([])], dim=1)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([[1, 2]]),),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_lstm_unidirectional(self):
+        class LSTMModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.lstm = torch.nn.LSTM(
+                    input_size=10, hidden_size=20, num_layers=1, batch_first=True
+                )
+
+            def forward(self, x):
+                return self.lstm(x)
+
+        model = LSTMModel()
+        x = torch.randn(5, 3, 10)  # (batch, seq, input_size)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_lstm_bidirectional(self):
+        class LSTMModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.lstm = torch.nn.LSTM(
+                    input_size=10,
+                    hidden_size=20,
+                    num_layers=1,
+                    batch_first=True,
+                    bidirectional=True,
+                )
+
+            def forward(self, x):
+                return self.lstm(x)
+
+        model = LSTMModel()
+        x = torch.randn(5, 3, 10)  # (batch, seq, input_size)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_lstm_multilayer(self):
+        class LSTMModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.lstm = torch.nn.LSTM(
+                    input_size=10, hidden_size=20, num_layers=3, batch_first=True
+                )
+
+            def forward(self, x):
+                return self.lstm(x)
+
+        model = LSTMModel()
+        x = torch.randn(5, 3, 10)  # (batch, seq, input_size)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_gru_unidirectional(self):
+        class GRUModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.gru = torch.nn.GRU(
+                    input_size=10, hidden_size=20, num_layers=1, batch_first=True
+                )
+
+            def forward(self, x):
+                return self.gru(x)
+
+        model = GRUModel()
+        x = torch.randn(5, 3, 10)  # (batch, seq, input_size)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_gru_bidirectional(self):
+        class GRUModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.gru = torch.nn.GRU(
+                    input_size=10,
+                    hidden_size=20,
+                    num_layers=1,
+                    batch_first=True,
+                    bidirectional=True,
+                )
+
+            def forward(self, x):
+                return self.gru(x)
+
+        model = GRUModel()
+        x = torch.randn(5, 3, 10)  # (batch, seq, input_size)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_gru_multilayer(self):
+        class GRUModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.gru = torch.nn.GRU(
+                    input_size=10, hidden_size=20, num_layers=3, batch_first=True
+                )
+
+            def forward(self, x):
+                return self.gru(x)
+
+        model = GRUModel()
+        x = torch.randn(5, 3, 10)  # (batch, seq, input_size)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_unique_consecutive(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.unique_consecutive(x)
+
+        model = Model()
+        x = torch.tensor([0, 1, 2, 2, 3, 3, 0, 0], dtype=torch.int64)
+        onnx_program = torch.onnx.export(
+            model,
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_unique_consecutive_int32(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.unique_consecutive(x)
+
+        model = Model()
+        x = torch.tensor([0, 1, 2, 2, 3, 3, 0, 0], dtype=torch.int32)
+        onnx_program = torch.onnx.export(
+            model,
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_unique_consecutive_return(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.unique_consecutive(x, return_inverse=True, return_counts=True)
+
+        model = Model()
+        x = torch.tensor([0, 1, 2, 2, 3, 3, 3, 0, 0], dtype=torch.int64)
+        onnx_program = torch.onnx.export(
+            model,
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_stft_1(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.stft(x, n_fft=4, return_complex=True)
+
+        x = torch.randn(4, 16, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_stft_2(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.stft(x, n_fft=4, return_complex=False)
+
+        x = torch.randn(4, 16, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_stft_3(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                window = torch.ones(16, dtype=torch.float32)
+                return torch.ops.aten.stft(x, n_fft=16, window=window, return_complex=False)
+
+        x = torch.randn(100, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_stft_4(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.stft(
+                    x,
+                    n_fft=4,
+                    hop_length=1,
+                    win_length=4,
+                    center=True,
+                    onesided=True,
+                    return_complex=True,
+                )
+
+        x = torch.randn(4, 16, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_dim0(self):
+        """Test unbind along dimension 0"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=0)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(3, 4, 5)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_dim1(self):
+        """Test unbind along dimension 1"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=1)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(2, 3, 4)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_negative_dim(self):
+        """Test unbind with negative dimension"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=-1)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(2, 3, 4)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_size_one(self):
+        """Test unbind with dimension of size 1"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=0)
+                return tensors[0]
+
+        model = UnbindModel()
+        x = torch.randn(1, 4, 5)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_with_lstm(self):
+        """Test unbind in LSTM context"""
+
+        class LSTMDecoder(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.embedding = torch.nn.Embedding(100, 64)
+                self.lstm = torch.nn.LSTM(64, 64, 2, batch_first=True)  # 2 layers
+                self.fc = torch.nn.Linear(64, 100)
+
+            def forward(self, tokens, h, c):
+                embedded = self.embedding(tokens).unsqueeze(0)
+                output, (h_out, c_out) = self.lstm(embedded, (h, c))
+                logits = self.fc(output.squeeze(0).squeeze(0))
+                return logits, h_out, c_out
+
+        model = LSTMDecoder()
+        model.eval()
+        tokens = torch.tensor([1])
+        h = torch.randn(2, 1, 64)  # 2 layers
+        c = torch.randn(2, 1, 64)  # 2 layers
+        onnx_program = torch.onnx.export(model, (tokens, h, c), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_dynamic_dim0(self):
+        """Test unbind with dynamic dimension 0 - triggers SplitToSequence"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=0)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(3, 4, 5)
+        onnx_program = torch.onnx.export(
+            model, (x,), dynamo=True, verbose=False, dynamic_shapes=({0: "batch_size"},)
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_dynamic_dim1(self):
+        """Test unbind with dynamic dimension 1 - triggers SplitToSequence"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=1)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(2, 3, 4)
+        onnx_program = torch.onnx.export(
+            model, (x,), dynamo=True, verbose=False, dynamic_shapes=({1: "seq_len"},)
+        )
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
