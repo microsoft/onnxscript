@@ -23,6 +23,7 @@ from onnxscript import (
     COMPLEX128,
     DOUBLE,
     FLOAT,
+    FLOAT16,
     INT8,
     INT16,
     INT32,
@@ -3317,17 +3318,58 @@ def aten_eye(n: int) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::fake_quantize_per_channel_affine", trace_only=True)
 def aten_fake_quantize_per_channel_affine(
-    self: TensorType,
-    scale: TensorType,
-    zero_point: TensorType,
+    self: TFloat,
+    scale: FLOAT,  # float32 specifically!
+    zero_point: Union[INT32, FLOAT, FLOAT16],  # int32, float32 or float16 only!
     axis: int,
     quant_min: int,
     quant_max: int,
 ) -> TensorType:
     """fake_quantize_per_channel_affine(Tensor self, Tensor scale, Tensor zero_point, int axis, int quant_min, int quant_max) -> Tensor"""
 
-    raise NotImplementedError()
+    # NOTE: (0, 127) is allowed as special case. PyTorch restricts activations to be in the range (0, 127).
+    #   https://github.com/pytorch/pytorch/blob/b34b192d6b97325c9f78e5995c48c8498ede34bd/torch/ao/quantization/observer.py#L1422
+    if (quant_min, quant_max) not in [(0, 255), (-128, 127), (0, 127)]:
+        raise NotImplementedError(
+            "For (quant_min, quant_max), ONNX allows only "
+            "(0, 127), (0, 255) and (-128, 127). "
+            f"Got ({quant_min}, {quant_max})",
+        )
+
+    if quant_min == 0:
+        int_dtype = ir.DataType.UINT8
+    else:
+        int_dtype = ir.DataType.INT8
+
+    # TODO: When opset >= 19, remove this cast
+    orig_dtype = self.type.dtype
+    if self.type.dtype not in {ir.DataType.FLOAT, ir.DataType.INT32}:
+        self = op.Cast(self, to=ir.DataType.FLOAT)
+
+    if zero_point.type.dtype == ir.DataType.INT32:
+        zero_point = op.Cast(zero_point, to=int_dtype)
+    else:
+        raise NotImplementedError(
+            "ONNX only supports integer values for the zero_point parameter. "
+            f"Got {zero_point.type.dtype}",
+        )
+
+    quantized = op.QuantizeLinear(self, scale, zero_point, axis=axis)
+
+    # See comment about, PyTorch-specific (0, 127) handling
+    if (quant_min, quant_max) == (0, 127):
+        const_127 = op.Cast(127, to=int_dtype)
+        quantized = op.Clip(quantized, max=const_127)
+
+    output = op.DequantizeLinear(quantized, scale, zero_point, axis=axis)
+
+    # TODO: When opset >= 23, remove this cast and set output_dtype on DequantizeLinear
+    if orig_dtype != ir.DataType.FLOAT:
+        output = op.Cast(output, to=orig_dtype)
+
+    return output
 
 
 def aten_fake_quantize_per_channel_affine_cachemask(
@@ -3351,12 +3393,79 @@ def aten_fake_quantize_per_channel_affine_cachemask_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::fake_quantize_per_tensor_affine", trace_only=True)
 def aten_fake_quantize_per_tensor_affine(
-    self: TensorType, scale: float, zero_point: int, quant_min: int, quant_max: int
-) -> TensorType:
+    self: TFloat,
+    scale: float,
+    zero_point: int,
+    quant_min: int,
+    quant_max: int,
+) -> TFloat:
     """fake_quantize_per_tensor_affine(Tensor self, float scale, int zero_point, int quant_min, int quant_max) -> Tensor"""
 
-    raise NotImplementedError()
+    return _aten_fake_quantize_per_tensor_affine(self, scale, zero_point, quant_min, quant_max)
+
+
+@torch_op("aten::fake_quantize_per_tensor_affine.tensor_qparams", trace_only=True)
+def aten_fake_quantize_per_tensor_affine_tensor_qparams(
+    self: TFloat,
+    scale: TReal,
+    zero_point: TReal,
+    quant_min: int,
+    quant_max: int,
+) -> TFloat:
+    """fake_quantize_per_tensor_affine(Tensor self, Tensor scale, Tensor zero_point, int quant_min, int quant_max) -> Tensor"""
+
+    return _aten_fake_quantize_per_tensor_affine(self, scale, zero_point, quant_min, quant_max)
+
+
+def _aten_fake_quantize_per_tensor_affine(
+    self: TFloat,
+    scale: Union[float, TReal],
+    zero_point: Union[int, TReal],
+    quant_min: int,
+    quant_max: int,
+) -> TFloat:
+    # NOTE: (0, 127) is allowed as special case. PyTorch restricts activations to be in the range (0, 127).
+    #   https://github.com/pytorch/pytorch/blob/b34b192d6b97325c9f78e5995c48c8498ede34bd/torch/ao/quantization/observer.py#L1422
+    if (quant_min, quant_max) not in [(0, 255), (-128, 127), (0, 127)]:
+        raise NotImplementedError(
+            "For (quant_min, quant_max), ONNX allows only "
+            "(0, 127), (0, 255) and (-128, 127). "
+            f"Got ({quant_min}, {quant_max})",
+        )
+
+    if quant_min == 0:
+        int_dtype = ir.DataType.UINT8
+    else:
+        int_dtype = ir.DataType.INT8
+
+    # TODO: When opset >= 19, remove this cast
+    orig_dtype = self.type.dtype
+    if self.type.dtype not in {ir.DataType.FLOAT, ir.DataType.INT32}:
+        self = op.Cast(self, to=ir.DataType.FLOAT)
+
+    # TODO: When opset >= 19, relex the condition for this cast
+    if isinstance(scale, float) or scale.type.dtype != ir.DataType.FLOAT:
+        scale = op.Cast(scale, to=ir.DataType.FLOAT)
+
+    if isinstance(zero_point, int) or zero_point.type.dtype != int_dtype:
+        zero_point = op.Cast(zero_point, to=int_dtype)
+
+    quantized = op.QuantizeLinear(self, scale, zero_point)
+
+    # See comment about, PyTorch-specific (0, 127) handling
+    if (quant_min, quant_max) == (0, 127):
+        const_127 = op.Cast(127, to=int_dtype)
+        quantized = op.Clip(quantized, max=const_127)
+
+    output = op.DequantizeLinear(quantized, scale, zero_point)
+
+    # TODO: When opset >= 23, remove this cast and set output_dtype on DequantizeLinear
+    if orig_dtype != ir.DataType.FLOAT:
+        output = op.Cast(output, to=orig_dtype)
+
+    return output
 
 
 def aten_fake_quantize_per_tensor_affine_cachemask(
@@ -8756,6 +8865,14 @@ def aten_sym_size(self: TensorType, dim: int = 0) -> INT64:
     return op.Squeeze(op.Shape(self, end=dim + 1, start=dim))
 
 
+@torch_op("aten::sym_storage_offset", trace_only=True)
+def aten_sym_storage_offset(self: TensorType, dim: int = 0) -> INT64:
+    """sym_storage_offset(Tensor self, int dim) -> SymInt"""
+    # storage offset is not used in onnx world.
+    # the output of this function is not used.
+    return op.Constant(value_int=0)
+
+
 def aten_symeig(
     self: TensorType, eigenvectors: bool = False, upper: bool = True
 ) -> tuple[TensorType, TensorType]:
@@ -9086,16 +9203,21 @@ def aten_type_as(self: TTensor, other: TTensor2) -> TTensor2:
 def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
     """unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]"""
 
-    if isinstance(self.shape[dim], int) and not version_utils.torch_older_than("2.7"):
-        # We can create a definitive split op if the input shape is static
-        # Only torch>=2.7 supports correctly generating the correct number of outputs for Split
+    if isinstance(self.shape[dim], int):
         num_outputs = self.shape[dim]
-        if num_outputs != 1:
-            outputs = op.Split(self, axis=dim, num_outputs=num_outputs)
-        else:
-            outputs = [self]
-
-        return [op.Squeeze(out, [dim]) for out in outputs]
+        results = []
+        for i in range(num_outputs):
+            # Slice to get a single element at position i along dim
+            sliced = op.Slice(
+                self,
+                starts=op.Constant(value_ints=[i]),
+                ends=op.Constant(value_ints=[i + 1]),
+                axes=op.Constant(value_ints=[dim]),
+            )
+            # Squeeze to remove the dimension of size 1
+            squeezed = op.Squeeze(sliced, axes=[dim])
+            results.append(squeezed)
+        return results
 
     return op.SplitToSequence(self, axis=dim, keepdims=False)
 

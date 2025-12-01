@@ -698,6 +698,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("special.erfcx", special_ops.aten_special_erfcx).xfail(
         reason="fixme: The implementation is numerically unstable: https://github.com/microsoft/onnxscript/issues/1223"
     ),
+    TorchLibOpInfo(
+        "ops.aten.fake_quantize_per_channel_affine",
+        core_ops.aten_fake_quantize_per_channel_affine,
+    ).xfail(
+        reason="fixme: ONNX (De)QuantizeLinear only supports integer zero_point values",
+        matcher=lambda sample: sample.args[1].dtype != torch.int32,
+    ),
+    TorchLibOpInfo(
+        "ops.aten.fake_quantize_per_tensor_affine",
+        core_ops.aten_fake_quantize_per_tensor_affine,
+    ),
     TorchLibOpInfo("fill", core_ops.aten_fill),
     TorchLibOpInfo("flip", core_ops.aten_flip).skip(
         reason="fixme: size 0 inputs are not handled yet",
