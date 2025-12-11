@@ -5085,40 +5085,59 @@ def aten_linear_backward(
 
 @torch_op("aten::linspace", trace_only=True)
 def aten_linspace(
-    start: TFloat,
-    end: TFloat,
+    start: float,
+    end: float,
     steps: int,
-    dtype: int = FLOAT.dtype,
+    dtype: int = -1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
 ) -> TensorType:
     """linspace(Scalar start, Scalar end, int steps, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+    
     if dtype == -1 or dtype is None:
         dtype = FLOAT.dtype
-
+    
     if steps == 0:
         return aten_full(op.Constant(value_ints=[0]), 0.0, dtype=dtype)
     if steps == 1:
         return aten_full(op.Constant(value_ints=[steps]), start, dtype=dtype)
-
-    compute_dtype = FLOAT.dtype
-
+    
+    # Use double precision for computation to match PyTorch's internal precision
+    compute_dtype = DOUBLE.dtype
+    
+    # For integer output dtypes, cast start/end to the target dtype first
+    # This matches PyTorch's behavior where fractional start/end values
+    # are truncated before computing the linspace
+    is_integer_dtype = dtype not in (FLOAT.dtype, DOUBLE.dtype, FLOAT16.dtype, COMPLEX64.dtype, COMPLEX128.dtype)
+    
+    if is_integer_dtype:
+        # Cast to integer dtype first, then to compute dtype
+        # This ensures truncation happens before computation
+        start_int = op.Cast(start, to=dtype)
+        end_int = op.Cast(end, to=dtype)
+        start_f = op.Cast(start_int, to=compute_dtype)
+        end_f = op.Cast(end_int, to=compute_dtype)
+    else:
+        # For float dtypes, cast directly to compute dtype
+        start_f = op.Cast(start, to=compute_dtype)
+        end_f = op.Cast(end, to=compute_dtype)
+    
     rg = aten_arange_start(0, steps, dtype=compute_dtype)
-    start_f = op.Cast(start, to=compute_dtype)
-    end_f = op.Cast(end, to=compute_dtype)
     steps_f = op.Cast(steps, to=compute_dtype)
     one = op.Cast(1.0, to=compute_dtype)
     two = op.Cast(2.0, to=compute_dtype)
     steps_minus_1 = op.Sub(steps_f, one)
     step = op.Div(op.Sub(end_f, start_f), steps_minus_1)
-
+    
+    # Two-sided computation for numerical stability at endpoints
+    # Use forward computation for first half, backward for second half
     lin_vals = op.Where(
         rg < op.Div(steps_f, two),
         op.Add(start_f, op.Mul(step, rg)),
-        op.Sub(end_f, op.Mul(step, op.Sub(op.Sub(steps_f, one), rg))),
+        op.Sub(end_f, op.Mul(step, op.Sub(steps_minus_1, rg))),
     )
-
+    
     return op.Cast(lin_vals, to=dtype)
 
 
