@@ -2,7 +2,10 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import math
 import unittest
+
+import parameterized
 
 # TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
 import torch
@@ -626,78 +629,247 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-    def test_index_put(self):
-        def test(x_shape, index_list, update_shape, testname):
-            with self.subTest(testname="index_put_" + testname):
-                indices = [
-                    (torch.tensor(index, dtype=torch.int64) if index is not None else None)
-                    for index in index_list
-                ]
+    @parameterized.parameterized.expand(
+        [
+            # Multiple advanced indices, all 1D tensors.
+            # Non-contiguous advanced indices: updates must be broadcastable to (2, 6)
+            (
+                (6, 6, 6),
+                [[0, 1], None, [2, 3]],
+                (2, 6),
+                "non_contiguous_non_broadcast_indices_no_value_broadcast",
+            ),
+            (
+                (6, 6, 6),
+                [[0, 1], None, [2, 3]],
+                (2, 1),
+                "non_contiguous_non_broadcast_indices_expand_dim2",
+            ),
+            (
+                (6, 6, 6),
+                [[0, 1], None, [2, 3]],
+                (1, 6),
+                "non_contiguous_non_broadcast_indices_expand_dim1",
+            ),
+            (
+                (6, 6, 6),
+                [[0, 1], None, [2, 3]],
+                (6,),
+                "non_contiguous_non_broadcast_indices_new_dim1",
+            ),
+            (
+                (6, 6, 6),
+                [[0, 1], None, [2, 3]],
+                (),
+                "non_contiguous_non_broadcast_indices_scalar",
+            ),
+            # Contiguous advanced indices versions of above tests: updates must be broadcastable to (6, 2)
+            (
+                (6, 6, 6),
+                [None, [0, 1], [2, 3]],
+                (6, 2),
+                "contiguous_non_broadcast_indices_no_value_broadcast",
+            ),
+            (
+                (6, 6, 6),
+                [None, [0, 1], [2, 3]],
+                (6, 1),
+                "contiguous_non_broadcast_indices_expand_dim2",
+            ),
+            (
+                (6, 6, 6),
+                [None, [0, 1], [2, 3]],
+                (1, 2),
+                "contiguous_non_broadcast_indices_expand_dim1",
+            ),
+            (
+                (6, 6, 6),
+                [None, [0, 1], [2, 3]],
+                (2,),
+                "contiguous_non_broadcast_indices_new_dim1",
+            ),
+            ((6, 6, 6), [None, [0, 1], [2, 3]], (), "contiguous_non_broadcast_indices_scalar"),
+            # Multiple advanced indices, with broadcasting among indices.
+            # Contiguous advanced indices:
+            # This produces index tuples [(0,2), (0, 3), (1,2), (1,3)] in shape (2,2)
+            # The update values must be broadcastable to (6,2,2)
+            (
+                (6, 6, 6),
+                [None, [[0], [1]], [2, 3]],
+                (6, 2, 2),
+                "contiguous_broadcast_indices_no_value_broadcast",
+            ),
+            (
+                (6, 6, 6),
+                [None, [[0], [1]], [2, 3]],
+                (6, 1, 1),
+                "contiguous_broadcast_indices_expand_dim2_dim3",
+            ),
+            (
+                (6, 6, 6),
+                [None, [[0], [1]], [2, 3]],
+                (2,),
+                "contiguous_broadcast_indices_extend_dim1_dim2",
+            ),
+            # Non-contiguous advanced indices versions of above tests:
+            # Here, update values must be broadcastable to (2,2,6)
+            (
+                (6, 6, 6),
+                [[[0], [1]], None, [2, 3]],
+                (2, 2, 6),
+                "non_contiguous_broadcast_indices_no_value_broadcast",
+            ),
+            (
+                (6, 6, 6),
+                [[[0], [1]], None, [2, 3]],
+                (1, 1, 6),
+                "non_contiguous_broadcast_indices_expand_dim1_dim2",
+            ),
+            (
+                (6, 6, 6),
+                [[[0], [1]], None, [2, 3]],
+                (6,),
+                "non_contiguous_broadcast_indices_extend_dim1_dim2",
+            ),
+            # Other test cases
+            (
+                (4, 4, 4, 4),
+                [None, [0, 1], None, [2, 3]],
+                (2, 4, 4),
+                "non_contiguous_non_first",
+            ),
+            ((6, 6, 6), [0, None, None], (6, 6), "single_scalar_index"),
+            ((6, 6, 6), [0, None, [0, 1]], (2, 6), "non_contiguous_scalar_index_and_1d_index"),
+            ((6, 6, 6), [None, 0, [0, 1]], (6, 2), "contiguous_scalar_index_and_1d_index"),
+            # (TODO): Exporter doesn't yet support all None indices
+            # ((6, 6, 6), [None, None, None], (6, 6, 6), "all_none_indices"),
+        ]
+    )
+    def test_index_put(self, x_shape, index_list, update_shape, _: str):
+        indices = [
+            (torch.tensor(index, dtype=torch.int64) if index is not None else None)
+            for index in index_list
+        ]
+
+        class Model(torch.nn.Module):
+            def forward(self, x, update):
+                return torch.ops.aten.index_put(x, indices, update, accumulate=True)
+
+        x = torch.zeros(x_shape, dtype=torch.float32)
+        update = torch.randn(update_shape, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, update),
+            input_names=["x", "update"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_index_put_dynamic(self):
+        for dimension in [3, 4, 2]:
+            with self.subTest(dimension=dimension):
 
                 class Model(torch.nn.Module):
-                    def forward(self, x, update):
-                        return torch.ops.aten.index_put(x, indices, update, accumulate=True)
+                    def __init__(self, dimension):
+                        super().__init__()
+                        self.params = torch.zeros(
+                            (4, 5)
+                            if dimension == 2
+                            else ((2, 4, 5) if dimension == 3 else (1, 1, 4, 5))
+                        )
+                        self.dimension = dimension
 
-                x = torch.zeros(x_shape, dtype=torch.float32)
-                update = torch.randn(update_shape, dtype=torch.float32)
+                    def forward(self, update, index1, index2):
+                        copy = self.params.clone()
+                        if self.dimension == 2:
+                            copy[index1, index2] = update
+                        elif self.dimension == 3:
+                            copy[:, index1, index2] = update
+                        else:
+                            copy[:, :, index1, index2] = update
+                        return copy
 
+                update = (torch.arange(2) + 10).reshape((2,)).to(torch.float32)
+                index1 = torch.tensor([1, 2], dtype=torch.int64)
+                index2 = torch.tensor([3, 4], dtype=torch.int64)
+                feeds = dict(zip(["update", "index1", "index2"], (update, index1, index2)))
                 onnx_program = torch.onnx.export(
-                    Model(),
-                    (x, update),
-                    input_names=["x", "update"],
+                    Model(dimension),
+                    tuple(feeds.values()),
+                    input_names=["update", "index1", "index2"],
                     output_names=["output"],
                     opset_version=18,
                     dynamo=True,
+                    dynamic_shapes={
+                        "update": {0: "dn"},
+                        "index1": {0: "dn"},
+                        "index2": {0: "dn"},
+                    },
                 )
                 _testing.assert_onnx_program(onnx_program)
 
-        # Test cases
-        shape_6x6x6 = (6, 6, 6)
-        shape_4x4x4x4 = (4, 4, 4, 4)
+    def test_index_put_55_12_25(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, index, update):
+                return torch.ops.aten.index_put(x, [index], update)
 
-        # Multiple advanced indices, all 1D tensors.
-        # Non-contiguous advanced indices: updates must be broadcastable to (2, 6)
-        base = "non_contiguous_non_broadcast_indices_"
-        test(shape_6x6x6, [[0, 1], None, [2, 3]], (2, 6), base + "no_value_broadcast")
-        test(shape_6x6x6, [[0, 1], None, [2, 3]], (2, 1), base + "expand_dim2")
-        test(shape_6x6x6, [[0, 1], None, [2, 3]], (1, 6), base + "expand_dim1")
-        test(shape_6x6x6, [[0, 1], None, [2, 3]], (6,), base + "new_dim1")
-        test(shape_6x6x6, [[0, 1], None, [2, 3]], (), base + "scalar")
-
-        # Contiguous advanced indices versions of above tests: updates must be broadcastable to (6, 2)
-        base = "contiguous_non_broadcast_indices_"
-        test(shape_6x6x6, [None, [0, 1], [2, 3]], (6, 2), base + "no_value_broadcast")
-        test(shape_6x6x6, [None, [0, 1], [2, 3]], (6, 1), base + "expand_dim2")
-        test(shape_6x6x6, [None, [0, 1], [2, 3]], (1, 2), base + "expand_dim1")
-        test(shape_6x6x6, [None, [0, 1], [2, 3]], (2,), base + "new_dim1")
-        test(shape_6x6x6, [None, [0, 1], [2, 3]], (), base + "scalar")
-
-        # Multiple advanced indices, with broadcasting among indices.
-        # Contiguous advanced indices:
-        # This produces index tuples [(0,2), (0, 3), (1,2), (1,3)] in shape (2,2)
-        # The update values must be broadcastable to (6,2,2)
-        base = "contiguous_broadcast_indices_"
-        test(shape_6x6x6, [None, [[0], [1]], [2, 3]], (6, 2, 2), base + "no_value_broadcast")
-        test(shape_6x6x6, [None, [[0], [1]], [2, 3]], (6, 1, 1), base + "expand_dim2_dim3")
-        test(shape_6x6x6, [None, [[0], [1]], [2, 3]], (2,), base + "extend_dim1_dim2")
-
-        # Non-contiguous advanced indices versions of above tests:
-        # Here, update values must be broadcastable to (2,2,6)
-        base = "non_contiguous_broadcast_indices_"
-        test(shape_6x6x6, [[[0], [1]], None, [2, 3]], (2, 2, 6), base + "no_value_broadcast")
-        test(shape_6x6x6, [[[0], [1]], None, [2, 3]], (1, 1, 6), base + "expand_dim1_dim2")
-        test(shape_6x6x6, [[[0], [1]], None, [2, 3]], (6,), base + "extend_dim1_dim2")
-
-        test(
-            shape_4x4x4x4, [None, [0, 1], None, [2, 3]], (2, 4, 4), "non_contiguous_non_first"
+        x = torch.zeros((6, 5), dtype=torch.float32)
+        index = torch.tensor([[2, 1]], dtype=torch.int64)
+        update = (torch.arange(10) + 10).reshape((2, -1)).to(torch.float32)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, index, update),
+            input_names=["x", "index", "update"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
         )
-        test(shape_6x6x6, [0, None, None], (6, 6), "single_scalar_index")
-        test(
-            shape_6x6x6, [0, None, [0, 1]], (2, 6), "non_contiguous_scalar_index_and_1d_index"
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_index_put_55_2_25(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, index, update):
+                return torch.ops.aten.index_put(x, [index], update, accumulate=True)
+
+        x = torch.ones((6, 5), dtype=torch.float32)
+        index = torch.tensor([4, 3], dtype=torch.int64)
+        update = (torch.arange(10) + 10).reshape((2, -1)).to(torch.float32)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, index, update),
+            input_names=["x", "index", "update"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
         )
-        test(shape_6x6x6, [None, 0, [0, 1]], (6, 2), "contiguous_scalar_index_and_1d_index")
-        # (TODO): Exporter doesn't yet support all None indices
-        # test(shape_6x6x6, [None, None, None], shape_6x6x6, "all_none_indices")
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_index_put_scatter_nd(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, index, update):
+                x = x.clone()
+                return torch.ops.aten.index_put(x, [None, index, None], update)
+
+        shape = (2, 3, 2)
+        N = math.prod(shape)
+        x = torch.arange(N, dtype=torch.float32).reshape(shape)
+        update = (torch.arange(N, dtype=torch.float32).reshape(shape) + 1) * 100
+        index = ((torch.arange(shape[-2])).to(torch.int64) + 1) % shape[-2]
+
+        feeds = dict(zip(["x", "index", "update"], (x, index, update)))
+        onnx_program = torch.onnx.export(
+            Model(),
+            tuple(feeds.values()),
+            input_names=["x", "index", "update"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+            dynamic_shapes=({0: "a", 1: "b", 2: "c"}, {0: "d"}, {0: "e", 1: "f", 2: "g"}),
+        )
+        _testing.assert_onnx_program(onnx_program)
 
 
 if __name__ == "__main__":
