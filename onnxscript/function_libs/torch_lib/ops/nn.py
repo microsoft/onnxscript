@@ -1840,7 +1840,8 @@ def aten_scaled_dot_product_attention(
         key, value = _attention_repeat_kv_for_group_query(query, key, value)
     else:
         assert query.shape[1] == key.shape[1] == value.shape[1], (
-            "SDPA (MHA) requires q_num_heads = kv_num_heads"
+            "SDPA (MHA) requires q_num_heads = kv_num_heads, "
+            f"query.shape={query.shape}, key.shape{key.shape}, value.shape={value.shape}"
         )
 
     if attn_mask is None:
