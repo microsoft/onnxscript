@@ -520,6 +520,112 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_unbind_dim0(self):
+        """Test unbind along dimension 0"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=0)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(3, 4, 5)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_dim1(self):
+        """Test unbind along dimension 1"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=1)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(2, 3, 4)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_negative_dim(self):
+        """Test unbind with negative dimension"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=-1)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(2, 3, 4)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_size_one(self):
+        """Test unbind with dimension of size 1"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=0)
+                return tensors[0]
+
+        model = UnbindModel()
+        x = torch.randn(1, 4, 5)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_with_lstm(self):
+        """Test unbind in LSTM context"""
+
+        class LSTMDecoder(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.embedding = torch.nn.Embedding(100, 64)
+                self.lstm = torch.nn.LSTM(64, 64, 2, batch_first=True)  # 2 layers
+                self.fc = torch.nn.Linear(64, 100)
+
+            def forward(self, tokens, h, c):
+                embedded = self.embedding(tokens).unsqueeze(0)
+                output, (h_out, c_out) = self.lstm(embedded, (h, c))
+                logits = self.fc(output.squeeze(0).squeeze(0))
+                return logits, h_out, c_out
+
+        model = LSTMDecoder()
+        model.eval()
+        tokens = torch.tensor([1])
+        h = torch.randn(2, 1, 64)  # 2 layers
+        c = torch.randn(2, 1, 64)  # 2 layers
+        onnx_program = torch.onnx.export(model, (tokens, h, c), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_dynamic_dim0(self):
+        """Test unbind with dynamic dimension 0 - triggers SplitToSequence"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=0)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(3, 4, 5)
+        onnx_program = torch.onnx.export(
+            model, (x,), dynamo=True, verbose=False, dynamic_shapes=({0: "batch_size"},)
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unbind_dynamic_dim1(self):
+        """Test unbind with dynamic dimension 1 - triggers SplitToSequence"""
+
+        class UnbindModel(torch.nn.Module):
+            def forward(self, x):
+                tensors = torch.unbind(x, dim=1)
+                return sum(tensors)
+
+        model = UnbindModel()
+        x = torch.randn(2, 3, 4)
+        onnx_program = torch.onnx.export(
+            model, (x,), dynamo=True, verbose=False, dynamic_shapes=({1: "seq_len"},)
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_index_put(self):
         def test(x_shape, index_list, update_shape, testname):
             with self.subTest(testname="index_put_" + testname):
