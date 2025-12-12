@@ -7689,7 +7689,7 @@ def aten_remainder(self: TTensor, other: float) -> TTensor:
 
 
 @torch_op("aten::remainder.Scalar_Tensor", trace_only=True)
-def aten_remainder_scalar_tensor(self: TTensor, other: TTensor) -> TTensor:
+def aten_remainder_scalar_tensor(self: float, other: TTensor) -> TTensor:
     """remainder.Scalar_Tensor(Scalar self, Tensor other) -> Tensor"""
 
     self_tensor = ir.tensor(self, dtype=other.dtype)
