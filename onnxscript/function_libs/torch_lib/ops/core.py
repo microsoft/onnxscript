@@ -7657,7 +7657,7 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"), trace_only=True)
+@torch_op("aten::remainder.Tensor", trace_only=True)
 def aten_remainder(self: TTensor, other: TTensor) -> TTensor:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -7671,6 +7671,36 @@ def aten_remainder(self: TTensor, other: TTensor) -> TTensor:
     rounded_quotient = op.Floor(op.Div(self, other))
 
     return op.Sub(self, op.Mul(rounded_quotient, other))
+
+
+@torch_op("aten::remainder.Scalar", trace_only=True)
+def aten_remainder(self: TTensor, other: float) -> TTensor:
+    """remainder.Scalar(Tensor self, Scalar other) -> Tensor"""
+
+    other_tensor = ir.tensor(other, dtype=self.dtype)
+
+    if self.dtype.is_integer():
+        return op.Mod(self, other_tensor)
+
+    # a - a.div(b, rounding_mode="floor") * b
+    rounded_quotient = op.Floor(op.Div(self, other_tensor))
+
+    return op.Sub(self, op.Mul(rounded_quotient, other_tensor))
+
+
+@torch_op("aten::remainder.Scalar_Tensor", trace_only=True)
+def aten_remainder_scalar_tensor(self: TTensor, other: TTensor) -> TTensor:
+    """remainder.Scalar_Tensor(Scalar self, Tensor other) -> Tensor"""
+
+    self_tensor = ir.tensor(self, dtype=other.dtype)
+
+    if other.dtype.is_integer():
+        return op.Mod(self_tensor, other)
+
+    # a - a.div(b, rounding_mode="floor") * b
+    rounded_quotient = op.Floor(op.Div(self_tensor, other))
+
+    return op.Sub(self_tensor, op.Mul(rounded_quotient, other))
 
 
 @torch_op("_operator::mod", trace_only=True)
