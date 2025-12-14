@@ -84,6 +84,7 @@ SKIP_TESTS = (
     ),
     skip(r"^test_ai_onnx_ml_label_encoder", "ONNX Runtime does not support Opset 21 at 1.17"),
     skip(r"^test_ai_onnx_ml_tree_ensemble", "Opset 23 is not supported"),
+    skip(r"^test_attention", "ONNX Runtime 1.23 fails on these tests"),
 )
 
 if sys.platform == "win32":

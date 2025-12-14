@@ -78,23 +78,34 @@ def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
     return None
 
 
-def get_singleton_value(val: ir.Value | None, rank: int | None = None):
+def get_singleton_value(val: ir.Value | None, rank: int | Sequence[int] | None = None):
     """Returns element of a single element tensor constant value, and None otherwise.
 
-    If rank is specified, it checks that the value has the given rank.
+    If an int rank is specified, it checks that the value has the given rank.
+    If the rank is a sequence of ints, it checks that the value has one of the given ranks.
+
+    Thus, `rank=0` checks for a scalar, `rank=1` checks for a 1D tensor, and
+    `rank=(0,1)` checks for either a scalar or a 1D tensor.
     """
     np_val = get_numpy_value(val)
     if np_val is not None and np_val.size == 1:
-        if rank is None or (np_val.ndim == rank):
-            return np_val.item()
+        value = np_val.item()
+        if (rank is None) or (isinstance(rank, int) and (np_val.ndim == rank)):
+            return value
+        if isinstance(rank, Sequence) and (np_val.ndim in rank):
+            return value
     return None
 
 
 def is_singleton_value(
-    val: ir.Value | None, expected: float | int | Callable, *, rtol: float | None = None
+    val: ir.Value | None,
+    expected: float | int | Callable,
+    *,
+    rtol: float | None = None,
+    rank: int | Sequence[int] | None = None,
 ) -> bool:
     """Returns True if the value is a single element tensor with given value, and False otherwise."""
-    scalar = get_singleton_value(val)
+    scalar = get_singleton_value(val, rank=rank)
     if scalar is None:
         return False
     if callable(expected):
@@ -141,3 +152,27 @@ def get_dim(value: ir.Value | None, dim: int) -> ir.SymbolicDim | int | None:
     if dim < 0 or dim >= shape.rank():
         return None
     return shape[dim]
+
+
+def same_shape(shape1: ir.Shape | None, shape2: ir.Shape | None) -> bool:
+    """Check if two shapes are semantically the same."""
+    if shape1 is None or shape2 is None:
+        return False
+
+    # If any dim is unknown, the shapes are not the same
+    if shape1.has_unknown_dim() or shape2.has_unknown_dim():
+        return False
+
+    return shape1 == shape2
+
+
+def same_dim(dim1: ir.SymbolicDim | int, dim2: ir.SymbolicDim | int) -> bool:
+    """Check if two dimensions are semantically the same."""
+    if type(dim1) is not type(dim2):
+        return False
+    if isinstance(dim1, int) and isinstance(dim2, int):
+        return dim1 == dim2
+    assert isinstance(dim1, ir.SymbolicDim) and isinstance(dim2, ir.SymbolicDim)
+    if dim1.value is None or dim2.value is None:
+        return False
+    return dim1.value == dim2.value

@@ -163,13 +163,37 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
     ):
         # Reshape query from (B, S, D) to (B, S, H, D/H)
         query_BSHDh = op.Reshape(query_BSD, pattern.ANY_VALUE, _outputs=["query_BSHDh"])
+        # Qwen variant uses normalization of query/key before rotary embedding:
+        # The normalization can happen before (eg., Qwen) or after the Transpose (eg., Gemma).
+        query_BSHDh_normalized = op.SimplifiedLayerNormalization(
+            query_BSHDh, pattern.ANY_VALUE, axis=-1, _outputs=["query_BSHDh_normalized"]
+        )
+        query_BSHDh = pattern.OrValue([query_BSHDh, query_BSHDh_normalized])
+
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         query_BHSDh = op.Transpose(query_BSHDh, perm=[0, 2, 1, 3])
 
+        # Gemma variant uses normalization of query/key before rotary embedding:
+        query_BHSDh_normalized = op.SimplifiedLayerNormalization(
+            query_BHSDh, pattern.ANY_VALUE, axis=-1, _outputs=["query_BHSDh_normalized"]
+        )
+        query_BHSDh = pattern.OrValue([query_BHSDh, query_BHSDh_normalized])
+
         # Reshape key from (B, S, Dkv) to (B, S, Hkv, D/H)
         key_BSHkvDh = op.Reshape(key_BSDkv, pattern.ANY_VALUE, _outputs=["key_BSHkvDh"])
+        key_BSHkvDh_normalized = op.SimplifiedLayerNormalization(
+            key_BSHkvDh, pattern.ANY_VALUE, axis=-1, _outputs=["key_BSHkvDh_normalized"]
+        )
+        key_BSHkvDh = pattern.OrValue([key_BSHkvDh, key_BSHkvDh_normalized])
+
         # Transpose from (B, S, Hkv, D/H) to (B, Hkv, S, D/H)
         key_BHkvSDh = op.Transpose(key_BSHkvDh, perm=[0, 2, 1, 3])
+
+        # Gemma variant uses normalization of query/key before rotary embedding:
+        key_BHkvSDh_normalized = op.SimplifiedLayerNormalization(
+            key_BHkvSDh, pattern.ANY_VALUE, axis=-1, _outputs=["key_BHkvSDh_normalized"]
+        )
+        key_BHkvSDh = pattern.OrValue([key_BHkvSDh, key_BHkvSDh_normalized])
 
         # Reshape value from (B, S, Dkv) to (B, S, Hkv, D/H)
         value_BSHkvDh = op.Reshape(value_BSDkv, pattern.ANY_VALUE, _outputs=["value_BSHkvDh"])
@@ -197,7 +221,9 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # that share key/value.
 
         key_seq_BHkvTDh = op.Concat(past_key, key_BHkvSDh_rope, axis=-2)
-        key_seq_BHkv1TDh = op.Unsqueeze(key_seq_BHkvTDh, 2)
+        # Concat with past_key is optional:
+        key_seq_BHkvTDh = pattern.OrValue([key_seq_BHkvTDh, key_BHkvSDh_rope])
+        key_seq_BHkv1TDh = op.Unsqueeze(key_seq_BHkvTDh, [2])
         key_seq_BHkvGTDh = op.Expand(key_seq_BHkv1TDh, pattern.ANY_VALUE)
         key_seq_BHTDh = op.Reshape(
             key_seq_BHkvGTDh, pattern.ANY_VALUE, _outputs=["key_seq_BHTDh"]
@@ -206,7 +232,9 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # Concatenate past_value cache and current value, expand across heads
         # that share key/value.
         value_seq_BHkvTDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
-        value_seq_BHkv1TDh = op.Unsqueeze(value_seq_BHkvTDh, 2)
+        # Concat with past_value is optional:
+        value_seq_BHkvTDh = pattern.OrValue([value_seq_BHkvTDh, value_BHkvSDh])
+        value_seq_BHkv1TDh = op.Unsqueeze(value_seq_BHkvTDh, [2])
         value_seq_BHkvGTDh = op.Expand(value_seq_BHkv1TDh, pattern.ANY_VALUE)
         value_seq_BHTDh = op.Reshape(
             value_seq_BHkvGTDh, pattern.ANY_VALUE, _outputs=["value_seq_BHTDh"]
@@ -242,12 +270,27 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         query_BSHDh,
         key_BSHkvDh,
         mask,
+        query_BSHDh_normalized=None,
+        query_BHSDh_normalized=None,
+        key_BSHkvDh_normalized=None,
+        key_BHkvSDh_normalized=None,
         **_,
     ):
+        result = pattern.MatchResult()
+        if query_BSHDh_normalized is not None and query_BHSDh_normalized is not None:
+            return result.fail(
+                "Query normalized twice",
+                [query_BSHDh_normalized, query_BHSDh_normalized],
+            )
+        if key_BSHkvDh_normalized is not None and key_BHkvSDh_normalized is not None:
+            return result.fail(
+                "Key normalized twice",
+                [key_BSHkvDh_normalized, key_BHkvSDh_normalized],
+            )
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _fusion_utils._check_shape(bindings, val, dims)
+            return not _fusion_utils.check_shape_bool(bindings, val, dims)
 
         if no_match(query_BSD, ["B", "S", "D"]):
             return False
@@ -256,9 +299,9 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         if no_match(value_BSDkv, ["B", "S", "Dkv"]):
             return False
 
-        if no_match(past_key, ["B", "Hkv", "P", "Dh"]):
+        if past_key is not None and no_match(past_key, ["B", "Hkv", "P", "Dh"]):
             return False
-        if no_match(past_value, ["B", "Hkv", "P", "Dv"]):
+        if past_value is not None and no_match(past_value, ["B", "Hkv", "P", "Dv"]):
             return False
 
         # TODO: verify Reshapes:
@@ -266,7 +309,6 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
         # or check Reshape's shape-input value
 
-        result = pattern.MatchResult()
         num_heads = _ir_utils.get_dim(query_BSHDh, 2)
         kv_num_heads = _ir_utils.get_dim(key_BSHkvDh, 2)
         if not isinstance(num_heads, int):
@@ -316,6 +358,12 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         cos,
         sin,
         mask,
+        query_BSHDh,
+        key_BSHkvDh,
+        query_BSHDh_normalized=None,
+        query_BHSDh_normalized=None,
+        key_BSHkvDh_normalized=None,
+        key_BHkvSDh_normalized=None,
         **_,
     ):
         # Note that the following optimization is specific to current ORT GenAI attention-mask
@@ -335,6 +383,31 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         seqlens_k = op.Cast(seqlens_k_int64, to=ir.DataType.INT32)
         max_seq_length = op.ReduceMax(seqlens_k, zero_int64_1d, keepdims=0)
         total_seq_length_int32 = op.Add(max_seq_length, one_int32_0d)
+
+        normalized_query = query_BHSDh_normalized or query_BSHDh_normalized
+        if normalized_query is not None:
+            # We apply normalization without the transpose, which is fused into GQA
+            norm_node = normalized_query.producer()
+            norm_attrs = norm_node.attributes
+            norm_scale = norm_node.inputs[1]
+            query_BSHDh_normalized = op.SimplifiedLayerNormalization(
+                query_BSHDh, norm_scale, **norm_attrs
+            )
+            reshape_BSHDh_to_BSD = op.Constant(value_ints=[0, 0, -1])
+            query_BSD = op.Reshape(query_BSHDh_normalized, reshape_BSHDh_to_BSD)
+
+        normalized_key = key_BHkvSDh_normalized or key_BSHkvDh_normalized
+        if normalized_key is not None:
+            # We apply normalization without the transpose, which is fused into GQA
+            norm_node = normalized_key.producer()
+            norm_attrs = norm_node.attributes
+            norm_scale = norm_node.inputs[1]
+            key_BSHkvDh_normalized = op.SimplifiedLayerNormalization(
+                key_BSHkvDh, norm_scale, **norm_attrs
+            )
+            reshape_BSHkvDh_to_BSDkv = op.Constant(value_ints=[0, 0, -1])
+            key_BSDkv = op.Reshape(key_BSHkvDh_normalized, reshape_BSHkvDh_to_BSDkv)
+
         return op.GroupQueryAttention(
             query_BSD,
             key_BSDkv,

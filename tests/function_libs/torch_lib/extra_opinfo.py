@@ -37,6 +37,37 @@ def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs)
         yield opinfo_core.SampleInput(item, dtype=dtype)
 
 
+def sample_inputs_bilinear(op_info, device, dtype, requires_grad, **kwargs):
+    """Sample inputs for bilinear operation."""
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    # Test cases: (batch_size, in1_features, in2_features, out_features)
+    cases = [
+        (2, 3, 4, 5),  # Basic case
+        (1, 2, 2, 1),  # Minimal case
+        (3, 5, 7, 4),  # Different dimensions
+        (2, 1, 1, 3),  # Single input features
+    ]
+
+    for batch_size, in1_features, in2_features, out_features in cases:
+        input1 = make_arg((batch_size, in1_features))
+        input2 = make_arg((batch_size, in2_features))
+        weight = make_arg((out_features, in1_features, in2_features))
+        bias = make_arg((out_features,))
+
+        # Test with bias
+        yield opinfo_core.SampleInput(input1, args=(input2, weight, bias))
+
+        # Test without bias (only for first case to avoid too many tests)
+        if batch_size == 2:
+            yield opinfo_core.SampleInput(input1, args=(input2, weight, None))
+
+
 def sample_inputs_bernoulli_p(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
 
@@ -85,6 +116,35 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
             )
             yield opinfo_core.SampleInput(t, args=(p,))
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
+
+
+def sample_inputs_broadcast_in_dim(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    # cases: (input_shape, target_shape, broadcast_dimensions)
+    # broadcast_dimensions maps each input dim to an axis in target_shape
+    cases = (
+        # scalar -> 1-D tensor
+        ((), (3,), ()),
+        # identity (no-op broadcast)
+        ((3,), (3,), (0,)),
+        # rank-preserving broadcast where singleton dims expand
+        ((1, 3, 1), (2, 3, 4), (0, 1, 2)),
+        # input rank 2 -> output rank 3, input dims map to trailing axes
+        ((3, 1), (2, 3, 4), (1, 2)),
+        # add leading broadcast axis
+        ((3, 4), (1, 3, 4), (1, 2)),
+        # insert broadcasting in middle axis
+        ((3,), (2, 3, 1), (1,)),
+    )
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    for shape, target_shape, broadcast_dimensions in cases:
+        tensor = make_arg(shape)
+        yield opinfo_core.SampleInput(tensor, args=(target_shape, broadcast_dimensions))
 
 
 def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
@@ -719,6 +779,109 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
             )
 
 
+def sample_inputs_fake_quantize_per_tensor_affine(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    del op_info, kwargs  # Unused
+    make_arg = functools.partial(
+        opinfo_core.make_tensor,
+        device=device,
+        requires_grad=requires_grad,
+    )
+
+    # Test 1D, empty and scalar tensors (like sample_inputs_elementwise_unary)
+    shapes = [
+        (S,),
+        (1, 0, 3),
+        (),
+    ]
+
+    scale_zero_point_dtypes = [
+        # default (float, int)
+        (None, None)
+    ] + [
+        # tensor_qparams (tensor, tensor)
+        (t1, t2)
+        for t1 in common_dtype.all_types_and()
+        for t2 in common_dtype.all_types_and()
+    ]
+
+    # NOTE: (0, 127) is allowed as special case. PyTorch restricts activations to be in the range (0, 127).
+    #   https://github.com/pytorch/pytorch/blob/b34b192d6b97325c9f78e5995c48c8498ede34bd/torch/ao/quantization/observer.py#L1422
+    quant_vals = [(0, 255), (-128, 127), (0, 127)]
+
+    cases = itertools.product(shapes, scale_zero_point_dtypes, quant_vals)
+    for shape, (scale_dtype, zero_point_dtype), (quant_min, quant_max) in cases:
+        scale = make_arg(
+            (),
+            dtype=scale_dtype or torch.float64,
+        )
+        if scale_dtype is None:
+            scale = scale.item()
+
+        zero_point = make_arg(
+            (),
+            dtype=zero_point_dtype or torch.int64,
+            # zero_point must be between quant_min and quant_max
+            low=quant_min,
+            high=quant_max,
+        )
+        if zero_point_dtype is None:
+            zero_point = zero_point.item()
+
+        args = (scale, zero_point, quant_min, quant_max)
+        yield opinfo_core.SampleInput(make_arg(shape, dtype=dtype), args=args)
+
+
+def sample_inputs_fake_quantize_per_channel_affine(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    del op_info, kwargs  # Unused
+    make_arg = functools.partial(
+        opinfo_core.make_tensor,
+        device=device,
+        requires_grad=requires_grad,
+    )
+
+    # Test 1D, 2D, 4D and empty tensors (scalar tensors not supported)
+    axes_and_shapes = [
+        # 1D, 2D, 4D
+        (axis, (S,) * dims)
+        for dims in (1, 2, 4)
+        for axis in range(dims)
+    ] + [
+        # empty
+        (0, (1, 0, 3)),
+        (2, (1, 0, 3)),
+        # empty channel axis causes an error due to
+        # an internal zero_point.min() calculation
+        # (1, (1, 0, 3)),
+    ]
+
+    # tensor_qparams
+    scale_dtype = torch.float
+    zero_point_dtypes = [torch.int32, torch.float, torch.half]
+
+    # NOTE: (0, 127) is allowed as special case. PyTorch restricts activations to be in the range (0, 127).
+    #   https://github.com/pytorch/pytorch/blob/b34b192d6b97325c9f78e5995c48c8498ede34bd/torch/ao/quantization/observer.py#L1422
+    quant_vals = [(0, 255), (-128, 127), (0, 127)]
+
+    cases = itertools.product(axes_and_shapes, zero_point_dtypes, quant_vals)
+    for (axis, shape), zero_point_dtype, (quant_min, quant_max) in cases:
+        scale = make_arg((shape[axis],), dtype=scale_dtype)
+
+        zero_point = make_arg(
+            (shape[axis],),
+            dtype=zero_point_dtype or torch.int64,
+            # zero_point must be between quant_min and quant_max
+            low=quant_min,
+            high=quant_max,
+        )
+
+        args = (scale, zero_point, axis, quant_min, quant_max)
+        yield opinfo_core.SampleInput(make_arg(shape, dtype=dtype), args=args)
+
+
 def _index_variable_bool(shape, max_indices, device):
     if not isinstance(shape, tuple):
         shape = (shape,)
@@ -1334,6 +1497,109 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         input_ = make_arg(input_shape)
         src = make_arg(src_shape)
         yield opinfo_core.SampleInput(input_, args=(src, *args))
+
+
+def sample_inputs_scatter_src(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+
+    # Basic test cases for scatter.src
+    cases = [
+        # (self_shape, index_shape, src_shape, dim)
+        ((5, 5), (2, 3), (2, 3), 0),  # 2D scatter on dim=0
+        ((5, 5), (3, 2), (3, 2), 1),  # 2D scatter on dim=1
+        ((3, 4, 5), (2, 2, 3), (2, 2, 3), 0),  # 3D scatter on dim=0
+        ((3, 4, 5), (2, 2, 3), (2, 2, 3), 1),  # 3D scatter on dim=1
+        ((3, 4, 5), (2, 2, 3), (2, 2, 3), 2),  # 3D scatter on dim=2
+        ((10,), (3,), (3,), 0),  # 1D scatter
+    ]
+
+    for self_shape, index_shape, src_shape, dim in cases:
+        self_tensor = make_arg(self_shape)
+        # Create valid indices for the given dimension without duplication
+        index_buffer_shape = list(index_shape)
+        index_buffer_shape[dim] = self_shape[dim]
+        index_tensor = torch.rand(index_buffer_shape, device=device).argsort(dim=dim)[
+            tuple(slice(None, d, None) for d in index_shape)
+        ]
+        src_tensor = make_arg(src_shape)
+        yield opinfo_core.SampleInput(self_tensor, args=(dim, index_tensor, src_tensor))
+
+    # Additional test cases for scalar and single-element tensor combinations with dim=0
+    # Test case: scalar index, scalar src (dim_size=5)
+    dim_size = 5
+    data_1d = make_arg((dim_size,))
+    valid_index = torch.randint(0, dim_size, (), device=device, dtype=torch.long)
+    scalar_src = make_arg(())
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index, scalar_src))
+
+    # Test case: single-element tensor index, scalar src (dim_size=7)
+    dim_size = 7
+    data_1d = make_arg((dim_size,))
+    valid_index_1d = torch.randint(0, dim_size, (1,), device=device, dtype=torch.long)
+    scalar_src = make_arg(())
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index_1d, scalar_src))
+
+    # Test case: scalar index, single-element tensor src (dim_size=3)
+    dim_size = 3
+    data_1d = make_arg((dim_size,))
+    valid_index = torch.randint(0, dim_size, (), device=device, dtype=torch.long)
+    src_1d = make_arg((1,))
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index, src_1d))
+
+    # Test case: single-element tensor index, single-element tensor src (dim_size=10)
+    dim_size = 10
+    data_1d = make_arg((dim_size,))
+    valid_index_1d = torch.randint(0, dim_size, (1,), device=device, dtype=torch.long)
+    src_1d = make_arg((1,))
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index_1d, src_1d))
+
+
+def sample_inputs_scatter_value(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+
+    # Basic test cases for scatter.value
+    cases = [
+        # (self_shape, index_shape, dim, value)
+        ((5, 5), (2, 3), 0, 1.0),  # 2D scatter on dim=0 with scalar value
+        ((5, 5), (3, 2), 1, -2.5),  # 2D scatter on dim=1 with scalar value
+        ((3, 4, 5), (2, 2, 3), 0, False),  # 3D scatter on dim=0 with scalar value
+        ((3, 4, 5), (2, 2, 3), 1, 3.14),  # 3D scatter on dim=1 with scalar value
+        ((3, 4, 5), (2, 2, 3), 2, -1),  # 3D scatter on dim=2 with scalar value
+        ((10,), (3,), 0, 5.0),  # 1D scatter with scalar value
+    ]
+
+    for self_shape, index_shape, dim, value in cases:
+        self_tensor = make_arg(self_shape)
+        # Create valid indices for the given dimension without duplication
+        index_buffer_shape = list(index_shape)
+        index_buffer_shape[dim] = self_shape[dim]
+        index_tensor = torch.rand(index_buffer_shape, device=device).argsort(dim=dim)[
+            tuple(slice(None, d, None) for d in index_shape)
+        ]
+        yield opinfo_core.SampleInput(self_tensor, args=(dim, index_tensor, value))
+
+    # Additional test cases for scalar and single-element tensor combinations with dim=0
+    # Test case: scalar index with scalar value (dim_size=6, value_type=torch.long)
+    dim_size = 6
+    data_1d = make_arg((dim_size,))
+    valid_index = torch.randint(0, dim_size, (), device=device, dtype=torch.long)
+    random_value = torch.randint(0, 10, (), device=device, dtype=torch.long).item()
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index, random_value))
+
+    # Test case: single-element tensor index with scalar value (dim_size=8, value_type=torch.float)
+    dim_size = 8
+    data_1d = make_arg((dim_size,))
+    valid_index_1d = torch.randint(0, dim_size, (1,), device=device, dtype=torch.long)
+    random_value = torch.rand((), device=device, dtype=torch.float).item()
+    yield opinfo_core.SampleInput(data_1d, args=(0, valid_index_1d, random_value))
 
 
 def sample_inputs__scaled_dot_product_flash_attention(
@@ -2152,6 +2418,13 @@ class _TestParamsMaxPool3dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
 #    the `op` field explicitly.
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
+        "bilinear",
+        op=torch.nn.functional.bilinear,
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_bilinear,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten.bernoulli.p",
         aten_name="bernoulli.p",
         # dtypes can be a tuple of (torch.float, torch.double).
@@ -2276,20 +2549,27 @@ OP_DB: List[opinfo_core.OpInfo] = [
         sample_inputs_func=sample_inputs__fft_r2c,
         supports_out=False,
     ),
+    opinfo_core.OpInfo(
+        "ops.aten.fake_quantize_per_tensor_affine",
+        aten_name="fake_quantize_per_tensor_affine",
+        op=torch.fake_quantize_per_tensor_affine,
+        dtypes=common_dtype.floating_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_fake_quantize_per_tensor_affine,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.fake_quantize_per_channel_affine",
+        aten_name="fake_quantize_per_channel_affine",
+        op=torch.fake_quantize_per_channel_affine,
+        dtypes=common_dtype.floating_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_fake_quantize_per_channel_affine,
+        supports_out=False,
+    ),
     opinfo_core.BinaryUfuncInfo(
         "ops.aten.floor_divide",
         aten_name="floor_divide",
-        dtypes=common_dtype.floating_types_and_half(),
+        dtypes=common_dtype.all_types_and_half(),
         rhs_make_tensor_kwargs=dict(exclude_zero=True),
-    ),
-    opinfo_core.BinaryUfuncInfo(
-        "ops.aten.floor_divide.int",
-        aten_name="floor_divide",
-        op=torch.ops.aten.floor_divide,
-        dtypes=common_dtype.integral_types(),
-        # Create only positive inputs
-        lhs_make_tensor_kwargs=dict(low=0),
-        rhs_make_tensor_kwargs=dict(exclude_zero=True, low=0),
     ),
     opinfo_core.OpInfo(
         "ops.aten.hamming_window",
@@ -2552,6 +2832,22 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten.scatter.src",
+        op=torch.ops.aten.scatter.src,
+        aten_name="scatter.src",
+        dtypes=common_dtype.all_types_and(torch.bfloat16, torch.half, torch.bool),
+        sample_inputs_func=sample_inputs_scatter_src,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.scatter.value",
+        op=torch.ops.aten.scatter.value,
+        aten_name="scatter.value",
+        dtypes=common_dtype.all_types_and(torch.bfloat16, torch.half, torch.bool),
+        sample_inputs_func=sample_inputs_scatter_value,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten._softmax",
         op=torch.ops.aten._softmax,  # pylint: disable=protected-access
         aten_name="_softmax",
@@ -2723,6 +3019,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="upsample_trilinear3d.vec",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_trilinear3d_vec,
+        supports_out=False,
+    ),
+    opinfo_core.ReductionOpInfo(
+        "ops.prims.broadcast_in_dim.default",
+        op=torch.ops.prims.broadcast_in_dim.default,
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_broadcast_in_dim,
         supports_out=False,
     ),
     opinfo_core.ReductionOpInfo(

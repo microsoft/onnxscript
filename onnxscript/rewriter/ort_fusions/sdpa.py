@@ -12,6 +12,18 @@ from onnxscript.rewriter._basics import MatchFailureError
 
 Dim = Union[int, ir.SymbolicDim]
 
+# This file contains a fusion rule that recognizes various patterns of scaled dot-product attention
+# (SDPA) implementations and replaces them with a single SDPA op. The SDPA op is a temporary fusion
+# op defined in the ai.onnxruntime._fusion domain. Subsequent fusion rules will map it into one
+# of the various ops defined in ORT: MHA, GQA, or Attention depending on the input patterns.
+# The SDPA is a standard scalar dot-product attention with an optional mask input and scaling factor.
+# Currently, it is restricted to query, key, and values of rank 4 with shapes:
+#   Query: [batch_size, num_heads, seq_len, head_size_qk]
+#   Key:   [batch_size, num_heads, seq_len_kv, head_size_qk]
+#          or [batch_size, seq_len_kv, num_heads, head_size_qk])
+#   Value: [batch_size, num_heads, seq_len_kv, head_size_v]
+# The key_format attribute indicates which of the two formats the key uses and can be either "BHSd" or "BSHd".
+
 
 class SDPA(pattern.RewriteRuleClassBase):
     _scale: float | None
@@ -88,6 +100,9 @@ class SDPA(pattern.RewriteRuleClassBase):
         )
 
         attn_weight = op.Softmax(attn_score, axis=-1)
+        is_nan = op.IsNaN(attn_weight)
+        adj_attn_weight = op.Where(is_nan, 0.0, attn_weight)
+        attn_weight = pattern.OrValue([adj_attn_weight, attn_weight])
         attn_output = op.MatMul(attn_weight, value)
         return attn_output
 

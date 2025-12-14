@@ -39,6 +39,7 @@ include_patterns = [
 exclude_patterns = [
     'tests/**', # Skip linting test files for speed
     # FIXME: Fix typing annotations in these files
+    'examples/custom_op_expansion.py',
     'onnxscript/converter_test.py',
     'onnxscript/converter.py',
     'onnxscript/evaluator_test.py',
@@ -57,7 +58,6 @@ exclude_patterns = [
     'onnxscript/rewriter/onnxruntime/transformers/multihead_attention.py',  # FIXME
     'onnxscript/tools/function_unittest_producer.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
-    'onnxscript/rewriter/generic_pattern.py',  # FIXME
 ]
 command = [
     'python',

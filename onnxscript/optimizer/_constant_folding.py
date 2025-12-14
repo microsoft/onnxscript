@@ -5,11 +5,18 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "basic_constant_propagation",
+    "fold_constants",
+    "FoldConstantsPass",
+    "FOLDED_FROM_KEY",
+]
+
 import dataclasses
 import logging
 import math
 import typing
-from typing import Any, Callable, Collection, Iterable, Sequence, Union
+from typing import Any, Callable, Iterable, Sequence, Union
 
 import numpy as np
 import onnx
@@ -19,9 +26,20 @@ import onnx_ir as ir
 import onnxscript.utils.utils as utils
 from onnxscript.ir import _tape
 
+DEFAULT_CONSTANT_FOLD_BLACKLIST = [
+    # ConstantOfShape is preserved to avoid increasing model size unnecessarily
+    "ConstantOfShape",
+    # Quantize/DequantizeLinear are preserved to keep the quantization info
+    "QuantizeLinear",
+    "DequantizeLinear",
+]
+
 DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 8192
 
 DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 512 * 512
+
+# Key used to store the metadata
+FOLDED_FROM_KEY = "pkg.onnxscript.optimizer.folded_from"
 
 
 _NON_DETERMINISTIC_OPS = frozenset(
@@ -34,6 +52,13 @@ _NON_DETERMINISTIC_OPS = frozenset(
     }
 )
 
+# A list of ops to always fold regardless of their input size limits, as long as
+# they are the single consumer of the large input tensors
+_DEFAULT_ALWAYS_FOLD_OPS = frozenset(
+    {
+        ("", "Transpose"),
+    }
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +84,7 @@ def _is_onnx_op(node: ir.Node, op_type: str) -> bool:
 
 def _process_constant_node(node: ir.Node) -> None:
     """Sets const_value of output value of a Constant op node."""
-    if node.op_type != "Constant" or node.domain != "":
+    if not _is_onnx_op(node, "Constant"):
         return
     if len(node.attributes) != 1:
         return
@@ -332,12 +357,6 @@ def _get_output(node: ir.Node, index: int) -> ir.Value | None:
     return None
 
 
-def _update_type(value: ir.Value, type: ir.TypeProtocol | None) -> None:
-    if type is not None:
-        # TODO: merge types
-        value.type = type
-
-
 def _get_input_element_type(node: ir.Node, index: int) -> int:
     input = _get_input(node, index)
     if input is not None and input.type is not None:
@@ -485,15 +504,6 @@ def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if input is None or output is None:
         return None
 
-    # TODO(rama): Parts of the following logic (implementing type/shape inference
-    # for Cast op) should be unnecessary. Generic incremental shape-inference
-    # should handle this. Only the optimization to eliminate redundant Cast ops
-    # should be needed here.
-
-    input_shape = input.shape
-    if input_shape is not None:
-        output.shape = input_shape.copy()
-
     input_dtype = _get_input_element_type(node, 0)
     output_dtype = _get_int_attribute(node, "to", None)
     if output_dtype is not None:
@@ -599,6 +609,19 @@ def identity(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = node.inputs[0]
     output = node.outputs[0]
     if input is not None and output is not None:
+        # NOTE: backward shape inference
+        try:
+            input.shape = _merge_shapes(input.shape, output.shape)
+        except Exception as e:
+            logger.warning(
+                "[Constant folder] Cannot merge shapes on Identity node '%s' "
+                "(folded from: %s) because of error: %s",
+                node.name,
+                input.meta.get(FOLDED_FROM_KEY, set()),
+                e,
+            )
+        if input.type is None:
+            input.type = output.type
         state.set_sym_value(output, input)
     return None
 
@@ -783,6 +806,9 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     This allows downstream `SequenceAt` users to be replaced by `split_x` accordingly.
     """
     input = node.inputs[0]
+    if len(node.inputs) == 1:
+        # split is not provided
+        return None
     split = node.inputs[1]
     output = node.outputs[0]
 
@@ -800,27 +826,45 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         axis = axis + rank
     if axis < 0 or axis >= rank:
         return None
-    split_dimension_size = shape[axis]
-    if not isinstance(split_dimension_size, int):
-        return None
 
+    # NOTE: Split needs to either be a scalar or a 1-D tensor. We need to
+    # calculate the number of outputs for Split.
+    # If split is a scalar, we split into chunks of size 'split' if possible.
+    #   * the split dimension size and split_value has to be known.
+    # If split is a 1-D tensor, we split into 'size(split)' chunks
+    #   * Get the size from split_value if it's numpy array.
+    #   * Get the size from symbolic shape if split_value is not available.
     split_value = _get_numpy_value(split)
-    if split_value is None:
-        return None
-    assert isinstance(split_value, np.ndarray)
+    split_shape = (
+        split.shape.numpy() if split.shape is not None and split.shape.is_static() else None
+    )
 
-    if split_value.ndim == 0:
-        # split into chunks all of size 'split' if possible.
-        num_outputs = math.ceil(split_dimension_size / split_value.item())
+    # No information about split value or shape.
+    if split_value is None and split_shape is None:
+        return None
+
+    if isinstance(split_shape, tuple) and len(split_shape) == 1:
+        # If split_shape is known, we can use it to determine the number of outputs.
+        split_dimension_size = split_shape[0]
+        assert isinstance(split_dimension_size, int)
+        num_outputs = split_dimension_size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
-        split_values = op.Split(
-            input, axis=axis, num_outputs=num_outputs, _outputs=split_outputs
-        )
+        split_values = op.Split(input, split, axis=axis, _outputs=split_outputs)
     elif split_value.ndim == 1:
         # split into 'size(split)' chunks
         num_outputs = split_value.size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
         split_values = op.Split(input, split, axis=axis, _outputs=split_outputs)
+    elif split_value.ndim == 0:
+        # split into chunks all of size 'split' if possible.
+        split_dimension_size = shape[axis]
+        if not isinstance(split_dimension_size, int):
+            return None
+        num_outputs = math.ceil(split_dimension_size / split_value.item())
+        split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
+        split_values = op.Split(
+            input, axis=axis, num_outputs=num_outputs, _outputs=split_outputs
+        )
     else:
         return None
 
@@ -871,7 +915,11 @@ def sequence_at(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
-def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape | None:
+def _merge_shapes(
+    preferred_shape: ir.Shape | None, other_shape: ir.Shape | None
+) -> ir.Shape | None:
+    """Merge two shapes, preferring dimensions from preferred_shapes."""
+
     def merge_dims(dim1, dim2):
         if dim1 == dim2:
             return dim1
@@ -883,13 +931,35 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
             return dim2
         return dim1
 
-    if shape1 is None:
-        return shape2
-    if shape2 is None:
-        return shape1
-    if len(shape1) != len(shape2):
-        raise ValueError("Shapes must have the same rank.")
-    return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
+    if preferred_shape is None:
+        return other_shape
+    if other_shape is None:
+        return preferred_shape
+    if len(preferred_shape) != len(other_shape):
+        raise ValueError(
+            f"Shapes must have the same rank, got preferred_shape={preferred_shape}, other_shape={other_shape}"
+        )
+    return ir.Shape(
+        [merge_dims(dim1, dim2) for dim1, dim2 in zip(preferred_shape, other_shape)]
+    )
+
+
+def _record_contributing_values(original_node: ir.Node, replacement: Replacement) -> None:
+    """Record the set of original input values that contributed to the constant-folded outputs."""
+    folded_from: set[str] = set()
+    for input in original_node.inputs:
+        if input is None:
+            continue
+        folded_from.update(input.meta.get(FOLDED_FROM_KEY, set()))
+        assert input.name is not None
+        folded_from.add(input.name)
+
+    for new_output in replacement.new_outputs:
+        if new_output is None:
+            continue
+        new_output.meta[FOLDED_FROM_KEY] = folded_from
+        # Store the string representation of the set to metadata_props to persist it across serialization
+        new_output.metadata_props[FOLDED_FROM_KEY] = repr(sorted(folded_from))
 
 
 class FoldConstantsPass(ir.passes.InPlacePass):
@@ -899,9 +969,10 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         shape_inference: Whether to perform shape inference.
         input_size_limit: Maximum size of input tensors to fold.
         output_size_limit: Maximum size of output tensors to fold.
-        always_fold_ops: Collection of op types that should always be folded.
-            For ops from the default opset, only op_type is neede (e.g. "Transpose"),
-            otherwise specify the domain with ``{domain}::{op_type}``.
+        should_fold: An optional function that takes a node and returns True if
+            the node should be considered for folding.
+            The function should return True/False value to indicate if this particular
+            node should be folded, or None to use the default folding rules.
     """
 
     def __init__(
@@ -910,18 +981,12 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         shape_inference: bool,
         input_size_limit: int,
         output_size_limit: int,
-        always_fold_ops: Collection[str] = frozenset(["Transpose"]),
+        should_fold: Callable[[ir.Node], bool | None] = lambda node: None,
     ) -> None:
         self.shape_inference = shape_inference
         self.input_size_limit = input_size_limit
         self.output_size_limit = output_size_limit
-        ops = []
-        for name in always_fold_ops:
-            domain, op_type = name.split("::", 1) if "::" in name else ("", name)
-            if domain == "ai.onnx":
-                domain = ""
-            ops.append((domain, op_type))
-        self.always_fold_ops: frozenset[tuple[str, str]] = frozenset(ops)
+        self.should_fold = should_fold
 
         self._opset_imports: dict[str, int] = {}
         self._counts: dict[str, int] = {}
@@ -961,7 +1026,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         input_data = {k: v for k, v in input_data.items() if v is not None}
         if any(t is None for t in input_types.values()):
             logger.debug(
-                "Skipping shape inference for node %s due to missing input type.",
+                "Skipping shape inference for node %r due to missing input type.",
                 node.name,
             )
         else:
@@ -983,62 +1048,99 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                         inferred_shape = ir.serde.deserialize_type_proto_for_shape(
                             inferred_type
                         )
+                        # NOTE: forward shape inference
                         output.shape = _merge_shapes(output.shape, inferred_shape)
                         output.type = ir.serde.deserialize_type_proto_for_type(inferred_type)
             except Exception as e:
                 logger.debug(
-                    "Skipping shape inference for node %s due to exception: %s",
-                    node.name,
+                    "Skipping shape inference for node %r due to exception: %s",
+                    node,
                     e,
                 )
 
-    def new_constant(self, node: ir.Node, value) -> ir.Node | None:
-        irvalue = node.outputs[0]
-        if not isinstance(value, np.ndarray):
-            # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
-            # So, a constant-value of type sequence is not folded, but it can be used
-            # to optimize subsequent operations when possible.
+    def _prepare_folded_tensor(
+        self, node: ir.Node, output_name: str, output_array: np.ndarray | Any
+    ) -> ir.Tensor | None:
+        """
+        Shared helper for constant/init creation:
+        - Validates the folded Python value is a numpy ndarray.
+        - Wraps it in an ir.Tensor and names it.
+        - Applies output_size_limit logic with input-usage compensation.
+        Returns the ir.Tensor or None if it should be skipped.
+        """
+        if not isinstance(output_array, np.ndarray):
             logger.info(
                 "Skip storing constant folded value %s due to unsupported type %s.",
-                irvalue.name,
-                type(value),
+                output_name,
+                type(output_array),
             )
             return None
 
-        tensor = ir.tensor(value)
-        tensor.name = irvalue.name
-        irvalue.const_value = tensor
+        tensor = ir.tensor(output_array)
+        tensor.name = output_name
 
-        if value.size > self.output_size_limit:
-            # Handle examples like Transpose(weight) to be folded even if the size is large,
-            # as long as weight has no other uses. This won't increase model size.
+        # Size gating (shared logic)
+        if output_array.size > self.output_size_limit:
             removed_input_size = 0
-            for input in node.inputs:
-                if (input is not None) and (len(input.uses()) == 1):
-                    array = _get_numpy_value(input)
-                    if array is not None:
-                        removed_input_size += array.size
-            increased_size = value.size - removed_input_size
+            for input_val in node.inputs:
+                if (input_val is not None) and (len(input_val.uses()) == 1):
+                    input_array = _get_numpy_value(input_val)
+                    if input_array is not None:
+                        removed_input_size += input_array.size
+            increased_size = output_array.size - removed_input_size
             if increased_size > 0:
                 logger.info(
-                    "Skip storing constant folded nvalue %s due to large size %s.",
-                    irvalue.name,
-                    value.size,
+                    "Skip storing constant folded array %s due to large size %s.",
+                    output_name,
+                    output_array.size,
                 )
                 return None
 
+        return tensor
+
+    def new_constant(self, node: ir.Node, array: np.ndarray | Any) -> ir.Node | None:
+        """Create a new Constant node with the given array as its value."""
+        original_value = node.outputs[0]
+
+        tensor = self._prepare_folded_tensor(node, original_value.name, array)
+        if tensor is None:
+            return None
+
         logger.debug(
             "New constant for value %s dtype: %s shape: %s",
-            irvalue.name,
-            value.dtype,
-            value.shape,
+            original_value.name,
+            array.dtype,
+            array.shape,
         )
 
-        attributes = ir.convenience.convert_attributes({"value": tensor})
-        node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
+        node = ir.Node("", "Constant", inputs=[], attributes=(ir.AttrTensor("value", tensor),))
         return node
 
-    def process_node(self, node: ir.Node) -> Replacement | None:
+    def new_initializer(self, node: ir.Node, array: np.ndarray | Any) -> ir.Value | None:
+        """Create a new initializer value with the given array as its value."""
+        original_value = node.outputs[0]
+
+        tensor = self._prepare_folded_tensor(node, original_value.name, array)
+        if tensor is None:
+            return None
+
+        initializer = ir.Value(
+            name=original_value.name,
+            type=ir.TensorType(ir.DataType(tensor.dtype)),
+            shape=tensor.shape,  # type: ignore[arg-type]
+            const_value=tensor,
+        )
+
+        logger.debug(
+            "New Initializer for value %s dtype: %s shape: %s",
+            original_value.name,
+            array.dtype,
+            array.shape,
+        )
+
+        return initializer
+
+    def process_node(self, node: ir.Node, is_function: bool) -> Replacement | None:
         """Process a node and return a Replacement if the node can be replaced."""
         for i, value in enumerate(node.inputs):
             sym_value = self._state.get_sym_value(value)
@@ -1053,18 +1155,33 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 self._modified = True
                 # TODO(rama): consider merging type/other info from both values
 
+        # Propagate const_value, and manually find out shape and type
+        # to avoid potentially expensive shape inference on large tensors.
+        if _is_onnx_op(node, "Constant"):
+            _process_constant_node(node)
         # Do incremental shape inference
-        if self.shape_inference and not _is_control_flow_op(node):
+        elif self.shape_inference and not _is_control_flow_op(node):
             self._do_inference(node)
 
         if node.domain not in self._opset_imports:
+            logger.debug(
+                "Skipping constant folding for node %r due to missing opset import for domain %r.",
+                node.name,
+                node.domain,
+            )
             return None
+
         version = self._opset_imports[node.domain]
         op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
         for optimizer in op_optimizers:
             assert optimizer
             context = RewriterContext()
-            output = optimizer(node, context, self._state)
+            try:
+                output = optimizer(node, context, self._state)
+            except Exception as e:
+                raise RuntimeError(
+                    f"Error during constant folding for node {node.name!r} ({node.domain}::{node.op_type})"
+                ) from e
             if output is not None:
                 if isinstance(output, Replacement):
                     return output
@@ -1072,54 +1189,96 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     output = [output]
                 return Replacement(output, context.nodes)
 
-        if _is_control_flow_op(node) or _is_non_deterministic_op(node):
+        if _is_onnx_op(node, "Constant"):
+            logger.debug("Skipping constant folding for Constant node %r", node.name)
             return None
 
-        if _is_onnx_op(node, "Constant"):
-            _process_constant_node(node)
+        if _is_control_flow_op(node):
+            logger.info(
+                "Skipping constant folding for control flow op %r (%s::%s) because it is not supported yet",
+                node.name,
+                node.domain,
+                node.op_type,
+            )
+
+            return None
+
+        if _is_non_deterministic_op(node):
+            logger.info(
+                "Skipping constant folding for non-deterministic op %r (%s::%s)",
+                node.name,
+                node.domain,
+                node.op_type,
+            )
             return None
 
         if any(x.is_graph_input() for x in node.inputs if x is not None):
-            # Do not fold any graph inputs to preserve graph signature
+            logger.info(
+                "Skipping constant folding for node %r because it is graph input to preserve graph signature",
+                node.name,
+            )
             return None
 
-        # Ensure all node inputs are constants
+        # Ensure all node inputs are constants or initializers
         if any(x.const_value is None for x in node.inputs if x is not None):
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    "Skipping constant folding for node %s because it has non-constant inputs",
-                    node,
-                    [x.name for x in node.inputs if x is not None],
-                )
             return None
 
-        input_tensors = [x.const_value if x is not None else None for x in node.inputs]
-        if any(
-            tensor.size > self.input_size_limit
-            for tensor in input_tensors
-            if tensor is not None
-        ):
-            if (node.domain, node.op_type) in self.always_fold_ops and all(
-                len(input.consumers()) == 1 for input in node.inputs if input is not None
-            ):
-                # If the op is in always_fold_ops and all inputs are used only by this node,
-                # we can still fold it even if the input size exceeds the limit.
-                logger.debug(
-                    "Folding large constant for node %s because it is in the always_fold_ops list",
-                    node,
-                )
-            else:
-                # Skip folding large tensors
-                if logger.isEnabledFor(logging.DEBUG):
-                    input_sizes = [
-                        tensor.size for tensor in input_tensors if tensor is not None
-                    ]
-                    logger.debug(
-                        "Skipping constant folding for node %s due to large input size: %s",
-                        node,
-                        input_sizes,
+        should_fold = self.should_fold(node)
+
+        if should_fold is False:
+            logger.info(
+                "Skipping constant folding for node %r because should_fold returned False",
+                node.name,
+            )
+            return None
+
+        elif should_fold is None:
+            # Use default rules to decide whether to fold the node:
+            # - Nodes in the DEFAULT_CONSTANT_FOLD_BLACKLIST list are not folded
+            # - If the any tensor input size exceeds the input_size_limit, skip folding the node
+            for op_type in DEFAULT_CONSTANT_FOLD_BLACKLIST:
+                if _is_onnx_op(node, op_type):
+                    logger.info(
+                        "Skipping constant folding for node %r because "
+                        "%s is preserved by default",
+                        node.name,
+                        op_type,
                     )
-                return None
+                    return None
+
+            input_tensors = [x.const_value if x is not None else None for x in node.inputs]
+            large_inputs = [
+                tensor is not None and tensor.size > self.input_size_limit
+                for tensor in input_tensors
+            ]
+            if any(large_inputs):
+                # Decide whether to fold large constants
+                assert len(node.inputs) == len(large_inputs)
+                if (node.domain, node.op_type) in _DEFAULT_ALWAYS_FOLD_OPS and all(
+                    len(input.consumers()) == 1 or (not is_large)
+                    for input, is_large in zip(node.inputs, large_inputs)
+                    if input is not None
+                ):
+                    # If the op is in _DEFAULT_ALWAYS_FOLD_OPS and all large inputs are used only by this node,
+                    # we can still fold it even if the input size exceeds the limit
+                    pass
+                else:
+                    # Skip folding large tensors
+                    if logger.isEnabledFor(logging.INFO):
+                        input_sizes = [
+                            tensor.size for tensor in input_tensors if tensor is not None
+                        ]
+                        logger.info(
+                            "Skipping constant folding for node %r due to large input sizes: %s",
+                            node,
+                            input_sizes,
+                        )
+                    return None
+        else:
+            logger.info(
+                "Constant folding node %r because should_fold returned True",
+                node.name,
+            )
 
         input_values = [_get_numpy_value(x) for x in node.inputs]
 
@@ -1128,6 +1287,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 return ir.serde.serialize_tensor(av.value)
             return av.value
 
+        # TODO(justinchuby): We should find a way to avoid serializing tensors every time we want to evaluate a node
         attr_values = {name: convert(attr) for name, attr in node.attributes.items()}
         outputs = _reference_evaluator.evaluate(
             node.domain, node.op_type, version, *input_values, **attr_values
@@ -1136,22 +1296,45 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         if outputs is None:
             return None
         if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
-            replacement = self.new_constant(node, outputs)
-            if _is_onnx_op(node, "ConstantOfShape") or replacement is None:
+            # We don't support initializers in functions, so we need to create Constant nodes
+            if is_function:
+                replacement = self.new_constant(node, outputs)
+                if replacement is None:
+                    return None
+                return Replacement(replacement.outputs, [replacement])
+            new_initializer_value = self.new_initializer(node, outputs)
+            if new_initializer_value is None:
                 return None
-            return Replacement(replacement.outputs, [replacement])
+            # Add the new initializer to the graph
+            assert node.graph is not None
+            node.graph.register_initializer(new_initializer_value)
+            return Replacement([new_initializer_value], [])
         else:
             logger.warning(
                 "Skipping constant folding for op %s with multiple outputs.", node.op_type
             )
         return None
 
-    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function) -> None:
+    def replace_node(
+        self, node: ir.Node, replacement: Replacement, root: ir.Graph | ir.Function
+    ) -> None:
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
+
+        # Record the names of the values that has contributed to the replacement
+        _record_contributing_values(node, replacement)
+
+        # Obtain the list of non-None inputs to the node before it is cleared by
+        # replace_nodes_and_values to check for unused initializers later.
+        node_inputs = [v for v in node.inputs if v is not None]
 
         ir.convenience.replace_nodes_and_values(
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
+
+        if isinstance(root, ir.Graph):
+            # The old node should now be detached from the graph
+            assert node.graph is None
+            _clear_unused_initializers(node_inputs)
 
         self._modified = True
 
@@ -1168,7 +1351,8 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 self.visit_graph(graph)
 
     def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function) -> None:
-        replacement = self.process_node(node)
+        is_function = isinstance(root, ir.Function)
+        replacement = self.process_node(node, is_function=is_function)
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():
@@ -1229,6 +1413,19 @@ def _sym_value_can_replace_graph_output(
     return True
 
 
+def _clear_unused_initializers(values: Sequence[ir.Value]) -> None:
+    # Detach all inputs to the node, then check for unused initializers
+    for value in values:
+        if value is None or not value.is_initializer():
+            continue
+
+        if not value.uses():
+            assert value.is_initializer()
+            assert value.graph is not None
+            assert value.name is not None
+            value.graph.initializers.pop(value.name)
+
+
 @dataclasses.dataclass
 class FoldConstantsResult(ir.passes.PassResult):
     symbolic_value_map: dict[ir.Value, SymbolicValue]
@@ -1245,7 +1442,7 @@ def fold_constants(
     onnx_shape_inference: bool = False,
     input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
-    always_fold_ops: Collection[str] = frozenset(["Transpose"]),
+    should_fold: Callable[[ir.Node], bool | None] = lambda node: None,
 ) -> FoldConstantsResult:
     """
     Applies constant folding optimization to the model.
@@ -1260,10 +1457,9 @@ def fold_constants(
         output_size_limit: The maximum size of output tensors
             that can be stored after constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
-        always_fold_ops: A collection of op types that should always be folded,
-            regardless of their input or output sizes. For ops from the default opset,
-            only op_type is neede (e.g. "Transpose"), otherwise specify the domain
-            with ``{domain}::{op_type}``.
+        should_fold: An optional function that takes a node and returns True if
+            the node should be considered for folding, False if it should not be folded,
+            or None to use the default rules. Defaults to a function that always returns None.
 
     Returns:
         An instance of `FoldConstantsResult`.
@@ -1273,6 +1469,6 @@ def fold_constants(
         shape_inference=onnx_shape_inference,
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
-        always_fold_ops=always_fold_ops,
+        should_fold=should_fold,
     )
     return folder_pass(model)  # type: ignore[return-value]

@@ -18,12 +18,18 @@ import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._ir_utils as _ir_utils
 import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
+import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
 from onnxscript.ir import _tape, convenience
 
 T = TypeVar("T")
 
 RewriterContext = _tape.Builder
+
+# TODO(rama): Standardize metadata property keys. May be worth standardizing at ONNX level for
+# source/producer metadata.
+
+RULE_NAME_TAG = "pkg.onnxscript.rewriter.rule_name"
 
 
 @dataclasses.dataclass
@@ -82,12 +88,7 @@ class Pattern:
         if isinstance(matcher, _matcher.PatternMatcher):
             self._matcher = matcher
         elif matcher is None:
-            if target_pattern.has_single_output_node:
-                self._matcher = _matcher.SimplePatternMatcher(self._target_pattern)
-            else:
-                import onnxscript.rewriter.generic_pattern as generic_pattern
-
-                self._matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
+            self._matcher = _matcher.SimplePatternMatcher(self._target_pattern)
         else:
             self._matcher = matcher(self._target_pattern)
         self._verbose = verbose
@@ -392,7 +393,7 @@ class PatternBase(abc.ABC):
                 if perm.is_ref():
                     return False
                 if perm.type == ir.AttributeType.INTS:
-                    if perm.as_ints() == list(range(len(perm.as_ints()))):
+                    if list(perm.as_ints()) == list(range(len(perm.as_ints()))):
                         return True
                 return False
     """
@@ -463,7 +464,7 @@ class RewriteRuleClassBase(PatternBase):
                 if perm.is_ref():
                     return False
                 if perm.type == ir.AttributeType.INTS:
-                    if perm.as_ints() == list(range(len(perm.as_ints()))):
+                    if list(perm.as_ints()) == list(range(len(perm.as_ints()))):
                         return True
                 return False
 
@@ -614,6 +615,15 @@ def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
         overload += 1
 
 
+_default_metadata_merger: metadata_merger.MetadataMerger = metadata_merger.MetadataMerger(
+    {RULE_NAME_TAG: metadata_merger.comma_separator_merger}
+)
+
+# TODO(rama): Generalize this to support custom metadata mergers. For now, we just allow
+# enabling/disabling the default merger.
+merge_metadata: bool = True
+
+
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
         if not rules:
@@ -724,6 +734,13 @@ class RewriteRuleSet:
                     _ir_utils.display_nodes(delta.new_nodes)
                     print("++++End Replacement Nodes++++")
 
+                # Capture rewrite rule name as metadata.
+                # TODO(rama): This is just a basic version. We may wish to compose "source" metadata
+                # from multiple rules in future.
+                if rule.name:
+                    for n in delta.new_nodes:
+                        n.metadata_props[RULE_NAME_TAG] = rule.name
+
                 convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
@@ -732,6 +749,11 @@ class RewriteRuleSet:
                     delta.match.outputs,
                     delta.new_outputs,
                 )
+
+                if merge_metadata:
+                    _default_metadata_merger.copy_merged_metadata(
+                        delta.match.nodes, delta.new_nodes
+                    )
 
                 count += 1
                 break

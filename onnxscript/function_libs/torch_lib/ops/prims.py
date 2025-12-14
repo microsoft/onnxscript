@@ -176,12 +176,33 @@ def prims_bitwise_xor(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("prims::broadcast_in_dim", trace_only=True)
 def prims_broadcast_in_dim(
-    a: TensorType, shape: INT64, broadcast_dimensions: Sequence[int]
+    a: TensorType, shape: Sequence[INT64], broadcast_dimensions: Sequence[int]
 ) -> TensorType:
     """broadcast_in_dim(Tensor(a) a, SymInt[] shape, int[] broadcast_dimensions) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    target_rank = len(shape)
+
+    if not broadcast_dimensions:
+        # Special case: no broadcast dimensions - all target dims should be 1
+        return op.Expand(a, common_ops.merge_dims(shape))
+
+    # Create base shape of all 1s
+    ones = [1] * target_rank
+
+    # For each broadcast dimension, we'll replace the 1 with the actual input dimension
+    # Since broadcast_dimensions is compile-time known, we can do this with individual operations
+    intermediate_shape = ones
+
+    for i, broadcast_dim in enumerate(broadcast_dimensions):
+        # Get the input dimension value
+        input_dim_value = op.Shape(a, start=i, end=i + 1)
+        intermediate_shape[broadcast_dim] = input_dim_value
+
+    # Reshape input to intermediate shape and expand to target
+    reshaped = op.Reshape(a, common_ops.merge_dims(intermediate_shape))
+    return op.Expand(reshaped, shape)
 
 
 def prims_cat(tensors: Sequence[TensorType], dim: int) -> TensorType:

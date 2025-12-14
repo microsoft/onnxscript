@@ -10,9 +10,11 @@ import onnx.checker
 import onnx.parser
 
 import onnxscript.optimizer
+import onnxscript.rewriter
 from onnxscript import FLOAT, ir, script
 from onnxscript import opset17 as op
-from onnxscript.rewriter import cast_constant_of_shape, pattern
+from onnxscript.rewriter import pattern
+from onnxscript.rewriter.rules.common import _cast_constant_of_shape
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +308,7 @@ class RewriteRuleTest(unittest.TestCase):
             """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = cast_constant_of_shape.rules.apply_to_model(model)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
         self.assertEqual(count, 2)
         self.assertEqual(len(model.graph), 2)
         self.assertEqual(model.graph[0].attributes["value"].value.dtype, 10)
@@ -673,7 +675,7 @@ class RewriteRuleTest(unittest.TestCase):
         function = model.functions[function_id]
         self.assertEqual([x.op_type for x in function], ["Add", "Transpose"])
         transpose_node = function[1]
-        self.assertEqual(transpose_node.attributes["perm"].value, [1, 0])
+        self.assertEqual(list(transpose_node.attributes["perm"].value), [1, 0])
         onnxscript.optimizer.inline(model)
         self.assertEqual([x.op_type for x in model.graph], ["Add", "Transpose"])
 
@@ -934,6 +936,44 @@ class ValueNodeCheckersTest(unittest.TestCase):
         # Test case 3: Negative constant first parameter - should not match
         match_result = rule_pattern.match(model, model.graph, add_nodes[2])
         self.assertFalse(bool(match_result))
+
+    def test_rule_name_metadata(self):
+        """Test that RewriteRule carries name metadata."""
+
+        class ReciprocalMulRule(pattern.RewriteRuleClassBase):
+            def __init__(self, name: str | None = None):
+                super().__init__(name)
+
+            def pattern(self, op, x, y):
+                return (1 / x) * y
+
+            def rewrite(self, op, x, y):
+                return op.Div(y, x)
+
+        @script()
+        def test_script(x: FLOAT[1024], y: FLOAT[1024]) -> FLOAT[1024]:
+            return op.Mul(op.Div(op.Constant(value_float=1.0), x), y)
+
+        rule = ReciprocalMulRule.rule(name="ReciprocalMulToDiv")
+        model_proto = test_script.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 1)
+        for node in model.graph:
+            if node.op_type == "Div":
+                tag = onnxscript.rewriter.RULE_NAME_TAG
+                self.assertEqual(node.metadata_props.get(tag), "ReciprocalMulToDiv")
+
+        # By default, the rule name is the class name (if not provided)
+        rule = ReciprocalMulRule.rule()
+        model_proto = test_script.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 1)
+        for node in model.graph:
+            if node.op_type == "Div":
+                tag = onnxscript.rewriter.RULE_NAME_TAG
+                self.assertEqual(node.metadata_props.get(tag), "ReciprocalMulRule")
 
 
 class PatternBuilderTest(unittest.TestCase):

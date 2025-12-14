@@ -12,7 +12,6 @@ nox.options.error_on_missing_interpreters = False
 
 
 COMMON_TEST_DEPENDENCIES = (
-    "beartype==0.17.2",
     "expecttest==0.1.6",
     "hypothesis",
     "numpy",
@@ -30,9 +29,9 @@ COMMON_TEST_DEPENDENCIES = (
     "ml-dtypes",
 )
 ONNX = "onnx==1.17"
-ONNX_RUNTIME = "onnxruntime==1.20.1"
-PYTORCH = "torch==2.5.1"
-TORCHVISON = "torchvision==0.20.1"
+ONNX_RUNTIME = "onnxruntime==1.23.0"
+PYTORCH = "torch==2.7.1"
+TORCHVISON = "torchvision==0.22.1"
 TRANSFORMERS = "transformers==4.37.2"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
@@ -42,7 +41,7 @@ ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "packaging",
     "protobuf",
 )
-ONNX_IR = "onnx_ir==0.1.7"
+ONNX_IR = "onnx_ir==0.1.12"
 ONNX_IR_MAIN = "git+https://github.com/onnx/ir-py.git@main#egg=onnx_ir"
 
 

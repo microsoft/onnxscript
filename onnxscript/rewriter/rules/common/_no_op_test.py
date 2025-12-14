@@ -1,0 +1,216 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+import unittest
+
+import parameterized
+
+from onnxscript import ir
+from onnxscript.rewriter.rules.common import _no_op
+
+
+class NoOpTest(unittest.TestCase):
+    def _check(self, model_text: str) -> None:
+        model = ir.from_onnx_text(model_text)
+        count = _no_op.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(model.graph[-1].op_type, "Identity")
+
+    def _check_no_optimization(self, model_text: str) -> None:
+        model = ir.from_onnx_text(model_text)
+        count = _no_op.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    @parameterized.parameterized.expand(
+        [
+            ("float one input", "float[M]", "value_float=1.0", "one, input"),
+            ("int one input", "int32[M]", "value_int=1", "one, input"),
+            ("float input one", "float[M]", "value_float=1.0", "input, one"),
+            ("int input one", "int32[M]", "value_int=1", "input, one"),
+        ]
+    )
+    def test_mul_one_should_become_no_op(self, _, dtype, constant_value, input_order):
+        self._check(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph ({dtype} input) => ({dtype} output)
+            {{
+                one = Constant<{constant_value}>()
+                output = Mul({input_order})
+            }}
+        """
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("float one input", "float[M]", "float one = {1.0}", "one, input"),
+            ("int one input", "int32[M]", "int32 one = {1}", "one, input"),
+            ("float input one", "float[M]", "float one = {1.0}", "input, one"),
+            ("int input one", "int32[M]", "int32 one = {1}", "input, one"),
+        ]
+    )
+    def test_mul_one_should_become_no_op_initializer(
+        self, _, dtype, constant_value, input_order
+    ):
+        self._check(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph ({dtype} input) => ({dtype} output)
+            <{constant_value}>
+            {{
+                output = Mul({input_order})
+            }}
+        """
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("float zero input", "float[M]", "value_float=0.0", "zero, input"),
+            ("int zero input", "int32[M]", "value_int=0", "zero, input"),
+            ("float input zero", "float[M]", "value_float=0.0", "input, zero"),
+            ("int input zero", "int32[M]", "value_int=0", "input, zero"),
+        ]
+    )
+    def test_add_zero_should_become_no_op(self, _, dtype, constant_value, input_order):
+        self._check(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph ({dtype} input) => ({dtype} output)
+            {{
+                zero = Constant<{constant_value}>()
+                output = Add({input_order})
+            }}
+        """
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("float input zero", "float[M]", "float zero = {0.0}", "input, zero"),
+            ("int input zero", "int32[M]", "int32 zero = {0}", "input, zero"),
+            ("float input zero", "float[M]", "float zero = {0.0}", "input, zero"),
+            ("int input zero", "int32[M]", "int32 zero = {0}", "input, zero"),
+        ]
+    )
+    def test_add_zero_should_become_no_op_initializer(
+        self, _, dtype, constant_value, input_order
+    ):
+        self._check(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph ({dtype} input) => ({dtype} output)
+            <{constant_value}>
+            {{
+                output = Add({input_order})
+            }}
+        """
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("float input zero", "float[M]", "value_float=0.0", "input, zero"),
+            ("int input zero", "int32[M]", "value_int=0", "input, zero"),
+        ]
+    )
+    def test_sub_zero_should_become_no_op(self, _, dtype, constant_value, input_order):
+        self._check(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph ({dtype} input) => ({dtype} output)
+            {{
+                zero = Constant<{constant_value}>()
+                output = Sub({input_order})
+            }}
+        """
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("float input zero", "float[M]", "float zero = {0.0}", "input, zero"),
+            ("int input zero", "int32[M]", "int32 zero = {0}", "input, zero"),
+        ]
+    )
+    def test_sub_zero_should_become_no_op_initializer(
+        self, _, dtype, constant_value, input_order
+    ):
+        self._check(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph ({dtype} input) => ({dtype} output)
+            <{constant_value}>
+            {{
+                output = Sub({input_order})
+            }}
+        """
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("float input one", "float[M]", "value_float=1.0", "input, one"),
+            ("int input one", "int32[M]", "value_int=1", "input, one"),
+        ]
+    )
+    def test_div_one_should_become_no_op(self, _, dtype, constant_value, input_order):
+        self._check(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph ({dtype} input) => ({dtype} output)
+            {{
+                one = Constant<{constant_value}>()
+                output = Div({input_order})
+            }}
+        """
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("float input one", "float[M]", "float one = {1.0}", "input, one"),
+            ("int input one", "int32[M]", "int32 one = {1}", "input, one"),
+        ]
+    )
+    def test_div_one_should_become_no_op_with_initializer(
+        self, _, dtype, constant_value, input_order
+    ):
+        self._check(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph ({dtype} input) => ({dtype} output)
+            <{constant_value}>
+            {{
+                output = Div({input_order})
+            }}
+        """
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("dropout zero ratio", "ratio=0.0"),
+            ("dropout inference", "training_mode=0"),
+            ("dropout inference with positive ratio", "ratio=0.42, training_mode=0"),
+            ("dropout training with zero ratio", "ratio=0.0, training_mode=1"),
+        ]
+    )
+    def test_dropout_zero_or_inference_no_op_with_initializer(self, _, attribute: str):
+        self._check(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float16[M] input) => (float16[M] output)
+            {{
+                output = Dropout<{attribute}>(input)
+            }}
+        """
+        )
+        # TODO: Test the negative cases
+
+    def test_broadcast_is_not_eliminated(self):
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[M] input) => (float[1, 1, M] output)
+            <float[1,1,1] zero = {0.0}>
+            {
+                output = Add(zero, input)
+            }
+        """
+        self._check_no_optimization(model_text)
+
+
+if __name__ == "__main__":
+    unittest.main()

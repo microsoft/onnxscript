@@ -14,13 +14,20 @@ from onnxscript.optimizer import _constant_folding
 
 
 class FoldConstantsTest(unittest.TestCase):
-    def _fold(self, model: ir.Model | str, onnx_shape_inference=False, **kwargs):
+    def _fold(
+        self,
+        model: ir.Model | str,
+        onnx_shape_inference: bool = False,
+        dce: bool = True,
+        **kwargs,
+    ):
         if isinstance(model, str):
             model = ir.from_onnx_text(model)
         _constant_folding.fold_constants(
             model, onnx_shape_inference=onnx_shape_inference, **kwargs
         )
-        optimizer.remove_unused_nodes(model)
+        if dce:
+            optimizer.remove_unused_nodes(model)
         # Ensure the model is valid after optimization
         onnx.checker.check_model(ir.serde.serialize_model(model))
         return model
@@ -36,8 +43,8 @@ class FoldConstantsTest(unittest.TestCase):
         """
 
         optimized = self._fold(model)
-        self.assertEqual(len(optimized.graph), 2)
-        self.assertEqual(optimized.graph[0].outputs[0].name, "four")
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertIn("four", optimized.graph.initializers)
 
     def test_fold_cast_like(self):
         model = """
@@ -50,9 +57,16 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
 
-        optimized = self._fold(model)
-        self.assertEqual(len(optimized.graph), 2)
-        self.assertEqual(optimized.graph[0].outputs[0].name, "four")
+        optimized = self._fold(model, dce=False)
+        self.assertIn("four", optimized.graph.initializers)
+        np.testing.assert_equal(
+            optimized.graph.initializers["four"].const_value, np.array(4.0)
+        )
+        # Intermediates should be removed
+        self.assertNotIn("two_float", optimized.graph.initializers)
+
+        optimized = self._fold(model, dce=True)
+        self.assertEqual(len(optimized.graph), 1)
 
     def test_fold_shape(self):
         model = """
@@ -66,9 +80,18 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
 
-        optimized = self._fold(model)
-        self.assertEqual(len(optimized.graph), 2)
-        self.assertEqual(optimized.graph[0].outputs[0].name, "four")
+        optimized = self._fold(model, dce=False)
+        self.assertIn("four", optimized.graph.initializers)
+        np.testing.assert_equal(
+            optimized.graph.initializers["four"].const_value, np.array(4.0)
+        )
+        # Intermediates should be removed
+        self.assertNotIn("two_float", optimized.graph.initializers)
+        self.assertNotIn("rank", optimized.graph.initializers)
+        self.assertNotIn("shape", optimized.graph.initializers)
+
+        optimized = self._fold(model, dce=True)
+        self.assertEqual(len(optimized.graph), 1)
 
     def test_fold_shape_slice(self):
         model = """
@@ -83,8 +106,8 @@ class FoldConstantsTest(unittest.TestCase):
         """
 
         optimized = self._fold(model)
-        self.assertEqual(len(optimized.graph), 2)
-        self.assertEqual(optimized.graph[0].outputs[0].name, "four")
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertIn("four", optimized.graph.initializers)
 
     def test_fold_if_cond(self):
         model = """
@@ -130,9 +153,11 @@ class FoldConstantsTest(unittest.TestCase):
         optimized = self._fold(model)
         self.assertEqual(len(optimized.graph), 1)
         then_graph = optimized.graph[0].attributes["then_branch"].as_graph()
-        self.assertEqual(len(then_graph), 2)
+        self.assertEqual(len(then_graph), 1)
+        self.assertIn("temp", then_graph.initializers)
         else_graph = optimized.graph[0].attributes["else_branch"].as_graph()
-        self.assertEqual(len(else_graph), 2)
+        self.assertEqual(len(else_graph), 1)
+        self.assertIn("temp", else_graph.initializers)
 
     def test_fold_if_propagate(self):
         model = """
@@ -154,9 +179,8 @@ class FoldConstantsTest(unittest.TestCase):
         """
 
         optimized = self._fold(model)
-        self.assertEqual(len(optimized.graph), 2)
-        self.assertEqual(optimized.graph[0].outputs[0].name, "m_square")
-        self.assertEqual(optimized.graph[0].op_type, "Constant")
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertIn("m_square", optimized.graph.initializers)
 
     def test_fold_redundant_cast(self):
         model = """
@@ -209,8 +233,8 @@ class FoldConstantsTest(unittest.TestCase):
         """
 
         optimized = self._fold(model, onnx_shape_inference=True)
-        self.assertEqual(len(optimized.graph), 2)
-        self.assertEqual(optimized.graph[0].outputs[0].name, "C")
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertIn("C", optimized.graph.initializers)
 
     def test_static_split_to_sequence_with_scalar_split_and_squence_at_is_folded_as_split(
         self,
@@ -345,6 +369,60 @@ func (float[1,3] x) => (float[1,3] return_val) {
         optimized = self._fold(model)
         self.assertEqual(len(optimized.graph), 7)
         self.assertEqual(optimized.graph[6].op_type, "Concat")
+
+    def test_dynamic_split_to_sequence_list_shape_rewrite(self):
+        # split is a graph input with known 1-D static shape [4]; values unknown (not constant)
+        # Ensures the branch: if isinstance(split_shape, tuple) and len(split_shape) == 1
+        model = """
+<
+   ir_version: 8,
+   opset_import: ["" : 18]
+>
+func (float[2,N] x, int64[4] split) => (float[2,N] return_val) {
+   splits = SplitToSequence <axis: int = 1> (x, split)
+   i0 = Constant <value: tensor = int64 i0 {0}> ()
+   s0 = SequenceAt (splits, i0)
+   i1 = Constant <value: tensor = int64 i1 {1}> ()
+   s1 = SequenceAt (splits, i1)
+   i2 = Constant <value: tensor = int64 i2 {2}> ()
+   s2 = SequenceAt (splits, i2)
+   i3 = Constant <value: tensor = int64 i3 {3}> ()
+   s3 = SequenceAt (splits, i3)
+   return_val = Concat <axis: int = 1> (s0, s1, s2, s3)
+}"""
+        optimized = self._fold(model)
+        # Expect: Split + Concat (index constants & SequenceAt removed)
+        split_nodes = [n for n in optimized.graph if n.op_type == "Split"]
+        self.assertEqual(len(split_nodes), 1)
+        self.assertEqual(len(split_nodes[0].outputs), 4)
+        self.assertEqual(split_nodes[0].op_type, "Split")
+        self.assertTrue(all(n.op_type != "SequenceAt" for n in optimized.graph))
+
+    def test_dynamic_split_to_sequence_list_shape_no_keepdims(self):
+        # keepdims=0 path with dynamic (non-constant) splits input; triggers squeeze logic.
+        model = """
+<
+   ir_version: 8,
+   opset_import: ["" : 18]
+>
+func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
+   splits = SplitToSequence <axis: int = 1, keepdims: int = 0> (x, split)
+   i0 = Constant <value: tensor = int64 i0 {0}> ()
+   s0 = SequenceAt (splits, i0)
+   i1 = Constant <value: tensor = int64 i1 {1}> ()
+   s1 = SequenceAt (splits, i1)
+   i2 = Constant <value: tensor = int64 i2 {2}> ()
+   s2 = SequenceAt (splits, i2)
+   return_val = Concat <axis: int = 1> (s0, s1, s2)
+}"""
+        optimized = self._fold(model)
+        split_nodes = [n for n in optimized.graph if n.op_type == "Split"]
+        self.assertEqual(len(split_nodes), 1)
+        self.assertEqual(len(split_nodes[0].outputs), 3)
+        self.assertTrue(all(n.op_type != "SequenceAt" for n in optimized.graph))
+        # Each split output should have a corresponding Squeeze (keepdims=0 branch)
+        squeeze_nodes = [n for n in optimized.graph if n.op_type == "Squeeze"]
+        self.assertEqual(len(squeeze_nodes), 3)
 
     def test_initializer_input_not_folded(self):
         model_text = """
@@ -560,7 +638,8 @@ func (float[1,3] x) => (float[1,3] return_val) {
         # Since there is no increase in model-size, output-size is not a concern.
         optimized = self._fold(model, input_size_limit=256 * 256, output_size_limit=256 * 256)
         ops = [node.op_type for node in optimized.graph]
-        self.assertEqual(ops, ["Constant", "Add"])
+        self.assertEqual(ops, ["Add"])
+        self.assertIn("w_squared", optimized.graph.initializers)
 
     def test_transpose_is_always_folded(self):
         model_text = """
@@ -579,7 +658,36 @@ func (float[1,3] x) => (float[1,3] return_val) {
         # Input size limit will not prevent folding of Transpose op
         optimized = self._fold(model, input_size_limit=1)
         ops = [node.op_type for node in optimized.graph]
-        self.assertEqual(ops, ["Constant"])
+        self.assertEqual(ops, [])
+        self.assertIn("z", optimized.graph.initializers)
+
+    def test_node_is_folded_if_specified_as_should_fold(self):
+        model_text = """
+            <ir_version: 10, opset_import: [ "" : 20]>
+            agraph (float[M, 256] x) => (float[42, 42] z)
+            <int64[2] w = {42, 42}>
+            {
+                z = ConstantOfShape <value: tensor = int64[1] {1}> (w)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+
+        # ConstantOfShape is not folded by default
+        optimized = self._fold(model)
+        ops = [node.op_type for node in optimized.graph]
+        self.assertEqual(ops, ["ConstantOfShape"])
+
+        # But ConstantOfShape is folded when specified in should_fold
+        optimized = self._fold(
+            model, should_fold=lambda node: node.op_type == "ConstantOfShape" or None
+        )
+        ops = [node.op_type for node in optimized.graph]
+        self.assertEqual(ops, [])
+        self.assertIn("z", optimized.graph.initializers)
+        np.testing.assert_array_equal(
+            optimized.graph.initializers["z"].const_value,
+            np.ones((42, 42), dtype=np.int64),
+        )
 
     def test_multi_graph_identity_output_preserves_output_name(self):
         model = """
@@ -612,6 +720,26 @@ func (float[1,3] x) => (float[1,3] return_val) {
 
         optimized = self._fold(model)
         self.assertEqual(len(optimized.graph), 2)
+
+    def test_constant_folding_creates_constant_nodes_in_function(self):
+        model = """
+            <ir_version: 9, opset_import: ["this" : 1, "" : 19]>
+            model (float x) => (float return_val) {
+                return_val = this.function (x)
+            }
+            <domain: "this", opset_import: ["" : 19]>
+            function (x) => (return_val) {
+                tmp = Constant <value_int=1> ()
+                tmp_0 = Cast <to=1> (tmp)
+                return_val = Sub (tmp_0, x)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.functions), 1)
+        for func in optimized.functions.values():
+            # Ensure that constant folding has created constant nodes in the function
+            constant_nodes = [n for n in func.graph if n.op_type == "Constant"]
+            self.assertEqual(len(constant_nodes), 1)
 
 
 if __name__ == "__main__":
