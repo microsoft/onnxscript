@@ -2861,7 +2861,8 @@ def aten_embedding_bag(
     sparse: bool = False,
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
+    padding_idx: Optional[int] = None,
+) -> Tuple[TFloat, INT64, INT64, INT64]:
     """embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False) -> (Tensor, Tensor, Tensor, Tensor)"""
 
     # assert(rank(indices) in [1,2])
@@ -2889,7 +2890,7 @@ def _aten_embedding_bag_onnx(
     mode: int,
     per_sample_weights: TFloat,
     include_last_offset: bool,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
+) -> Tuple[TFloat, INT64, INT64, INT64]:
     neg_1 = op.Constant(value_ints=[-1])
     # Assume indices is shape(5,2), indices_1d is shape(10,)
     indices_1d = op.Reshape(indices, neg_1)
@@ -2957,23 +2958,24 @@ def _aten_embedding_bag_onnx(
 
     # Only compute the shape of other 3 outputs, we don't care the value
     if mode == 0:  # sum
-        offset2bag = op.Shape(indices, start=0, end=0)  # Generate empty tensor
+        offset2bag = op.Cast(op.Shape(indices, start=0, end=0), to=INT64.dtype)
         if op.Equal(include_last_offset, True):
-            bag_size = op.Expand(0, op.Shape(offsets))
+            bag_size = op.Cast(op.Expand(0, op.Shape(offsets)), to=INT64.dtype)
+            max_indices = op.Cast(op.Expand(0, op.Shape(offsets)), to=INT64.dtype)
         else:
-            bag_size = op.Expand(0, op.Shape(offsets) - 1)
-        max_indices = op.Expand(0, op.Shape(bag_size))
+            bag_size = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
+            max_indices = op.Cast(op.Expand(0, op.Shape(offsets) -1), to=INT64.dtype)
     elif mode == 1:  # mean
-        offset2bag = op.Expand(0, op.Shape(indices, start=0, end=1))
-        bag_size = op.Expand(0, op.Shape(offsets) - 1)
-        max_indices = op.Expand(0, op.Shape(bag_size))
+        offset2bag = op.Cast(op.Expand(0, op.Shape(indices, start=0, end=1)), to=INT64.dtype)
+        bag_size = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
+        max_indices = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
     else:  # max
-        offset2bag = op.Expand(0, op.Shape(indices, start=0, end=1))
-        bag_size = op.Expand(0, op.Shape(offsets) - 1)
+        offset2bag = op.Cast(op.Expand(0, op.Shape(indices, start=0, end=1)), to=INT64.dtype)
+        bag_size = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
         # shape = (bag_size.dim[0], weight.dim[1])
         dim_0 = op.Shape(bag_size, start=0, end=1)
         dim_1 = op.Shape(weight, start=1, end=2)
-        max_indices = op.Expand(0, op.Concat(dim_0, dim_1, axis=0))
+        max_indices = op.Cast(op.Expand(0, op.Concat(dim_0, dim_1, axis=0)), to=INT64.dtype)
 
     return result, offset2bag, bag_size, max_indices
 
@@ -2996,7 +2998,7 @@ def aten_embedding_bag_padding_idx(
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
     padding_idx: Optional[int] = None,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
+) -> Tuple[TFloat, INT64, INT64, INT64]:
     """embedding_bag.padding_idx(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq, int mode, bool sparse, Tensor? per_sample_weights, bool include_last_offset, int? padding_idx) -> (Tensor, Tensor, Tensor, Tensor)
 
     We add default values for the attributes to accommodate _embedding_bag as well:
@@ -3043,8 +3045,14 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
     per_sample_weights: TFloat,
     include_last_offset: bool,
     padding_idx: int,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
+) -> Tuple[TFloat, INT64, INT64, INT64]:
     neg_1 = op.Constant(value_ints=[-1])
+
+    num_embeddings = op.Shape(weight, start=0, end=1)  # Get number of rows in weight
+    num_embeddings_scalar = op.Squeeze(num_embeddings)
+    if padding_idx < 0:
+        padding_idx = padding_idx + num_embeddings_scalar
+
     # Get weight out according to indices,
     # e.g. indices=[3,1,4,5,3] means get weight[[3,1,4,5,3]]
     indices_weight = op.Gather(weight, indices)
@@ -3080,7 +3088,10 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
         cond_2 = j < end_pos
         while cond_2:
             index = op.Gather(indices, j)
-            if not op.Equal(index, padding_idx):
+            normalized_index = index
+            if index < 0:
+                normalized_index = index + num_embeddings_scalar
+            if not op.Equal(normalized_index, padding_idx):
                 # Something like the 'append' operation
                 curr_offsets = op.Concat(curr_offsets, op.Reshape(j, neg_1), axis=0)
             j = j + 1
@@ -3109,23 +3120,24 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
     result = op.CastLike(result, weight)
 
     if mode == 0:  # sum
-        offset2bag = op.Expand(0, op.Shape(indices))
+        offset2bag = op.Cast(op.Expand(0, op.Shape(indices)), to=INT64.dtype)
         if op.Equal(include_last_offset, True):
-            bag_size = op.Expand(0, op.Shape(offsets))
+            bag_size = op.Cast(op.Expand(0, op.Shape(offsets)), to=INT64.dtype)
+            max_indices = op.Cast(op.Expand(0, op.Shape(offsets)), to=INT64.dtype)
         else:
-            bag_size = op.Expand(0, op.Shape(offsets) - 1)
-        max_indices = op.Expand(0, op.Shape(bag_size))
+            bag_size = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
+            max_indices = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
     elif mode == 1:  # mean
-        offset2bag = op.Expand(0, op.Shape(indices, start=0, end=1))
-        bag_size = op.Expand(0, op.Shape(offsets) - 1)
-        max_indices = op.Expand(0, op.Shape(bag_size))
+        offset2bag = op.Cast(op.Expand(0, op.Shape(indices, start=0, end=1)), to=INT64.dtype)
+        bag_size = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
+        max_indices = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
     else:  # mode == 2, max
-        offset2bag = op.Expand(0, op.Shape(indices, start=0, end=1))
-        bag_size = op.Expand(0, op.Shape(offsets) - 1)
+        offset2bag = op.Cast(op.Expand(0, op.Shape(indices, start=0, end=1)), to=INT64.dtype)
+        bag_size = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
         # shape = (bag_size.dim[0], weight.dim[1])
         dim_0 = op.Shape(bag_size, start=0, end=1)
         dim_1 = op.Shape(weight, start=1, end=2)
-        max_indices = op.Expand(0, op.Concat(dim_0, dim_1, axis=0))
+        max_indices = op.Cast(op.Expand(0, op.Concat(dim_0, dim_1, axis=0)), to=INT64.dtype)
 
     return result, offset2bag, bag_size, max_indices
 
