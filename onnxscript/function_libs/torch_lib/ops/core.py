@@ -5117,24 +5117,22 @@ def aten_linspace(
         COMPLEX128.dtype,
     )
 
-    if is_integer_dtype:
+    if ir.DataType(dtype).is_integer():
         # Cast to integer dtype first, then to compute dtype
         # This ensures truncation happens before computation
         start_int = op.Cast(start, to=dtype)
         end_int = op.Cast(end, to=dtype)
-        start_f = op.Cast(start_int, to=compute_dtype)
-        end_f = op.Cast(end_int, to=compute_dtype)
+        start = op.Cast(start_int, to=compute_dtype)
+        end = op.Cast(end_int, to=compute_dtype)
     else:
-        # For float dtypes, cast directly to compute dtype
-        start_f = op.Cast(start, to=compute_dtype)
-        end_f = op.Cast(end, to=compute_dtype)
+        compute_dtype = dtype
 
     rg = aten_arange_start(0, steps, dtype=compute_dtype)
-    steps_f = op.Cast(steps, to=compute_dtype)
-    one = op.Cast(1.0, to=compute_dtype)
-    two = op.Cast(2.0, to=compute_dtype)
-    steps_minus_1 = op.Sub(steps_f, one)
-    step = op.Div(op.Sub(end_f, start_f), steps_minus_1)
+    steps_f = op.Constant(value=ir.tensor(steps, dtype=compute_dtype))
+    one = op.Constant(value=ir.tensor(1, dtype=compute_dtype))
+    two = op.Constant(value=ir.tensor(2, dtype=compute_dtype))
+    steps_minus_1 = op.Constant(value=ir.tensor(steps - 1, dtype=compute_dtype))
+    step = op.Constant(value=ir.tensor((end - start) / (steps - 1), dtype=compute_dtype))
 
     # Two-sided computation for numerical stability at endpoints
     # Use forward computation for first half, backward for second half
