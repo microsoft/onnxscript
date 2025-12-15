@@ -2862,7 +2862,7 @@ def aten_embedding_bag(
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
     padding_idx: Optional[int] = None,
-) -> Tuple[TFloat, INT64, INT64, INT64]:
+) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
     """embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False) -> (Tensor, Tensor, Tensor, Tensor)"""
 
     # assert(rank(indices) in [1,2])
@@ -2890,7 +2890,7 @@ def _aten_embedding_bag_onnx(
     mode: int,
     per_sample_weights: TFloat,
     include_last_offset: bool,
-) -> Tuple[TFloat, INT64, INT64, INT64]:
+) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
     neg_1 = op.Constant(value_ints=[-1])
     # Assume indices is shape(5,2), indices_1d is shape(10,)
     indices_1d = op.Reshape(indices, neg_1)
@@ -2998,7 +2998,7 @@ def aten_embedding_bag_padding_idx(
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
     padding_idx: Optional[int] = None,
-) -> Tuple[TFloat, INT64, INT64, INT64]:
+) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
     """embedding_bag.padding_idx(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq, int mode, bool sparse, Tensor? per_sample_weights, bool include_last_offset, int? padding_idx) -> (Tensor, Tensor, Tensor, Tensor)
 
     We add default values for the attributes to accommodate _embedding_bag as well:
@@ -3045,7 +3045,7 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
     per_sample_weights: TFloat,
     include_last_offset: bool,
     padding_idx: int,
-) -> Tuple[TFloat, INT64, INT64, INT64]:
+) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
     neg_1 = op.Constant(value_ints=[-1])
 
     num_embeddings = op.Shape(weight, start=0, end=1)  # Get number of rows in weight
