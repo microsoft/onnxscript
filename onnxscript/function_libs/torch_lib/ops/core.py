@@ -2964,7 +2964,7 @@ def _aten_embedding_bag_onnx(
             max_indices = op.Cast(op.Expand(0, op.Shape(offsets)), to=INT64.dtype)
         else:
             bag_size = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
-            max_indices = op.Cast(op.Expand(0, op.Shape(offsets) -1), to=INT64.dtype)
+            max_indices = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
     elif mode == 1:  # mean
         offset2bag = op.Cast(op.Expand(0, op.Shape(indices, start=0, end=1)), to=INT64.dtype)
         bag_size = op.Cast(op.Expand(0, op.Shape(offsets) - 1), to=INT64.dtype)
