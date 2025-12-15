@@ -933,16 +933,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: results mismatch in torch nightly.",
     ),
     TorchLibOpInfo(
-        "ops.aten.embedding_bag.padding_idx_none",
-        core_ops.aten_embedding_bag,
-        input_wrangler=_embedding_bag_input_wrangler,
-    ),
-    TorchLibOpInfo(
-        "ops.aten.embedding_bag.padding_idx_int",
-        core_ops.aten_embedding_bag,
-        input_wrangler=_embedding_bag_input_wrangler,
-    ),
-    TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx",
         core_ops.aten_embedding_bag_padding_idx,
         tolerance={torch.float16: (1e-2, 1e-2)},
