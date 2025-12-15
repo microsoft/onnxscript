@@ -5103,29 +5103,20 @@ def aten_linspace(
     if steps == 1:
         return aten_full(op.Constant(value_ints=[steps]), start, dtype=dtype)
 
-    # Use double precision for computation to match PyTorch's internal precision
-    compute_dtype = DOUBLE.dtype
-
     # For integer output dtypes, cast start/end to the target dtype first
     # This matches PyTorch's behavior where fractional start/end values
     # are truncated before computing the linspace
-    is_integer_dtype = dtype not in (
-        FLOAT.dtype,
-        DOUBLE.dtype,
-        FLOAT16.dtype,
-        COMPLEX64.dtype,
-        COMPLEX128.dtype,
-    )
-
     if ir.DataType(dtype).is_integer():
+        # Use double precision for computation to match PyTorch's internal precision
+        compute_dtype = ir.DataType.DOUBLE
         # Cast to integer dtype first, then to compute dtype
         # This ensures truncation happens before computation
-        start_int = op.Cast(start, to=dtype)
-        end_int = op.Cast(end, to=dtype)
-        start = op.Cast(start_int, to=compute_dtype)
-        end = op.Cast(end_int, to=compute_dtype)
+        start_f = op.Constant(value=ir.tensor(int(start), dtype=compute_dtype))
+        end_f = op.Constant(value=ir.tensor(int(end), dtype=compute_dtype))
     else:
         compute_dtype = dtype
+        start_f = op.Constant(value=ir.tensor(start, dtype=compute_dtype))
+        end_f = op.Constant(value=ir.tensor(end, dtype=compute_dtype))
 
     rg = aten_arange_start(0, steps, dtype=compute_dtype)
     steps_f = op.Constant(value=ir.tensor(steps, dtype=compute_dtype))
