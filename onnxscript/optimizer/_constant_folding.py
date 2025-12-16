@@ -1419,7 +1419,7 @@ def _clear_unused_initializers(values: Sequence[ir.Value]) -> None:
         if value is None or not value.is_initializer():
             continue
 
-        if not value.uses():
+        if (not value.uses()) and (not value.is_graph_output()):
             assert value.is_initializer()
             assert value.graph is not None
             assert value.name is not None
