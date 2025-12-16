@@ -2098,7 +2098,7 @@ def aten_conv3d(
 
     if bias is None:
         weight_dim_0 = op.Shape(weight, start=0, end=1)
-        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
+        bias_shape = op.Concat(weight_dim_0, op.Constant(value_ints=[2]), axis=0)
         zero = op.CastLike(0.0, input)
         bias = op.Expand(zero, bias_shape)
 
@@ -9248,7 +9248,7 @@ def aten_sum_complex(self: TReal, dtype: int = -1) -> TReal:
         dim = op.Constant(value_ints=list(range(rank)))
         result = op.ReduceSum(self, dim, keepdims=False)
     if dtype != -1 and dtype is not None:
-        raise NotImplementedError("dtype not supported")
+        raise NotImplementedError("support for the dtype argument is not implemented for complex tensors")
     return result
 
 @torch_op("aten::sum.dim_IntList", trace_only=True)
