@@ -440,8 +440,8 @@ def aten_and(self: TensorType, other: TensorType) -> TensorType:
 def aten_angle(self: TFloat) -> TFloat:
     """angle(Tensor self) -> Tensor"""
 
-    zero = op.CastLike(0.0, self)
-    pi = op.CastLike(math.pi, self)
+    zero = common_ops.constant(0.0, dtype=self.dtype)
+    pi = common_ops.constant(_MATH_PI, dtype=self.dtype)
 
     result = op.Where(op.Less(self, zero), pi, zero)
     return result
@@ -928,19 +928,16 @@ def aten_atan(self: TFloat) -> TFloat:
 @torch_op("aten::atan2", trace_only=True)
 def aten_atan2(self: TFloat, other: TFloat) -> TFloat:
     """atan2(Tensor self, Tensor other) -> Tensor"""
-    return _atan2(self, other)
+    return _atan2(self, other, dtype=self.dtype)
 
-def _atan2(self: TFloat, other: TFloat, dtype = None) -> TFloat:
-    if dtype is None:
-        dtype = self.dtype
-    # self is y, and other is x on coordinate
-    slope = op.Div(self, other)
+def _atan2(y: TFloat, x: TFloat, dtype: ir.DataType) -> TFloat:
+    slope = op.Div(y, x)
     atan = op.Atan(slope)
     zero = common_ops.constant(0.0, dtype=dtype)
     pi = common_ops.constant(_MATH_PI, dtype=dtype)
 
-    second_third_quadrant = op.Where(op.Greater(self, zero), atan + pi, atan - pi)
-    result = op.Where(op.Less(other, zero), second_third_quadrant, atan)
+    second_third_quadrant = op.Where(op.Greater(y, zero), atan + pi, atan - pi)
+    result = op.Where(op.Less(x, zero), second_third_quadrant, atan)
 
     # Map NaN to 0 to match PyTorch behavior
     result = op.Where(op.IsNaN(result), zero, result)
@@ -9251,7 +9248,7 @@ def aten_sum_complex(self: TReal, dtype: int = -1) -> TReal:
         dim = op.Constant(value_ints=list(range(rank)))
         result = op.ReduceSum(self, dim, keepdims=False)
     if dtype != -1 and dtype is not None:
-        raise NotImplementedError()
+        raise NotImplementedError("dtype not supported")
     return result
 
 @torch_op("aten::sum.dim_IntList", trace_only=True)
