@@ -9319,11 +9319,9 @@ def aten_sum_dim_IntList_complex(
         dim = op.Constant(value_ints=list(range(rank)))
         result = op.ReduceSum(self, dim, keepdims=keepdim)
     else:
-        zero = op.Constant(value_int=0)
-        one = op.Constant(value_int=1)
-        dim = op.Where(op.Less(dim, zero), op.Sub(dim, one), dim)
-        dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
-        dim = op.Cast(dim, to=INT64.dtype)
+        if isinstance(dim, int):
+            dim = [dim]
+        dim = [d - 1 if d < 0 else d for d in dim]
         result = op.ReduceSum(self, dim, keepdims=keepdim)
 
     if dtype != -1 and dtype is not None:
