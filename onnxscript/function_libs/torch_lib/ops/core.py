@@ -2319,12 +2319,12 @@ def _aten_convolution_complex_onnx(
     if no_batch:
         input = op.Unsqueeze(input, op.Constant(value_ints=[0]))
 
-    input_real = op.Gather(input, 0, axis=len(input.shape) - 1)
-    input_imag = op.Gather(input, 1, axis=len(input.shape) - 1)
-    weight_real = op.Gather(weight, 0, axis=len(weight.shape) - 1)
-    weight_imag = op.Gather(weight, 1, axis=len(weight.shape) - 1)
-    bias_real = op.Gather(bias, 0, axis=len(bias.shape) - 1)
-    bias_imag = op.Gather(bias, 1, axis=len(bias.shape) - 1)
+    input_real = op.Gather(input, 0, axis=-1)
+    input_imag = op.Gather(input, 1, axis=-1)
+    weight_real = op.Gather(weight, 0, axis=-1)
+    weight_imag = op.Gather(weight, 1, axis=-1)
+    bias_real = op.Gather(bias, 0, axis=-1)
+    bias_imag = op.Gather(bias, 1, axis=-1)
     bias_zero = op.Expand(op.CastLike(0.0, weight), op.Shape(bias_real))
 
     if transposed:
@@ -6000,12 +6000,17 @@ def aten_matmul_complex(self: TReal, other: TReal) -> TReal:
     other_real = op.Gather(other, 0, axis=-1)
     other_imag = op.Gather(other, 1, axis=-1)
 
-    real1 = op.Concat(self_real, self_imag, axis=1)
-    real2 = op.Concat(other_real, op.Neg(other_imag), axis=0)
-    real = op.MatMul(real1, real2)
-
+    real1 = op.Concat(self_real, self_imag, axis=-1)
     imag1 = real1
-    imag2 = op.Concat(other_imag, other_real, axis=0)
+
+    if len(other.shape) == 2: # if other is a vector, we need to concatenate along the last dimension
+        real2 = op.Concat(other_real, op.Neg(other_imag), axis=-1)
+        imag2 = op.Concat(other_imag, other_real, axis=-1)
+    else:
+        real2 = op.Concat(other_real, op.Neg(other_imag), axis=-2)
+        imag2 = op.Concat(other_imag, other_real, axis=-2)
+
+    real = op.MatMul(real1, real2)
     imag = op.MatMul(imag1, imag2)
 
     return op.Concat(op.Unsqueeze(real, axes=[-1]), op.Unsqueeze(imag, axes=[-1]), axis=-1)
@@ -6105,10 +6110,12 @@ def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
 def aten_mean_dim_complex(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
-    if len(self.shape) == 0:
+    if len(self.shape) == 1:
         result = self
     else:
-        dim = [d - 1 if d < 0 else d for d in dim]
+        zero = op.Constant(value_int=0)
+        one = op.Constant(value_int=1)
+        dim = op.Where(op.Less(dim, zero), op.Sub(dim, one), dim)
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result = op.ReduceMean(self, dims, keepdims=keepdim)
     return result
@@ -9275,14 +9282,16 @@ def aten_sum_dim_IntList_complex(
     self: TReal, dim: Optional[INT64] = None, keepdim: bool = False, dtype: int = -1
 ) -> TReal:
     """sum.dim_IntList(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
-    if len(self.shape) == 0:
+    if len(self.shape) == 1:
         result = op.Identity(self)
     elif dim is None:
         rank = len(self.shape) - 1
         dim = op.Constant(value_ints=list(range(rank)))
         result = op.ReduceSum(self, dim, keepdims=keepdim)
     else:
-        dim = [d - 1 if d < 0 else d for d in dim]
+        zero = op.Constant(value_int=0)
+        one = op.Constant(value_int=1)
+        dim = op.Where(op.Less(dim, zero), op.Sub(dim, one), dim)
         dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
         dim = op.Cast(dim, to=INT64.dtype)
         result = op.ReduceSum(self, dim, keepdims=keepdim)
