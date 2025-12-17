@@ -9296,8 +9296,9 @@ def aten_sum_dim_IntList(
     elif dim is None:
         result = op.ReduceSum(self, keepdims=keepdim)
     else:
+        if isinstance(dim, int):
+            dim = [dim]
         dim = common_ops.constant(dim, dtype=ir.DataType.INT64)
-        dim = op.Reshape(dim, [-1])
         result = op.ReduceSum(self, dim, keepdims=keepdim)
 
     if dtype != -1 and dtype is not None:
