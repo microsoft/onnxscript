@@ -446,6 +446,7 @@ def aten_angle(self: TFloat) -> TFloat:
     result = op.Where(op.Less(self, zero), pi, zero)
     return result
 
+
 @torch_op("aten::angle", complex=True, trace_only=True)
 def aten_angle_complex(self: TFloat) -> TFloat:
     """angle(Tensor self) -> Tensor"""
@@ -455,6 +456,7 @@ def aten_angle_complex(self: TFloat) -> TFloat:
 
     result = _atan2(self_imag, self_real, dtype=self.dtype)
     return result
+
 
 @torch_op("aten::any", trace_only=True)
 def aten_any(self: TTensor) -> BOOL:
@@ -924,11 +926,11 @@ def aten_atan(self: TFloat) -> TFloat:
     return op.Atan(self)
 
 
-
 @torch_op("aten::atan2", trace_only=True)
 def aten_atan2(self: TFloat, other: TFloat) -> TFloat:
     """atan2(Tensor self, Tensor other) -> Tensor"""
     return _atan2(self, other, dtype=self.dtype)
+
 
 def _atan2(y: TFloat, x: TFloat, dtype: ir.DataType) -> TFloat:
     slope = op.Div(y, x)
@@ -1780,12 +1782,15 @@ def aten_clone(
 
     return op.Identity(self)
 
+
 @torch_op("aten::clone", complex=True, trace_only=True)
 def aten_clone_complex(
-    self: TTensor, memory_format: str = ""  # pylint: disable=unused-argument
+    self: TTensor,
+    memory_format: str = "",  # pylint: disable=unused-argument
 ) -> TTensor:
     """clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor"""
     return op.Identity(self)
+
 
 def aten_coalesce(self: TensorType) -> TensorType:
     """coalesce(Tensor(a) self) -> Tensor(a)"""
@@ -1857,7 +1862,6 @@ def aten_conj_complex(self: TFloat) -> TFloat:
     """conj(Tensor(a) self) -> Tensor(a)"""
 
     return _complex_conjugate(self)
-
 
 
 def aten_conj_physical(self: TensorType) -> TensorType:
@@ -1938,6 +1942,7 @@ def aten_conv1d(
 
     return result
 
+
 @torch_op("aten::conv1d", trace_only=True, complex=True)
 def aten_conv1d_complex(
     input: TFloat,
@@ -1982,6 +1987,7 @@ def aten_conv1d_complex(
 
     return result
 
+
 @torch_op("aten::conv2d", trace_only=True)
 def aten_conv2d(
     input: TFloat,
@@ -2025,6 +2031,7 @@ def aten_conv2d(
     )
 
     return result
+
 
 @torch_op("aten::conv2d", trace_only=True, complex=True)
 def aten_conv2d_complex(
@@ -2115,6 +2122,7 @@ def aten_conv3d(
 
     return result
 
+
 @torch_op("aten::conv3d", trace_only=True, complex=True)
 def aten_conv3d_complex(
     input: TFloat,
@@ -2158,6 +2166,7 @@ def aten_conv3d_complex(
     )
 
     return result
+
 
 def aten_conv_tbc(
     self: TensorType, weight: TensorType, bias: TensorType, pad: int = 0
@@ -2348,7 +2357,7 @@ def _aten_convolution_complex_onnx(
                 group=groups,
                 dilations=dilations,
                 output_padding=output_padding,
-            )
+            ),
         )
         result_imag = op.Add(
             op.ConvTranspose(
@@ -2370,7 +2379,7 @@ def _aten_convolution_complex_onnx(
                 group=groups,
                 dilations=dilations,
                 output_padding=output_padding,
-            )
+            ),
         )
     else:
         result_real = op.Sub(
@@ -2391,7 +2400,7 @@ def _aten_convolution_complex_onnx(
                 pads=pads,
                 group=groups,
                 dilations=dilations,
-            )
+            ),
         )
 
         result_imag = op.Add(
@@ -2412,15 +2421,18 @@ def _aten_convolution_complex_onnx(
                 pads=pads,
                 group=groups,
                 dilations=dilations,
-            )
+            ),
         )
 
-    result = op.Concat(op.Unsqueeze(result_real, axes=[-1]), op.Unsqueeze(result_imag, axes=[-1]), axis=-1)
+    result = op.Concat(
+        op.Unsqueeze(result_real, axes=[-1]), op.Unsqueeze(result_imag, axes=[-1]), axis=-1
+    )
 
     if no_batch:
         result = op.Squeeze(result, op.Constant(value_ints=[0]))
 
     return result
+
 
 def aten_convolution_backward(
     grad_output: TensorType,
@@ -3912,12 +3924,14 @@ def aten_flip(self: TTensor, dims: Sequence[int]) -> TTensor:
     dims = op.Constant(value_ints=dims)
     return op.Slice(self, starts, ends, dims, steps)
 
+
 @torch_op("aten::flip", trace_only=True, complex=True)
 def aten_flip_complex(self: TReal, dims: Sequence[int]) -> TReal:
     """flip(Tensor self, int[] dims) -> Tensor"""
     # if dims is negative, take into account the complex dimension
     dims = [d - 1 if d < 0 else d for d in dims]
     return aten_flip(self, dims)
+
 
 def aten_fliplr(self: TensorType) -> TensorType:
     """fliplr(Tensor self) -> Tensor"""
@@ -5991,6 +6005,7 @@ def aten_matmul(
 
     return op.MatMul(self, other)
 
+
 @torch_op("aten::matmul", complex=True, trace_only=True)
 def aten_matmul_complex(self: TReal, other: TReal) -> TReal:
     """matmul(Tensor(a) self, Tensor(b) other) -> Tensor(c)"""
@@ -6003,7 +6018,9 @@ def aten_matmul_complex(self: TReal, other: TReal) -> TReal:
     real1 = op.Concat(self_real, self_imag, axis=-1)
     imag1 = real1
 
-    if len(other.shape) == 2: # if other is a vector, we need to concatenate along the last dimension
+    if (
+        len(other.shape) == 2
+    ):  # if other is a vector, we need to concatenate along the last dimension
         real2 = op.Concat(other_real, op.Neg(other_imag), axis=-1)
         imag2 = op.Concat(other_imag, other_real, axis=-1)
     else:
@@ -6014,6 +6031,7 @@ def aten_matmul_complex(self: TReal, other: TReal) -> TReal:
     imag = op.MatMul(imag1, imag2)
 
     return op.Concat(op.Unsqueeze(real, axes=[-1]), op.Unsqueeze(imag, axes=[-1]), axis=-1)
+
 
 def aten_matmul_backward(
     grad: TensorType, self: TensorType, other: TensorType, mask: Sequence[bool]
@@ -6085,6 +6103,7 @@ def aten_mean(self: TReal) -> TReal:
     result = op.ReduceMean(self)
     return op.Squeeze(result)
 
+
 @torch_op("aten::mean", complex=True, trace_only=True)
 def aten_mean_complex(self: TReal) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
@@ -6106,6 +6125,7 @@ def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
         result = op.ReduceMean(self, dims, keepdims=keepdim)
     return result
 
+
 @torch_op("aten::mean.dim", trace_only=True, complex=True)
 def aten_mean_dim_complex(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
@@ -6119,6 +6139,7 @@ def aten_mean_dim_complex(self: TReal, dim: INT64, keepdim: bool = False) -> TRe
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result = op.ReduceMean(self, dims, keepdims=keepdim)
     return result
+
 
 def aten_median(self: TensorType) -> TensorType:
     """median(Tensor self) -> Tensor"""
@@ -7106,6 +7127,7 @@ def aten_neg(self: TReal) -> TReal:
 
     return op.Neg(self)
 
+
 @torch_op(("aten::neg", "_operator::neg"), trace_only=True, complex=True)
 def aten_neg_complex(self: TReal) -> TReal:
     """neg(Tensor self) -> Tensor"""
@@ -7408,6 +7430,7 @@ def aten_permute(self: TTensor, dims: Sequence[int]) -> TTensor:
     dims = [axis + len(dims) if axis < 0 else axis for axis in dims]
 
     return op.Transpose(self, perm=dims)
+
 
 @torch_op("aten::permute", trace_only=True, complex=True)
 def aten_permute_complex(self: TTensor, dims: Sequence[int]) -> TTensor:
@@ -8005,6 +8028,7 @@ def aten_reciprocal_complex(self: TFloat) -> TFloat:
     imag = op.Div(op.Neg(self_imag), denominator)
 
     return op.Concat(real, imag, axis=-1)
+
 
 def aten_record_stream(self: TensorType, s: str) -> Any:
     """record_stream(Tensor(a!) self, Stream s) -> ()"""
@@ -9245,6 +9269,7 @@ def aten_sum(self: TReal, dtype: int = -1) -> TReal:
         result = op.Cast(result, to=dtype)
     return result
 
+
 @torch_op("aten::sum", trace_only=True, complex=True)
 def aten_sum_complex(self: TReal, dtype: int = -1) -> TReal:
     """sum(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
@@ -9255,8 +9280,11 @@ def aten_sum_complex(self: TReal, dtype: int = -1) -> TReal:
         dim = op.Constant(value_ints=list(range(rank)))
         result = op.ReduceSum(self, dim, keepdims=False)
     if dtype != -1 and dtype is not None:
-        raise NotImplementedError("support for the dtype argument is not implemented for complex tensors")
+        raise NotImplementedError(
+            "support for the dtype argument is not implemented for complex tensors"
+        )
     return result
+
 
 @torch_op("aten::sum.dim_IntList", trace_only=True)
 def aten_sum_dim_IntList(
@@ -9276,6 +9304,7 @@ def aten_sum_dim_IntList(
         result = op.Cast(result, to=dtype)
 
     return result
+
 
 @torch_op("aten::sum.dim_IntList", trace_only=True, complex=True)
 def aten_sum_dim_IntList_complex(
@@ -9300,6 +9329,7 @@ def aten_sum_dim_IntList_complex(
         raise NotImplementedError()
 
     return result
+
 
 def aten_sum_to_size(self: TensorType, size: Sequence[int]) -> TensorType:
     """sum_to_size(Tensor self, int[] size) -> Tensor"""
@@ -9373,6 +9403,7 @@ def aten_t_complex(self: TTensor) -> TTensor:
         # rank < 2
         result = op.Identity(self)
     return result
+
 
 def aten_t_copy(self: TensorType) -> TensorType:
     """t_copy(Tensor self) -> Tensor"""

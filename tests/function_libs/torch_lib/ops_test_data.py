@@ -859,7 +859,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload can accept 2 inputs:(self, dim)",
     ),
     TorchLibOpInfo(
-        "mean_dim", core_ops.aten_mean_dim_complex, input_wrangler=_mean_input_wrangler, complex=True
+        "mean_dim",
+        core_ops.aten_mean_dim_complex,
+        input_wrangler=_mean_input_wrangler,
+        complex=True,
     ).skip(
         matcher=lambda sample: sample.kwargs.get("dim") is None,
         reason="this Aten overload can accept 2 inputs:(self, dim)",
@@ -1588,7 +1591,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.conv3d", core_ops.aten_conv3d, tolerance={torch.float32: (3.7e-5, 1.8e-4)}
     ),
     TorchLibOpInfo(
-        "ops.aten.conv3d", core_ops.aten_conv3d_complex, complex=True, tolerance={torch.complex64: (1e-4, 5e-4)}
+        "ops.aten.conv3d",
+        core_ops.aten_conv3d_complex,
+        complex=True,
+        tolerance={torch.complex64: (1e-4, 5e-4)},
     ),
     TorchLibOpInfo("nn.functional.gelu", nn_ops.aten_gelu),
     TorchLibOpInfo("nn.functional.glu", nn_ops.aten_glu),
