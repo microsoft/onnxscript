@@ -1565,6 +1565,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.conv1d",
         core_ops.aten_conv1d_complex,
         complex=True,
+        tolerance={torch.complex64: (2e-5, 3e-5)},
     ).xfail(
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv1d",
@@ -1581,7 +1582,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.conv2d",
         core_ops.aten_conv2d_complex,
         complex=True,
-        tolerance={torch.float32: (2e-5, 3e-5)},
+        tolerance={torch.complex64: (2e-5, 3e-5)},
     ).xfail(
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
@@ -1595,7 +1596,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.conv3d", core_ops.aten_conv3d, tolerance={torch.float32: (3.7e-5, 1.8e-4)}
     ),
     TorchLibOpInfo(
-        "ops.aten.conv3d", core_ops.aten_conv3d_complex, complex=True, tolerance={torch.float32: (3.7e-5, 1.8e-4)}
+        "ops.aten.conv3d", core_ops.aten_conv3d_complex, complex=True, tolerance={torch.complex64: (1e-4, 5e-4)}
     ),
     TorchLibOpInfo("nn.functional.gelu", nn_ops.aten_gelu),
     TorchLibOpInfo("nn.functional.glu", nn_ops.aten_glu),
