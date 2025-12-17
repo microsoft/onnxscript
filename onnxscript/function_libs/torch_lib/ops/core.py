@@ -9260,7 +9260,7 @@ def aten_sum_complex(self: TReal, dtype: int = -1) -> TReal:
 
 @torch_op("aten::sum.dim_IntList", trace_only=True)
 def aten_sum_dim_IntList(
-    self: TReal, dim: Optional[INT64] = None, keepdim: bool = False, dtype: int = -1
+    self: TReal, dim: Optional[int] = None, keepdim: bool = False, dtype: int = -1
 ) -> TReal:
     """sum.dim_IntList(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
     if len(self.shape) == 0:
@@ -9268,8 +9268,8 @@ def aten_sum_dim_IntList(
     elif dim is None:
         result = op.ReduceSum(self, keepdims=keepdim)
     else:
-        dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
-        dim = op.Cast(dim, to=INT64.dtype)
+        dim = common_ops.constant(dim, dtype=ir.DataType.INT64)
+        dim = op.Reshape(dim, [-1])
         result = op.ReduceSum(self, dim, keepdims=keepdim)
 
     if dtype != -1 and dtype is not None:
@@ -9279,7 +9279,7 @@ def aten_sum_dim_IntList(
 
 @torch_op("aten::sum.dim_IntList", trace_only=True, complex=True)
 def aten_sum_dim_IntList_complex(
-    self: TReal, dim: Optional[INT64] = None, keepdim: bool = False, dtype: int = -1
+    self: TReal, dim: Optional[int] = None, keepdim: bool = False, dtype: int = -1
 ) -> TReal:
     """sum.dim_IntList(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
     if len(self.shape) == 1:
