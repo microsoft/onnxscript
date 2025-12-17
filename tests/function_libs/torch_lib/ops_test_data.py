@@ -421,14 +421,6 @@ def _scatter_reduce_input_wrangler(
     return args, kwargs
 
 
-def _sum_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if kwargs.get("dim") is not None:
-        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
-    return args, kwargs
-
-
 def _where_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -1826,7 +1818,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "sum",
         core_ops.aten_sum_dim_IntList,
-        input_wrangler=_sum_input_wrangler,
     ).xfail(
         dtypes=(torch.int32,),
         reason="fixme: torch.sum uses int64 as the accumulator for int32 inputs",
@@ -1834,7 +1825,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "sum",
         core_ops.aten_sum_dim_IntList_complex,
-        input_wrangler=_sum_input_wrangler,
         complex=True,
     ),
     TorchLibOpInfo(
