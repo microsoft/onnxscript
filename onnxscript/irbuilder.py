@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# ruff: noqa: TID251
 from __future__ import annotations
 
 import logging
@@ -12,11 +11,11 @@ import onnx_ir as ir
 
 import onnxscript.type_annotation
 from onnxscript import values
-from onnxscript.sourceinfo import SourceInfo
 
 logger = logging.getLogger("onnxscript")
 
 TypeAnnotationValue = onnxscript.type_annotation.TypeAnnotationValue
+
 
 class IRFunction(ir.Function):
     """Represents a function in the IR."""
@@ -95,4 +94,3 @@ class IRFunction(ir.Function):
     def to_function_proto(self) -> onnx.FunctionProto:
         """Converts this instance into a `onnx.FunctionProto`."""
         return ir.to_proto(self)
-
