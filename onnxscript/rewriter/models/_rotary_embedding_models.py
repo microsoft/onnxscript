@@ -26,8 +26,8 @@ def _test_case_1_script(x: FLOAT[1, 4, 8, 8], position_ids: INT64[1, 8]) -> FLOA
     emb = op.Concat(freqs, freqs, axis=-1)
     cos = op.Cos(emb)
     sin = op.Sin(emb)
-    cos_4d = op.Unsqueeze(cos, 1)
-    sin_4d = op.Unsqueeze(sin, 1)
+    cos_4d = op.Unsqueeze(cos, [1])
+    sin_4d = op.Unsqueeze(sin, [1])
 
     x1 = op.Slice(x, [0], [4], [3], [1])
     x2 = op.Slice(x, [4], [8], [3], [1])
@@ -73,8 +73,8 @@ def _test_case_2_script(x: FLOAT[1, 4, 8, 8], position_ids: INT64[8]) -> FLOAT[1
     emb = op.Concat(freqs, freqs, axis=-1)
     cos = op.Cos(emb)
     sin = op.Sin(emb)
-    cos_4d = op.Unsqueeze(cos, 1)
-    sin_4d = op.Unsqueeze(sin, 1)
+    cos_4d = op.Unsqueeze(cos, [1])
+    sin_4d = op.Unsqueeze(sin, [1])
 
     x1 = op.Slice(x, [0], [4], [3], [1])
     x2 = op.Slice(x, [4], [8], [3], [1])
@@ -127,8 +127,8 @@ def _partial_rotary_script(position_ids, query):
     # Split the query for partial embedding
     to_embed = op.Slice(query, [0], [32], [3], [1])
     unembedded = op.Slice(query, [32], [9223372036854775807], [3], [1])
-    cos_4d = op.Unsqueeze(cos_3d, 1)  # [B, 1, S, rd]
-    sin_4d = op.Unsqueeze(sin_3d, 1)  # [B, 1, S, rd]
+    cos_4d = op.Unsqueeze(cos_3d, [1])  # [B, 1, S, rd]
+    sin_4d = op.Unsqueeze(sin_3d, [1])  # [B, 1, S, rd]
     # Compute rotation of X as X * cos + rotate_half(X) * sin, where rotate_half(X)
     # essentially represents X rotated by 90 degrees
     to_embed_times_cos = op.Mul(to_embed, cos_4d)
