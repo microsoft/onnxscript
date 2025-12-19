@@ -1,8 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-# ruff: noqa: TID251
-
 from __future__ import annotations
 
 import dataclasses
@@ -39,15 +37,17 @@ _R = TypeVar("_R")
 _P = ParamSpec("_P")
 
 
-def select_ir_version(version: int, domain: str = "") -> int:
+def _select_ir_version(version: int, domain: str = "") -> int:
     """Selects a suitable ONNX ir_version for a given opset version."""
     if domain == "":
         domain = "ai.onnx"
-    if (domain, version) not in onnx.helper.OP_SET_ID_VERSION_MAP:
+    if (domain, version) not in onnx.helper.OP_SET_ID_VERSION_MAP:  # noqa: TID251
         return max(
-            v for k, v in onnx.helper.OP_SET_ID_VERSION_MAP.items() if k[0] == "ai.onnx"
+            v
+            for k, v in onnx.helper.OP_SET_ID_VERSION_MAP.items()  # noqa: TID251
+            if k[0] == "ai.onnx"
         )
-    required_min_version = onnx.helper.OP_SET_ID_VERSION_MAP[domain, version]
+    required_min_version = onnx.helper.OP_SET_ID_VERSION_MAP[domain, version]  # noqa: TID251
     return max(required_min_version, 10)
 
 
@@ -193,7 +193,7 @@ def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
     """Get the default value of an ONNX attribute."""
     if attr_proto.type == onnx.AttributeProto.UNDEFINED:
         return _EmptyDefault
-    return onnx.helper.get_attribute_value(attr_proto)
+    return onnx.helper.get_attribute_value(attr_proto)  # noqa: TID251
 
 
 def _param_schemas_from_op_schema(
@@ -694,7 +694,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
         if "ir_version" in kwargs:
             ir_version = kwargs.pop("ir_version")
         else:
-            ir_version = select_ir_version(opsets[""])
+            ir_version = _select_ir_version(opsets[""])
 
         # Create the model
         model = ir.Model(self.function_ir.graph, ir_version=ir_version)
