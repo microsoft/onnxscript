@@ -728,23 +728,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
     TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index),
-    TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index_bool),
-    TorchLibOpInfo(
-        "index_put_bool",
-        core_ops.aten_index_put_bool,
-        input_wrangler=_index_put_input_wrangler,
-    ).skip(
-        matcher=lambda sample: sample.args[0][0].dtype != torch.bool,
-        reason="this Aten overload only supports tensor(bool) as indices",
-    ),
+    TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index),
     TorchLibOpInfo(
         "index_put", core_ops.aten_index_put, input_wrangler=_index_put_input_wrangler
-    )
-    .skip(
-        matcher=lambda sample: sample.args[0][0].dtype != torch.int64,
-        reason="this Aten overload only supports tensor(int) as indices",
-    )
-    .xfail(
+    ).skip(
         dtypes=(torch.float16,),
         matcher=lambda sample: sample.kwargs.get("accumulate") is True,
         reason="fixme: ORT only supports float32 when accumulate is True:  MLFloat16 data type is not supported with ScatterND when reduction is 'add'",
@@ -1871,7 +1858,6 @@ ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode",))
-ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))

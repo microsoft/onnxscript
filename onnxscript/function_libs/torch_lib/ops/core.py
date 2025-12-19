@@ -4382,7 +4382,6 @@ def aten_grid_sampler(
     padding_mode_options = ("zeros", "border", "reflection")
     padding_mode_str = padding_mode_options[padding_mode]
 
-    # Only one onnx Op so don't put into private function
     return op.GridSample(
         input,
         grid,
@@ -4408,7 +4407,6 @@ def aten_grid_sampler_2d(
     padding_mode_options = ("zeros", "border", "reflection")
     padding_mode_str = padding_mode_options[padding_mode]
 
-    # Only one onnx Op so don't put into private function
     return op.GridSample(
         input,
         grid,
@@ -4698,7 +4696,7 @@ def _aten_index_onnx(
     if _has_none_in_middle(indices):
         # If there is None in the middle, Advanced Indexing cannot decide where to put
         # the new dimensions. So it places them in the front, like GatherND does.
-        return op.Identity(self)
+        return self
 
     # When the indices are consecutive, Advanced Indexing will place the new dimensions
     # (aka. the broadcasted shape) in the middle, replacing the original [x1, ..., xk] axes.
@@ -4744,7 +4742,9 @@ def _aten_index_onnx(
 
 
 @torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
-def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
+def aten_index(
+    self: TensorType, indices: Sequence[Optional[Union[INT64, BOOL]]]
+) -> TensorType:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
 
     NOTE: Understanding `aten::index`
@@ -4764,17 +4764,19 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
 
     None in `indices` are like fillers for dimensions that cannot be removed in the process.
     """
+    # Handle Boolean indexing first
+    if any(index is not None and index.dtype == ir.DataType.BOOL for index in indices):
+        return _aten_index_bool(self, indices)
 
     index_ranks = [len(index.shape) for index in indices if index is not None]
 
     return _aten_index_onnx(self, indices, index_ranks)
 
 
-@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
-def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:  # pylint: disable=inconsistent-return-statements
+def _aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:
     index_ranks = [len(index.shape) for index in indices if index is not None]
 
-    if index_ranks[0] == 1:
+    if all(rank == 1 for rank in index_ranks):
         # indices contains scalar only.
         new_indices = [
             op.Transpose(op.NonZero(index), perm=[1, 0]) if index is not None else None
@@ -4784,6 +4786,7 @@ def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Tens
             op.Squeeze(index, axes=[1]) if index is not None else None for index in new_indices
         ]
         return _aten_index_onnx(self, new_indices, index_ranks)
+
     else:
         input_rank = len(self.shape)
         # Prepare perm for transposing self tensor.
@@ -4800,15 +4803,19 @@ def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Tens
             if index is None:
                 self = op.Transpose(self, perm=trans_perm)
                 count_of_none += 1
-            else:
-                new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
-                result = op.GatherND(self, new_indices, batch_dims=0)
-                finla_rank = input_rank - (len(index.shape) - 1)
-                trans_perm = list(range(finla_rank))
-                trans_perm = trans_perm[-1:] + trans_perm[:-1]
-                for _ in range(count_of_none):
-                    result = op.Transpose(result, perm=trans_perm)
-                return result
+                continue
+
+            new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
+            result = op.GatherND(self, new_indices, batch_dims=0)
+            final_rank = input_rank - (len(index.shape) - 1)
+            trans_perm = list(range(final_rank))
+            trans_perm = trans_perm[-1:] + trans_perm[:-1]
+            for _ in range(count_of_none):
+                result = op.Transpose(result, perm=trans_perm)
+            # FIXME(justinchuby): Even though this logic passes the tests, it still looks strange:
+            # why does it return early here instead of continuing to process the remaining indices?
+            # I think the assumption here is that there can be only one Boolean index in the indices list?
+            return result
 
 
 def aten_index_add(
@@ -4830,7 +4837,7 @@ def aten_index_copy(
 @torch_op(("aten::index_put", "aten::_unsafe_index_put"), trace_only=True)
 def aten_index_put(
     self: TReal,
-    indices: Sequence[INT64],
+    indices: Sequence[Optional[Union[INT64, BOOL]]],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
@@ -4839,6 +4846,9 @@ def aten_index_put(
     See implementation of `torch.onnx.symbolic_opset11.index_put
     <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
     """
+    if any(index is not None and index.dtype == BOOL.dtype for index in indices):
+        return _aten_index_put_bool(self, indices, values, accumulate)
+
     # Ensure the number of indices matches the tensor rank by appending trailing Nones.
     self_rank = len(self.shape)
     if len(indices) < self_rank:
@@ -4971,8 +4981,7 @@ def aten_index_put(
     return result
 
 
-@torch_op("aten::index_put", trace_only=True)
-def aten_index_put_bool(
+def _aten_index_put_bool(
     self: TReal,
     indices: Sequence[BOOL],
     values: TReal,

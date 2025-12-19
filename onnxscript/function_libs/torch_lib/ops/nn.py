@@ -328,7 +328,6 @@ def aten_col2im(
     else:  # assert len(padding) == 4, already [w, x, y, z]
         pads = padding
 
-    # Only one ONNX op here so didn't write a private function
     return op.Col2Im(
         self,
         output_size,
