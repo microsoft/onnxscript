@@ -1,5 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+
+# ruff: noqa: TID251
+
 from __future__ import annotations
 
 import dataclasses
@@ -23,15 +26,29 @@ from typing import (  # type: ignore[attr-defined]
 
 import onnx
 import onnx.defs
+import onnx_ir as ir
 from typing_extensions import ParamSpec
 
 from onnxscript import converter as converter_module
 from onnxscript import irbuilder, sourceinfo, type_annotation
 from onnxscript._internal import ast_utils, deprecation
 from onnxscript.ir import _schemas
+from onnxscript.onnx_types import ONNXType
 
 _R = TypeVar("_R")
 _P = ParamSpec("_P")
+
+
+def select_ir_version(version: int, domain: str = "") -> int:
+    """Selects a suitable ONNX ir_version for a given opset version."""
+    if domain == "":
+        domain = "ai.onnx"
+    if (domain, version) not in onnx.helper.OP_SET_ID_VERSION_MAP:
+        return max(
+            v for k, v in onnx.helper.OP_SET_ID_VERSION_MAP.items() if k[0] == "ai.onnx"
+        )
+    required_min_version = onnx.helper.OP_SET_ID_VERSION_MAP[domain, version]
+    return max(required_min_version, 10)
 
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
@@ -176,7 +193,7 @@ def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
     """Get the default value of an ONNX attribute."""
     if attr_proto.type == onnx.AttributeProto.UNDEFINED:
         return _EmptyDefault
-    return onnx.helper.get_attribute_value(attr_proto)  # noqa: TID251
+    return onnx.helper.get_attribute_value(attr_proto)
 
 
 def _param_schemas_from_op_schema(
@@ -208,23 +225,28 @@ def _param_schemas_from_op_schema(
     return tuple(schemas)
 
 
-def _param_schema_from_function_ir_input(input: irbuilder.IRVar):
-    if type_annotation.is_optional(input.typeinfo):
+def _typeinfo(var: ir.Value) -> Any:
+    return var.meta.get("typeinfo")
+
+
+def _param_schema_from_function_ir_input(input: ir.Value):
+    typeinfo = _typeinfo(input)
+    if type_annotation.is_optional(typeinfo):
         required = False
     else:
         required = True
-    return ParamSchema(name=input.name, type=input.typeinfo, is_input=True, required=required)
+    return ParamSchema(name=input.name, type=typeinfo, is_input=True, required=required)
 
 
-def _param_schema_from_function_ir_attr(attr: irbuilder.IRAttributeParameter):
+def _param_schema_from_function_ir_attr(attr: ir.Attr):
     return ParamSchema(
         name=attr.name,
         type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
             onnx.defs.OpSchema.AttrType(attr.type)  # type: ignore[call-arg]
         ),
-        default=_EmptyDefault if attr.default_value is None else attr.default_value,
+        default=_EmptyDefault if attr.value is None else attr.value,
         is_input=False,
-        required=not attr.has_default,
+        required=attr.value is None,
     )
 
 
@@ -240,10 +262,10 @@ def _param_schemas_from_function_ir(
     # ONNX OpSchema and FunctionProto does not support interleaving inputs and attributes.
     # This is by design. See more at https://github.com/microsoft/onnxscript/issues/771.
     for arg in function_ir.ordered_inputs_and_attrs:
-        if isinstance(arg, irbuilder.IRVar):
+        if isinstance(arg, ir.Value):
             # input
             schemas.append(_param_schema_from_function_ir_input(arg))
-        elif isinstance(arg, irbuilder.IRAttributeParameter):
+        elif isinstance(arg, ir.Attr):
             # attr
             schemas.append(_param_schema_from_function_ir_attr(arg))
         else:
@@ -392,8 +414,8 @@ def _op_schema_from_function_ir(
     """Construct an ONNX OpSchema from an IRFunction."""
 
     # Find all distinct types in the inputs and outputs
-    distinct_types = {arg.typeinfo for arg in function_ir.inputs}.union(
-        {arg.typeinfo for arg in function_ir.outputs}
+    distinct_types = {_typeinfo(arg) for arg in function_ir.inputs}.union(
+        {_typeinfo(arg) for arg in function_ir.outputs}
     )
     # Create a mapping from type to a unique name
     type_to_constraint = {}
@@ -407,10 +429,10 @@ def _op_schema_from_function_ir(
     formal_inputs = [
         onnx.defs.OpSchema.FormalParameter(
             arg.name,
-            type_to_constraint[arg.typeinfo].name,
+            type_to_constraint[_typeinfo(arg)].name,
             param_option=(
                 onnx.defs.OpSchema.FormalParameterOption.Optional
-                if type_annotation.is_optional(arg.typeinfo)
+                if type_annotation.is_optional(_typeinfo(arg))
                 else onnx.defs.OpSchema.FormalParameterOption.Single
             ),
             # TODO(justinchu): Check this is_homogeneous thing
@@ -421,10 +443,10 @@ def _op_schema_from_function_ir(
     formal_outputs = [
         onnx.defs.OpSchema.FormalParameter(
             arg.name,
-            type_to_constraint[arg.typeinfo].name,
+            type_to_constraint[_typeinfo(arg)].name,
             param_option=(
                 onnx.defs.OpSchema.FormalParameterOption.Optional
-                if type_annotation.is_optional(arg.typeinfo)
+                if type_annotation.is_optional(_typeinfo(arg))
                 else onnx.defs.OpSchema.FormalParameterOption.Single
             ),
             # TODO(justinchu): Check this is_homogeneous thing
@@ -436,7 +458,7 @@ def _op_schema_from_function_ir(
         function_ir.name,
         opset.domain,
         since_version=opset.version,
-        doc=function_ir.docstring,
+        doc=function_ir.doc_string or "",
         inputs=formal_inputs,
         outputs=formal_outputs,
         type_constraints=[constraint.as_tuple() for constraint in type_to_constraint.values()],
@@ -447,15 +469,15 @@ def _op_schema_from_function_ir(
                     type=onnx.defs.OpSchema.AttrType(attr.type),  # type: ignore[call-arg]
                 )
                 for attr in function_ir.attrs
-                if not attr.has_default
+                if attr.value is None
             ],
             *[
                 onnx.defs.OpSchema.Attribute(
                     attr.name,
-                    default_value=attr.attr_proto,
+                    default_value=ir.to_proto(attr),
                 )
                 for attr in function_ir.attrs
-                if attr.has_default
+                if attr.value is not None
             ],
         ],
     )
@@ -591,7 +613,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
     def to_model_proto(self, **kwargs):
         """Converts the function into :class:`onnx.ModelProto`."""
         if self.function_ir.attrs and any(
-            not attr.has_default for attr in self.function_ir.attrs
+            attr.value is None for attr in self.function_ir.attrs
         ):
             raise ValueError(
                 "A function with required attributes cannot be exported as a model."
@@ -603,7 +625,111 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
         # Merge kwargs specified in script-decorator with those specified in this call.
         merged_kw_args = {**self.kwargs, **kwargs}
-        return self.function_ir.to_model_proto(**merged_kw_args)
+        return self._to_model_proto(**merged_kw_args)
+
+    def _to_model_proto(
+        self,
+        functions=None,
+        io_types: Optional[ONNXType] = None,
+        input_types: Optional[Sequence[ONNXType]] = None,
+        output_types: Optional[Sequence[ONNXType]] = None,
+        value_infos: dict[str, ONNXType] | None = None,
+        opset_version: int | None = None,
+        **kwargs,
+    ) -> onnx.ModelProto:
+        """Converts this instance into a `onnx.ModelProto`.
+
+        Args:
+            functions: A list of functions to include in the model.
+                By default, all functions called at least once are included.
+            io_types: When specified, all the inputs/outputs of the model
+                are set to be of this type.
+            input_types: When specified, all the inputs of the model
+                are set to be of the corresponding type in this list.
+            output_types: When specified, all the outputs of the model
+                are set to be of the corresponding type in this list.
+            value_infos: A dictionary mapping intermediate variable names to ONNX types.
+                Used to set value_info for intermediate variables.
+            opset_version: The standard opset version to use for the model if it
+                cannot be inferred. Otherwise defaults to the current opset version.
+            kwargs: Additional parameters given to function :func:`onnx.helper.make_model`.
+
+        Returns:
+            An instance of :class:`onnx.ModelProto`.
+        """
+        # Identify functions to include in the model
+        if functions is None:
+            sub_functions = self.function_ir.get_called_functions()
+            functions = sub_functions.values()
+        else:
+
+            def to_proto(f):
+                if isinstance(f, onnx.FunctionProto):
+                    return f
+                if isinstance(f, OnnxFunction):
+                    return f.to_function_proto()
+                raise TypeError("Expected a value of type FunctionProto of OnnxFunction")
+
+            functions = [to_proto(f) for f in functions]
+
+        # Determine opset imports
+        opsets = self.function_ir.graph.opset_imports
+
+        for proto in functions:
+            if proto.domain not in opsets:
+                opsets[proto.domain] = 1
+            # TODO(rama): Handle conflicts with appropriate error/warning message.
+            for opset in proto.opset_import:
+                if opset.domain not in opsets:
+                    opsets[opset.domain] = opset.version
+
+        if "" not in opsets:
+            # No operator is using the standard opset.
+            # Use the specified version if provided or the default value.
+            opsets[""] = (
+                opset_version if opset_version is not None else onnx.defs.onnx_opset_version()
+            )
+
+        # Determine ir_version
+        if "ir_version" in kwargs:
+            ir_version = kwargs.pop("ir_version")
+        else:
+            ir_version = select_ir_version(opsets[""])
+
+        # Create the model
+        model = ir.Model(self.function_ir.graph, ir_version=ir_version)
+        model_proto = ir.to_proto(model)
+        model_proto.functions.extend(functions)
+
+        # Set additional type information if provided
+        graph = model_proto.graph
+
+        if value_infos:
+            graph.value_info.extend(
+                [
+                    onnx.helper.make_value_info(name, type.to_type_proto())
+                    for name, type in value_infos.items()
+                ]
+            )
+
+        if io_types is not None:
+            for input in graph.input:
+                if not input.HasField("type"):
+                    input.type.CopyFrom(io_types.to_type_proto())
+            for output in graph.output:
+                if not output.HasField("type"):
+                    output.type.CopyFrom(io_types.to_type_proto())
+        if input_types is not None:
+            for input, type in zip(graph.input, input_types):
+                input.type.CopyFrom(type.to_type_proto())
+        if output_types is not None:
+            for output, type in zip(graph.output, output_types):
+                output.type.CopyFrom(type.to_type_proto())
+
+        for k, v in kwargs.items():
+            setattr(model_proto, k, v)
+
+        return model_proto
 
 
 class TracedOnnxFunction(Op):
@@ -758,7 +884,7 @@ class DynamicKind(IntFlag):
 
 class Dynamic(SymbolValue):
     def __init__(
-        self, onnx_var: str, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
+        self, onnx_var: ir.Value, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
     ) -> None:
         """Initializes Dynamic.
 
@@ -770,6 +896,8 @@ class Dynamic(SymbolValue):
         """
         super().__init__(info)
         assert isinstance(kind, DynamicKind)
+        if not isinstance(onnx_var, ir.Value):
+            raise TypeError(f"onnx_var must be of type ir.Value not {type(onnx_var)!r}.")
         self.value = onnx_var
         self.kind = kind
         self.typeinfo = typeinfo

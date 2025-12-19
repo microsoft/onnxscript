@@ -23,7 +23,7 @@ import onnx.defs
 import onnx.reference
 from typing_extensions import TypeAlias
 
-from onnxscript import irbuilder, onnx_opset, tensor, values
+from onnxscript import onnx_opset, tensor, values
 from onnxscript._internal import autocast, param_manipulation, utils
 
 UserModeValue: TypeAlias = Union[Optional[np.ndarray], Sequence["UserModeValue"]]
@@ -217,7 +217,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
                 if use_graph_attribute:
                     adapted_attributes[k] = v.function_ir.to_graph_proto()
                     for pyvar, onnxvar in v.function_ir.outer_scope_variables:
-                        closure[onnxvar.value] = v.frame.f_locals[pyvar]
+                        closure[onnxvar.value.name] = v.frame.f_locals[pyvar]
                 else:
                     adapted_attributes[k] = v.function
             elif callable(v):
@@ -447,7 +447,7 @@ def _prepare_model_and_inputs_for_eager(
     model = onnx.helper.make_model(  # noqa: TID251
         graph,
         opset_imports=[opset_id],
-        ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
+        ir_version=values.select_ir_version(schema.since_version, domain=schema.domain),
     )
     model = onnx.shape_inference.infer_shapes(model)
 
