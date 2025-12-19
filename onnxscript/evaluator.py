@@ -12,6 +12,7 @@ from onnxscript._internal.evaluator import (
     ORTMixedEvaluator,
     default,
     default_as,
+    set_default,
 )
 
 __all__ = [
