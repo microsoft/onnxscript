@@ -657,31 +657,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
         Returns:
             An instance of :class:`onnx.ModelProto`.
         """
-        value_infos = (
-            [
-                onnx.helper.make_value_info(name, type.to_type_proto())
-                for name, type in value_infos.items()
-            ]
-            if value_infos
-            else None
-        )
-
-        graph = self.function_ir.to_graph_proto()
-        if value_infos:
-            graph.value_info.extend(value_infos)
-        if io_types is not None:
-            for input in graph.input:
-                if not input.HasField("type"):
-                    input.type.CopyFrom(io_types.to_type_proto())
-            for output in graph.output:
-                if not output.HasField("type"):
-                    output.type.CopyFrom(io_types.to_type_proto())
-        if input_types is not None:
-            for input, type in zip(graph.input, input_types):
-                input.type.CopyFrom(type.to_type_proto())
-        if output_types is not None:
-            for output, type in zip(graph.output, output_types):
-                output.type.CopyFrom(type.to_type_proto())
+        # Identify functions to include in the model
         if functions is None:
             sub_functions = self.function_ir.get_called_functions()
             functions = sub_functions.values()
@@ -696,7 +672,8 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
             functions = [to_proto(f) for f in functions]
 
-        opsets = self.function_ir.opset_imports.copy()
+        # Determine opset imports
+        opsets = self.function_ir.graph.opset_imports
 
         for proto in functions:
             if proto.domain not in opsets:
@@ -713,15 +690,46 @@ class OnnxFunction(Op, Generic[_P, _R]):
                 opset_version if opset_version is not None else onnx.defs.onnx_opset_version()
             )
 
-        if "ir_version" not in kwargs:
-            kwargs["ir_version"] = select_ir_version(opsets[""])
-        opset_imports = [
-            onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
-        ]
+        # Determine ir_version
+        if "ir_version" in kwargs:
+            ir_version = kwargs.pop("ir_version")
+        else:
+            ir_version = select_ir_version(opsets[""])
 
-        return onnx.helper.make_model(
-            graph, opset_imports=opset_imports, functions=functions, **kwargs
-        )
+        # Create the model
+        model = ir.Model(self.function_ir.graph, ir_version=ir_version)
+        model_proto = ir.to_proto(model)
+        model_proto.functions.extend(functions)
+
+        # Set additional type information if provided
+        graph = model_proto.graph
+
+        if value_infos:
+            graph.value_info.extend(
+                [
+                    onnx.helper.make_value_info(name, type.to_type_proto())
+                    for name, type in value_infos.items()
+                ]
+            )
+
+        if io_types is not None:
+            for input in graph.input:
+                if not input.HasField("type"):
+                    input.type.CopyFrom(io_types.to_type_proto())
+            for output in graph.output:
+                if not output.HasField("type"):
+                    output.type.CopyFrom(io_types.to_type_proto())
+        if input_types is not None:
+            for input, type in zip(graph.input, input_types):
+                input.type.CopyFrom(type.to_type_proto())
+        if output_types is not None:
+            for output, type in zip(graph.output, output_types):
+                output.type.CopyFrom(type.to_type_proto())
+
+        for k, v in kwargs.items():
+            setattr(model_proto, k, v)
+
+        return model_proto
 
 
 class TracedOnnxFunction(Op):
