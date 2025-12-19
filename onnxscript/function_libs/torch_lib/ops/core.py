@@ -4787,31 +4787,31 @@ def _aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Ten
             op.Squeeze(index, axes=[1]) if index is not None else None for index in new_indices
         ]
         return _aten_index_onnx(self, new_indices, index_ranks)
-    
+
     # Handle multi-dimensional boolean indexing
     input_rank = len(self.shape)
     result = self
-    
+
     # Count None values before the first non-None index
     none_count_before = 0
     for index in indices:
         if index is not None:
             break
         none_count_before += 1
-    
+
     # Transpose to move the dimensions corresponding to None indices to the end
     if none_count_before > 0:
         # Move the first none_count_before dimensions to the end
         perm = list(range(none_count_before, input_rank)) + list(range(none_count_before))
         result = op.Transpose(result, perm=perm)
-    
+
     # Apply GatherND for the first non-None boolean index
     for index in indices:
         if index is not None:
             new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
             result = op.GatherND(result, new_indices, batch_dims=0)
             break
-    
+
     # Transpose back to put the None dimensions in their original relative positions
     if none_count_before > 0:
         # After GatherND, the gathered dimension is at the beginning
@@ -4821,7 +4821,7 @@ def _aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Ten
         # We want to move them back after the gathered dimension
         perm = [0] + list(range(final_rank - none_count_before, final_rank)) + list(range(1, final_rank - none_count_before))
         result = op.Transpose(result, perm=perm)
-    
+
     return result
 
 
