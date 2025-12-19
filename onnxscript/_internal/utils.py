@@ -87,6 +87,7 @@ def value_to_type_proto(val):
         return onnx.helper.make_tensor_type_proto(elem_type, [])  # noqa: TID251
     raise ValueError(f"Value of type {type(val)} is invalid as an ONNX input/output.")
 
+
 def value_to_type(val):
     """Return an ir.Value representation of a python-value."""
     if isinstance(val, (np.ndarray, tensor.Tensor)):
@@ -115,10 +116,12 @@ def value_to_type(val):
         return ir.TensorType(elem_type), []
     raise ValueError(f"Value of type {type(val)} is invalid as an ONNX input/output.")
 
+
 def value_to_ir_value(name: str, val) -> ir.Value:
     """Return an ir.Value representation of a python-value."""
     type, shape = value_to_type(val)
     return ir.Value(name=name, type=type, shape=shape)
+
 
 def values_to_value_infos(name_values):
     """Create a list of ValueInfoProto from a list of (name, value) pairs,
@@ -130,12 +133,9 @@ def values_to_value_infos(name_values):
         if val is not None
     ]
 
+
 def values_to_ir_values(name_values):
     """Create a list of ir.Value from a list of (name, value) pairs,
     skipping any None values.
     """
-    return [
-        value_to_ir_value(name, val)
-        for (name, val) in name_values
-        if val is not None
-    ]
+    return [value_to_ir_value(name, val) for (name, val) in name_values if val is not None]

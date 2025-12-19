@@ -47,7 +47,8 @@ def select_ir_version(version: int, domain: str = "") -> int:
         return max(
             v for k, v in onnx.helper.OP_SET_ID_VERSION_MAP.items() if k[0] == "ai.onnx"
         )
-    return onnx.helper.OP_SET_ID_VERSION_MAP[domain, version]
+    required_min_version = onnx.helper.OP_SET_ID_VERSION_MAP[domain, version]
+    return max(required_min_version, 10)
 
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
