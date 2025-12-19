@@ -106,7 +106,6 @@ def torch_op(
     *,
     registry: Optional[Registry] = None,
     trace_only: bool = False,
-    complex: bool = False,
     private: bool = False,
 ) -> Callable[[Callable], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
@@ -118,6 +117,8 @@ def torch_op(
             i.e. "aten::relu" instead of "aten::relu.default".
         registry: Registry to register the function to. If None, the default registry is used.
         trace_only: Whether the function should only be traced and not compiled.
+        private: Whether the function is private (not directly exposed). It should
+            be true for all functions with names starting with "_".
         complex: Whether the function expects complex-valued inputs.
     """
     if registry is None:
@@ -138,7 +139,7 @@ def torch_op(
         assert registry is not None
         for name_ in _check_and_normalize_names(name):
             if private:
-                # Remove the private tag once all functions are no longer private.
+                # TODO: Remove the private tag once all functions are no longer private.
                 continue
             registry.register(processed_func, name_, complex=complex)
         return processed_func
