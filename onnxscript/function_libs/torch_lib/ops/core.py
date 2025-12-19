@@ -4765,11 +4765,8 @@ def aten_index(
     None in `indices` are like fillers for dimensions that cannot be removed in the process.
     """
     # Handle Boolean indexing first
-    for index in indices:
-        if index is None:
-            continue
-        if index.dtype == BOOL.dtype:
-            return _aten_index_bool(self, indices)
+    if any(index is not None and index.dtype == ir.DataType.BOOL for index in indices):
+        return _aten_index_bool(self, indices)
 
     index_ranks = [len(index.shape) for index in indices if index is not None]
 
@@ -4844,6 +4841,9 @@ def aten_index_put(
     See implementation of `torch.onnx.symbolic_opset11.index_put
     <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
     """
+    if any(index is not None and index.dtype == BOOL.dtype for index in indices):
+        return _aten_index_put_bool(self, indices, values, accumulate)
+
     # Ensure the number of indices matches the tensor rank by appending trailing Nones.
     self_rank = len(self.shape)
     if len(indices) < self_rank:
