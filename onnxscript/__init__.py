@@ -66,8 +66,8 @@ __all__ = [
 
 import importlib.metadata
 
-from .backend.onnx_export import export2python as proto2python
 from ._internal.main import export_onnx_lib, graph, script
+from .backend.onnx_export import export2python as proto2python
 
 # isort: off
 from .onnx_opset import (

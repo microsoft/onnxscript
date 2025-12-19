@@ -10,9 +10,9 @@ from onnxscript._internal.evaluator import *  # noqa: F403
 
 # Explicitly list main exports for type checking
 from onnxscript._internal.evaluator import (
+    Evaluator,
     default,
     default_as,
-    Evaluator,
 )
 
 __all__ = ["default", "default_as", "Evaluator"]
