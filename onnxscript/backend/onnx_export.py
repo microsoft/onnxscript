@@ -9,7 +9,7 @@ import onnx
 from onnx import FunctionProto, GraphProto, ModelProto, TensorProto, ValueInfoProto
 
 import onnxscript.onnx_types
-import onnxscript.type_annotation
+from onnxscript._internal import type_annotation
 
 _SINGLE_INDENT = "    "
 
@@ -664,7 +664,7 @@ class _Exporter:
             self._names_used.add(attr_name)
             # A default type of INT is used for attribute parameters that are never used.
             type = type_map.get(attr_name, onnx.AttributeProto.INT)
-            typerep = onnxscript.type_annotation.onnx_attr_type_to_onnxscript_repr(type)
+            typerep = type_annotation.onnx_attr_type_to_onnxscript_repr(type)
             return f"{attr_name}: {typerep}"
 
         inputs = [self._translate_onnx_var(x) for x in funproto.input]
