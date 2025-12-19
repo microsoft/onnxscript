@@ -107,6 +107,7 @@ def torch_op(
     registry: Optional[Registry] = None,
     trace_only: bool = False,
     private: bool = False,
+    complex: bool = False,
 ) -> Callable[[Callable], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
 
