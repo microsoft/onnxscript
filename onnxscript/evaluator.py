@@ -5,14 +5,20 @@
 This module re-exports the public API from the internal evaluator module.
 """
 
-# Re-export all symbols from the internal evaluator module
-from onnxscript._internal.evaluator import *  # noqa: F403
-
-# Explicitly list main exports for type checking
 from onnxscript._internal.evaluator import (
     Evaluator,
+    OnnxReferenceRuntimeEvaluator,
+    ORTEvaluator,
+    ORTMixedEvaluator,
     default,
     default_as,
 )
 
-__all__ = ["default", "default_as", "Evaluator"]
+__all__ = [
+    "Evaluator",
+    "ORTEvaluator",
+    "ORTMixedEvaluator",
+    "OnnxReferenceRuntimeEvaluator",
+    "default",
+    "default_as",
+]
