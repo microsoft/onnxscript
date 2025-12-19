@@ -4773,11 +4773,12 @@ def aten_index(
     return _aten_index_onnx(self, indices, index_ranks)
 
 
-def _aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:  # pylint: disable=inconsistent-return-statements
+def _aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:
     index_ranks = [len(index.shape) for index in indices if index is not None]
 
-    if index_ranks[0] == 1:
-        # indices contains scalar only.
+    # Check if all non-None boolean indices are 1D
+    if all(rank == 1 for rank in index_ranks):
+        # All indices are 1D, convert boolean indices to integer indices
         new_indices = [
             op.Transpose(op.NonZero(index), perm=[1, 0]) if index is not None else None
             for index in indices
@@ -4786,31 +4787,42 @@ def _aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Ten
             op.Squeeze(index, axes=[1]) if index is not None else None for index in new_indices
         ]
         return _aten_index_onnx(self, new_indices, index_ranks)
-    else:
-        input_rank = len(self.shape)
-        # Prepare perm for transposing self tensor.
-        # In indices, None meaning skip the corresponding dimension,
-        # so we need to move this dimension to the end of the list.
-        # After we gathered the final results, we transpose it back.
-        # For example,
-        # self's shape is [5, 5, 5, 5], indices is [None, (5, 5)]
-        # the final result's shape should be [5, 16, 5].
-        trans_perm = list(range(input_rank))
-        trans_perm.append(trans_perm.pop(0))
-        count_of_none = 0
-        for index in indices:
-            if index is None:
-                self = op.Transpose(self, perm=trans_perm)
-                count_of_none += 1
-            else:
-                new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
-                result = op.GatherND(self, new_indices, batch_dims=0)
-                finla_rank = input_rank - (len(index.shape) - 1)
-                trans_perm = list(range(finla_rank))
-                trans_perm = trans_perm[-1:] + trans_perm[:-1]
-        for _ in range(count_of_none):
-            result = op.Transpose(result, perm=trans_perm)
-        return result
+    
+    # Handle multi-dimensional boolean indexing
+    input_rank = len(self.shape)
+    result = self
+    
+    # Count None values before the first non-None index
+    none_count_before = 0
+    for index in indices:
+        if index is not None:
+            break
+        none_count_before += 1
+    
+    # Transpose to move the dimensions corresponding to None indices to the end
+    if none_count_before > 0:
+        # Move the first none_count_before dimensions to the end
+        perm = list(range(none_count_before, input_rank)) + list(range(none_count_before))
+        result = op.Transpose(result, perm=perm)
+    
+    # Apply GatherND for the first non-None boolean index
+    for index in indices:
+        if index is not None:
+            new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
+            result = op.GatherND(result, new_indices, batch_dims=0)
+            break
+    
+    # Transpose back to put the None dimensions in their original relative positions
+    if none_count_before > 0:
+        # After GatherND, the gathered dimension is at the beginning
+        # We need to move the None dimensions back to their relative positions
+        final_rank = len(result.shape)
+        # The gathered results are in dimension 0, and the None dimensions are at the end
+        # We want to move them back after the gathered dimension
+        perm = [0] + list(range(final_rank - none_count_before, final_rank)) + list(range(1, final_rank - none_count_before))
+        result = op.Transpose(result, perm=perm)
+    
+    return result
 
 
 def aten_index_add(

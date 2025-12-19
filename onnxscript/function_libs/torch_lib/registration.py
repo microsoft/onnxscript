@@ -107,6 +107,7 @@ def torch_op(
     registry: Optional[Registry] = None,
     trace_only: bool = False,
     complex: bool = False,
+    private: bool = False,
 ) -> Callable[[Callable], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
 
@@ -136,6 +137,9 @@ def torch_op(
 
         assert registry is not None
         for name_ in _check_and_normalize_names(name):
+            if private:
+                # Remove the private tag once all functions are no longer private.
+                continue
             registry.register(processed_func, name_, complex=complex)
         return processed_func
 
