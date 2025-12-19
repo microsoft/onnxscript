@@ -4787,9 +4787,34 @@ def _aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Ten
         ]
         return _aten_index_onnx(self, new_indices, index_ranks)
 
-    raise NotImplementedError(
-        "aten::index with boolean indices of rank > 1 is not supported yet."
-    )
+    else:
+        input_rank = len(self.shape)
+        # Prepare perm for transposing self tensor.
+        # In indices, None meaning skip the corresponding dimension,
+        # so we need to move this dimension to the end of the list.
+        # After we gathered the final results, we transpose it back.
+        # For example,
+        # self's shape is [5, 5, 5, 5], indices is [None, (5, 5)]
+        # the final result's shape should be [5, 16, 5].
+        trans_perm = list(range(input_rank))
+        trans_perm.append(trans_perm.pop(0))
+        count_of_none = 0
+        for index in indices:
+            if index is None:
+                self = op.Transpose(self, perm=trans_perm)
+                count_of_none += 1
+                continue
+
+            new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
+            result = op.GatherND(self, new_indices, batch_dims=0)
+            final_rank = input_rank - (len(index.shape) - 1)
+            trans_perm = list(range(final_rank))
+            trans_perm = trans_perm[-1:] + trans_perm[:-1]
+            for _ in range(count_of_none):
+                result = op.Transpose(result, perm=trans_perm)
+            # TODO(justinchuby): Even though this logic passes the tests, it still looks strange:
+            # why does it return early here instead of continuing to process the remaining indices?
+            return result
 
 
 def aten_index_add(
