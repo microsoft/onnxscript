@@ -9,12 +9,11 @@ from typing import Any, Sequence, Union
 import onnx
 import onnx_ir as ir
 
-import onnxscript.type_annotation
-from onnxscript import values
+from onnxscript._internal import type_annotation, values
 
 logger = logging.getLogger("onnxscript")
 
-TypeAnnotationValue = onnxscript.type_annotation.TypeAnnotationValue
+TypeAnnotationValue = type_annotation.TypeAnnotationValue
 
 
 class IRFunction(ir.Function):

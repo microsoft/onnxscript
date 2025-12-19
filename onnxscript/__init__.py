@@ -67,7 +67,7 @@ __all__ = [
 import importlib.metadata
 
 from .backend.onnx_export import export2python as proto2python
-from .main import export_onnx_lib, graph, script
+from ._internal.main import export_onnx_lib, graph, script
 
 # isort: off
 from .onnx_opset import (
@@ -128,7 +128,7 @@ from .onnx_types import (
 
 from . import ir, optimizer, rewriter, version_converter
 from ._internal.utils import external_tensor
-from .values import OnnxFunction, TracedOnnxFunction
+from ._internal.values import OnnxFunction, TracedOnnxFunction
 
 # Set DEBUG to True to enable additional debug checks
 DEBUG: bool = False

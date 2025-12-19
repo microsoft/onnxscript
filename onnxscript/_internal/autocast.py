@@ -13,7 +13,7 @@ from onnx.defs import OpSchema
 from onnxscript import ir, tensor
 
 if TYPE_CHECKING:
-    from onnxscript import converter
+    from onnxscript._internal import converter
 
 # Conversions from python values to ONNX are used by both the script converter as well
 # as the eager-mode runtime and both need to be consistent. The script converter converts
