@@ -4812,7 +4812,7 @@ def _aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Ten
             trans_perm = trans_perm[-1:] + trans_perm[:-1]
             for _ in range(count_of_none):
                 result = op.Transpose(result, perm=trans_perm)
-            # TODO(justinchuby): Even though this logic passes the tests, it still looks strange:
+            # FIXME(justinchuby): Even though this logic passes the tests, it still looks strange:
             # why does it return early here instead of continuing to process the remaining indices?
             # I think the assumption here is that there can be only one Boolean index in the indices list?
             return result
