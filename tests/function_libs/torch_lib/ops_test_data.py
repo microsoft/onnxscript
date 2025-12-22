@@ -184,6 +184,25 @@ class TorchLibOpInfo:
 # Modify this section ##########################################################
 
 
+def _embedding_bag_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # ONNX attributes cannot be None; omit padding_idx if it's None.
+    if "padding_idx" in kwargs:
+        padding_idx = kwargs.pop("padding_idx")
+        if padding_idx is not None:
+            kwargs["padding_idx"] = int(padding_idx)
+
+    # Ensure indices/offsets are int64 (positional: weight, indices, offsets, ...)
+    if len(args) >= 3:
+        if isinstance(args[1], torch.Tensor):
+            args[1] = args[1].to(torch.long)
+        if isinstance(args[2], torch.Tensor):
+            args[2] = args[2].to(torch.long)
+
+    return args, kwargs
+
+
 def _amin_amax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -728,23 +747,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
     TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index),
-    TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index_bool),
-    TorchLibOpInfo(
-        "index_put_bool",
-        core_ops.aten_index_put_bool,
-        input_wrangler=_index_put_input_wrangler,
-    ).skip(
-        matcher=lambda sample: sample.args[0][0].dtype != torch.bool,
-        reason="this Aten overload only supports tensor(bool) as indices",
-    ),
+    TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index),
     TorchLibOpInfo(
         "index_put", core_ops.aten_index_put, input_wrangler=_index_put_input_wrangler
-    )
-    .skip(
-        matcher=lambda sample: sample.args[0][0].dtype != torch.int64,
-        reason="this Aten overload only supports tensor(int) as indices",
-    )
-    .xfail(
+    ).skip(
         dtypes=(torch.float16,),
         matcher=lambda sample: sample.kwargs.get("accumulate") is True,
         reason="fixme: ORT only supports float32 when accumulate is True:  MLFloat16 data type is not supported with ScatterND when reduction is 'add'",
@@ -924,12 +930,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_embedding_bag,
         tolerance={torch.float32: (1e-4, 5e-4)},
         compare_shape_only_for_output=(1, 2, 3),
-    ).skip(dtypes=(torch.float16,), reason="fixme: results mismatch in torch nightly."),
+        input_wrangler=_embedding_bag_input_wrangler,
+    ).skip(
+        dtypes=(torch.float16,),
+        reason="fixme: results mismatch in torch nightly.",
+    ),
     TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx",
         core_ops.aten_embedding_bag_padding_idx,
         tolerance={torch.float16: (1e-2, 1e-2)},
         compare_shape_only_for_output=(1, 2, 3),
+        input_wrangler=_embedding_bag_input_wrangler,
     ),
     TorchLibOpInfo(
         "ops.aten.embedding_renorm",
@@ -1871,7 +1882,6 @@ ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode",))
-ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))
