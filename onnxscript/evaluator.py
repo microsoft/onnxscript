@@ -22,4 +22,5 @@ __all__ = [
     "OnnxReferenceRuntimeEvaluator",
     "default",
     "default_as",
+    "set_default",
 ]

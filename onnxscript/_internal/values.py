@@ -30,7 +30,8 @@ import onnx_ir as ir
 from typing_extensions import ParamSpec
 
 from onnxscript import sourceinfo
-from onnxscript._internal import ast_utils, converter as converter_module, deprecation, irbuilder, type_annotation
+from onnxscript._internal import ast_utils, deprecation, irbuilder, type_annotation
+from onnxscript._internal import converter as converter_module
 from onnxscript.ir import _schemas
 from onnxscript.onnx_types import ONNXType
 
@@ -577,7 +578,9 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
         def fun(*args, **kwargs):
             # FIXME(after #225): Move import to the top of the file.
-            from onnxscript._internal import evaluator  # pylint: disable=import-outside-toplevel
+            from onnxscript._internal import (
+                evaluator,  # pylint: disable=import-outside-toplevel
+            )
 
             with evaluator.default_as(instance):
                 return self.__call__(*args, **kwargs)

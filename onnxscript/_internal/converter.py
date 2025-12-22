@@ -27,8 +27,10 @@ from onnxscript._internal import (
     autocast,
     irbuilder,
     param_manipulation,
-    type_annotation as ta,
     values,
+)
+from onnxscript._internal import (
+    type_annotation as ta,
 )
 
 logger = logging.getLogger("onnxscript")
