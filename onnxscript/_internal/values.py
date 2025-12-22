@@ -578,8 +578,8 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
         def fun(*args, **kwargs):
             # FIXME(after #225): Move import to the top of the file.
-            from onnxscript._internal import (
-                evaluator,  # pylint: disable=import-outside-toplevel
+            from onnxscript._internal import (  # pylint: disable=import-outside-toplevel
+                evaluator,
             )
 
             with evaluator.default_as(instance):

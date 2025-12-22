@@ -114,14 +114,14 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
-    'examples/**',
     'docs/**',
-    'onnxscript/converter_test.py',
+    'examples/**',
+    'onnxscript/_internal/converter_test.py',
+    'onnxscript/optimizer/**',  # FIXME
+    'onnxscript/rewriter/**',  # FIXME
     'tests/functions/**',
     'tests/models/**',
     'tests/onnx_backend_test_code/**',
-    'onnxscript/optimizer/**',  # FIXME
-    'onnxscript/rewriter/**',  # FIXME
 ]
 command = [
     'python',
