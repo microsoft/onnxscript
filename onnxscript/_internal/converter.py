@@ -20,9 +20,18 @@ import onnx
 import onnx_ir as ir
 
 import onnxscript
-from onnxscript import irbuilder, onnx_types, sourceinfo, values
-from onnxscript import type_annotation as ta
-from onnxscript._internal import analysis, ast_utils, autocast, param_manipulation
+from onnxscript import onnx_types, sourceinfo
+from onnxscript._internal import (
+    analysis,
+    ast_utils,
+    autocast,
+    irbuilder,
+    param_manipulation,
+    values,
+)
+from onnxscript._internal import (
+    type_annotation as ta,
+)
 
 logger = logging.getLogger("onnxscript")
 

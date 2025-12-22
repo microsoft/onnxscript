@@ -40,10 +40,10 @@ exclude_patterns = [
     'tests/**', # Skip linting test files for speed
     # FIXME: Fix typing annotations in these files
     'examples/custom_op_expansion.py',
-    'onnxscript/converter_test.py',
-    'onnxscript/converter.py',
-    'onnxscript/evaluator_test.py',
-    'onnxscript/evaluator.py',
+    'onnxscript/_internal/converter_test.py',
+    'onnxscript/_internal/converter.py',
+    'onnxscript/_internal/evaluator_test.py',
+    'onnxscript/_internal/evaluator.py',
     'onnxscript/onnx_types.py',
     'onnxscript/**/*_test.py', # Skip linting test files for speed
     'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
@@ -114,14 +114,14 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
-    'examples/**',
     'docs/**',
-    'onnxscript/converter_test.py',
+    'examples/**',
+    'onnxscript/_internal/converter_test.py',
+    'onnxscript/optimizer/**',  # FIXME
+    'onnxscript/rewriter/**',  # FIXME
     'tests/functions/**',
     'tests/models/**',
     'tests/onnx_backend_test_code/**',
-    'onnxscript/optimizer/**',  # FIXME
-    'onnxscript/rewriter/**',  # FIXME
 ]
 command = [
     'python',
