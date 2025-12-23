@@ -779,14 +779,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "linspace",
         core_ops.aten_linspace,
         tolerance={torch.float16: (2e-2, 2e-3)},
-    )
-    .xfail(
-        dtypes=(torch.int64, torch.int32),
-        reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
-    )
-    .skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") in (torch.int64, torch.int32),
-        reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
     ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
