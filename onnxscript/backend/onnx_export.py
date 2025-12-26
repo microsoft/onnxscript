@@ -152,7 +152,10 @@ def _translate_value_infos(value_infos: Sequence[ValueInfoProto]) -> str:
 
 def _to_str(s):
     if isinstance(s, bytes):
-        return s.decode("utf-8")
+        try:
+            return s.decode("utf-8")
+        except UnicodeDecodeError:
+            return s.decode("latin1")  # or "cp1252" or other fallback
     return s
 
 
