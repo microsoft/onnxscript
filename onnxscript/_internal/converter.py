@@ -1202,7 +1202,7 @@ class Converter:
         if isinstance(loop_stmt, ast.For):
             if not isinstance(loop_stmt.target, ast.Name):
                 self.fail(loop_stmt, "For loop target must be a single variable.")
-            p_loop_var = loop_stmt.target.id
+            python_loop_var_name = loop_stmt.target.id
             # iter
             iter = loop_stmt.iter
             assert isinstance(iter, ast.Call), "Loop bound not a call."
@@ -1216,8 +1216,8 @@ class Converter:
                 self.fail(loop_stmt, "Unsupported loop bound, it should be 'range(?)'.")
             assert not iter.keywords, "Unsupported loop bound."
             o_loop_bound = self._translate_expr(iter.args[0], "loop_bound")
-            o_cond_var = ir.Value(name=self.generate_unique_name("cond_in"))  # TODO(Rama)
-            i_cond_var = o_cond_var
+            onnx_cond_var = ir.Value(name=self.generate_unique_name("cond_in"))  # TODO(Rama)
+            i_cond_var = onnx_cond_var
             cond_while = None
             o_loop_condition = None  # No condition for a for loop.
         elif isinstance(loop_stmt, ast.While):
@@ -1228,11 +1228,11 @@ class Converter:
                     "Unexpected condition type {type(loop_stmt)!r} for a while loop, "
                     "it should be 'while <condition_name>:'.",
                 )
-            p_loop_var = "infinite_loop"
+            python_loop_var_name = "infinite_loop"
             o_loop_bound = None
             i_cond_var = ir.Value(name=test.id)  # TODO(Rama)
             cond_while = ir.Value(name=test.id)  # TODO(Rama)
-            o_cond_var = None
+            onnx_cond_var = None
             o_loop_condition = self._translate_name_expr(test)
             # we need to go through all the instructions to see
             # which instruction defines the condition test.id
@@ -1252,19 +1252,16 @@ class Converter:
 
         # build loop_body
         self._enter_scope("loop_body", loop_stmt)
-        o_loop_var = self.generate_unique_name(p_loop_var)
-        self._current_fn.append_parameter(
-            make_value(
-                o_loop_var,
-                onnx_types.INT64,
-                self._source_of(loop_stmt),
-            )
+        onnx_loop_var_name = self.generate_unique_name(python_loop_var_name)
+        onnx_loop_var = make_value(
+            onnx_loop_var_name,
+            onnx_types.INT64,
+            self._source_of(loop_stmt),
         )
+        self._current_fn.append_parameter(onnx_loop_var)
         self._bind(
-            p_loop_var,
-            values.Dynamic(
-                ir.Value(name=o_loop_var), values.DynamicKind.Loop, self._source_of(loop_stmt)
-            ),
+            python_loop_var_name,
+            values.Dynamic(onnx_loop_var, values.DynamicKind.Loop, self._source_of(loop_stmt)),
         )
 
         self._current_fn.append_parameter(
@@ -1276,17 +1273,19 @@ class Converter:
         )
 
         for pv in loop_state_vars:
-            ov = self.generate_unique_name(pv)
+            onnx_var_name = self.generate_unique_name(pv)
             # TODO: retrieve the annotation for variable pv is any is specified.
             # typeinfo = self._eval_constant_expr(pv.annotation)
             typeinfo = None
             self._current_fn.append_parameter(
-                make_value(ov, typeinfo, self._source_of(loop_stmt))
+                make_value(onnx_var_name, typeinfo, self._source_of(loop_stmt))
             )
             self._bind(
                 pv,
                 values.Dynamic(
-                    ir.Value(name=ov), values.DynamicKind.Loop, self._source_of(loop_stmt)
+                    ir.Value(name=onnx_var_name),
+                    values.DynamicKind.Loop,
+                    self._source_of(loop_stmt),
                 ),
             )
 
@@ -1319,7 +1318,7 @@ class Converter:
                 continue
             self._translate_stmt(s)
 
-        o_cond_out = self.generate_unique_name("cond_out")
+        onnx_cond_out_name = self.generate_unique_name("cond_out")
 
         if cond_while is not None:
             # Loop while
@@ -1330,35 +1329,35 @@ class Converter:
                     f"Unable to find condition variable {cond_while.name} in known "
                     f"variables {list(current_scope)!r}.",
                 )
-            o_cond_var = current_scope[cond_while.name].value
+            onnx_cond_var = current_scope[cond_while.name].value
 
         self.emit(
-            [o_cond_out],
+            [onnx_cond_out_name],
             values.Op(self.default_opset, operator_name),
-            [condition_name or o_cond_var],
+            [condition_name or onnx_cond_var],
             [],
         )
 
         self._current_fn.outputs.append(
             make_value(
-                o_cond_out,
+                onnx_cond_out_name,
                 onnx_types.BOOL,
                 self._source_of(loop_stmt),
             )
         )
         for pv in loop_state_vars:
-            ov = self._py_var_to_onnx_var(pv, self._source_of(loop_stmt))
-            if ov.name not in self._current_fn.assigned_names:
+            onnx_var = self._py_var_to_onnx_var(pv, self._source_of(loop_stmt))
+            if onnx_var.name not in self._current_fn.assigned_names:
                 # When converting the loop-body into a graph, we need to handle
                 # identity assignments of the form "x = y" inside the loop body
                 # specially if y represents a value computed outside the loop body.
                 # In this case, we create a copy of y, treating the statement as
                 # shorthand for "x = op.Identity(y)".
-                ov = self._emit_copy(ov, pv)
+                onnx_var = self._emit_copy(onnx_var, pv)
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
             self._current_fn.outputs.append(
-                make_value(ov.name, typeinfo, self._source_of(loop_stmt))
+                make_value(onnx_var.name, typeinfo, self._source_of(loop_stmt))
             )
         body = self._exit_scope()
         inputs = [o_loop_bound, o_loop_condition] + [
@@ -1471,14 +1470,13 @@ class Converter:
                 self._current_fn.append_parameter(attr)
                 self._bind(x.arg, values.AttrRef(x.arg, typeinfo, self._source_of(x)))
             else:
-                self._current_fn.append_parameter(
-                    make_value(x.arg, typeinfo, self._source_of(x))
-                )
+                onnx_parameter = make_value(x.arg, typeinfo, self._source_of(x))
+                self._current_fn.append_parameter(onnx_parameter)
                 self._used_vars.add(x.arg)
                 self._bind(
                     x.arg,
                     values.Dynamic(
-                        ir.Value(name=x.arg), values.DynamicKind.Input, self._source_of(x)
+                        onnx_parameter, values.DynamicKind.Input, self._source_of(x)
                     ),
                 )
         if fn.returns:
