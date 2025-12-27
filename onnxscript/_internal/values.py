@@ -13,6 +13,7 @@ import types
 import typing
 from enum import IntFlag
 from typing import (  # type: ignore[attr-defined]
+    TYPE_CHECKING,
     Any,
     Callable,
     ClassVar,
@@ -34,6 +35,9 @@ from onnxscript._internal import ast_utils, deprecation, irbuilder, type_annotat
 from onnxscript._internal import converter as converter_module
 from onnxscript.ir import _schemas
 from onnxscript.onnx_types import ONNXType
+
+if TYPE_CHECKING:
+    from onnxscript._internal.type_annotation import TypeAnnotationValue
 
 _R = TypeVar("_R")
 _P = ParamSpec("_P")
@@ -886,9 +890,13 @@ class DynamicKind(IntFlag):
 
 class Dynamic(SymbolValue):
     def __init__(
-        self, onnx_var: ir.Value, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
+        self,
+        onnx_var: ir.Value,
+        kind: DynamicKind,
+        info: sourceinfo.SourceInfo,
+        typeinfo: TypeAnnotationValue | None = None,
     ) -> None:
-        """Initializes Dynamic.
+        """Represents an ir.Value with some extra information.
 
         Arguments:
             onnx_var: the name of the ONNX variable used to represent this value

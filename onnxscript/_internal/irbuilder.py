@@ -24,8 +24,18 @@ class IRFunction(ir.Function):
         super().__init__(domain, name, graph=graph, attributes=[])
         self.ordered_inputs_and_attrs: list[Union[ir.Value, ir.Attr]] = []
 
-        # a dictionary of nested function-definitions
+        # A dictionary of nested function-definitions: when an onnxscript function outer_f
+        # is translated, and it contains a nested function inner_f, then the inner function
+        # is translated and stored here. It will be used in any subsequent concrete execution
+        # of outer_f. Such nested functions are used in two different ways: it can be converted
+        # into a GraphProto to be stored as a graph-valued attribute of a node; alternatively,
+        # in a python-based execution mode, it can be called as a python function. It serves
+        # to enable a python-based debugging experience for higher-order functions such as Scan
+        # and SequenceMap.
         self.nested_functions: dict[str, IRFunction] = {}
+
+        # For nested functions, this dictionary maps outer-scope (python) variable names
+        # to their corresponding translated values.
         self.outer_scope_variables: dict[Any, Any] = {}
 
     @property
