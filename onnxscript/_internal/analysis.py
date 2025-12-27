@@ -212,7 +212,7 @@ class AstAnalyzer:
         for s in reversed(fun.body):
             live = visit(s, live)
 
-    def exposed_uses(self, stmts: Sequence[ast.stmt]) -> Set[str]:
+    def exposed_uses(self, stmts: Sequence[ast.stmt]) -> set[str]:
         """Return the set of variables that are used before being defined by given block.
         In essence, this identifies the "inputs" to a given code-block.
         For example, consider the following code-block:
@@ -284,7 +284,7 @@ class AstAnalyzer:
 
         return visitBlock(stmts, set())
 
-    def outer_scope_variables(self, fun: ast.FunctionDef) -> Set[str]:
+    def outer_scope_variables(self, fun: ast.FunctionDef) -> set[str]:
         """Return the set of outer-scope variables used in a nested function.
 
         Args:
