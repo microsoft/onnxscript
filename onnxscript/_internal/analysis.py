@@ -284,7 +284,7 @@ class AstAnalyzer:
 
         return visitBlock(stmts, set())
 
-    def outer_scope_variables(self, fun: ast.FunctionDef) -> Set[str]:
+    def outer_scope_variables(self, fun: ast.FunctionDef) -> set[str]:
         """Return the set of outer-scope variables used in a nested function.
 
         Args:
