@@ -1389,45 +1389,41 @@ class Converter:
         live_defs: Sequence[str],
         parent_stmt: ast.stmt,
     ) -> ir.Graph:
-        """Translation of a statement-block to an ir.Graph."""
-        info_stmt = stmts[0] if len(stmts) > 0 else parent_stmt
-        source = self._source_of(info_stmt)
+        """Translation of a then/else statement-block to an ir.Graph."""
         self._enter_scope(name, None)
         for s in stmts:
             self._translate_stmt(s)
-        for pvar in live_defs:
-            if pvar in self._current_scope():
-                pv_val = self._current_scope()[pvar]
-                output = self._to_onnx_var(pv_val, pvar)
+        for python_var in live_defs:
+            if python_var in self._current_scope():
+                python_var_value = self._current_scope()[python_var]
+                output = self._to_onnx_var(python_var_value, python_var)
                 if output.name not in self._current_fn.assigned_names:
+                    # TODO (Rama): Unclear how this can happen. If python_var is in current_scope,
+                    # then it should have been assigned a value in the current graph.
+                    #
                     # To return an outer-scope variable, an ONNX Graph has to
                     # use an explicit copy via Identity.
-                    output = self._emit_copy(output, pvar)
-                self._current_fn.outputs.append(
-                    make_value(
-                        output.name,
-                        pv_val.typeinfo,
-                        source,
-                    )
-                )
+                    output = self._emit_copy(output, python_var)
+                self._current_fn.outputs.append(output)
             else:
-                pv_val = None
+                python_var_value = None
                 for scope in self._locals:  # TODO: skip _current_scope
-                    if pvar in scope:
-                        pv_val = scope[pvar]
+                    if python_var in scope:
+                        python_var_value = scope[python_var]
                         break
-                if pv_val is None:
+                if python_var_value is None:
                     self.fail(
                         stmts[0],
-                        f"ir.Value {pvar} is not assigned a value along a conditional "
+                        f"ir.Value {python_var} is not assigned a value along a conditional "
                         f"branch, known variables: {list(self._locals)}.",
                     )
                 # introduce a copy
-                ovar = self._emit_copy(self._to_onnx_var(pv_val, pvar), pvar)
+                output = self._emit_copy(
+                    self._to_onnx_var(python_var_value, python_var), python_var
+                )
 
                 # TODO: retrieve the annotation if any.
-                typeinfo = None
-                self._current_fn.outputs.append(make_value(ovar.name, typeinfo, source))
+                self._current_fn.outputs.append(output)
         function_ir = self._exit_scope()
         return function_ir.graph
 
