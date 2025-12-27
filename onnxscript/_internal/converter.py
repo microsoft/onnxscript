@@ -297,6 +297,12 @@ class Converter:
     def _lookup(
         self, name: str, info: sourceinfo.SourceInfo, raise_exception: bool = True
     ) -> SymValue:
+        """Maps a python variable name to the corresponding value used during translation.
+
+        Typically, a python variable X will correspond to an ONNX value Y. But other special
+        cases include: constant values or functions (mapped to Graph attributes), etc.
+        """
+
         for scope in self._locals:
             if name in scope:
                 return scope[name]
@@ -1383,8 +1389,8 @@ class Converter:
         name: str,
         live_defs: Sequence[str],
         parent_stmt: ast.stmt,
-    ):
-        """Translation of a statement-block to GraphProto attribute."""
+    ) -> ir.Graph:
+        """Translation of a statement-block to an ir.Graph."""
         info_stmt = stmts[0] if len(stmts) > 0 else parent_stmt
         source = self._source_of(info_stmt)
         self._enter_scope(name, None)
@@ -1423,8 +1429,8 @@ class Converter:
                 # TODO: retrieve the annotation if any.
                 typeinfo = None
                 self._current_fn.outputs.append(make_value(ovar.name, typeinfo, source))
-        graph = self._exit_scope()
-        return graph.graph
+        function_ir = self._exit_scope()
+        return function_ir.graph
 
     def _translate_nested_function_def(self, fn: ast.FunctionDef) -> None:
         """Translate a nested function definition."""
