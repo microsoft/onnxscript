@@ -543,10 +543,13 @@ class Converter:
                         f"Attribute type '{attr_ref.type}' does not match expected type '{attr_meta.type}'",
                     )
                 return attr_ref
-            if isinstance(val, irbuilder.IRFunction):
+            if isinstance(val, values.SymbolValue) and isinstance(
+                val.value, irbuilder.IRFunction
+            ):
+                irfunction = val.value
                 # Check that outer-scope variables referenced by function have same value
                 # at function-definition site and use-as-attribute site, to avoid errors.
-                for pyvar, previous in val.outer_scope_variables:
+                for pyvar, previous in irfunction.outer_scope_variables:
                     current = self._lookup(pyvar, self._source_of(expr))
                     if current.value != previous.value:
                         self.fail(
@@ -556,7 +559,7 @@ class Converter:
                         )
 
                 # Create GraphProto attribute
-                val = val.to_graph_proto()
+                val = irfunction.to_graph_proto()
         else:
             val = self._eval_constant_expr(expr)
 
@@ -1431,7 +1434,7 @@ class Converter:
         function_ir.outer_scope_variables = [
             (var, self._lookup(var, self._source_of(fn))) for var in outer_scope_vars
         ]
-        self._bind(fn.name, function_ir)
+        self._bind(fn.name, values.SymbolValue(function_ir, self._source_of(fn)))
         # TODO: Does not yet handle nested functions within nested functions.
         self._current_fn.add_nested_function(function_ir)
 

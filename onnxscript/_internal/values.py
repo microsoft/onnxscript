@@ -853,9 +853,17 @@ class SymbolValue:
     * To represent constant-values, translated into ONNX constants.
     """
 
-    def __init__(self, info: sourceinfo.SourceInfo) -> None:
+    def __init__(self, value: Any, info: sourceinfo.SourceInfo) -> None:
+        """
+        Initializes SymbolValue.
+
+        Arguments:
+            value: The value bound to a python variable in a script.
+            info: source-location information for error-messages/debugging
+        """
         if not isinstance(info, sourceinfo.SourceInfo):
             raise TypeError(f"info must be of type sourceinfo.SourceInfo not {type(info)!r}.")
+        self.value = value
         self.info = info
 
 
@@ -871,8 +879,7 @@ class AttrRef(SymbolValue):
                 op's attributes in ONNX are usually single type or list of single type.
             info: for debugging use.
         """
-        super().__init__(info)
-        self.value = attr
+        super().__init__(attr, info)
         self.typeinfo = typeinfo
         if not isinstance(typeinfo, (type, _GenericAlias)):
             # typing._GenericAlias for List[int] and List[str], etc.
@@ -891,7 +898,7 @@ class DynamicKind(IntFlag):
 class Dynamic(SymbolValue):
     def __init__(
         self,
-        onnx_var: ir.Value,
+        ir_value: ir.Value,
         kind: DynamicKind,
         info: sourceinfo.SourceInfo,
         typeinfo: TypeAnnotationValue | None = None,
@@ -899,15 +906,14 @@ class Dynamic(SymbolValue):
         """Represents an ir.Value with some extra information.
 
         Arguments:
-            onnx_var: the name of the ONNX variable used to represent this value
+            ir_value: the ir.Value corresponding to this value
             kind: the DynamicKind of this variable
             info: source-location information for error-messages/debugging
             typeinfo: type-information for the value
         """
-        super().__init__(info)
+        super().__init__(ir_value, info)
         assert isinstance(kind, DynamicKind)
-        if not isinstance(onnx_var, ir.Value):
-            raise TypeError(f"onnx_var must be of type ir.Value not {type(onnx_var)!r}.")
-        self.value = onnx_var
+        if not isinstance(ir_value, ir.Value):
+            raise TypeError(f"ir_value must be of type ir.Value not {type(ir_value)!r}.")
         self.kind = kind
         self.typeinfo = typeinfo
