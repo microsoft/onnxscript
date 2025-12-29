@@ -8,7 +8,8 @@ import parameterized
 
 import onnxscript
 import onnxscript.testing
-from onnxscript import FLOAT, INT64, script, type_annotation
+from onnxscript import FLOAT, INT64, script
+from onnxscript._internal import type_annotation
 from onnxscript.onnx_opset import opset15 as op
 from tests.common import testutils
 
