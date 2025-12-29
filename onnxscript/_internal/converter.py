@@ -536,7 +536,7 @@ class Converter:
             val = self._lookup(expr.id, self._source_of(expr))
             if isinstance(val, values.AttrRef):
                 attr_type = ir.AttributeType(ta.pytype_to_attrtype(val.typeinfo))
-                attr_ref = ir.Attr(attr_name, attr_type, None, val.value.name)
+                attr_ref = ir.Attr(attr_name, attr_type, None, ref_attr_name=val.value.name)
                 if attr_meta is not None and (attr_ref.type != attr_meta.type):
                     self.fail(
                         expr,
