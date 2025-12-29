@@ -1164,13 +1164,9 @@ class Converter:
         live_defs = list(live_def_set)
         test = self._translate_expr(stmt.test, "cond")
         lineno = self._source_of(stmt).lineno
-        thenGraph = self._translate_block(
-            stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
-        )
+        thenGraph = self._translate_block(stmt.body, f"thenGraph_{lineno}", live_defs)
         thenAttr = self._make_onnx_attr("then_branch", thenGraph)
-        elseGraph = self._translate_block(
-            stmt.orelse, f"elseGraph_{lineno}", live_defs, parent_stmt=stmt
-        )
+        elseGraph = self._translate_block(stmt.orelse, f"elseGraph_{lineno}", live_defs)
         elseAttr = self._make_onnx_attr("else_branch", elseGraph)
 
         def rename(x):
@@ -1387,7 +1383,6 @@ class Converter:
         stmts: Sequence[ast.stmt],
         name: str,
         live_defs: Sequence[str],
-        parent_stmt: ast.stmt,
     ) -> ir.Graph:
         """Translation of a then/else statement-block to an ir.Graph."""
         self._enter_scope(name, None)
