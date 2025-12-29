@@ -144,7 +144,7 @@ class AstAnalyzer:
         error_message = self._formatter(stmt, f"Unsupported statement type {type(stmt)!r}.")
         raise ValueError(error_message)
 
-    def do_liveness_analysis(self, fun: ast.FunctionDef):
+    def do_liveness_analysis(self, fun: ast.FunctionDef) -> None:
         """Perform liveness analysis of the given function-ast."""
 
         def visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
@@ -212,7 +212,7 @@ class AstAnalyzer:
         for s in reversed(fun.body):
             live = visit(s, live)
 
-    def exposed_uses(self, stmts: Sequence[ast.stmt]):
+    def exposed_uses(self, stmts: Sequence[ast.stmt]) -> set[str]:
         """Return the set of variables that are used before being defined by given block.
         In essence, this identifies the "inputs" to a given code-block.
         For example, consider the following code-block:
@@ -284,7 +284,7 @@ class AstAnalyzer:
 
         return visitBlock(stmts, set())
 
-    def outer_scope_variables(self, fun: ast.FunctionDef):
+    def outer_scope_variables(self, fun: ast.FunctionDef) -> set[str]:
         """Return the set of outer-scope variables used in a nested function.
 
         Args:
