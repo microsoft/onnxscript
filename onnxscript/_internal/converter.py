@@ -354,7 +354,7 @@ class Converter:
             msg = f"Unsupported attribute type {pytype!r}."
             fail(info.msg(msg) if info else msg)
         attr_type = ir.AttributeType(ta.pytype_to_attrtype(pytype))
-        return ir.Attr(attrname, attr_type, None, val.value)
+        return ir.Attr(attrname, attr_type, None, val.value.name)
 
     def _to_onnx_var(
         self,
@@ -536,7 +536,7 @@ class Converter:
             val = self._lookup(expr.id, self._source_of(expr))
             if isinstance(val, values.AttrRef):
                 attr_type = ir.AttributeType(ta.pytype_to_attrtype(val.typeinfo))
-                attr_ref = ir.Attr(attr_name, attr_type, None, val.value)
+                attr_ref = ir.Attr(attr_name, attr_type, None, val.value.name)
                 if attr_meta is not None and (attr_ref.type != attr_meta.type):
                     self.fail(
                         expr,
@@ -1459,7 +1459,7 @@ class Converter:
                 attribute_type = ta.pytype_to_attrtype(typeinfo)
                 attr = ir.Attr(x.arg, ir.AttributeType(attribute_type), default_value, None)
                 self._current_fn.append_parameter(attr)
-                self._bind(x.arg, values.AttrRef(x.arg, typeinfo, self._source_of(x)))
+                self._bind(x.arg, values.AttrRef(attr, typeinfo, self._source_of(x)))
             else:
                 onnx_parameter = make_value(x.arg, typeinfo, self._source_of(x))
                 self._current_fn.append_parameter(onnx_parameter)

@@ -861,18 +861,18 @@ class SymbolValue:
 
 class AttrRef(SymbolValue):
     def __init__(
-        self, attr_name: str, typeinfo: _GenericAlias, info: sourceinfo.SourceInfo
+        self, attr: ir.Attr, typeinfo: _GenericAlias, info: sourceinfo.SourceInfo
     ) -> None:
         """Initializes AttrRef.
 
         Arguments:
-            attr_name: name of the attribute-parameter
+            attr: An ir.Attr representing the attribute-parameter
             typeinfo: type annotation of the attribute.
                 op's attributes in ONNX are usually single type or list of single type.
             info: for debugging use.
         """
         super().__init__(info)
-        self.value = attr_name
+        self.value = attr
         self.typeinfo = typeinfo
         if not isinstance(typeinfo, (type, _GenericAlias)):
             # typing._GenericAlias for List[int] and List[str], etc.
