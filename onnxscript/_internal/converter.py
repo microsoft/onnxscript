@@ -354,7 +354,7 @@ class Converter:
             msg = f"Unsupported attribute type {pytype!r}."
             fail(info.msg(msg) if info else msg)
         attr_type = ir.AttributeType(ta.pytype_to_attrtype(pytype))
-        return ir.Attr(attrname, attr_type, None, val.value.name)
+        return ir.Attr(attrname, attr_type, value=None, ref_attr_name=val.value.name)
 
     def _to_onnx_var(
         self,
