@@ -382,8 +382,9 @@ class Converter:
                 )
             self._castable.add(result_name)
             return result
-        if isinstance(val, values.Dynamic):
-            return val.value
+        if isinstance(val, values.SymbolValue):
+            if isinstance(val.value, ir.Value):
+                return val.value
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error _message otherwise
@@ -1130,6 +1131,7 @@ class Converter:
             preferred_name = f"return_val{suffix}"
             return_var = self._translate_expr(exp, preferred_name)  # TODO(rama)
             val = self._lookup(return_var.name, self._source_of(exp), False)
+            # TODO(rama): Can we avoid using val.kind here? And rely on the ir.Value methods like is_graph_input()?
             if val and val.kind == values.DynamicKind.Input:
                 # In ONNX, a graph-input cannot be an output of the graph.
                 # We need to insert a copy.
