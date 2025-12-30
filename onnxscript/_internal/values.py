@@ -903,5 +903,5 @@ class Dynamic(SymbolValue):
         assert isinstance(kind, DynamicKind)
         if not isinstance(ir_value, ir.Value):
             raise TypeError(f"ir_value must be of type ir.Value not {type(ir_value)!r}.")
-        self.kind = kind
+        # self.kind = kind
         self.typeinfo = typeinfo

@@ -1131,11 +1131,11 @@ class Converter:
             preferred_name = f"return_val{suffix}"
             return_var = self._translate_expr(exp, preferred_name)  # TODO(rama)
             val = self._lookup(return_var.name, self._source_of(exp), False)
-            # TODO(rama): Can we avoid using val.kind here? And rely on the ir.Value methods like is_graph_input()?
-            if val and val.kind == values.DynamicKind.Input:
-                # In ONNX, a graph-input cannot be an output of the graph.
-                # We need to insert a copy.
-                return_var = self._emit_copy(return_var, preferred_name)
+            if isinstance(val, values.SymbolValue) and isinstance(val.value, ir.Value):
+                if val.value.is_graph_input():
+                    # In ONNX, a graph-input cannot be an output of the graph.
+                    # We need to insert a copy.
+                    return_var = self._emit_copy(return_var, preferred_name)
             for prev_output in self._current_fn.outputs:
                 if prev_output.name == return_var.name:
                     # ONNX does not allow duplicate output names.
