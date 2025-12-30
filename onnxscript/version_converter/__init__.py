@@ -10,12 +10,10 @@ __all__ = [
 import logging
 
 import onnx
+import onnx_ir.passes.common as common_passes
 
-import onnxscript.ir.passes
-import onnxscript.ir.passes.common
 from onnxscript import ir
-from onnxscript.ir.passes.common import _c_api_utils
-from onnxscript.version_converter import _version_converter
+from onnxscript.version_converter import _c_api_utils, _version_converter
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +38,14 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         self.target_version = target_version
         self.fallback = fallback
         self.convert_pass = ir.passes.Sequential(
-            onnxscript.ir.passes.common.InlinePass(),
+            common_passes.InlinePass(),
             _ConvertVersionPassRequiresInline(
                 target_version=target_version,
                 fallback=fallback,
             ),
-            onnxscript.ir.passes.common.RemoveUnusedNodesPass(),
-            onnxscript.ir.passes.common.RemoveUnusedFunctionsPass(),
-            onnxscript.ir.passes.common.RemoveUnusedOpsetsPass(),
+            common_passes.RemoveUnusedNodesPass(),
+            common_passes.RemoveUnusedFunctionsPass(),
+            common_passes.RemoveUnusedOpsetsPass(),
         )
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
@@ -78,7 +76,7 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         if model.functions:
             raise ValueError(
                 "The model contains functions. The version conversion pass does not support "
-                "functions. Please use `onnxscript.ir.passes.common.InlinePass` to inline the "
+                "functions. Please use `common_passes.InlinePass` to inline the "
                 f"functions before applying this pass ({self.__class__.__name__})."
             )
         if "" in model.graph.opset_imports:
@@ -109,6 +107,13 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
                 self.target_version,
             )
             return ir.passes.PassResult(model, False)
+        else:
+            logger.warning(
+                "The model version conversion is not supported by the onnxscript version converter "
+                "and fallback is enabled. The model will be converted using the onnx C API "
+                "(target version: %d).",
+                self.target_version,
+            )
 
         # If the onnxscript version converter does not support the conversion,
         # we can use the onnx C API to convert the model
@@ -170,5 +175,5 @@ def convert_version(
     if model_proto is not None:
         # Update the model proto in-place
         model_proto.graph.Clear()
-        del model_proto.functions
+        del model_proto.functions[:]
         model_proto.graph.CopyFrom(ir.to_proto(model.graph))

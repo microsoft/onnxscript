@@ -7,9 +7,9 @@ import unittest
 from parameterized import parameterized
 
 import onnxscript.optimizer
+from onnxscript.rewriter.models import _rotary_embedding_models, _smollm_1
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
-from onnxscript.rewriter.ort_fusions.models import _rotary_embedding_models, _smollm_1
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
     fuse_rotary_embedding,
@@ -45,7 +45,7 @@ class TestCosSinCacheTransform(unittest.TestCase):
         original_outputs = ort_run("original", model, inputs)
         count = fuse_rotary_embedding(model)
         self.assertGreater(count, 0)
-        count = fuse_cos_sin_cache(model)
+        count = fuse_cos_sin_cache(model, debug=True)
         self.assertGreater(count, 0)
         new_outputs = ort_run("optimized", model, inputs)
         assert_allclose(new_outputs, original_outputs)

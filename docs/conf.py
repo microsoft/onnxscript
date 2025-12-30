@@ -89,6 +89,7 @@ intersphinx_mapping = {
     "matplotlib": ("https://matplotlib.org/stable/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "onnx": ("https://onnx.ai/onnx/", None),
+    "onnx_ir": ("https://onnx.ai/ir-py/", None),
     "onnxruntime": ("https://onnxruntime.ai/docs/api/python/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "torch": ("https://pytorch.org/docs/main/", None),

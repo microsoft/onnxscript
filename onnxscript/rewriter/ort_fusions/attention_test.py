@@ -5,18 +5,18 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
+import onnx_ir as ir
+import onnx_ir.passes.common as common_passes
 import packaging.version
 import parameterized
 
 import onnxscript
-import onnxscript.ir as ir
-import onnxscript.ir.passes.common as common_passes
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
+from onnxscript.rewriter.models._whisper_encoder import whisper_encoder_test
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
-from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
@@ -176,6 +176,8 @@ class TestAttentionFusion(unittest.TestCase):
         mha_count = xformers.fuse_mha1(model)
         mha_count += xformers.fuse_mha2(model)
         self.assertGreater(mha_count, 0)
+        mha_scale_count = xformers.fuse_mha_scale(model)
+        self.assertGreater(mha_scale_count, 0)
         fused_mha_bias_count = xformers.fuse_mha_bias(model)
         self.assertGreater(fused_mha_bias_count, 0)
         # TODO: Enable once source of discrepancy is found

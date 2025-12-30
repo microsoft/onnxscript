@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Rewrite the computation of cos/sin cache into the form expected by ORT's custom ops.
@@ -148,8 +148,8 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         sin = op.Sin(emb)
         if self._cast:
             sin = op.Cast(sin, to=dtype)
-        cos_4d = op.Unsqueeze(cos, 1)  # convert
-        sin_4d = op.Unsqueeze(sin, 1)
+        cos_4d = op.Unsqueeze(cos, [1])  # convert
+        sin_4d = op.Unsqueeze(sin, [1])
         return op.RotaryEmbedding(
             x,
             cos_4d,

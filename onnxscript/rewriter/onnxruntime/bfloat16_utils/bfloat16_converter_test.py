@@ -3,7 +3,6 @@
 import unittest
 
 import numpy as np
-import onnx
 import onnx.checker
 import onnx.shape_inference
 import onnxruntime
@@ -14,11 +13,11 @@ from onnxscript.rewriter.onnxruntime.bfloat16_utils import bfloat16_converter
 
 class Bfloat16ConversionTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.v0 = ir.Input(name="v0", shape=ir.Shape([2, 3, 4]))
+        self.v0 = ir.val(name="v0", shape=ir.Shape([2, 3, 4]))
         self.v0.dtype = ir.DataType.BFLOAT16
-        self.v1 = ir.Input(name="v1", shape=ir.Shape([2, 3, 4]))
+        self.v1 = ir.val(name="v1", shape=ir.Shape([2, 3, 4]))
         self.v1.dtype = ir.DataType.BFLOAT16
-        self.v2 = ir.Input(name="v2", shape=ir.Shape([2, 3, 4]))
+        self.v2 = ir.val(name="v2", shape=ir.Shape([2, 3, 4]))
         self.v2.dtype = ir.DataType.BFLOAT16
 
         self.add_node = ir.Node("", "Add", inputs=(self.v0, self.v1), num_outputs=1)

@@ -39,6 +39,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 from torch.utils import _pytree as pytree
 
 import onnxscript
+from onnxscript._internal import version_utils
 from tests.function_libs.torch_lib import (
     error_reproduction,
     ops_test_common,
@@ -98,7 +99,7 @@ def _should_skip_xfail_test_sample(
 
 class TestFunctionValidity(unittest.TestCase):
     @parameterized.parameterized.expand(
-        [(info.op.name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
+        [(info.op_info_name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
     )
     def test_script_function_passes_checker(
         self, _, torchlib_op_info: ops_test_data.TorchLibOpInfo
@@ -109,10 +110,12 @@ class TestFunctionValidity(unittest.TestCase):
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
     @parameterized.parameterized.expand(
-        [(info.op.name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
+        [(info.op_info_name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
     )
     def test_function_has_op_schema(self, _, torchlib_op_info: ops_test_data.TorchLibOpInfo):
         func = torchlib_op_info.op
+        if not hasattr(func, "op_schema"):
+            raise AssertionError(f"Function {func.__name__} does not have op_schema attribute")
         schema = func.op_schema
         self.assertIsNotNone(schema)
         self.assertEqual(schema.name, func.name)
@@ -200,8 +203,7 @@ def run_test_output_match(
                 reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
                 if (
                     op.name.startswith("split")
-                    or op.name.startswith("chunk")
-                    or op.name.startswith("unbind")
+                    or (op.name.startswith("unbind") and version_utils.torch_older_than("2.7"))
                     or op.name
                     in {"atleast_1d_Sequence", "atleast_2d_Sequence", "atleast_3d_Sequence"}
                 ):
