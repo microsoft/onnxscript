@@ -7,8 +7,6 @@ This module re-exports the public API from the internal values module.
 
 from onnxscript._internal.values import (
     AttrRef,
-    Dynamic,
-    DynamicKind,
     OnnxClosure,
     OnnxFunction,
     Op,
@@ -20,8 +18,6 @@ from onnxscript._internal.values import (
 
 __all__ = [
     "AttrRef",
-    "Dynamic",
-    "DynamicKind",
     "OnnxClosure",
     "OnnxFunction",
     "Op",
