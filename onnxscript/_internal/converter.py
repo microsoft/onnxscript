@@ -339,22 +339,20 @@ class Converter:
     def _to_onnx_attr_ref(
         self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
     ) -> ir.Attr:
-        pytype = val.typeinfo
-        attrtype = ta.pytype_to_attrtype(pytype)
+        attrtype = val.value.type
         attrname = None
-        if attrtype is onnx.AttributeProto.FLOAT:
+        if attrtype is ir.AttributeType.FLOAT:  # onnx.AttributeProto.FLOAT:
             attrname = "value_float"
-        elif attrtype is onnx.AttributeProto.INT:
+        elif attrtype is ir.AttributeType.INT:
             attrname = "value_int"
-        elif attrtype is onnx.AttributeProto.STRING:
+        elif attrtype is ir.AttributeType.STRING:
             attrname = "value_string"
-        elif attrtype is onnx.AttributeProto.INTS:
+        elif attrtype is ir.AttributeType.INTS:
             attrname = "value_ints"
         else:
-            msg = f"Unsupported attribute type {pytype!r}."
+            msg = f"Unsupported attribute type {attrtype!r}."
             fail(info.msg(msg) if info else msg)
-        attr_type = ir.AttributeType(ta.pytype_to_attrtype(pytype))
-        return ir.Attr(attrname, attr_type, value=None, ref_attr_name=val.value.name)
+        return ir.Attr(attrname, attrtype, value=None, ref_attr_name=val.value.name)
 
     def _to_onnx_var(
         self,
@@ -369,7 +367,7 @@ class Converter:
             result = self.emit(
                 [result_name], values.Op(self.default_opset, "Constant"), [], [attr]
             )
-            if ta.base_type_is_bool(val.typeinfo):
+            if val.as_bool:
                 # ONNX attributes use an int-encoding for bools, but ONNX tensor types
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
@@ -1474,7 +1472,8 @@ class Converter:
                 attribute_type = ta.pytype_to_attrtype(typeinfo)
                 attr = ir.Attr(x.arg, ir.AttributeType(attribute_type), default_value, None)
                 self._current_fn.append_parameter(attr)
-                self._bind(x.arg, values.AttrRef(attr, typeinfo, self._source_of(x)))
+                as_bool = ta.base_type_is_bool(typeinfo)
+                self._bind(x.arg, values.AttrRef(attr, as_bool, self._source_of(x)))
             else:
                 onnx_parameter = make_value(x.arg, typeinfo, self._source_of(x))
                 self._current_fn.append_parameter(onnx_parameter)

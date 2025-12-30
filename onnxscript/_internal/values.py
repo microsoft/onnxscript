@@ -13,7 +13,6 @@ import types
 import typing
 from enum import IntFlag
 from typing import (  # type: ignore[attr-defined]
-    TYPE_CHECKING,
     Any,
     Callable,
     ClassVar,
@@ -22,7 +21,6 @@ from typing import (  # type: ignore[attr-defined]
     Protocol,
     Sequence,
     TypeVar,
-    _GenericAlias,
 )
 
 import onnx
@@ -35,9 +33,6 @@ from onnxscript._internal import ast_utils, deprecation, irbuilder, type_annotat
 from onnxscript._internal import converter as converter_module
 from onnxscript.ir import _schemas
 from onnxscript.onnx_types import ONNXType
-
-if TYPE_CHECKING:
-    from onnxscript._internal.type_annotation import TypeAnnotationValue
 
 _R = TypeVar("_R")
 _P = ParamSpec("_P")
@@ -868,23 +863,16 @@ class SymbolValue:
 
 
 class AttrRef(SymbolValue):
-    def __init__(
-        self, attr: ir.Attr, typeinfo: _GenericAlias, info: sourceinfo.SourceInfo
-    ) -> None:
+    def __init__(self, attr: ir.Attr, as_bool: bool, info: sourceinfo.SourceInfo) -> None:
         """Initializes AttrRef.
 
         Arguments:
             attr: An ir.Attr representing the attribute-parameter
-            typeinfo: type annotation of the attribute.
-                op's attributes in ONNX are usually single type or list of single type.
+            as_bool: Whether the attribute is to be interpreted as a bool type (represented as int in ONNX)
             info: for debugging use.
         """
         super().__init__(attr, info)
-        self.typeinfo = typeinfo
-        if not isinstance(typeinfo, (type, _GenericAlias)):
-            # typing._GenericAlias for List[int] and List[str], etc.
-            raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
-        self.typeinfo = typeinfo
+        self.as_bool = as_bool
 
 
 class DynamicKind(IntFlag):
@@ -901,7 +889,7 @@ class Dynamic(SymbolValue):
         ir_value: ir.Value,
         kind: DynamicKind,
         info: sourceinfo.SourceInfo,
-        typeinfo: TypeAnnotationValue | None = None,
+        typeinfo: type_annotation.TypeAnnotationValue | None = None,
     ) -> None:
         """Represents an ir.Value with some extra information.
 
