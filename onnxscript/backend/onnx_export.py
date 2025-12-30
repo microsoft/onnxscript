@@ -155,7 +155,7 @@ def _to_str(s):
         try:
             return s.decode("utf-8")
         except UnicodeDecodeError:
-            return s.decode("latin1")  # or "cp1252" or other fallback
+            pass
     return s
 
 
@@ -394,7 +394,7 @@ class _Exporter:
                 attributes.append((at.name, at.ref_attr_name))
                 continue
             value = _attribute_value(at)
-            if isinstance(value, str):
+            if isinstance(value, str, bytes):
                 attributes.append((at.name, f"{value!r}"))
                 continue
             if isinstance(value, np.ndarray):
