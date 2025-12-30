@@ -534,32 +534,44 @@ class Converter:
 
         if isinstance(expr, ast.Name):
             val = self._lookup(expr.id, self._source_of(expr))
-            if isinstance(val, values.AttrRef):
-                attr_type = ir.AttributeType(ta.pytype_to_attrtype(val.typeinfo))
-                attr_ref = ir.Attr(attr_name, attr_type, None, ref_attr_name=val.value.name)
-                if attr_meta is not None and (attr_ref.type != attr_meta.type):
-                    self.fail(
-                        expr,
-                        f"Attribute type '{attr_ref.type}' does not match expected type '{attr_meta.type}'",
+            if isinstance(val, values.SymbolValue):
+                val = val.value
+                if isinstance(val, ir.Attr):
+                    # A reference to an attribute parameter:
+                    attr = val
+                    attr_ref = ir.Attr(
+                        attr_name, attr.type, value=None, ref_attr_name=attr.name
                     )
-                return attr_ref
-            if isinstance(val, values.SymbolValue) and isinstance(
-                val.value, irbuilder.IRFunction
-            ):
-                irfunction = val.value
-                # Check that outer-scope variables referenced by function have same value
-                # at function-definition site and use-as-attribute site, to avoid errors.
-                for pyvar, previous in irfunction.outer_scope_variables:
-                    current = self._lookup(pyvar, self._source_of(expr))
-                    if current.value != previous.value:
+                    if attr_meta is not None and (attr.type != attr_meta.type):
                         self.fail(
                             expr,
-                            f"Outer scope variable '{pyvar}' referenced by function "
-                            f"'{expr.id!r}' modified.",
+                            f"Attribute type '{attr_ref.type}' does not match expected type '{attr_meta.type}'",
                         )
-
-                # Create GraphProto attribute
-                val = irfunction.to_graph_proto()
+                    return attr_ref
+                if isinstance(val, irbuilder.IRFunction):
+                    # A reference to a nested-function: convert to GraphProto and use it.
+                    irfunction = val
+                    # Check that outer-scope variables referenced by function have same value
+                    # at function-definition site and use-as-attribute site, to avoid errors.
+                    for pyvar, previous in irfunction.outer_scope_variables:
+                        current = self._lookup(pyvar, self._source_of(expr))
+                        if current.value != previous.value:
+                            self.fail(
+                                expr,
+                                f"Outer scope variable '{pyvar}' referenced by function "
+                                f"'{expr.id!r}' modified.",
+                            )
+                    # Create GraphProto attribute
+                    val = irfunction.to_graph_proto()
+                if isinstance(val, ir.Value):
+                    self.fail(expr, f"Cannot use ir.Value '{expr.id}' as an attribute.")
+                else:
+                    # Treat as a constant python-value, to be converted below.
+                    pass
+            else:
+                # This must be a reference to an outer-scope python-value, typically a constant.
+                # The value will be converted to an ONNX attribute value below.
+                pass
         else:
             val = self._eval_constant_expr(expr)
 
