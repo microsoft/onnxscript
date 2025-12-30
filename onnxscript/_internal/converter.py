@@ -1059,7 +1059,7 @@ class Converter:
                     typeinfo = None
                 if typeinfo is not None:
                     set_type_info(t, typeinfo)
-                var = values.Dynamic(t, values.DynamicKind.Intermediate, info, typeinfo)
+                var = values.SymbolValue(t, info)
                 self._bind(lhs, var)
             elif isinstance(lhs, ast.Tuple):
                 # Assignments of the form "x, y, z = op.SomeOp(...)"
@@ -1082,9 +1082,7 @@ class Converter:
                 for x, output in zip(lhs.elts, outputs):
                     self._bind(
                         x.id,
-                        values.Dynamic(
-                            output, values.DynamicKind.Intermediate, self._source_of(x)
-                        ),
+                        values.SymbolValue(output, self._source_of(x)),
                     )
             else:
                 self.fail(lhs, f"Unsupported construct in LHS of assignment: '{type(lhs)!r}'")
@@ -1205,7 +1203,7 @@ class Converter:
         for x, y in zip(live_defs, if_outputs):
             self._bind(
                 x,
-                values.Dynamic(y, values.DynamicKind.Intermediate, self._source_of(stmt)),
+                values.SymbolValue(y, self._source_of(stmt)),
             )
 
     def _translate_loop_stmt(self, loop_stmt: Union[ast.For, ast.While]) -> None:
@@ -1272,7 +1270,7 @@ class Converter:
         self._current_fn.append_parameter(onnx_loop_var)
         self._bind(
             python_loop_var_name,
-            values.Dynamic(onnx_loop_var, values.DynamicKind.Loop, self._source_of(loop_stmt)),
+            values.SymbolValue(onnx_loop_var, self._source_of(loop_stmt)),
         )
 
         self._current_fn.append_parameter(
@@ -1293,9 +1291,8 @@ class Converter:
             )
             self._bind(
                 pv,
-                values.Dynamic(
+                values.SymbolValue(
                     ir.Value(name=onnx_var_name),
-                    values.DynamicKind.Loop,
                     self._source_of(loop_stmt),
                 ),
             )
@@ -1391,7 +1388,7 @@ class Converter:
         if isinstance(loop_outputs, ir.Value):
             loop_outputs = [loop_outputs]
         for x, loop_output in zip(outputs, loop_outputs):
-            self._bind(x, values.Dynamic(loop_output, values.DynamicKind.Output, info))
+            self._bind(x, values.SymbolValue(loop_output, info))
 
     def _translate_block(
         self,
@@ -1482,9 +1479,7 @@ class Converter:
                 self._used_vars.add(x.arg)
                 self._bind(
                     x.arg,
-                    values.Dynamic(
-                        onnx_parameter, values.DynamicKind.Input, self._source_of(x)
-                    ),
+                    values.SymbolValue(onnx_parameter, self._source_of(x)),
                 )
         if fn.returns:
             type_annotation = self._eval_constant_expr(fn.returns)

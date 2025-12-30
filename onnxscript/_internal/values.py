@@ -11,7 +11,6 @@ import inspect
 import logging
 import types
 import typing
-from enum import IntFlag
 from typing import (  # type: ignore[attr-defined]
     Any,
     Callable,
@@ -873,35 +872,3 @@ class AttrRef(SymbolValue):
         """
         super().__init__(attr, info)
         self.as_bool = as_bool
-
-
-class DynamicKind(IntFlag):
-    Unknown = 0
-    Input = 1
-    Output = 2
-    Intermediate = 4
-    Loop = 8
-
-
-class Dynamic(SymbolValue):
-    def __init__(
-        self,
-        ir_value: ir.Value,
-        kind: DynamicKind,
-        info: sourceinfo.SourceInfo,
-        typeinfo: type_annotation.TypeAnnotationValue | None = None,
-    ) -> None:
-        """Represents an ir.Value with some extra information.
-
-        Arguments:
-            ir_value: the ir.Value corresponding to this value
-            kind: the DynamicKind of this variable
-            info: source-location information for error-messages/debugging
-            typeinfo: type-information for the value
-        """
-        super().__init__(ir_value, info)
-        assert isinstance(kind, DynamicKind)
-        if not isinstance(ir_value, ir.Value):
-            raise TypeError(f"ir_value must be of type ir.Value not {type(ir_value)!r}.")
-        # self.kind = kind
-        self.typeinfo = typeinfo
