@@ -395,7 +395,7 @@ class _Exporter:
                 continue
             value = _attribute_value(at)
             if isinstance(value, str, bytes):
-                attributes.append((at.name, f"{value!r}"))
+                attributes.append((at.name, repr(value)))
                 continue
             if isinstance(value, np.ndarray):
                 onnx_dtype = at.t.data_type
