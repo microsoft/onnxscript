@@ -6893,7 +6893,7 @@ def _aten_native_batch_norm_inference_onnx(
     # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1475
     running_mean_fp32 = op.Cast(running_mean, to=FLOAT.dtype)
     invstd = op.Cast(invstd, to=FLOAT.dtype)
-    return norm, running_mean_fp32, invstd, running_mean, running_var
+    return norm, running_mean_fp32, invstd, op.Identity(running_mean), op.Identity(running_var)
 
 
 # TODO: This op is using duplicated code from aten_native_batch_norm,
