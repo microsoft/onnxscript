@@ -394,7 +394,7 @@ class _Exporter:
                 attributes.append((at.name, at.ref_attr_name))
                 continue
             value = _attribute_value(at)
-            if isinstance(value, str, bytes):
+            if isinstance(value, (str, bytes)):
                 attributes.append((at.name, repr(value)))
                 continue
             if isinstance(value, np.ndarray):
