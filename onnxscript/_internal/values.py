@@ -11,7 +11,6 @@ import inspect
 import logging
 import types
 import typing
-from enum import IntFlag
 from typing import (  # type: ignore[attr-defined]
     Any,
     Callable,
@@ -21,7 +20,6 @@ from typing import (  # type: ignore[attr-defined]
     Protocol,
     Sequence,
     TypeVar,
-    _GenericAlias,
 )
 
 import onnx
@@ -849,57 +847,28 @@ class SymbolValue:
     * To represent constant-values, translated into ONNX constants.
     """
 
-    def __init__(self, info: sourceinfo.SourceInfo) -> None:
+    def __init__(self, value: Any, info: sourceinfo.SourceInfo) -> None:
+        """
+        Initializes SymbolValue.
+
+        Arguments:
+            value: The value bound to a python variable in a script.
+            info: source-location information for error-messages/debugging
+        """
         if not isinstance(info, sourceinfo.SourceInfo):
             raise TypeError(f"info must be of type sourceinfo.SourceInfo not {type(info)!r}.")
+        self.value = value
         self.info = info
 
 
 class AttrRef(SymbolValue):
-    def __init__(
-        self, attr_name: str, typeinfo: _GenericAlias, info: sourceinfo.SourceInfo
-    ) -> None:
+    def __init__(self, attr: ir.Attr, as_bool: bool, info: sourceinfo.SourceInfo) -> None:
         """Initializes AttrRef.
 
         Arguments:
-            attr_name: name of the attribute-parameter
-            typeinfo: type annotation of the attribute.
-                op's attributes in ONNX are usually single type or list of single type.
+            attr: An ir.Attr representing the attribute-parameter
+            as_bool: Whether the attribute is to be interpreted as a bool type (represented as int in ONNX)
             info: for debugging use.
         """
-        super().__init__(info)
-        self.value = attr_name
-        self.typeinfo = typeinfo
-        if not isinstance(typeinfo, (type, _GenericAlias)):
-            # typing._GenericAlias for List[int] and List[str], etc.
-            raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
-        self.typeinfo = typeinfo
-
-
-class DynamicKind(IntFlag):
-    Unknown = 0
-    Input = 1
-    Output = 2
-    Intermediate = 4
-    Loop = 8
-
-
-class Dynamic(SymbolValue):
-    def __init__(
-        self, onnx_var: ir.Value, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
-    ) -> None:
-        """Initializes Dynamic.
-
-        Arguments:
-            onnx_var: the name of the ONNX variable used to represent this value
-            kind: the DynamicKind of this variable
-            info: source-location information for error-messages/debugging
-            typeinfo: type-information for the value
-        """
-        super().__init__(info)
-        assert isinstance(kind, DynamicKind)
-        if not isinstance(onnx_var, ir.Value):
-            raise TypeError(f"onnx_var must be of type ir.Value not {type(onnx_var)!r}.")
-        self.value = onnx_var
-        self.kind = kind
-        self.typeinfo = typeinfo
+        super().__init__(attr, info)
+        self.as_bool = as_bool
