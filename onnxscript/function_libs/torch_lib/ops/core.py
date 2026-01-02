@@ -8755,17 +8755,18 @@ def aten_sigmoid(self: TFloat) -> TFloat:
     return op.Sigmoid(self)
 
 
-@torch_op("aten::sign")
+@torch_op("aten::sign", trace_only=True)
 def aten_sign(self: TReal) -> TReal:
     """sign(Tensor self) -> Tensor"""
 
     return op.Sign(self)
 
 
+@torch_op("aten::signbit", trace_only=True)
 def aten_signbit(self: TensorType) -> TensorType:
     """signbit(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Cast(op.Sign(self), to=BOOL.dtype)
 
 
 @torch_op("aten::sin", trace_only=True)
