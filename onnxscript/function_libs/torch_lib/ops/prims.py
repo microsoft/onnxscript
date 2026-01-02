@@ -697,18 +697,16 @@ def prims_shift_right_arithmetic(self: TensorType, other: TensorType) -> TensorT
     raise NotImplementedError()
 
 
-@torch_op("prims::sign", trace_only=True)
 def prims_sign(self: TensorType) -> TensorType:
     """sign(Tensor self) -> Tensor"""
 
-    return op.Sign(self)
+    raise NotImplementedError()
 
 
-@torch_op("prims::signbit", trace_only=True)
 def prims_signbit(self: TensorType) -> TensorType:
     """signbit(Tensor self) -> Tensor"""
 
-    return op.Cast(op.Sign(self), to=BOOL.dtype)
+    raise NotImplementedError()
 
 
 @torch_op("prims::sin", trace_only=True)

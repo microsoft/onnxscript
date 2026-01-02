@@ -8756,8 +8756,11 @@ def aten_sigmoid(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::sign", trace_only=True)
-def aten_sign(self: TReal) -> TReal:
+def aten_sign(self: TensorType) -> TensorType:
     """sign(Tensor self) -> Tensor"""
+
+    if self.dtype == ir.DataType.BOOL:
+        return op.Identity(self)
 
     return op.Sign(self)
 
@@ -8766,7 +8769,10 @@ def aten_sign(self: TReal) -> TReal:
 def aten_signbit(self: TensorType) -> TensorType:
     """signbit(Tensor self) -> Tensor"""
 
-    return op.Cast(op.Sign(self), to=BOOL.dtype)
+    if self.dtype == ir.DataType.BOOL:
+        return op.ConstantOfShape(op.Shape(self), value=ir.tensor([False]))
+
+    return op.Less(self, op.Constant(value=ir.tensor([0], dtype=self.dtype)))
 
 
 @torch_op("aten::sin", trace_only=True)
