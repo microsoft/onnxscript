@@ -8755,17 +8755,25 @@ def aten_sigmoid(self: TFloat) -> TFloat:
     return op.Sigmoid(self)
 
 
-@torch_op("aten::sign")
-def aten_sign(self: TReal) -> TReal:
+@torch_op("aten::sign", trace_only=True)
+def aten_sign(self: TensorType) -> TensorType:
     """sign(Tensor self) -> Tensor"""
+
+    if self.dtype == ir.DataType.BOOL:
+        return op.Identity(self)
 
     return op.Sign(self)
 
 
-def aten_signbit(self: TensorType) -> TensorType:
+@torch_op("aten::signbit", trace_only=True)
+def aten_signbit(self: TensorType) -> BOOL:
     """signbit(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    if self.dtype == ir.DataType.BOOL:
+        return op.ConstantOfShape(op.Shape(self), value=ir.tensor([False]))
+
+    # -0.0 should return True, but ONNX does not have an appropriate operator to handle it.
+    return op.Less(self, op.Constant(value=ir.tensor([0], dtype=self.dtype)))
 
 
 @torch_op("aten::sin", trace_only=True)

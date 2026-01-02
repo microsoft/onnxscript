@@ -1169,6 +1169,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("select_scatter", core_ops.aten_select_scatter),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
+    TorchLibOpInfo("signbit", core_ops.aten_signbit),
     TorchLibOpInfo("nn.functional.silu", nn_ops.aten_silu),
     TorchLibOpInfo("sin", core_ops.aten_sin),
     TorchLibOpInfo(
