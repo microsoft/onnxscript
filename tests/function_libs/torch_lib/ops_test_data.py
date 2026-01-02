@@ -1169,6 +1169,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("select_scatter", core_ops.aten_select_scatter),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
+    TorchLibOpInfo("signbit", core_ops.aten_signbit),
     TorchLibOpInfo("nn.functional.silu", nn_ops.aten_silu),
     TorchLibOpInfo("sin", core_ops.aten_sin),
     TorchLibOpInfo(
@@ -1869,6 +1870,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.prims.var.default", prims_ops.prims_var, tolerance={torch.float16: (1e-3, 5e-2)}
     ),
+    TorchLibOpInfo("ops.prims.sign.default", core_ops.aten_sign),
+    TorchLibOpInfo("ops.prims.signbit.default", core_ops.aten_signbit),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like),
     TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
 )
