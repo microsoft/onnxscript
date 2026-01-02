@@ -14,7 +14,6 @@ from onnxscript._internal.values import (
     ParamSchema,
     SymbolValue,
     TracedOnnxFunction,
-    select_ir_version,
 )
 
 __all__ = [
@@ -26,5 +25,4 @@ __all__ = [
     "ParamSchema",
     "SymbolValue",
     "TracedOnnxFunction",
-    "select_ir_version",
 ]
