@@ -8772,6 +8772,7 @@ def aten_signbit(self: TensorType) -> TensorType:
     if self.dtype == ir.DataType.BOOL:
         return op.ConstantOfShape(op.Shape(self), value=ir.tensor([False]))
 
+    # -0.0 should return True, but ONNX does not have an appropriate operator to handle it.
     return op.Less(self, op.Constant(value=ir.tensor([0], dtype=self.dtype)))
 
 
