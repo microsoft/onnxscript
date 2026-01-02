@@ -8766,7 +8766,7 @@ def aten_sign(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::signbit", trace_only=True)
-def aten_signbit(self: TensorType) -> TensorType:
+def aten_signbit(self: TensorType) -> BOOL:
     """signbit(Tensor self) -> Tensor"""
 
     if self.dtype == ir.DataType.BOOL:
