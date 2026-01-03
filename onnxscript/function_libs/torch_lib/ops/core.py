@@ -6912,7 +6912,7 @@ def _aten_native_batch_norm_inference_onnx(
     # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1475
     running_mean_fp32 = op.Cast(running_mean, to=FLOAT.dtype)
     invstd = op.Cast(invstd, to=FLOAT.dtype)
-    return norm, running_mean_fp32, invstd, running_mean, running_var
+    return norm, running_mean_fp32, invstd, op.Identity(running_mean), op.Identity(running_var)
 
 
 # TODO: This op is using duplicated code from aten_native_batch_norm,
@@ -8774,17 +8774,25 @@ def aten_sigmoid(self: TFloat) -> TFloat:
     return op.Sigmoid(self)
 
 
-@torch_op("aten::sign")
-def aten_sign(self: TReal) -> TReal:
+@torch_op("aten::sign", trace_only=True)
+def aten_sign(self: TensorType) -> TensorType:
     """sign(Tensor self) -> Tensor"""
+
+    if self.dtype == ir.DataType.BOOL:
+        return op.Identity(self)
 
     return op.Sign(self)
 
 
-def aten_signbit(self: TensorType) -> TensorType:
+@torch_op("aten::signbit", trace_only=True)
+def aten_signbit(self: TensorType) -> BOOL:
     """signbit(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    if self.dtype == ir.DataType.BOOL:
+        return op.ConstantOfShape(op.Shape(self), value=ir.tensor([False]))
+
+    # -0.0 should return True, but ONNX does not have an appropriate operator to handle it.
+    return op.Less(self, op.Constant(value=ir.tensor([0], dtype=self.dtype)))
 
 
 @torch_op("aten::sin", trace_only=True)

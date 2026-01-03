@@ -297,6 +297,12 @@ class Converter:
     def _lookup(
         self, name: str, info: sourceinfo.SourceInfo, raise_exception: bool = True
     ) -> SymValue:
+        """Maps a python variable name to the corresponding value used during translation.
+
+        Typically, a python variable X will correspond to an ONNX value Y. But other special
+        cases include: constant values or functions (mapped to Graph attributes), etc.
+        """
+
         for scope in self._locals:
             if name in scope:
                 return scope[name]
@@ -333,22 +339,20 @@ class Converter:
     def _to_onnx_attr_ref(
         self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
     ) -> ir.Attr:
-        pytype = val.typeinfo
-        attrtype = ta.pytype_to_attrtype(pytype)
+        attrtype = val.value.type
         attrname = None
-        if attrtype is onnx.AttributeProto.FLOAT:
+        if attrtype is ir.AttributeType.FLOAT:  # onnx.AttributeProto.FLOAT:
             attrname = "value_float"
-        elif attrtype is onnx.AttributeProto.INT:
+        elif attrtype is ir.AttributeType.INT:
             attrname = "value_int"
-        elif attrtype is onnx.AttributeProto.STRING:
+        elif attrtype is ir.AttributeType.STRING:
             attrname = "value_string"
-        elif attrtype is onnx.AttributeProto.INTS:
+        elif attrtype is ir.AttributeType.INTS:
             attrname = "value_ints"
         else:
-            msg = f"Unsupported attribute type {pytype!r}."
+            msg = f"Unsupported attribute type {attrtype!r}."
             fail(info.msg(msg) if info else msg)
-        attr_type = ir.AttributeType(ta.pytype_to_attrtype(pytype))
-        return ir.Attr(attrname, attr_type, None, val.value)
+        return ir.Attr(attrname, attrtype, value=None, ref_attr_name=val.value.name)
 
     def _to_onnx_var(
         self,
@@ -363,7 +367,7 @@ class Converter:
             result = self.emit(
                 [result_name], values.Op(self.default_opset, "Constant"), [], [attr]
             )
-            if ta.base_type_is_bool(val.typeinfo):
+            if val.as_bool:
                 # ONNX attributes use an int-encoding for bools, but ONNX tensor types
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
@@ -378,8 +382,9 @@ class Converter:
                 )
             self._castable.add(result_name)
             return result
-        if isinstance(val, values.Dynamic):
-            return val.value
+        if isinstance(val, values.SymbolValue):
+            if isinstance(val.value, ir.Value):
+                return val.value
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error _message otherwise
@@ -528,29 +533,44 @@ class Converter:
 
         if isinstance(expr, ast.Name):
             val = self._lookup(expr.id, self._source_of(expr))
-            if isinstance(val, values.AttrRef):
-                attr_type = ir.AttributeType(ta.pytype_to_attrtype(val.typeinfo))
-                attr_ref = ir.Attr(attr_name, attr_type, None, val.value)
-                if attr_meta is not None and (attr_ref.type != attr_meta.type):
-                    self.fail(
-                        expr,
-                        f"Attribute type '{attr_ref.type}' does not match expected type '{attr_meta.type}'",
+            if isinstance(val, values.SymbolValue):
+                val = val.value
+                if isinstance(val, ir.Attr):
+                    # A reference to an attribute parameter:
+                    attr = val
+                    attr_ref = ir.Attr(
+                        attr_name, attr.type, value=None, ref_attr_name=attr.name
                     )
-                return attr_ref
-            if isinstance(val, irbuilder.IRFunction):
-                # Check that outer-scope variables referenced by function have same value
-                # at function-definition site and use-as-attribute site, to avoid errors.
-                for pyvar, previous in val.outer_scope_variables:
-                    current = self._lookup(pyvar, self._source_of(expr))
-                    if current.value != previous.value:
+                    if attr_meta is not None and (attr.type != attr_meta.type):
                         self.fail(
                             expr,
-                            f"Outer scope variable '{pyvar}' referenced by function "
-                            f"'{expr.id!r}' modified.",
+                            f"Attribute type '{attr_ref.type}' does not match expected type '{attr_meta.type}'",
                         )
-
-                # Create GraphProto attribute
-                val = val.to_graph_proto()
+                    return attr_ref
+                if isinstance(val, irbuilder.IRFunction):
+                    # A reference to a nested-function: convert to GraphProto and use it.
+                    irfunction = val
+                    # Check that outer-scope variables referenced by function have same value
+                    # at function-definition site and use-as-attribute site, to avoid errors.
+                    for pyvar, previous in irfunction.outer_scope_variables:
+                        current = self._lookup(pyvar, self._source_of(expr))
+                        if current.value != previous.value:
+                            self.fail(
+                                expr,
+                                f"Outer scope variable '{pyvar}' referenced by function "
+                                f"'{expr.id!r}' modified.",
+                            )
+                    # Create GraphProto attribute
+                    val = irfunction.to_graph_proto()
+                if isinstance(val, ir.Value):
+                    self.fail(expr, f"Cannot use ir.Value '{expr.id}' as an attribute.")
+                else:
+                    # Treat as a constant python-value, to be converted below.
+                    pass
+            else:
+                # This must be a reference to an outer-scope python-value, typically a constant.
+                # The value will be converted to an ONNX attribute value below.
+                pass
         else:
             val = self._eval_constant_expr(expr)
 
@@ -1039,7 +1059,7 @@ class Converter:
                     typeinfo = None
                 if typeinfo is not None:
                     set_type_info(t, typeinfo)
-                var = values.Dynamic(t, values.DynamicKind.Intermediate, info, typeinfo)
+                var = values.SymbolValue(t, info)
                 self._bind(lhs, var)
             elif isinstance(lhs, ast.Tuple):
                 # Assignments of the form "x, y, z = op.SomeOp(...)"
@@ -1062,9 +1082,7 @@ class Converter:
                 for x, output in zip(lhs.elts, outputs):
                     self._bind(
                         x.id,
-                        values.Dynamic(
-                            output, values.DynamicKind.Intermediate, self._source_of(x)
-                        ),
+                        values.SymbolValue(output, self._source_of(x)),
                     )
             else:
                 self.fail(lhs, f"Unsupported construct in LHS of assignment: '{type(lhs)!r}'")
@@ -1111,10 +1129,11 @@ class Converter:
             preferred_name = f"return_val{suffix}"
             return_var = self._translate_expr(exp, preferred_name)  # TODO(rama)
             val = self._lookup(return_var.name, self._source_of(exp), False)
-            if val and val.kind == values.DynamicKind.Input:
-                # In ONNX, a graph-input cannot be an output of the graph.
-                # We need to insert a copy.
-                return_var = self._emit_copy(return_var, preferred_name)
+            if isinstance(val, values.SymbolValue) and isinstance(val.value, ir.Value):
+                if val.value.is_graph_input():
+                    # In ONNX, a graph-input cannot be an output of the graph.
+                    # We need to insert a copy.
+                    return_var = self._emit_copy(return_var, preferred_name)
             for prev_output in self._current_fn.outputs:
                 if prev_output.name == return_var.name:
                     # ONNX does not allow duplicate output names.
@@ -1158,13 +1177,9 @@ class Converter:
         live_defs = list(live_def_set)
         test = self._translate_expr(stmt.test, "cond")
         lineno = self._source_of(stmt).lineno
-        thenGraph = self._translate_block(
-            stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
-        )
+        thenGraph = self._translate_block(stmt.body, f"thenGraph_{lineno}", live_defs)
         thenAttr = self._make_onnx_attr("then_branch", thenGraph)
-        elseGraph = self._translate_block(
-            stmt.orelse, f"elseGraph_{lineno}", live_defs, parent_stmt=stmt
-        )
+        elseGraph = self._translate_block(stmt.orelse, f"elseGraph_{lineno}", live_defs)
         elseAttr = self._make_onnx_attr("else_branch", elseGraph)
 
         def rename(x):
@@ -1188,7 +1203,7 @@ class Converter:
         for x, y in zip(live_defs, if_outputs):
             self._bind(
                 x,
-                values.Dynamic(y, values.DynamicKind.Intermediate, self._source_of(stmt)),
+                values.SymbolValue(y, self._source_of(stmt)),
             )
 
     def _translate_loop_stmt(self, loop_stmt: Union[ast.For, ast.While]) -> None:
@@ -1196,7 +1211,7 @@ class Converter:
         if isinstance(loop_stmt, ast.For):
             if not isinstance(loop_stmt.target, ast.Name):
                 self.fail(loop_stmt, "For loop target must be a single variable.")
-            p_loop_var = loop_stmt.target.id
+            python_loop_var_name = loop_stmt.target.id
             # iter
             iter = loop_stmt.iter
             assert isinstance(iter, ast.Call), "Loop bound not a call."
@@ -1210,8 +1225,8 @@ class Converter:
                 self.fail(loop_stmt, "Unsupported loop bound, it should be 'range(?)'.")
             assert not iter.keywords, "Unsupported loop bound."
             o_loop_bound = self._translate_expr(iter.args[0], "loop_bound")
-            o_cond_var = ir.Value(name=self.generate_unique_name("cond_in"))  # TODO(Rama)
-            i_cond_var = o_cond_var
+            onnx_cond_var = ir.Value(name=self.generate_unique_name("cond_in"))  # TODO(Rama)
+            i_cond_var = onnx_cond_var
             cond_while = None
             o_loop_condition = None  # No condition for a for loop.
         elif isinstance(loop_stmt, ast.While):
@@ -1222,11 +1237,11 @@ class Converter:
                     "Unexpected condition type {type(loop_stmt)!r} for a while loop, "
                     "it should be 'while <condition_name>:'.",
                 )
-            p_loop_var = "infinite_loop"
+            python_loop_var_name = "infinite_loop"
             o_loop_bound = None
             i_cond_var = ir.Value(name=test.id)  # TODO(Rama)
             cond_while = ir.Value(name=test.id)  # TODO(Rama)
-            o_cond_var = None
+            onnx_cond_var = None
             o_loop_condition = self._translate_name_expr(test)
             # we need to go through all the instructions to see
             # which instruction defines the condition test.id
@@ -1246,19 +1261,16 @@ class Converter:
 
         # build loop_body
         self._enter_scope("loop_body", loop_stmt)
-        o_loop_var = self.generate_unique_name(p_loop_var)
-        self._current_fn.append_parameter(
-            make_value(
-                o_loop_var,
-                onnx_types.INT64,
-                self._source_of(loop_stmt),
-            )
+        onnx_loop_var_name = self.generate_unique_name(python_loop_var_name)
+        onnx_loop_var = make_value(
+            onnx_loop_var_name,
+            onnx_types.INT64,
+            self._source_of(loop_stmt),
         )
+        self._current_fn.append_parameter(onnx_loop_var)
         self._bind(
-            p_loop_var,
-            values.Dynamic(
-                ir.Value(name=o_loop_var), values.DynamicKind.Loop, self._source_of(loop_stmt)
-            ),
+            python_loop_var_name,
+            values.SymbolValue(onnx_loop_var, self._source_of(loop_stmt)),
         )
 
         self._current_fn.append_parameter(
@@ -1270,17 +1282,18 @@ class Converter:
         )
 
         for pv in loop_state_vars:
-            ov = self.generate_unique_name(pv)
+            onnx_var_name = self.generate_unique_name(pv)
             # TODO: retrieve the annotation for variable pv is any is specified.
             # typeinfo = self._eval_constant_expr(pv.annotation)
             typeinfo = None
             self._current_fn.append_parameter(
-                make_value(ov, typeinfo, self._source_of(loop_stmt))
+                make_value(onnx_var_name, typeinfo, self._source_of(loop_stmt))
             )
             self._bind(
                 pv,
-                values.Dynamic(
-                    ir.Value(name=ov), values.DynamicKind.Loop, self._source_of(loop_stmt)
+                values.SymbolValue(
+                    ir.Value(name=onnx_var_name),
+                    self._source_of(loop_stmt),
                 ),
             )
 
@@ -1313,7 +1326,7 @@ class Converter:
                 continue
             self._translate_stmt(s)
 
-        o_cond_out = self.generate_unique_name("cond_out")
+        onnx_cond_out_name = self.generate_unique_name("cond_out")
 
         if cond_while is not None:
             # Loop while
@@ -1324,35 +1337,35 @@ class Converter:
                     f"Unable to find condition variable {cond_while.name} in known "
                     f"variables {list(current_scope)!r}.",
                 )
-            o_cond_var = current_scope[cond_while.name].value
+            onnx_cond_var = current_scope[cond_while.name].value
 
         self.emit(
-            [o_cond_out],
+            [onnx_cond_out_name],
             values.Op(self.default_opset, operator_name),
-            [condition_name or o_cond_var],
+            [condition_name or onnx_cond_var],
             [],
         )
 
         self._current_fn.outputs.append(
             make_value(
-                o_cond_out,
+                onnx_cond_out_name,
                 onnx_types.BOOL,
                 self._source_of(loop_stmt),
             )
         )
         for pv in loop_state_vars:
-            ov = self._py_var_to_onnx_var(pv, self._source_of(loop_stmt))
-            if ov.name not in self._current_fn.assigned_names:
+            onnx_var = self._py_var_to_onnx_var(pv, self._source_of(loop_stmt))
+            if onnx_var.name not in self._current_fn.assigned_names:
                 # When converting the loop-body into a graph, we need to handle
                 # identity assignments of the form "x = y" inside the loop body
                 # specially if y represents a value computed outside the loop body.
                 # In this case, we create a copy of y, treating the statement as
                 # shorthand for "x = op.Identity(y)".
-                ov = self._emit_copy(ov, pv)
+                onnx_var = self._emit_copy(onnx_var, pv)
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
             self._current_fn.outputs.append(
-                make_value(ov.name, typeinfo, self._source_of(loop_stmt))
+                make_value(onnx_var.name, typeinfo, self._source_of(loop_stmt))
             )
         body = self._exit_scope()
         inputs = [o_loop_bound, o_loop_condition] + [
@@ -1375,56 +1388,51 @@ class Converter:
         if isinstance(loop_outputs, ir.Value):
             loop_outputs = [loop_outputs]
         for x, loop_output in zip(outputs, loop_outputs):
-            self._bind(x, values.Dynamic(loop_output, values.DynamicKind.Output, info))
+            self._bind(x, values.SymbolValue(loop_output, info))
 
     def _translate_block(
         self,
         stmts: Sequence[ast.stmt],
         name: str,
         live_defs: Sequence[str],
-        parent_stmt: ast.stmt,
-    ):
-        """Translation of a statement-block to GraphProto attribute."""
-        info_stmt = stmts[0] if len(stmts) > 0 else parent_stmt
-        source = self._source_of(info_stmt)
+    ) -> ir.Graph:
+        """Translation of a then/else statement-block to an ir.Graph."""
         self._enter_scope(name, None)
         for s in stmts:
             self._translate_stmt(s)
-        for pvar in live_defs:
-            if pvar in self._current_scope():
-                pv_val = self._current_scope()[pvar]
-                output = self._to_onnx_var(pv_val, pvar)
+        for python_var in live_defs:
+            if python_var in self._current_scope():
+                python_var_value = self._current_scope()[python_var]
+                output = self._to_onnx_var(python_var_value, python_var)
                 if output.name not in self._current_fn.assigned_names:
+                    # TODO (Rama): Unclear how this can happen. If python_var is in current_scope,
+                    # then it should have been assigned a value in the current graph.
+                    #
                     # To return an outer-scope variable, an ONNX Graph has to
                     # use an explicit copy via Identity.
-                    output = self._emit_copy(output, pvar)
-                self._current_fn.outputs.append(
-                    make_value(
-                        output.name,
-                        pv_val.typeinfo,
-                        source,
-                    )
-                )
+                    output = self._emit_copy(output, python_var)
+                self._current_fn.outputs.append(output)
             else:
-                pv_val = None
+                python_var_value = None
                 for scope in self._locals:  # TODO: skip _current_scope
-                    if pvar in scope:
-                        pv_val = scope[pvar]
+                    if python_var in scope:
+                        python_var_value = scope[python_var]
                         break
-                if pv_val is None:
+                if python_var_value is None:
                     self.fail(
                         stmts[0],
-                        f"ir.Value {pvar} is not assigned a value along a conditional "
+                        f"ir.Value {python_var} is not assigned a value along a conditional "
                         f"branch, known variables: {list(self._locals)}.",
                     )
                 # introduce a copy
-                ovar = self._emit_copy(self._to_onnx_var(pv_val, pvar), pvar)
+                output = self._emit_copy(
+                    self._to_onnx_var(python_var_value, python_var), python_var
+                )
 
                 # TODO: retrieve the annotation if any.
-                typeinfo = None
-                self._current_fn.outputs.append(make_value(ovar.name, typeinfo, source))
-        graph = self._exit_scope()
-        return graph.graph
+                self._current_fn.outputs.append(output)
+        function_ir = self._exit_scope()
+        return function_ir.graph
 
     def _translate_nested_function_def(self, fn: ast.FunctionDef) -> None:
         """Translate a nested function definition."""
@@ -1435,7 +1443,7 @@ class Converter:
         function_ir.outer_scope_variables = [
             (var, self._lookup(var, self._source_of(fn))) for var in outer_scope_vars
         ]
-        self._bind(fn.name, function_ir)
+        self._bind(fn.name, values.SymbolValue(function_ir, self._source_of(fn)))
         # TODO: Does not yet handle nested functions within nested functions.
         self._current_fn.add_nested_function(function_ir)
 
@@ -1463,17 +1471,15 @@ class Converter:
                 attribute_type = ta.pytype_to_attrtype(typeinfo)
                 attr = ir.Attr(x.arg, ir.AttributeType(attribute_type), default_value, None)
                 self._current_fn.append_parameter(attr)
-                self._bind(x.arg, values.AttrRef(x.arg, typeinfo, self._source_of(x)))
+                as_bool = ta.base_type_is_bool(typeinfo)
+                self._bind(x.arg, values.AttrRef(attr, as_bool, self._source_of(x)))
             else:
-                self._current_fn.append_parameter(
-                    make_value(x.arg, typeinfo, self._source_of(x))
-                )
+                onnx_parameter = make_value(x.arg, typeinfo, self._source_of(x))
+                self._current_fn.append_parameter(onnx_parameter)
                 self._used_vars.add(x.arg)
                 self._bind(
                     x.arg,
-                    values.Dynamic(
-                        ir.Value(name=x.arg), values.DynamicKind.Input, self._source_of(x)
-                    ),
+                    values.SymbolValue(onnx_parameter, self._source_of(x)),
                 )
         if fn.returns:
             type_annotation = self._eval_constant_expr(fn.returns)
