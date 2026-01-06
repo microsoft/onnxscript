@@ -1470,6 +1470,98 @@ def sample_inputs_replication_pad1d(op_info, device, dtype, requires_grad, **kwa
         yield opinfo_core.SampleInput(make_inp(shape), args=(pad,))
 
 
+def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    # roi_align signature: (input, boxes, output_size, spatial_scale=1.0, sampling_ratio=-1, aligned=False)
+
+    # Test 1: spatial_scale=1, sampling_ratio=2
+    x1 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi1 = torch.tensor([[0, 1.5, 1.5, 3, 3]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x1,
+        args=(roi1, (5, 5)),
+        kwargs={"spatial_scale": 1.0, "sampling_ratio": 2, "aligned": True},
+    )
+
+    # Test 2: spatial_scale=0.5, sampling_ratio=3
+    x2 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi2 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x2,
+        args=(roi2, (5, 5)),
+        kwargs={"spatial_scale": 0.5, "sampling_ratio": 3, "aligned": True},
+    )
+
+    # Test 3: spatial_scale=1.8, sampling_ratio=2
+    x3 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi3 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x3,
+        args=(roi3, (5, 5)),
+        kwargs={"spatial_scale": 1.8, "sampling_ratio": 2, "aligned": True},
+    )
+
+    # Test 4: spatial_scale=2.5, sampling_ratio=0, output_size=(2,2)
+    x4 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi4 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x4,
+        args=(roi4, (2, 2)),
+        kwargs={"spatial_scale": 2.5, "sampling_ratio": 0, "aligned": True},
+    )
+
+    # Test 5: spatial_scale=2.5, sampling_ratio=-1, output_size=(2,2)
+    x5 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi5 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x5,
+        args=(roi5, (2, 2)),
+        kwargs={"spatial_scale": 2.5, "sampling_ratio": -1, "aligned": True},
+    )
+
+    # Test 6: malformed boxes (test_roi_align_malformed_boxes)
+    x6 = torch.randn(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi6 = torch.tensor([[0, 2, 0.3, 1.5, 1.5]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x6,
+        args=(roi6, (5, 5)),
+        kwargs={"spatial_scale": 1.0, "sampling_ratio": 1, "aligned": True},
+    )
+
+    # Test 7: aligned=False, spatial_scale=1, sampling_ratio=2
+    x7 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi7 = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x7,
+        args=(roi7, (5, 5)),
+        kwargs={"spatial_scale": 1.0, "sampling_ratio": 2, "aligned": False},
+    )
+
+    # Test 8: aligned=False, spatial_scale=1, sampling_ratio=-1
+    x8 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi8 = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x8,
+        args=(roi8, (5, 5)),
+        kwargs={"spatial_scale": 1.0, "sampling_ratio": -1, "aligned": False},
+    )
+
+
+def sample_inputs_roi_pool(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    # roi_pool signature: (input, boxes, output_size, spatial_scale=1.0)
+
+    x = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    rois = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x,
+        args=(rois, (5, 5)),
+        kwargs={"spatial_scale": 2.0},
+    )
+
+
 def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -3036,6 +3128,20 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torchvision.ops.nms,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_non_max_suppression,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "torchvision.ops.roi_align",
+        op=torchvision.ops.roi_align,
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_roi_align,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "torchvision.ops.roi_pool",
+        op=torchvision.ops.roi_pool,
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_roi_pool,
         supports_out=False,
     ),
 ]
