@@ -1208,29 +1208,32 @@ def aten_bilinear(
     # bias shape: (out_features) - optional
     # output shape: (..., out_features)
 
+    # input1 and input2 must have identical batch dimensions
     # Use MatMul to compute the bilinear transformation
-    batch_size = op.Shape(input1, start=0, end=1)
+    batch_size = op.Shape(input1, start=0, end=-1)
     input1_shape = op.Shape(input1, start=-1)
     input2_shape = op.Shape(input2, start=-1)
     output_shape = op.Shape(weight, start=0, end=1)
     neg_1 = op.Constant(value_ints=[-1])
 
-    # (O, H1, H2) -> (H1, O, H2) where O = output_shape, H1 = input1_shape, H2 = input2_shape
+    # (out_features, in1_features, in2_features) -> (in1_features, out_features, in2_features)
     W_permute = op.Transpose(weight, perm=[1, 0, 2])
 
-    # (H1, O, H2) -> (H1, O * H2)
+    # (in1_features, out_features, in2_features) -> (in1_features, out_features * in2_features)
     W_flat = op.Reshape(
         W_permute,
         op.Concat(input1_shape, op.Mul(output_shape, input2_shape), axis=0),
     )
 
-    # (B, H1) @ (H1, O*H2) -> (B, O*H2)
+    # (..., in1_features) @ (in1_features, out_features * in2_features) -> (..., out_features * in2_features)
     tmp = op.MatMul(input1, W_flat)
 
-    # (B, O*H2) -> (B, O, H2)
+    # (..., out_features * in2_features) -> (..., out_features, in2_features)
     tmp = op.Reshape(tmp, op.Concat(batch_size, output_shape, input2_shape, axis=0))
 
-    # (B, H2) -> (B, H2, 1) -> (B, O, H2) @ (B, H2, 1) -> (B, O, 1) -> (B, O)
+    # (..., in2_features) -> (..., in2_features, 1)
+    #   -> (..., out_features, in2_features) @ (..., in2_features, 1)
+    #   -> (..., out_features, 1) -> (..., out_features)
     result = op.Squeeze(op.MatMul(tmp, op.Unsqueeze(input2, neg_1)), neg_1)
 
     if bias is not None:
