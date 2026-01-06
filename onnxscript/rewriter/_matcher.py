@@ -87,7 +87,7 @@ class SimplePatternMatcher(PatternMatcher):
             )
 
         try:
-            constant_value_numpy = constant_value.numpy()
+            numpy_value = constant_value.numpy()
         except FileNotFoundError:
             return self.fail(f"Constant value of {value.name} not available.")
 
@@ -95,11 +95,13 @@ class SimplePatternMatcher(PatternMatcher):
 
         if isinstance(pattern_constant_value, list):
             expected_shape = (len(pattern_constant_value),)
-            if constant_value_numpy.shape != expected_shape:
-                return self.fail(f"Value has mismatching shape, expecting {expected_shape}.")
+            if numpy_value.shape != expected_shape:
+                return self.fail(
+                    f"Value {value.name} has shape {numpy_value.shape}, expecting {expected_shape}."
+                )
             if not all(
                 math.isclose(
-                    constant_value_numpy.item(i),
+                    numpy_value.item(i),
                     pattern_constant_value[i],
                     rel_tol=pattern_constant._rel_tol,
                     abs_tol=pattern_constant._abs_tol,
@@ -107,24 +109,24 @@ class SimplePatternMatcher(PatternMatcher):
                 for i in range(len(pattern_constant_value))
             ):
                 return self.fail(
-                    f"Value mismatch: expected {pattern_constant_value}, got {constant_value_numpy}."
+                    f"Value mismatch: expected {pattern_constant_value}, got {numpy_value}."
                 )
             return True
 
         # TODO (rama): allow users to specify shape requirement, if desired.
-        if constant_value_numpy.size != 1:
+        if numpy_value.ndim != 0:
             return self.fail(
                 f"Value {value.name} is not a scalar, expecting {pattern_constant_value}.",
             )
 
         if not math.isclose(
-            constant_value_numpy.item(),
+            numpy_value.item(),
             pattern_constant_value,
             rel_tol=pattern_constant._rel_tol,
             abs_tol=pattern_constant._abs_tol,
         ):
             return self.fail(
-                f"Constant value mismatch: expected {pattern_constant_value}, got {constant_value_numpy.item()}.",
+                f"Constant value mismatch: expected {pattern_constant_value}, got {numpy_value.item()}.",
             )
 
         return True

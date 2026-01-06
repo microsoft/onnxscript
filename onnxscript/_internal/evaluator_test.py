@@ -4,7 +4,8 @@ import unittest
 
 import numpy as np
 
-from onnxscript import evaluator, graph, script
+from onnxscript import graph, script
+from onnxscript._internal import evaluator
 from onnxscript.onnx_opset import opset17 as op
 from onnxscript.onnx_types import FLOAT
 

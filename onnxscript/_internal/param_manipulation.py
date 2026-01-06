@@ -7,7 +7,7 @@ from __future__ import annotations
 import collections
 from typing import Any, OrderedDict, Sequence
 
-from onnxscript import values
+from onnxscript._internal import values
 
 
 def separate_input_attributes_from_arguments(

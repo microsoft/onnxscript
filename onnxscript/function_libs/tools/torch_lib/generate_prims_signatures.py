@@ -16,7 +16,6 @@ import textwrap
 from typing import Any, Dict, List, Sequence
 
 import torch
-import torchgen.gen
 import torchgen.model
 from torch._ops import _OpNamespace
 from torchgen.model import FunctionSchema

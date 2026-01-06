@@ -59,8 +59,8 @@ def make_model(
         minus_inf_10x10 = opset18.ConstantOfShape([10, 10], [-3.4028234663852886e38])
         mask_10x10 = opset18.Trilu(minus_inf_10x10, 1)
         slice_5 = opset18.Reshape(mask_10x10, [1, 1, 10, 10])
-        unsqueeze_2 = opset18.Unsqueeze(input1, 1)
-        unsqueeze_3 = opset18.Unsqueeze(unsqueeze_2, 2)
+        unsqueeze_2 = opset18.Unsqueeze(input1, [1])
+        unsqueeze_3 = opset18.Unsqueeze(unsqueeze_2, [2])
         add = slice_5 + unsqueeze_3
         eq = add == 0.0
         slice_10 = slice_5
@@ -69,7 +69,7 @@ def make_model(
         slice_scatter = opset18.Transpose(val_179, perm=[2, 1, 0, 3])
         val_191 = opset18.Transpose(slice_scatter, perm=[1, 0, 2, 3])
         slice_scatter_1 = opset18.Transpose(val_191, perm=[1, 0, 2, 3])
-        unsqueeze_6 = opset18.Unsqueeze(input2, 1)
+        unsqueeze_6 = opset18.Unsqueeze(input2, [1])
         to_copy_1 = opset18.Cast(unsqueeze_6, to=1)
         view_1 = opset18.Constant(
             value=ir.tensor(
@@ -138,8 +138,8 @@ def make_model(
         transpose_2 = opset18.Transpose(view_11, perm=[0, 2, 1, 3])
         view_12 = opset18.Reshape(view_9, [1, 10, 32, 64], allowzero=0)
         transpose_3 = opset18.Transpose(view_12, perm=[0, 2, 1, 3])
-        unsqueeze_7 = opset18.Unsqueeze(cos, 1)
-        unsqueeze_8 = opset18.Unsqueeze(sin, 1)
+        unsqueeze_7 = opset18.Unsqueeze(cos, [1])
+        unsqueeze_8 = opset18.Unsqueeze(sin, [1])
         mul_5 = transpose_1 * unsqueeze_7
         val_267 = opset18.Constant(value_ints=[1])
         slice_19 = opset18.Slice(transpose_1, [0], [32], [3], val_267)

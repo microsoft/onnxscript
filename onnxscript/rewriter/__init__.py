@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Sequence, TypeVar, Union
 
 __all__ = [
+    "merge_metadata",
     "pattern",
     "rewrite",
     "RewritePass",
@@ -16,6 +17,7 @@ __all__ = [
     "RewriterContext",
     "MatchingTracer",
     "MatchStatus",
+    "RULE_NAME_TAG",
 ]
 
 import onnx
@@ -25,10 +27,12 @@ from onnxscript import ir
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchContext, MatchingTracer, MatchResult, MatchStatus
 from onnxscript.rewriter._rewrite_rule import (
+    RULE_NAME_TAG,
     RewriterContext,
     RewriteRule,
     RewriteRuleClassBase,
     RewriteRuleSet,
+    merge_metadata,
 )
 from onnxscript.rewriter.rules.common import (
     _basic_rules,

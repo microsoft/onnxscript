@@ -55,6 +55,7 @@ __all__ = [
     "opset20",
     "opset21",
     "opset22",
+    "opset23",
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
@@ -65,8 +66,8 @@ __all__ = [
 
 import importlib.metadata
 
+from ._internal.main import export_onnx_lib, graph, script
 from .backend.onnx_export import export2python as proto2python
-from .main import export_onnx_lib, graph, script
 
 # isort: off
 from .onnx_opset import (
@@ -92,6 +93,7 @@ from .onnx_opset import (
     opset20,
     opset21,
     opset22,
+    opset23,
     opset_ai_onnx_ml1,
     opset_ai_onnx_ml2,
     opset_ai_onnx_ml3,
@@ -126,7 +128,7 @@ from .onnx_types import (
 
 from . import ir, optimizer, rewriter, version_converter
 from ._internal.utils import external_tensor
-from .values import OnnxFunction, TracedOnnxFunction
+from ._internal.values import OnnxFunction, TracedOnnxFunction
 
 # Set DEBUG to True to enable additional debug checks
 DEBUG: bool = False

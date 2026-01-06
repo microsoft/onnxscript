@@ -7,7 +7,7 @@ import typing
 import unittest
 
 import onnxscript
-from onnxscript import values
+from onnxscript._internal import values
 
 
 class TracedOnnxFunctionTest(unittest.TestCase):

@@ -148,8 +148,8 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         sin = op.Sin(emb)
         if self._cast:
             sin = op.Cast(sin, to=dtype)
-        cos_4d = op.Unsqueeze(cos, 1)  # convert
-        sin_4d = op.Unsqueeze(sin, 1)
+        cos_4d = op.Unsqueeze(cos, [1])  # convert
+        sin_4d = op.Unsqueeze(sin, [1])
         return op.RotaryEmbedding(
             x,
             cos_4d,

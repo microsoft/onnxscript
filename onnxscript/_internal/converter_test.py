@@ -23,7 +23,8 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 
 import onnxscript
 import onnxscript.testing
-from onnxscript import BOOL, FLOAT, INT64, converter, graph, script, tensor
+from onnxscript import BOOL, FLOAT, INT64, graph, script, tensor
+from onnxscript._internal import converter
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
 from tests.common import onnx_script_test_case, testutils
@@ -235,7 +236,7 @@ class TestConverter(testutils.TestBase):
     def test_subfunction_check_model(self):
         from tests.models import subfunction
 
-        model = subfunction.MyElu.function_ir.to_model_proto(producer_name="p2o")
+        model = subfunction.MyElu.to_model_proto(producer_name="p2o")
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
 
@@ -709,6 +710,67 @@ class TestConverter(testutils.TestBase):
 
         self.assertEqual(len(onnx_opset_import), 1)
         self.assertEqual(onnx_opset_import[0].version, 19)
+
+    def test_traced_if(self):
+        """Test that traced if statements are converted correctly."""
+
+        @script()
+        def add_model(x: FLOAT[10]) -> FLOAT[10]:
+            y = op.Add(x, x)
+            return y
+
+        @script()
+        def sub_model(x: FLOAT[10]) -> FLOAT[10]:
+            y = op.Sub(x, x)
+            return y
+
+        def make_model(flag: bool):
+            @script()
+            def model(x: FLOAT[10]) -> FLOAT[10]:
+                if flag:
+                    y = op.Add(x, x)
+                else:
+                    y = op.Sub(x, x)
+                return y
+
+            return model.to_model_proto()
+
+        model_true = make_model(True)
+        onnxscript.testing.assert_isomorphic(model_true, add_model.to_model_proto())
+
+        model_false = make_model(False)
+        onnxscript.testing.assert_isomorphic(model_false, sub_model.to_model_proto())
+
+    def test_type_annotation(self):
+        """Test that type annotations are processed correctly."""
+
+        @script()
+        def model(x: FLOAT[10]) -> FLOAT[10]:
+            temp: FLOAT[10] = op.Add(x, x)
+            y = op.Mul(temp, temp)
+            return y
+
+        model_proto = model.to_model_proto()
+        input_type = model_proto.graph.input[0].type.tensor_type
+        output_type = model_proto.graph.output[0].type.tensor_type
+        temp_value_info = None
+        for value_info in model_proto.graph.value_info:
+            if value_info.name == "temp":
+                temp_value_info = value_info
+                break
+        self.assertIsNotNone(temp_value_info, "ValueInfo for 'temp' not found in graph.")
+        temp_type = temp_value_info.type.tensor_type
+        self.assertEqual(temp_type.elem_type, onnx.TensorProto.FLOAT)
+        self.assertEqual(len(temp_type.shape.dim), 1)
+        self.assertEqual(temp_type.shape.dim[0].dim_value, 10)
+
+        self.assertEqual(input_type.elem_type, onnx.TensorProto.FLOAT)
+        self.assertEqual(len(input_type.shape.dim), 1)
+        self.assertEqual(input_type.shape.dim[0].dim_value, 10)
+
+        self.assertEqual(output_type.elem_type, onnx.TensorProto.FLOAT)
+        self.assertEqual(len(output_type.shape.dim), 1)
+        self.assertEqual(output_type.shape.dim[0].dim_value, 10)
 
 
 if __name__ == "__main__":

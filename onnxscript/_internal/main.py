@@ -11,8 +11,8 @@ from typing import Any, Callable, Optional, Sequence, TypeVar
 from typing_extensions import ParamSpec
 
 import onnxscript
-from onnxscript import converter, ir, irbuilder, values
-from onnxscript._internal import ast_utils
+from onnxscript import ir
+from onnxscript._internal import ast_utils, converter, irbuilder, values
 
 _R = TypeVar("_R")
 _P = ParamSpec("_P")

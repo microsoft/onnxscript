@@ -3,7 +3,6 @@
 import unittest
 
 import numpy as np
-import onnx
 import onnx.checker
 import onnx.shape_inference
 import onnxruntime

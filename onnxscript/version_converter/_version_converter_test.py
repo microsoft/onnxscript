@@ -144,7 +144,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(3).version, 20)
         self.assertEqual(model.graph.node(3).op_type, "DFT")
         self.assertEqual(model.graph.node(3).version, 20)
-        self.assertEqual(len(model.graph.node(3).inputs), 2)
+        self.assertEqual(len(model.graph.node(3).inputs), 3)
 
     def test_version_convert_gridsample_linear(self):
         model = ir.from_onnx_text(
@@ -241,7 +241,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(4).attributes["mode"].value, "linear")
         self.assertEqual(model.graph.node(6).op_type, "DFT")
         self.assertEqual(model.graph.node(6).version, 20)
-        self.assertEqual(len(model.graph.node(6).inputs), 2)
+        self.assertEqual(len(model.graph.node(6).inputs), 3)
 
 
 class VersionConverter20to21Test(unittest.TestCase):

@@ -45,7 +45,7 @@ class TestCosSinCacheTransform(unittest.TestCase):
         original_outputs = ort_run("original", model, inputs)
         count = fuse_rotary_embedding(model)
         self.assertGreater(count, 0)
-        count = fuse_cos_sin_cache(model)
+        count = fuse_cos_sin_cache(model, debug=True)
         self.assertGreater(count, 0)
         new_outputs = ort_run("optimized", model, inputs)
         assert_allclose(new_outputs, original_outputs)
