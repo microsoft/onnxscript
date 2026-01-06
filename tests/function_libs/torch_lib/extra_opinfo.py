@@ -1476,8 +1476,8 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     # roi_align signature: (input, boxes, output_size, spatial_scale=1.0, sampling_ratio=-1, aligned=False)
 
     # Test 1: spatial_scale=1, sampling_ratio=2
-    x1 = torch.rand(1, 1, 10, 10, dtype=torch.float32)
-    roi1 = torch.tensor([[0, 1.5, 1.5, 3, 3]], dtype=torch.float32)
+    x1 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi1 = torch.tensor([[0, 1.5, 1.5, 3, 3]], dtype=dtype, device=device)
     yield opinfo_core.SampleInput(
         x1,
         args=(roi1, (5, 5)),
@@ -1485,8 +1485,8 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     )
 
     # Test 2: spatial_scale=0.5, sampling_ratio=3
-    x2 = torch.rand(1, 1, 10, 10, dtype=torch.float32)
-    roi2 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=torch.float32)
+    x2 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi2 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
     yield opinfo_core.SampleInput(
         x2,
         args=(roi2, (5, 5)),
@@ -1494,8 +1494,8 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     )
 
     # Test 3: spatial_scale=1.8, sampling_ratio=2
-    x3 = torch.rand(1, 1, 10, 10, dtype=torch.float32)
-    roi3 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=torch.float32)
+    x3 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi3 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
     yield opinfo_core.SampleInput(
         x3,
         args=(roi3, (5, 5)),
@@ -1503,8 +1503,8 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     )
 
     # Test 4: spatial_scale=2.5, sampling_ratio=0, output_size=(2,2)
-    x4 = torch.rand(1, 1, 10, 10, dtype=torch.float32)
-    roi4 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=torch.float32)
+    x4 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi4 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
     yield opinfo_core.SampleInput(
         x4,
         args=(roi4, (2, 2)),
@@ -1512,8 +1512,8 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     )
 
     # Test 5: spatial_scale=2.5, sampling_ratio=-1, output_size=(2,2)
-    x5 = torch.rand(1, 1, 10, 10, dtype=torch.float32)
-    roi5 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=torch.float32)
+    x5 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi5 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
     yield opinfo_core.SampleInput(
         x5,
         args=(roi5, (2, 2)),
@@ -1521,8 +1521,8 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     )
 
     # Test 6: malformed boxes (test_roi_align_malformed_boxes)
-    x6 = torch.randn(1, 1, 10, 10, dtype=torch.float32)
-    roi6 = torch.tensor([[0, 2, 0.3, 1.5, 1.5]], dtype=torch.float32)
+    x6 = torch.randn(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi6 = torch.tensor([[0, 2, 0.3, 1.5, 1.5]], dtype=dtype, device=device)
     yield opinfo_core.SampleInput(
         x6,
         args=(roi6, (5, 5)),
@@ -1530,8 +1530,8 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     )
 
     # Test 7: aligned=False, spatial_scale=1, sampling_ratio=2
-    x7 = torch.rand(1, 1, 10, 10, dtype=torch.float32)
-    roi7 = torch.tensor([[0, 0, 0, 4, 4]], dtype=torch.float32)
+    x7 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi7 = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
     yield opinfo_core.SampleInput(
         x7,
         args=(roi7, (5, 5)),
@@ -1539,8 +1539,8 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     )
 
     # Test 8: aligned=False, spatial_scale=1, sampling_ratio=-1
-    x8 = torch.rand(1, 1, 10, 10, dtype=torch.float32)
-    roi8 = torch.tensor([[0, 0, 0, 4, 4]], dtype=torch.float32)
+    x8 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi8 = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
     yield opinfo_core.SampleInput(
         x8,
         args=(roi8, (5, 5)),
@@ -1553,8 +1553,8 @@ def sample_inputs_roi_pool(op_info, device, dtype, requires_grad, **kwargs):
     del kwargs
     # roi_pool signature: (input, boxes, output_size, spatial_scale=1.0)
 
-    x = torch.rand(1, 1, 10, 10, dtype=torch.float32)
-    rois = torch.tensor([[0, 0, 0, 4, 4]], dtype=torch.float32)
+    x = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    rois = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
     yield opinfo_core.SampleInput(
         x,
         args=(rois, (5, 5)),
