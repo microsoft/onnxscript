@@ -1474,7 +1474,6 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
     # roi_align signature: (input, boxes, output_size, spatial_scale=1.0, sampling_ratio=-1, aligned=False)
-    # All tests use aligned=True as per the examples
 
     # Test 1: spatial_scale=1, sampling_ratio=2
     x1 = torch.rand(1, 1, 10, 10, dtype=torch.float32)
@@ -1528,6 +1527,24 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
         x6,
         args=(roi6, (5, 5)),
         kwargs={"spatial_scale": 1.0, "sampling_ratio": 1, "aligned": True},
+    )
+
+    # Test 7: aligned=False, spatial_scale=1, sampling_ratio=2
+    x7 = torch.rand(1, 1, 10, 10, dtype=torch.float32)
+    roi7 = torch.tensor([[0, 0, 0, 4, 4]], dtype=torch.float32)
+    yield opinfo_core.SampleInput(
+        x7,
+        args=(roi7, (5, 5)),
+        kwargs={"spatial_scale": 1.0, "sampling_ratio": 2, "aligned": False},
+    )
+
+    # Test 8: aligned=False, spatial_scale=1, sampling_ratio=-1
+    x8 = torch.rand(1, 1, 10, 10, dtype=torch.float32)
+    roi8 = torch.tensor([[0, 0, 0, 4, 4]], dtype=torch.float32)
+    yield opinfo_core.SampleInput(
+        x8,
+        args=(roi8, (5, 5)),
+        kwargs={"spatial_scale": 1.0, "sampling_ratio": -1, "aligned": False},
     )
 
 
