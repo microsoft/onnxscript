@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
+from typing import Sequence
 
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.onnx_opset import opset18 as op
@@ -19,6 +19,7 @@ _INT64_MAX = 0x7FFFFFFFFFFFFFFF
 
 @torch_op("torchvision::nms", trace_only=True)
 def torchvision_nms(boxes: FLOAT, scores: FLOAT, iou_threshold: float) -> INT64:
+    """nms(boxes: torch.Tensor, scores: torch.Tensor, iou_threshold: float) -> torch.Tensor"""
     # boxes: [num_batches, spatial_dimension, 4]
     boxes = op.Unsqueeze(boxes, [0])
     # scores: [num_batches, num_classes, spatial_dimension]
@@ -60,6 +61,7 @@ def torchvision_roi_align(
     sampling_ratio: int = -1,
     aligned: bool = False,
 ):
+    """roi_align(input: torch.Tensor, boxes: Union[torch.Tensor, list[torch.Tensor]], output_size: None, spatial_scale: float = 1.0, sampling_ratio: int = -1, aligned: bool = False) -> torch.Tensor"""
     pooled_height, pooled_width = output_size
     batch_indices = _process_batch_indices_for_roi_align(boxes)
     rois_coords = _process_rois_for_roi_align(boxes)
@@ -79,13 +81,13 @@ def torchvision_roi_align(
 
 
 @torch_op("torchvision::roi_pool", trace_only=True)
-def torchvision_roi_pool(
-    input, rois, spatial_scale: float, pooled_height: int, pooled_width: int
-):
-    # MaxRoiPool expects rois in format [batch_index, x1, y1, x2, y2]
+def torchvision_roi_pool(input, boxes, output_size: Sequence[int], spatial_scale: float = 1.0):
+    """roi_pool(input: torch.Tensor, boxes: Union[torch.Tensor, list[torch.Tensor]], output_size: None, spatial_scale: float = 1.0) -> torch.Tensor"""
+    # MaxRoiPool expects boxes in format [batch_index, x1, y1, x2, y2]
+    pooled_height, pooled_width = output_size
     return op.MaxRoiPool(
         input,
-        rois,
+        boxes,
         pooled_shape=(pooled_height, pooled_width),
         spatial_scale=spatial_scale,
     )

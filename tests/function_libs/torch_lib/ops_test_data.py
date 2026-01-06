@@ -1873,6 +1873,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like),
     TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
     TorchLibOpInfo("torchvision.ops.roi_align", vision_ops.torchvision_roi_align),
+    TorchLibOpInfo("torchvision.ops.roi_pool", vision_ops.torchvision_roi_pool),
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim", "all_dims"))

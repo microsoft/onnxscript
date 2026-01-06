@@ -1548,6 +1548,20 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     )
 
 
+def sample_inputs_roi_pool(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    # roi_pool signature: (input, boxes, output_size, spatial_scale=1.0)
+
+    x = torch.rand(1, 1, 10, 10, dtype=torch.float32)
+    rois = torch.tensor([[0, 0, 0, 4, 4]], dtype=torch.float32)
+    yield opinfo_core.SampleInput(
+        x,
+        args=(rois, (5, 5)),
+        kwargs={"spatial_scale": 2.0},
+    )
+
+
 def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -3121,6 +3135,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torchvision.ops.roi_align,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_roi_align,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "torchvision.ops.roi_pool",
+        op=torchvision.ops.roi_pool,
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_roi_pool,
         supports_out=False,
     ),
 ]
