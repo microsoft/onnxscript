@@ -18,7 +18,6 @@ import math
 from typing import Optional, Sequence, Tuple, TypeVar, Union
 
 from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64, ir
-from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -32,7 +31,6 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _MATH_PI = math.pi
-Rank = common_ops.Rank
 
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
@@ -116,6 +114,33 @@ def _adjust_attributes_of_avg_pool(
     return (kernel_shape, strides, pads)
 
 
+def _aten_avg_pool_onnx(
+    self: TFloat,
+    kernel_shape: Sequence[int],
+    strides: Sequence[int],
+    pads: Sequence[int],
+    ceil_mode: bool,
+    count_include_pad: bool,
+) -> TFloat:
+    self_rank_is_unbatched_rank = len(self.shape) == len(kernel_shape) + 1
+    if self_rank_is_unbatched_rank:  # C,H,W -> N,C,H,W and N=1
+        self = op.Unsqueeze(self, [0])
+
+    result = op.AveragePool(
+        self,
+        ceil_mode=ceil_mode,
+        count_include_pad=count_include_pad,
+        kernel_shape=kernel_shape,
+        pads=pads,
+        strides=strides,
+    )
+
+    if self_rank_is_unbatched_rank:
+        result = op.Squeeze(result, [0])
+
+    return result
+
+
 @torch_op("aten::avg_pool1d", trace_only=True)
 def aten_avg_pool1d(
     self: TFloat,
@@ -136,16 +161,7 @@ def aten_avg_pool1d(
         expand_size, kernel_size, stride, padding
     )
 
-    result = op.AveragePool(
-        self,
-        ceil_mode=ceil_mode,
-        count_include_pad=count_include_pad,
-        kernel_shape=kernel_shape,
-        pads=pads,
-        strides=strides,
-    )
-
-    return result
+    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
 
 @torch_op("aten::avg_pool2d", trace_only=True)
@@ -169,15 +185,6 @@ def aten_avg_pool2d(
         expand_size, kernel_size, stride, padding
     )
 
-    result = op.AveragePool(
-        self,
-        ceil_mode=ceil_mode,
-        count_include_pad=count_include_pad,
-        kernel_shape=kernel_shape,
-        pads=pads,
-        strides=strides,
-    )
-
     # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
     # mask = [
     #    1, 2, 3, S,..3, 2, 1
@@ -191,7 +198,7 @@ def aten_avg_pool2d(
     # S is stride size, in this case S=4,
     # S may dup lot of times according to the image size
 
-    return result
+    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
 
 def aten_avg_pool2d_backward(
@@ -230,15 +237,6 @@ def aten_avg_pool3d(
         expand_size, kernel_size, stride, padding
     )
 
-    result = op.AveragePool(
-        self,
-        kernel_shape=kernel_shape,
-        strides=strides,
-        pads=pads,
-        count_include_pad=count_include_pad,
-        ceil_mode=ceil_mode,
-    )
-
     # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
     # mask = [
     #    1, 2, 3, S,..3, 2, 1
@@ -252,7 +250,7 @@ def aten_avg_pool3d(
     # S is stride size, in this case S=4,
     # S may dup lot of times according to the image size
 
-    return result
+    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
 
 def aten_avg_pool3d_backward(
@@ -294,20 +292,16 @@ def aten_binary_cross_entropy_backward(
 
 
 @torch_op("aten::celu", trace_only=True)
-def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
+def aten_celu(self: TFloat, alpha: float = 1.0) -> TFloat:
     """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
 
-    return op.Celu(self, alpha=alpha)  # op.Celu only support float32
+    if self.dtype != FLOAT.dtype:
+        self_upcasted = op.Cast(self, to=FLOAT.dtype)
 
+        # op.Celu only support float32
+        return op.Cast(op.Celu(self_upcasted, alpha=alpha), to=self.dtype)
 
-@torch_op("aten::celu", trace_only=True)
-def aten_celu_type_promoted(
-    self: TFloatUnlessFloat32, alpha: float = 1.0
-) -> TFloatUnlessFloat32:
-    """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
-
-    self_upcasted = op.Cast(self, to=FLOAT.dtype)
-    return op.CastLike(op.Celu(self_upcasted, alpha=alpha), self)
+    return op.Celu(self, alpha=alpha)
 
 
 @torch_op("aten::col2im", trace_only=True)
@@ -334,7 +328,6 @@ def aten_col2im(
     else:  # assert len(padding) == 4, already [w, x, y, z]
         pads = padding
 
-    # Only one ONNX op here so didn't write a private function
     return op.Col2Im(
         self,
         output_size,
@@ -580,7 +573,7 @@ def aten_group_norm(
     norm = op.Reshape(norm, op.Shape(input))
     # Using the input weight and bias to do affine
     # But need to unsqueeze to the target shape for broading cast easy
-    input_rank = Rank(input)
+    input_rank = len(input.shape)
     one = op.Constant(value_int=1)
     axes_unsqueeze = op.Range(one, op.Sub(input_rank, one), one)
     weight_full_shape = op.Unsqueeze(weight, axes_unsqueeze)
@@ -1003,7 +996,7 @@ def _aten_max_pool_onnx(
     ceil_mode: bool,
     unbatched_rank: int,
 ) -> TFloatOrUInt8:
-    self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
+    self_rank_is_unbatched_rank = len(self.shape) == unbatched_rank
     if self_rank_is_unbatched_rank:  # C,H,W -> N,C,H,W and N=1
         self = op.Unsqueeze(self, [0])
 
@@ -1137,7 +1130,7 @@ def _aten_max_pool_with_indices_onnx(
     n_dims_zero: Sequence[int],
     n_dims_axes: Sequence[int],
 ) -> Tuple[TFloatOrUInt8, INT64]:
-    self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
+    self_rank_is_unbatched_rank = len(self.shape) == unbatched_rank
     if self_rank_is_unbatched_rank:
         self = op.Unsqueeze(self, axes=[0])
 
@@ -1366,11 +1359,11 @@ def aten_nll_loss(
 ) -> TFloat:
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
-    self_rank_is_1 = Rank(self) == 1
+    self_rank_is_1 = len(self.shape) == 1
     if self_rank_is_1:  # self rank should be at least 2
         self = op.Unsqueeze(self, [0])
 
-    rank_target = Rank(target)
+    rank_target = len(target.shape)
     if rank_target == 0:  # target rank should be at least 1
         target = op.Unsqueeze(target, [0])
 
@@ -1804,7 +1797,7 @@ def aten_scaled_dot_product_attention(
     query: TFloat,
     key: TFloat,
     value: TFloat,
-    attn_mask: Optional[TFloat] = None,
+    attn_mask: Optional[TensorType] = None,
     dropout_p: float = 0.0,
     is_causal: bool = False,
     scale: Optional[float] = None,
@@ -1852,6 +1845,11 @@ def aten_scaled_dot_product_attention(
     if attn_mask is None:
         return _aten_scaled_dot_product_attention_no_mask_onnx(
             query, key, value, scale, dropout_p
+        )
+
+    if attn_mask.dtype == ir.DataType.BOOL:
+        return _aten_scaled_dot_product_attention_bool_mask_onnx(
+            query, key, value, attn_mask, scale, dropout_p
         )
 
     return _aten_scaled_dot_product_attention_float_mask_onnx(
@@ -1921,7 +1919,6 @@ def aten__scaled_dot_product_flash_attention(
     )
 
 
-@torch_op("aten::_scaled_dot_product_efficient_attention", private=True)
 def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
     query: TFloat,
     compute_log_sumexp: bool,
@@ -2013,64 +2010,6 @@ def aten__scaled_dot_product_efficient_attention(
         logsumexp,
         empty_tensor_int,
         empty_tensor_int,
-    )
-
-
-@torch_op("aten::scaled_dot_product_attention", trace_only=True)
-def aten_scaled_dot_product_attention_bool_mask(
-    query: TFloat,
-    key: TFloat,
-    value: TFloat,
-    attn_mask: Optional[BOOL] = None,
-    dropout_p: float = 0.0,
-    is_causal: bool = False,
-    scale: Optional[float] = None,
-    enable_gqa: bool = False,
-) -> TFloat:
-    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None, bool enable_gqa=False) -> Tensor
-
-    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
-
-    Equivalent to the PyTorch code::
-        scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
-        attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
-        attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
-        attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
-        attn_weight = torch.dropout(attn_weight, dropout_p)
-        return attn_weight @ V
-
-    where Q, K, V are the query, key, and value tensors, respectively.
-    L is the target sequence length, S is the source sequence length, and E is the embedding size.
-    """
-    # Use trace_only to handle optional inputs
-    assert (not is_causal) or (is_causal and attn_mask is None), (
-        "is_causal and attn_mask cannot be set at the same time"
-    )
-    assert len(query.shape) == 4 and len(key.shape) == 4 and len(value.shape) == 4, (
-        "only 4D query, key, and value are supported"
-    )
-
-    if scale is None:
-        scale = _attention_scale(query)
-    scale = op.CastLike(scale, query)
-
-    if is_causal:
-        attn_mask = _causal_attention_mask(query, key)
-        # The causal mask is always float
-        return _aten_scaled_dot_product_attention_float_mask_onnx(
-            query, key, value, attn_mask, scale, dropout_p
-        )
-
-    if enable_gqa:
-        key, value = _attention_repeat_kv_for_group_query(query, key, value)
-
-    if attn_mask is None:
-        return _aten_scaled_dot_product_attention_no_mask_onnx(
-            query, key, value, scale, dropout_p
-        )
-
-    return _aten_scaled_dot_product_attention_bool_mask_onnx(
-        query, key, value, attn_mask, scale, dropout_p
     )
 
 

@@ -28,14 +28,24 @@ common_opset = onnxscript.values.Opset(domain=DOMAIN, version=1)
 
 @onnxscript.script(common_opset)
 def Rank(input: tensor_typing.TTensor) -> INT64:
-    """Take the rank of the input tensor."""
+    """Deprecated.
+
+    NOTE: Do not remove, for backward compatibility with PyTorch < 2.10.
+
+    Take the rank of the input tensor.
+    """
 
     return op.Size(op.Shape(input))
 
 
 @onnxscript.script(common_opset)
 def IsScalar(input: tensor_typing.TTensor) -> BOOL:
-    """Return whether the input has rank 0, or is a scalar."""
+    """Deprecated.
+
+    NOTE: Do not remove, for backward compatibility with PyTorch < 2.10.
+
+    Return whether the input has rank 0, or is a scalar.
+    """
 
     return op.Equal(op.Size(op.Shape(input)), op.Constant(value_int=0))
 

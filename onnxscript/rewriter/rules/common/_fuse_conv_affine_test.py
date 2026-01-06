@@ -18,9 +18,7 @@ class FuseConvAffineTest(unittest.TestCase):
 
     def test_conv_affine_fusion(self):
         tape = ir.tape.Tape()
-        x = ir.Input(
-            "x", shape=ir.Shape([1, 3, 32, 32]), type=ir.TensorType(ir.DataType.FLOAT)
-        )
+        x = ir.val("x", dtype=ir.DataType.FLOAT, shape=ir.Shape([1, 3, 32, 32]))
         w = tape.initializer(ir.tensor(np.ones((3, 3, 3, 3), dtype=np.float32), name="w"))
         b = tape.initializer(ir.tensor(np.ones((3,), dtype=np.float32), name="b"))
         scale = tape.initializer(ir.tensor(np.array([2.0], dtype=np.float32), name="scale"))
@@ -31,10 +29,10 @@ class FuseConvAffineTest(unittest.TestCase):
         z = tape.op(
             "Add",
             [mul_out, offset],
-            output=ir.Input(
+            output=ir.val(
                 "z",
+                dtype=ir.DataType.FLOAT,
                 shape=ir.Shape([1, 3, 32, 32]),
-                type=ir.TensorType(ir.DataType.FLOAT),
             ),
         )
 
@@ -65,9 +63,7 @@ class FuseConvAffineTest(unittest.TestCase):
 
     def test_affine_conv_fusion_without_pad(self):
         tape = ir.tape.Tape()
-        x = ir.Input(
-            "x", shape=ir.Shape([1, 3, 32, 32]), type=ir.TensorType(ir.DataType.FLOAT)
-        )
+        x = ir.val("x", dtype=ir.DataType.FLOAT, shape=ir.Shape([1, 3, 32, 32]))
         w = tape.initializer(ir.tensor(np.ones((3, 3, 3, 3), dtype=np.float32), name="w"))
         b = tape.initializer(ir.tensor(np.ones((3,), dtype=np.float32), name="b"))
         scale = tape.initializer(ir.tensor(np.array([2.0], dtype=np.float32), name="scale"))
@@ -77,10 +73,10 @@ class FuseConvAffineTest(unittest.TestCase):
         z = tape.op(
             "Add",
             [mul_out, offset],
-            output=ir.Input(
+            output=ir.val(
                 "z",
+                dtype=ir.DataType.FLOAT,
                 shape=ir.Shape([1, 3, 32, 32]),
-                type=ir.TensorType(ir.DataType.FLOAT),
             ),
         )
         conv_out = tape.op("Conv", [z, w, b], attributes={"pads": [0, 0, 0, 0]})

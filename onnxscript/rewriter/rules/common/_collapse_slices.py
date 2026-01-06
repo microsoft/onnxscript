@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from onnxscript import ir
-from onnxscript.rewriter._ir_utils import is_singleton_value
+from onnxscript.rewriter import _ir_utils
 from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 logger = logging.getLogger(__name__)
@@ -82,10 +82,10 @@ def _same_shape(op, data: ir.Value, slice_output: ir.Value, steps: ir.Value, **_
     if data.shape is None or slice_output.shape is None:
         return False
 
-    if not is_singleton_value(steps, 1):
+    if not _ir_utils.is_singleton_value(steps, 1):
         return False
 
-    return data.shape == slice_output.shape
+    return _ir_utils.same_shape(data.shape, slice_output.shape)
 
 
 # Register the rewrite rules

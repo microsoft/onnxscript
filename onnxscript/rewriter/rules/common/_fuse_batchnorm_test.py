@@ -253,6 +253,64 @@ class FuseBatchnormTest(unittest.TestCase):
         # No changes were applied as W is a graph input
         self.assertEqual(count, 0)
 
+    def test_fuse_batchnorm_does_not_collide_names_with_same_parent_node(self):
+        model_proto = onnx.parser.parse_model("""
+            < ir_version: 7, opset_import: ["" : 17] >
+            test_model (float[N, 32, 14, 16] X) => (float [N, ?, ?, ?] Y1, float [N, ?, ?, ?] Y2)
+            {
+                X1 = MaxPool<kernel_shape=[3,3]>(X)
+                X2 = Conv(X1, W1)
+                Y1 = BatchNormalization(X2, gamma_64, beta_64, input_mean_64, input_var_64)
+                X3 = Conv(X1, W2)
+                Y2 = BatchNormalization(X3, gamma_256, beta_256, input_mean_256, input_var_256)
+            }
+        """)
+        initializers = [
+            onnx.numpy_helper.from_array(
+                np.random.randn(64, 32, 3, 3).astype(np.float32), name="W1"
+            ),
+            onnx.numpy_helper.from_array(
+                np.random.randn(64).astype(np.float32), name="gamma_64"
+            ),
+            onnx.numpy_helper.from_array(
+                np.random.randn(64).astype(np.float32), name="beta_64"
+            ),
+            onnx.numpy_helper.from_array(
+                np.random.randn(64).astype(np.float32), name="input_mean_64"
+            ),
+            onnx.numpy_helper.from_array(
+                np.abs(np.random.randn(64)).astype(np.float32), name="input_var_64"
+            ),
+            onnx.numpy_helper.from_array(
+                np.random.randn(256, 32, 3, 3).astype(np.float32), name="W2"
+            ),
+            onnx.numpy_helper.from_array(
+                np.random.randn(256).astype(np.float32), name="gamma_256"
+            ),
+            onnx.numpy_helper.from_array(
+                np.random.randn(256).astype(np.float32), name="beta_256"
+            ),
+            onnx.numpy_helper.from_array(
+                np.random.randn(256).astype(np.float32), name="input_mean_256"
+            ),
+            onnx.numpy_helper.from_array(
+                np.abs(np.random.randn(256)).astype(np.float32), name="input_var_256"
+            ),
+        ]
+        model_proto.graph.initializer.extend(initializers)
+        onnx.checker.check_model(model_proto, True)
+        model = ir.serde.deserialize_model(model_proto)
+        count = _fuse_batchnorm.rules.apply_to_model(model)
+
+        # Applied twice, once for each BatchNorm
+        self.assertEqual(count, 2)
+        # it should have different bias names for the two fused Conv nodes
+        conv_nodes = [node for node in model.graph if node.op_type == "Conv"]
+        self.assertEqual(len(conv_nodes), 2)
+        bias_names_1 = conv_nodes[0].inputs[2].name
+        bias_names_2 = conv_nodes[1].inputs[2].name
+        self.assertNotEqual(bias_names_1, bias_names_2)
+
 
 if __name__ == "__main__":
     unittest.main()

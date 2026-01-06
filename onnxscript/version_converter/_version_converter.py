@@ -155,12 +155,13 @@ def _get_str_attribute(node: ir.Node, name: str, default: str | None = None) -> 
 @register("DFT", node_version=19, up_conversion=True)
 def dft_19_20(node: ir.Node, op):
     input = node.inputs[0]
+    dft_length = node.inputs[1] if len(node.inputs) > 1 else None
     inverse = _get_int_attribute(node, "inverse", 0)
     onesided = _get_int_attribute(node, "onesided", 0)
     axis = _get_int_attribute(node, "axis", None)
     if axis is not None:
         axis_value = op.Constant(value_int=axis)
-        return op.DFT(input, axis_value, inverse=inverse, onesided=onesided)
+        return op.DFT(input, dft_length, axis_value, inverse=inverse, onesided=onesided)
     return None
 
 

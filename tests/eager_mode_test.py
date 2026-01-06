@@ -6,7 +6,6 @@ import unittest
 import numpy as np
 import parameterized
 
-import onnxscript
 import onnxscript.evaluator
 import onnxscript.tensor
 from onnxscript import opset17 as op

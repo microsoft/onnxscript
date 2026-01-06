@@ -12,7 +12,7 @@ from typing import Generator
 import parameterized
 
 import onnxscript
-import onnxscript.function_libs.torch_lib.ops  # Import to populate registry
+import onnxscript.function_libs.torch_lib.ops  # Import to populate registry  # noqa: F401
 from onnxscript.function_libs.tools.torch_lib import deduce_type_constraints
 from onnxscript.function_libs.torch_lib import registration
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def torch_lib_onnx_functions_from_registry() -> Generator[onnxscript.OnnxFunction, None, None]:
     for op in registration.default_registry.values():
-        for func in (*op.overloads, *op.privates, *op.complex):
+        for func in (*op.overloads, *op.complex):
             if isinstance(func, onnxscript.OnnxFunction):
                 yield func
 
