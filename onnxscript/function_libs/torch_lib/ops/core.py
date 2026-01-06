@@ -5494,8 +5494,8 @@ def aten_linear_backward(
 
 @torch_op("aten::linspace", trace_only=True)
 def aten_linspace(
-    start: float,
-    end: float,
+    start: TensorType,
+    end: TensorType,
     steps: int,
     dtype: int = -1,
     layout: str = "",
@@ -5515,24 +5515,25 @@ def aten_linspace(
     # For integer output dtypes, cast start/end to the target dtype first
     # This matches PyTorch's behavior where fractional start/end values
     # are truncated before computing the linspace
-    if ir.DataType(dtype).is_integer():
+    dtype = ir.DataType(dtype)
+    if dtype.is_integer():
         # Use double precision for computation to match PyTorch's internal precision
         compute_dtype = ir.DataType.DOUBLE
         # Cast to integer dtype first, then to compute dtype
         # This ensures truncation happens before computation
-        start_f = op.Constant(value=ir.tensor(int(start), dtype=compute_dtype))
-        end_f = op.Constant(value=ir.tensor(int(end), dtype=compute_dtype))
+        start_f = op.Cast(start, to=compute_dtype)
+        end_f = op.Cast(end, to=compute_dtype)
     else:
         compute_dtype = dtype
-        start_f = op.Constant(value=ir.tensor(start, dtype=compute_dtype))
-        end_f = op.Constant(value=ir.tensor(end, dtype=compute_dtype))
+        start_f = op.Cast(start, to=compute_dtype)
+        end_f = op.Cast(end, to=compute_dtype)
 
     rg = aten_arange_start(0, steps, dtype=compute_dtype)
-    steps_f = op.Constant(value=ir.tensor(steps, dtype=compute_dtype))
+    steps_f = op.Cast(steps, to=compute_dtype)
     one = op.Constant(value=ir.tensor(1, dtype=compute_dtype))
     two = op.Constant(value=ir.tensor(2, dtype=compute_dtype))
-    steps_minus_1 = op.Constant(value=ir.tensor(steps - 1, dtype=compute_dtype))
-    step = op.Constant(value=ir.tensor((end - start) / (steps - 1), dtype=compute_dtype))
+    steps_minus_1 = op.Sub(steps_f, one)
+    step = op.Div(op.Sub(end_f, start_f), steps_minus_1)
 
     # Two-sided computation for numerical stability at endpoints
     # Use forward computation for first half, backward for second half
