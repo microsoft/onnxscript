@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Sequence
 
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.onnx_opset import opset18 as op
@@ -53,15 +54,15 @@ def _process_sampling_ratio_for_roi_align(sampling_ratio: int):
 @torch_op("torchvision::roi_align", trace_only=True)
 def torchvision_roi_align(
     input,
-    rois,
-    spatial_scale: float,
-    pooled_height: int,
-    pooled_width: int,
+    boxes,
+    output_size: Sequence[int],
+    spatial_scale: float = 1.0,
     sampling_ratio: int = -1,
     aligned: bool = False,
 ):
-    batch_indices = _process_batch_indices_for_roi_align(rois)
-    rois_coords = _process_rois_for_roi_align(rois)
+    pooled_height, pooled_width = output_size
+    batch_indices = _process_batch_indices_for_roi_align(boxes)
+    rois_coords = _process_rois_for_roi_align(boxes)
     coordinate_transformation_mode = "half_pixel" if aligned else "output_half_pixel"
     sampling_ratio = _process_sampling_ratio_for_roi_align(sampling_ratio)
 
