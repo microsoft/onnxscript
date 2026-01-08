@@ -593,7 +593,8 @@ class Converter:
         return attr
 
     def _translate_docstring(self, node: ast.Expr) -> None:
-        assert isinstance(node.value, ast.Constant)
+        if not isinstance(node.value, ast.Constant):
+            self.fail(node, "Docstring expression must be a constant.")
         self._current_fn.doc_string = node.value.value
 
     def _translate_expr(
