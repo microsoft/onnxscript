@@ -503,7 +503,7 @@ class Converter:
                 )
             ) from e
 
-    def _get_type_annotation(self, annotation: ast.Expr) -> ta.TypeAnnotationValue | None:
+    def _get_type_annotation(self, annotation: ast.expr) -> ta.TypeAnnotationValue | None:
         typeinfo = self._eval_constant_expr(annotation)
         if not ta.is_valid_type(typeinfo):
             self.warn(
@@ -590,6 +590,8 @@ class Converter:
         return attr
 
     def _translate_docstring(self, node: ast.Expr) -> None:
+        if not isinstance(node.value, ast.Constant):
+            self.fail(node, "Docstring expression must be a constant.")
         self._current_fn.doc_string = node.value.value
 
     def _translate_expr(self, node: ast.AST, target: PreferredName | None = None) -> ir.Value:
@@ -865,7 +867,7 @@ class Converter:
 
     def _translate_call_expr(
         self, node: ast.Call
-    ) -> tuple[values.Op, list[ir.Value | None], list[irbuilder.IRAttributeValue]]:
+    ) -> tuple[values.Op, list[ir.Value | None], list[ir.Attr]]:
         """Translates a call-expression."""
         callee = self._translate_callee_expr(node.func)
         param_schemas = callee.param_schemas()
