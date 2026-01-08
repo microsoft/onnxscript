@@ -398,7 +398,7 @@ class Converter:
         outputs: Sequence[str],
         callee: values.Op | str,
         inputs: Sequence[Optional[ir.Value]],
-        attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
+        attrs: Optional[Sequence[ir.Attr]] = None,
     ) -> Sequence[ir.Value] | ir.Value:
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
@@ -480,7 +480,7 @@ class Converter:
             return all(self._is_constant_expr(c) for c in ast.iter_child_nodes(node))
         return False
 
-    def _eval_constant_expr(self, expr: ast.AST) -> PyValue:
+    def _eval_constant_expr(self, expr: ast.expr) -> PyValue:
         """Evaluates a sub-expression that is assumed to represent a constant value.
         The expression can refer only to global names (inherited from the scope
         where the script is evaluated) and cannot refer to local names defined
@@ -493,20 +493,20 @@ class Converter:
         # TODO: assert (self._is_constant_expr(expr))
         # TODO: Refine types
         locals: dict[Any, Any] = {}
-        expr = ast.Expression(expr, lineno=expr.lineno, col_offset=expr.col_offset)
-        cpl = compile(expr, filename="<ast>", mode="eval")
+        expression = ast.Expression(expr)
+        cpl = compile(expression, filename="<ast>", mode="eval")
         try:
             return eval(cpl, self.globals, locals)  # pylint: disable=eval-used
         except NameError as e:
             raise NameError(
                 self._message(
-                    expr,
+                    expression,
                     f"Missing names, globals contains {list(self.globals)!r}, "
                     f"locals {list(locals)!r}.",
                 )
             ) from e
 
-    def _get_type_annotation(self, annotation: ast.Expr) -> Optional[ta.TypeAnnotationValue]:
+    def _get_type_annotation(self, annotation: ast.expr) -> Optional[ta.TypeAnnotationValue]:
         typeinfo = self._eval_constant_expr(annotation)
         if not ta.is_valid_type(typeinfo):
             self.warn(
@@ -521,7 +521,7 @@ class Converter:
         attr_name: str,
         expr: ast.AST,
         attr_meta: Optional[onnx.defs.OpSchema.Attribute] = None,
-    ) -> Optional[irbuilder.IRAttributeValue]:
+    ) -> Optional[ir.Attr]:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
         * Expr evaluates to a script-time constant (a python-value) that can be mapped
@@ -593,13 +593,8 @@ class Converter:
         return attr
 
     def _translate_docstring(self, node: ast.Expr) -> None:
-        if hasattr(node.value, "value"):
-            # python 3.8+
-            self._current_fn.doc_string = node.value.value
-        else:
-            raise TypeError(
-                f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
-            )
+        assert isinstance(node.value, ast.Constant)
+        self._current_fn.doc_string = node.value.value
 
     def _translate_expr(
         self, node: ast.AST, target: Optional[PreferredName] = None
@@ -762,9 +757,9 @@ class Converter:
 
         # As the first step, we partition the index elements into four kinds: Slice (eg., 1:5:2),
         # known-to-be-scalar (eg., 2), other-tensor (eg., I), skip/no-op (that is, just ":")
-        sliced_indices: List[Tuple[int, ast.expr]] = []
-        scalar_indices: List[Tuple[int, ast.expr]] = []
-        non_scalar_indices: List[Tuple[int, ast.expr]] = []
+        sliced_indices: List[Tuple[int, e]] = []
+        scalar_indices: List[Tuple[int, e]] = []
+        non_scalar_indices: List[Tuple[int, e]] = []
         for axis, elt in enumerate(indices):
             if isinstance(elt, ast.Slice):
                 # Add to sliced_indices, unless it is "::", which is a no-op.
@@ -876,7 +871,7 @@ class Converter:
 
     def _translate_call_expr(
         self, node: ast.Call
-    ) -> tuple[values.Op, list[Optional[ir.Value]], list[irbuilder.IRAttributeValue]]:
+    ) -> tuple[values.Op, list[Optional[ir.Value]], list[ir.Attr]]:
         """Translates a call-expression."""
         callee = self._translate_callee_expr(node.func)
         param_schemas = callee.param_schemas()
@@ -907,7 +902,7 @@ class Converter:
         schema = op.op_schema
         return autocast.static_cast_inputs(self, schema, (left, right))
 
-    def _translate_binary_op_expr(self, node: ast.BinOp):
+    def _translate_binary_op_expr(self, node: ast.BinOp | ast.BitAnd | ast.BitOr):
         op = type(node.op)
         if op not in primop_map:
             raise ValueError(self._message(node, f"Unsupported operator {op!r}."))
