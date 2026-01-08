@@ -500,7 +500,7 @@ class Converter:
         except NameError as e:
             raise NameError(
                 self._message(
-                    expression,
+                    expr,
                     f"Missing names, globals contains {list(self.globals)!r}, "
                     f"locals {list(locals)!r}.",
                 )
