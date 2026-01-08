@@ -24,18 +24,8 @@ class SourceInfo:
         self.function_name = function_name
 
     @property
-    def lineno(self) -> int | None:
-        try:
-            return self.ast_node.lineno
-        except AttributeError:
-            return None
-
-    @property
-    def col_offset(self) -> int | None:
-        try:
-            return self.ast_node.col_offset
-        except AttributeError:
-            return None
+    def lineno(self):
+        return self.ast_node.lineno
 
     def msg(self, error_message: str) -> str:
         lineno = self.lineno
@@ -44,13 +34,10 @@ class SourceInfo:
         else:
             source_loc = f"Line {lineno}"
 
-        lineno = self.lineno
-        col_offset = self.col_offset
-
-        if self.code and lineno is not None and col_offset is not None:
+        if self.code:
             lines = self.code.split("\n")
             line = lines[lineno - 1]
-            marker_prefix = " " * col_offset
+            marker_prefix = " " * (self.ast_node.col_offset)
             source_line = f"{line}\n{marker_prefix}^\n"
         else:
             source_line = ""

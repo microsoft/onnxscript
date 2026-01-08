@@ -27,8 +27,7 @@ import onnx.defs
 import onnx_ir as ir
 from typing_extensions import ParamSpec
 
-from onnxscript import sourceinfo
-from onnxscript._internal import ast_utils, deprecation, irbuilder, type_annotation
+from onnxscript._internal import ast_utils, deprecation, irbuilder, sourceinfo, type_annotation
 from onnxscript._internal import converter as converter_module
 from onnxscript.ir import _schemas
 from onnxscript.onnx_types import ONNXType

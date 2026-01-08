@@ -16,13 +16,14 @@ import onnx
 import onnx_ir as ir
 
 import onnxscript
-from onnxscript import onnx_types, sourceinfo
+from onnxscript import onnx_types
 from onnxscript._internal import (
     analysis,
     ast_utils,
     autocast,
     irbuilder,
     param_manipulation,
+    sourceinfo,
     values,
 )
 from onnxscript._internal import (
