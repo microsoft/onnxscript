@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import ast
-from typing import Callable, Optional
+from typing import Callable
 
 
 class SourceInfo:
@@ -16,8 +16,8 @@ class SourceInfo:
         self,
         ast_node: ast.AST,
         *,
-        code: Optional[str] = None,
-        function_name: Optional[str] = None,
+        code: str | None = None,
+        function_name: str | None = None,
     ):
         self.ast_node = ast_node
         self.code = code
@@ -64,7 +64,7 @@ class SourceInfo:
 Formatter = Callable[[ast.AST, str], str]
 
 
-def formatter(source_code: Optional[str]) -> Formatter:
+def formatter(source_code: str | None) -> Formatter:
     def format(node: ast.AST, message: str) -> str:
         return SourceInfo(node, code=source_code).msg(message)
 
