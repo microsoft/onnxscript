@@ -785,10 +785,14 @@ class Converter:
                 # TODO: handle negative i
                 index = self._eval_constant_expr(expr)
                 squeezed_axes.append(axis)
+                kwargs = dict(
+                    lineno=getattr(expr, "lineno", node.lineno),
+                    col_offset=getattr(expr, "col_offset", node.col_offset),
+                )
                 element = ast.Slice(
-                    ast.Constant(index),
-                    ast.Constant(index + 1),
-                    ast.Constant(1),
+                    ast.Constant(index, **kwargs),
+                    ast.Constant(index + 1, **kwargs),
+                    ast.Constant(1, **kwargs),
                 )
                 sliced_indices.append((axis, element))
             scalar_indices = []
@@ -926,7 +930,7 @@ class Converter:
             # This mechanism does not handle somthing like `(-(-5))`.
             val = node.operand.value
             if op == ast.USub:
-                cst = ast.Constant(-val)
+                cst = ast.Constant(-val, lineno=node.lineno, col_offset=node.col_offset)
                 return self._translate_expr(cst)
             if op == ast.UAdd:
                 return self._translate_expr(node.operand)
