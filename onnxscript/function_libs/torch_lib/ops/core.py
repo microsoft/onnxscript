@@ -5517,12 +5517,12 @@ def aten_linspace(
     # are truncated before computing the linspace
     dtype = ir.DataType(dtype)
     if dtype.is_integer():
-        # Use double precision for computation to match PyTorch's internal precision
         compute_dtype = ir.DataType.DOUBLE
-        # Cast to integer dtype first, then to compute dtype
-        # This ensures truncation happens before computation
-        start_f = op.Cast(start, to=compute_dtype)
-        end_f = op.Cast(end, to=compute_dtype)
+        # Cast to integer dtype first (truncation), then to compute dtype
+        start_int = op.Cast(start, to=dtype)  # Truncate to int32/int64
+        end_int = op.Cast(end, to=dtype)
+        start_f = op.Cast(start_int, to=compute_dtype)  # Then to double
+        end_f = op.Cast(end_int, to=compute_dtype)
     else:
         compute_dtype = dtype
         start_f = op.Cast(start, to=compute_dtype)
