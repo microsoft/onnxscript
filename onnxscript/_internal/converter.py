@@ -902,7 +902,7 @@ class Converter:
         schema = op.op_schema
         return autocast.static_cast_inputs(self, schema, (left, right))
 
-    def _translate_binary_op_expr(self, node: ast.BinOp | ast.BitAnd | ast.BitOr):
+    def _translate_binary_op_expr(self, node: ast.BinOp):
         op = type(node.op)
         if op not in primop_map:
             raise ValueError(self._message(node, f"Unsupported operator {op!r}."))
