@@ -8,7 +8,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     NoReturn,
-    Optional,
     Sequence,
     Union,
 )
@@ -168,10 +167,10 @@ class Converter:
 
     def __init__(
         self,
-        opset: Optional[values.Opset] = None,
-        global_names: Optional[dict[str, Any]] = None,
-        source: Optional[str] = None,
-        default_opset: Optional[values.Opset] = None,
+        opset: values.Opset | None = None,
+        global_names: dict[str, Any] | None = None,
+        source: str | None = None,
+        default_opset: values.Opset | None = None,
     ):
         self.source = source
         if global_names is not None:
@@ -222,7 +221,7 @@ class Converter:
         else:
             self.default_opset_ = opset
 
-    def _find_onnx_opset(self, node: ast.AST) -> Optional[values.Opset]:
+    def _find_onnx_opset(self, node: ast.AST) -> values.Opset | None:
         """Find the (first) ONNX opset used in the function, if any."""
         # Search for a Call expression of form "op.OpName(...)"
         if isinstance(node, ast.Call):
@@ -242,7 +241,7 @@ class Converter:
     def _init_function_translation(self) -> None:
         """Initialize self for translating a new (top-level) function."""
         self._outer = []
-        self._current_fn: Optional[irbuilder.IRFunction] = None
+        self._current_fn: irbuilder.IRFunction | None = None
         self._nextvar = 0
         self._used_vars = set()
         self._locals: list[dict[str, LocalSymValue]] = [{}]
@@ -336,7 +335,7 @@ class Converter:
         return ir.from_proto(proto)
 
     def _to_onnx_attr_ref(
-        self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
+        self, val: values.AttrRef, info: sourceinfo.SourceInfo | None
     ) -> ir.Attr:
         attrtype = val.value.type
         attrname = None
@@ -356,8 +355,8 @@ class Converter:
     def _to_onnx_var(
         self,
         val: values.SymbolValue | PyValue,
-        target: Optional[PreferredName] = None,
-        info: Optional[sourceinfo.SourceInfo] = None,
+        target: PreferredName | None = None,
+        info: sourceinfo.SourceInfo | None = None,
     ) -> ir.Value:
         if isinstance(val, values.AttrRef):
             # promote attribute to value
@@ -396,8 +395,8 @@ class Converter:
         self,
         outputs: Sequence[str],
         callee: values.Op | str,
-        inputs: Sequence[Optional[ir.Value]],
-        attrs: Optional[Sequence[ir.Attr]] = None,
+        inputs: Sequence[ir.Value | None],
+        attrs: Sequence[ir.Attr] | None = None,
     ) -> Sequence[ir.Value] | ir.Value:
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
@@ -429,7 +428,7 @@ class Converter:
     def _emit_const(
         self,
         pyvalue: PyValue,
-        suggested_name: Optional[PreferredName],
+        suggested_name: PreferredName | None,
         info: sourceinfo.SourceInfo,
     ) -> ir.Value:
         if suggested_name is None:
@@ -504,7 +503,7 @@ class Converter:
                 )
             ) from e
 
-    def _get_type_annotation(self, annotation: ast.Expr) -> Optional[ta.TypeAnnotationValue]:
+    def _get_type_annotation(self, annotation: ast.Expr) -> ta.TypeAnnotationValue | None:
         typeinfo = self._eval_constant_expr(annotation)
         if not ta.is_valid_type(typeinfo):
             self.warn(
@@ -518,8 +517,8 @@ class Converter:
         self,
         attr_name: str,
         expr: ast.AST,
-        attr_meta: Optional[onnx.defs.OpSchema.Attribute] = None,
-    ) -> Optional[ir.Attr]:
+        attr_meta: onnx.defs.OpSchema.Attribute | None = None,
+    ) -> ir.Attr | None:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
         * Expr evaluates to a script-time constant (a python-value) that can be mapped
@@ -593,9 +592,7 @@ class Converter:
     def _translate_docstring(self, node: ast.Expr) -> None:
         self._current_fn.doc_string = node.value.value
 
-    def _translate_expr(
-        self, node: ast.AST, target: Optional[PreferredName] = None
-    ) -> ir.Value:
+    def _translate_expr(self, node: ast.AST, target: PreferredName | None = None) -> ir.Value:
         """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
@@ -626,7 +623,7 @@ class Converter:
         result = self.generate_unique_name(target)
         return self.emit1([result], callee, args, attrs)
 
-    def _translate_opt_expr(self, node: ast.expr) -> Optional[ir.Value]:
+    def _translate_opt_expr(self, node: ast.expr) -> ir.Value | None:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
         None is represented as a Constant in Python 3.9+.
         """
@@ -635,7 +632,7 @@ class Converter:
         return self._translate_expr(node)
 
     def _translate_subscript_expr(
-        self, node: ast.Subscript, target: Optional[PreferredName]
+        self, node: ast.Subscript, target: PreferredName | None
     ) -> ir.Value:
         """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
@@ -685,7 +682,7 @@ class Converter:
         # TODO: Do this at a graph-scope level.
         cached_int_consts: dict[int, ir.Value] = {}
 
-        def const_1d(value, name: Optional[str] = None) -> ir.Value:
+        def const_1d(value, name: str | None = None) -> ir.Value:
             nonlocal cached_int_consts
             if value not in cached_int_consts:
                 cached_int_consts[value] = self._emit_const([value], name, info)
@@ -699,8 +696,8 @@ class Converter:
         minint = -(1 << 63)
 
         def translate_slice_component(
-            node_arg, default_value: Optional[int] = None
-        ) -> tuple[ir.Value, Optional[int]]:
+            node_arg, default_value: int | None = None
+        ) -> tuple[ir.Value, int | None]:
             """Translate optional start/stop/step component of a Slice expression."""
             if node_arg is None:
                 if default_value is None:
@@ -868,7 +865,7 @@ class Converter:
 
     def _translate_call_expr(
         self, node: ast.Call
-    ) -> tuple[values.Op, list[Optional[ir.Value]], list[irbuilder.IRAttributeValue]]:
+    ) -> tuple[values.Op, list[ir.Value | None], list[irbuilder.IRAttributeValue]]:
         """Translates a call-expression."""
         callee = self._translate_callee_expr(node.func)
         param_schemas = callee.param_schemas()
