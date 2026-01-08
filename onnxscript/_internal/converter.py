@@ -398,7 +398,7 @@ class Converter:
         outputs: Sequence[str],
         callee: values.Op | str,
         inputs: Sequence[Optional[ir.Value]],
-        attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
+        attrs: Optional[Sequence[ir.Attr]] = None,
     ) -> Sequence[ir.Value] | ir.Value:
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
@@ -480,7 +480,7 @@ class Converter:
             return all(self._is_constant_expr(c) for c in ast.iter_child_nodes(node))
         return False
 
-    def _eval_constant_expr(self, expr: ast.AST) -> PyValue:
+    def _eval_constant_expr(self, expr: ast.expr) -> PyValue:
         """Evaluates a sub-expression that is assumed to represent a constant value.
         The expression can refer only to global names (inherited from the scope
         where the script is evaluated) and cannot refer to local names defined
@@ -493,8 +493,8 @@ class Converter:
         # TODO: assert (self._is_constant_expr(expr))
         # TODO: Refine types
         locals: dict[Any, Any] = {}
-        expr = ast.Expression(expr, lineno=expr.lineno, col_offset=expr.col_offset)
-        cpl = compile(expr, filename="<ast>", mode="eval")
+        expression = ast.Expression(expr)
+        cpl = compile(expression, filename="<ast>", mode="eval")
         try:
             return eval(cpl, self.globals, locals)  # pylint: disable=eval-used
         except NameError as e:
@@ -506,7 +506,7 @@ class Converter:
                 )
             ) from e
 
-    def _get_type_annotation(self, annotation: ast.Expr) -> Optional[ta.TypeAnnotationValue]:
+    def _get_type_annotation(self, annotation: ast.expr) -> Optional[ta.TypeAnnotationValue]:
         typeinfo = self._eval_constant_expr(annotation)
         if not ta.is_valid_type(typeinfo):
             self.warn(
@@ -521,7 +521,7 @@ class Converter:
         attr_name: str,
         expr: ast.AST,
         attr_meta: Optional[onnx.defs.OpSchema.Attribute] = None,
-    ) -> Optional[irbuilder.IRAttributeValue]:
+    ) -> Optional[ir.Attr]:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
         * Expr evaluates to a script-time constant (a python-value) that can be mapped
@@ -593,13 +593,9 @@ class Converter:
         return attr
 
     def _translate_docstring(self, node: ast.Expr) -> None:
-        if hasattr(node.value, "value"):
-            # python 3.8+
-            self._current_fn.doc_string = node.value.value
-        else:
-            raise TypeError(
-                f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
-            )
+        if not isinstance(node.value, ast.Constant):
+            self.fail(node, "Docstring expression must be a constant.")
+        self._current_fn.doc_string = node.value.value
 
     def _translate_expr(
         self, node: ast.AST, target: Optional[PreferredName] = None
@@ -876,7 +872,7 @@ class Converter:
 
     def _translate_call_expr(
         self, node: ast.Call
-    ) -> tuple[values.Op, list[Optional[ir.Value]], list[irbuilder.IRAttributeValue]]:
+    ) -> tuple[values.Op, list[Optional[ir.Value]], list[ir.Attr]]:
         """Translates a call-expression."""
         callee = self._translate_callee_expr(node.func)
         param_schemas = callee.param_schemas()
