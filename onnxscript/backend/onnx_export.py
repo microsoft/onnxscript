@@ -152,7 +152,10 @@ def _translate_value_infos(value_infos: Sequence[ValueInfoProto]) -> str:
 
 def _to_str(s):
     if isinstance(s, bytes):
-        return s.decode("utf-8")
+        try:
+            return s.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
     return s
 
 
@@ -391,8 +394,8 @@ class _Exporter:
                 attributes.append((at.name, at.ref_attr_name))
                 continue
             value = _attribute_value(at)
-            if isinstance(value, str):
-                attributes.append((at.name, f"{value!r}"))
+            if isinstance(value, (str, bytes)):
+                attributes.append((at.name, repr(value)))
                 continue
             if isinstance(value, np.ndarray):
                 onnx_dtype = at.t.data_type
