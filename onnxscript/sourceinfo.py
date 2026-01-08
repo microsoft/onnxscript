@@ -17,16 +17,17 @@ class SourceInfo:
     def __init__(
         self,
         ast_node: ast.AST,
+        *,
         code: Optional[str] = None,
         function_name: Optional[str] = None,
+        lineno: int,
+        col_offset: int,
     ):
         self.ast_node = ast_node
         self.code = code
         self.function_name = function_name
-
-    @property
-    def lineno(self):
-        return self.ast_node.lineno
+        self.lineno = lineno
+        self.col_offset = col_offset
 
     def msg(self, error_message: str) -> str:
         lineno = self.lineno
@@ -38,7 +39,7 @@ class SourceInfo:
         if self.code:
             lines = self.code.split("\n")
             line = lines[lineno - 1]
-            marker_prefix = " " * (self.ast_node.col_offset)
+            marker_prefix = " " * (self.col_offset)
             source_line = f"{line}\n{marker_prefix}^\n"
         else:
             source_line = ""
