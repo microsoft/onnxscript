@@ -757,9 +757,9 @@ class Converter:
 
         # As the first step, we partition the index elements into four kinds: Slice (eg., 1:5:2),
         # known-to-be-scalar (eg., 2), other-tensor (eg., I), skip/no-op (that is, just ":")
-        sliced_indices: List[Tuple[int, e]] = []
-        scalar_indices: List[Tuple[int, e]] = []
-        non_scalar_indices: List[Tuple[int, e]] = []
+        sliced_indices: List[Tuple[int, ast.expr]] = []
+        scalar_indices: List[Tuple[int, ast.expr]] = []
+        non_scalar_indices: List[Tuple[int, ast.expr]] = []
         for axis, elt in enumerate(indices):
             if isinstance(elt, ast.Slice):
                 # Add to sliced_indices, unless it is "::", which is a no-op.
