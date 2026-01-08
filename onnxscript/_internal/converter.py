@@ -248,7 +248,9 @@ class Converter:
         self._locals: list[dict[str, LocalSymValue]] = [{}]
 
     def _source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
-        return sourceinfo.SourceInfo(node, self.source, self._current_fn.name)
+        return sourceinfo.SourceInfo(
+            node, code=self.source, function_name=self._current_fn.name
+        )
 
     def _message(self, node: ast.AST, error_msg: str) -> str:
         """Constructs an error _message containing source information about an ast node."""
@@ -395,7 +397,7 @@ class Converter:
         outputs: Sequence[str],
         callee: values.Op | str,
         inputs: Sequence[Optional[ir.Value]],
-        attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
+        attrs: Optional[Sequence[ir.Attr]] = None,
     ) -> Sequence[ir.Value] | ir.Value:
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
@@ -413,6 +415,7 @@ class Converter:
         if not isinstance(callee, values.Op):
             raise TypeError(f"Unexpected type {type(callee)} for callee.")
         node.meta.setdefault("callee", callee)
+        assert self._current_fn is not None
         self._current_fn.append_node(node)
 
         return output_values if len(output_values) > 1 else output_values[0]
@@ -782,14 +785,10 @@ class Converter:
                 # TODO: handle negative i
                 index = self._eval_constant_expr(expr)
                 squeezed_axes.append(axis)
-                kwargs = dict(
-                    lineno=getattr(expr, "lineno", node.lineno),
-                    col_offset=getattr(expr, "col_offset", node.col_offset),
-                )
                 element = ast.Slice(
-                    ast.Constant(index, **kwargs),
-                    ast.Constant(index + 1, **kwargs),
-                    ast.Constant(1, **kwargs),
+                    ast.Constant(index),
+                    ast.Constant(index + 1),
+                    ast.Constant(1),
                 )
                 sliced_indices.append((axis, element))
             scalar_indices = []
@@ -927,7 +926,7 @@ class Converter:
             # This mechanism does not handle somthing like `(-(-5))`.
             val = node.operand.value
             if op == ast.USub:
-                cst = ast.Constant(-val, lineno=node.lineno, col_offset=node.col_offset)
+                cst = ast.Constant(-val)
                 return self._translate_expr(cst)
             if op == ast.UAdd:
                 return self._translate_expr(node.operand)

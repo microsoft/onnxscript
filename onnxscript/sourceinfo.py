@@ -18,14 +18,24 @@ class SourceInfo:
         *,
         code: Optional[str] = None,
         function_name: Optional[str] = None,
-        lineno: int,
-        col_offset: int,
     ):
         self.ast_node = ast_node
         self.code = code
         self.function_name = function_name
-        self.lineno = lineno
-        self.col_offset = col_offset
+
+    @property
+    def lineno(self) -> int | None:
+        try:
+            return self.ast_node.lineno
+        except AttributeError:
+            return None
+
+    @property
+    def col_offset(self) -> int | None:
+        try:
+            return self.ast_node.col_offset
+        except AttributeError:
+            return None
 
     def msg(self, error_message: str) -> str:
         lineno = self.lineno
@@ -34,10 +44,13 @@ class SourceInfo:
         else:
             source_loc = f"Line {lineno}"
 
-        if self.code:
+        lineno = self.lineno
+        col_offset = self.col_offset
+
+        if self.code and lineno is not None and col_offset is not None:
             lines = self.code.split("\n")
             line = lines[lineno - 1]
-            marker_prefix = " " * (self.col_offset)
+            marker_prefix = " " * col_offset
             source_line = f"{line}\n{marker_prefix}^\n"
         else:
             source_line = ""
@@ -53,6 +66,6 @@ Formatter = Callable[[ast.AST, str], str]
 
 def formatter(source_code: Optional[str]) -> Formatter:
     def format(node: ast.AST, message: str) -> str:
-        return SourceInfo(node, source_code).msg(message)
+        return SourceInfo(node, code=source_code).msg(message)
 
     return format
