@@ -77,10 +77,10 @@ class TestConverter(testutils.TestBase):
                 model = f.to_model_proto(io_types=FLOAT)
                 if save_text:
                     with (TEST_OUTPUT_DIR / f"{f.name}.txt").open("w", encoding="utf-8") as fi:
-                        fi.write(onnx.helper.printable_graph(model.graph))
+                        fi.write(onnx.printer.to_text(model.graph))
                         for fct in model.functions:
                             fi.write("\n-------------------------\n")
-                            fi.write(onnx.helper.printable_graph(fct))
+                            fi.write(onnx.printer.to_text(fct))
                 if check_ort and (skip_check_ort is None or f.name not in skip_check_ort):
                     try:
                         create_cpu_inference_session(model.SerializeToString())
@@ -92,10 +92,10 @@ class TestConverter(testutils.TestBase):
                     model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
                     with open(os.path.join(TEST_OUTPUT_DIR, f"{f.name}.shape.txt"), "w") as fi:
-                        fi.write(onnx.helper.printable_graph(model.graph))
+                        fi.write(onnx.printer.to_text(model.graph))
                         for fct in model.functions:
-                            f.write("\n-------------------------\n")
-                            f.write(onnx.helper.printable_graph(fct))
+                            fi.write("\n-------------------------\n")
+                            fi.write(onnx.printer.to_text(fct))
                 try:
                     onnx.checker.check_model(model)
                 except onnx.checker.ValidationError as e:

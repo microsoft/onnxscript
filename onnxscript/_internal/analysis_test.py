@@ -7,8 +7,8 @@ import unittest
 from typing import Any
 
 from onnxscript._internal import analysis, ast_utils
+from onnxscript._internal.sourceinfo import formatter
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.sourceinfo import formatter
 
 
 class AnalysisResultsVisitor(ast.NodeVisitor):
