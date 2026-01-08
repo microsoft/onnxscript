@@ -7,12 +7,9 @@ import logging
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
-    List,
     NoReturn,
     Optional,
     Sequence,
-    Tuple,
     Union,
 )
 
@@ -184,11 +181,11 @@ class Converter:
         self.default_opset_ = default_opset
 
         # States initialized by `_init_function_translation`
-        self._outer: List[irbuilder.IRFunction] = []
+        self._outer: list[irbuilder.IRFunction] = []
         self._current_fn: irbuilder.IRFunction = None
         self._nextvar: int = 0
         self._used_vars: set[str] = set()
-        self._locals: List[Dict[str, LocalSymValue]] = [{}]
+        self._locals: list[dict[str, LocalSymValue]] = [{}]
         self._analyzer: analysis.AstAnalyzer | None = None
         self._castable: set[str] = set()
 
@@ -248,7 +245,7 @@ class Converter:
         self._current_fn: Optional[irbuilder.IRFunction] = None
         self._nextvar = 0
         self._used_vars = set()
-        self._locals: List[Dict[str, LocalSymValue]] = [{}]
+        self._locals: list[dict[str, LocalSymValue]] = [{}]
 
     def _source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
         return sourceinfo.SourceInfo(node, self.source, self._current_fn.name)
@@ -287,7 +284,7 @@ class Converter:
         self._locals.pop(0)
         return graph
 
-    def _current_scope(self) -> Dict[str, LocalSymValue]:
+    def _current_scope(self) -> dict[str, LocalSymValue]:
         return self._locals[0]
 
     def _bind(self, name: str, val: LocalSymValue) -> None:
@@ -480,7 +477,7 @@ class Converter:
             return all(self._is_constant_expr(c) for c in ast.iter_child_nodes(node))
         return False
 
-    def _eval_constant_expr(self, expr: ast.AST) -> PyValue:
+    def _eval_constant_expr(self, expr: ast.expr) -> PyValue:
         """Evaluates a sub-expression that is assumed to represent a constant value.
         The expression can refer only to global names (inherited from the scope
         where the script is evaluated) and cannot refer to local names defined
@@ -491,10 +488,8 @@ class Converter:
         function.)
         """
         # TODO: assert (self._is_constant_expr(expr))
-        # TODO: Refine types
         locals: dict[Any, Any] = {}
-        expr = ast.Expression(expr, lineno=expr.lineno, col_offset=expr.col_offset)
-        cpl = compile(expr, filename="<ast>", mode="eval")
+        cpl = compile(ast.Expression(expr), filename="<ast>", mode="eval")
         try:
             return eval(cpl, self.globals, locals)  # pylint: disable=eval-used
         except NameError as e:
@@ -521,7 +516,7 @@ class Converter:
         attr_name: str,
         expr: ast.AST,
         attr_meta: Optional[onnx.defs.OpSchema.Attribute] = None,
-    ) -> Optional[irbuilder.IRAttributeValue]:
+    ) -> Optional[ir.Attr]:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
         * Expr evaluates to a script-time constant (a python-value) that can be mapped
@@ -593,13 +588,7 @@ class Converter:
         return attr
 
     def _translate_docstring(self, node: ast.Expr) -> None:
-        if hasattr(node.value, "value"):
-            # python 3.8+
-            self._current_fn.doc_string = node.value.value
-        else:
-            raise TypeError(
-                f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
-            )
+        self._current_fn.doc_string = node.value.value
 
     def _translate_expr(
         self, node: ast.AST, target: Optional[PreferredName] = None
@@ -762,9 +751,9 @@ class Converter:
 
         # As the first step, we partition the index elements into four kinds: Slice (eg., 1:5:2),
         # known-to-be-scalar (eg., 2), other-tensor (eg., I), skip/no-op (that is, just ":")
-        sliced_indices: List[Tuple[int, ast.expr]] = []
-        scalar_indices: List[Tuple[int, ast.expr]] = []
-        non_scalar_indices: List[Tuple[int, ast.expr]] = []
+        sliced_indices: list[tuple[int, ast.expr]] = []
+        scalar_indices: list[tuple[int, ast.expr]] = []
+        non_scalar_indices: list[tuple[int, ast.expr]] = []
         for axis, elt in enumerate(indices):
             if isinstance(elt, ast.Slice):
                 # Add to sliced_indices, unless it is "::", which is a no-op.
@@ -936,14 +925,7 @@ class Converter:
             # should intercept this call and replace node
             # by node.operand.
             # This mechanism does not handle somthing like `(-(-5))`.
-            if hasattr(node.operand, "value"):
-                # python 3.8+
-                val = node.operand.value
-            else:
-                raise TypeError(
-                    f"Unable to guess constant value from type {type(node.operand)!r} "
-                    f"and attributes {dir(node.operand)!r}."
-                )
+            val = node.operand.value
             if op == ast.USub:
                 cst = ast.Constant(-val, lineno=node.lineno, col_offset=node.col_offset)
                 return self._translate_expr(cst)
@@ -1046,7 +1028,7 @@ class Converter:
             return None
         raise ValueError(self._message(node, f"Unsupported statement type '{type(node)!r}'."))
 
-    def _translate_assign_stmt(self, stmt: Union[ast.Assign, ast.AnnAssign]) -> None:
+    def _translate_assign_stmt(self, stmt: ast.Assign | ast.AnnAssign) -> None:
         def assign(lhs: ast.AST, rhs: ast.AST) -> None:
             if isinstance(lhs, ast.Name):
                 # Assignments of the form "x = SomeExpression"
@@ -1206,7 +1188,7 @@ class Converter:
                 values.SymbolValue(y, self._source_of(stmt)),
             )
 
-    def _translate_loop_stmt(self, loop_stmt: Union[ast.For, ast.While]) -> None:
+    def _translate_loop_stmt(self, loop_stmt: ast.For | ast.While) -> None:
         # loop-variable
         if isinstance(loop_stmt, ast.For):
             if not isinstance(loop_stmt.target, ast.Name):
