@@ -7350,7 +7350,13 @@ def aten_normal(
 
 @torch_op("aten::normal.float_float", trace_only=True)
 def aten_normal_float_float(
-    mean: float, std: float, size: INT64, dtype: int = FLOAT.dtype
+    mean: float,
+    std: float,
+    size: INT64,
+    dtype: int = FLOAT.dtype,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
 ) -> TensorType:
     """normal.float_float(float mean, float std, SymInt[] size, *, Generator? generator=None, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
@@ -7674,7 +7680,9 @@ def aten_prod(self: TReal, dtype: int = -1) -> TReal:
 
     if dtype != -1 and dtype is not None:
         self = op.Cast(self, to=dtype)
-    return op.ReduceProd(self)
+    elif self.dtype.is_integer():
+        self = op.Cast(self, to=INT64.dtype)
+    return op.ReduceProd(self, keepdims=False)
 
 
 @torch_op("aten::prod.dim_int", trace_only=True)
