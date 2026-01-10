@@ -7680,9 +7680,8 @@ def aten_prod(self: TReal, dtype: int = -1) -> TReal:
 
     if dtype != -1 and dtype is not None:
         self = op.Cast(self, to=dtype)
-    else:
-        if self.dtype.is_integer():
-            self = op.Cast(self, to=INT64.dtype)
+    elif self.dtype.is_integer():
+        self = op.Cast(self, to=INT64.dtype)
     return op.ReduceProd(self, keepdims=False)
 
 
