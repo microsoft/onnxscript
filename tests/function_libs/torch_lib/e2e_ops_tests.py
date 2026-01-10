@@ -871,6 +871,20 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_prod(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.prod(x)
+
+        x = torch.randn(3, 4, 5)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
