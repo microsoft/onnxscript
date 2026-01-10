@@ -7350,7 +7350,13 @@ def aten_normal(
 
 @torch_op("aten::normal.float_float", trace_only=True)
 def aten_normal_float_float(
-    mean: float, std: float, size: INT64, dtype: int = FLOAT.dtype, layout: str = "", device: str = "", pin_memory: bool = False
+    mean: float,
+    std: float,
+    size: INT64,
+    dtype: int = FLOAT.dtype,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
 ) -> TensorType:
     """normal.float_float(float mean, float std, SymInt[] size, *, Generator? generator=None, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
