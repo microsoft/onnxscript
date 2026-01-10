@@ -1064,6 +1064,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("permute", core_ops.aten_permute_complex, complex=True),
     TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
+    TorchLibOpInfo("prod", core_ops.aten_prod).skip(
+        matcher=lambda sample: sample.kwargs.get("dim") is not None
+        or sample.kwargs.get("keepdim") is not None
+        or len(sample.args) > 0,
+        reason="this Aten overload only accept 1 inputs: self",
+    ),
     TorchLibOpInfo("prod_dim_int", core_ops.aten_prod_dim_int).skip(
         matcher=lambda sample: (
             sample.kwargs.get("dim") is None and sample.kwargs.get("keepdim") is None
