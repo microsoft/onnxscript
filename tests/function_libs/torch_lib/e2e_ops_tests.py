@@ -228,6 +228,37 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_optional_enable_gqa_in_attention(self):
+        class Model(torch.nn.Module):
+            def forward(self, q, k, v):
+                return torch.nn.functional.scaled_dot_product_attention(  # pylint: disable=not-callable
+                    q,
+                    k,
+                    v,
+                )
+
+        model = Model()
+
+        # scaled_dot_product_attention works even if query.shape[1] != key.shape[1]
+        # due to broadcasting
+        query = torch.randn(2, 1, 8, 16)
+        key = torch.randn(2, 2, 8, 16)
+        value = torch.randn(2, 2, 8, 16)
+
+        onnx_program = torch.onnx.export(
+            model,
+            (
+                query,
+                key,
+                value,
+            ),
+            input_names=["query", "key", "value"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_bitwise_and_scalar(self):
         class Model(torch.nn.Module):
             def forward(self, x):
