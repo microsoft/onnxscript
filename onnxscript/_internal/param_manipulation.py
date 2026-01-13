@@ -77,7 +77,7 @@ def separate_input_attributes_from_arguments(
     return onnx_inputs, onnx_attributes
 
 
-def tag_arguments_with_param_schemas(
+def tag_arguments_with_signature(
     op_signature: _schemas.OpSignature,
     args,
     kwargs,
