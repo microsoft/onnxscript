@@ -70,7 +70,7 @@ def separate_input_attributes_from_arguments(
             # User did not provide the attribute
             if fill_defaults:
                 # Extract the value from the Attr object
-                onnx_attributes[param.name] = param.default.value if param.default else None
+                onnx_attributes[param.name] = param.default.value
         elif param.required:
             raise TypeError(f"Required input '{param}' was not provided")
 
