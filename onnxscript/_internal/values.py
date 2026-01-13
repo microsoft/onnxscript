@@ -467,7 +467,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.function!r})"
 
-
     def to_function_proto(self) -> onnx.FunctionProto:
         """Converts the function into :class:`onnx.FunctionProto`."""
         return self.function_ir.to_function_proto()

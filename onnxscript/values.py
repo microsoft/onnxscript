@@ -11,7 +11,6 @@ from onnxscript._internal.values import (
     OnnxFunction,
     Op,
     Opset,
-    ParamSchema,
     SymbolValue,
     TracedOnnxFunction,
 )
@@ -22,7 +21,6 @@ __all__ = [
     "OnnxFunction",
     "Op",
     "Opset",
-    "ParamSchema",
     "SymbolValue",
     "TracedOnnxFunction",
 ]
