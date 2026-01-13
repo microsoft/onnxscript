@@ -135,7 +135,7 @@ def tag_arguments_with_signature(
             if fill_defaults:
                 default_value = param.default
                 # Extract value from Attr object if it's an AttributeParameter
-                if isinstance(param, _schemas.AttributeParameter) and param.default:
+                if isinstance(param, _schemas.AttributeParameter):
                     default_value = param.default.value
                 tagged_kwargs[param.name] = (default_value, param)
         elif param.required:
