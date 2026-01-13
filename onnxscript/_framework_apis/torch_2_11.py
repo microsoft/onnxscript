@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Stable APIs for PyTorch 2.9."""
+"""Stable APIs for PyTorch 2.11."""
 
 from __future__ import annotations
 
