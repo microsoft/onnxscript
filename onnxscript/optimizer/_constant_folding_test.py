@@ -616,7 +616,7 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
 
     def test_reshape_eliminates_dynamic_shape_subgraph(self):
         """Test that Reshape with one dynamic dim is optimized to use -1.
-        
+
         Pattern: Shape -> Gather -> Concat -> Reshape
         When the resulting shape has exactly one dynamic dimension and all other
         dimensions are static integers, the optimizer should replace the dynamic
@@ -636,7 +636,7 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
             }
         """
         optimized = self._fold(model)
-        
+
         # Assert: No Shape, Gather, or Concat nodes remain in the graph
         for op_type in ["Shape", "Gather", "Concat"]:
             nodes = [n for n in optimized.graph if n.op_type == op_type]
@@ -644,7 +644,7 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
                 len(nodes), 0,
                 f"Expected no {op_type} nodes after optimization, found {len(nodes)}"
             )
-        
+
         # Assert: Graph contains either one Reshape or one Identity
         reshape_nodes = [n for n in optimized.graph if n.op_type == "Reshape"]
         identity_nodes = [n for n in optimized.graph if n.op_type == "Identity"]
@@ -652,14 +652,14 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
             len(reshape_nodes) == 1 or len(identity_nodes) == 1,
             f"Expected one Reshape or Identity node, found {len(reshape_nodes)} Reshape and {len(identity_nodes)} Identity"
         )
-        
+
         # If Reshape exists, assert its shape input is a Constant with exactly one -1
         if len(reshape_nodes) == 1:
             reshape_node = reshape_nodes[0]
             shape_input = reshape_node.inputs[1]
             self.assertIsNotNone(shape_input, "Reshape shape input should not be None")
             self.assertIsNotNone(shape_input.const_value, "Shape input should be a constant")
-            
+
             shape_array = shape_input.const_value.numpy()
             count_minus_one = np.count_nonzero(shape_array == -1)
             self.assertEqual(
