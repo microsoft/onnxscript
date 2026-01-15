@@ -123,7 +123,7 @@ def aten__fft_c2r(
         dft_length=last_dim_size,
         axis=dimension,
         inverse=True,
-        onesided=False,
+        onesided=True,
     )
     transformed = _fftn_onnx_normalization(
         transformed,
