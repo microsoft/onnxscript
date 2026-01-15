@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: D402
+# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -198,7 +198,10 @@ class Opset20(Opset19):
             dft_length: (optional, non-differentiable) The length of the signal as a
                 scalar. If greater than the axis dimension, the signal will be
                 zero-padded up to `dft_length`. If less than the axis dimension, only
-                the first `dft_length` values will be used as the signal.
+                the first `dft_length` values will be used as the signal. If not
+                provided, the default `dft_length = signal_dim_axis`, except for the
+                IRFFT case (`onesided=1`, `inverse=1`), in which case the default
+                dft_length is `2 * (signal_dim_axis - 1)`.
 
             axis: (optional, non-differentiable) The axis as a scalar on which to
                 perform the DFT. Default is `-2` (last signal axis). Negative value
@@ -209,13 +212,15 @@ class Opset20(Opset19):
             inverse: Whether to perform the inverse discrete Fourier Transform. Default
                 is 0, which corresponds to `false`.
 
-            onesided: If `onesided` is `1` and input is real, only values for `k` in
-                `[0, 1, 2, ..., floor(n_fft/2) + 1]` are returned because the
-                real-to-complex Fourier transform satisfies the conjugate symmetry,
-                i.e., `X[m, k] = X[m, n_fft-k]*`, where `m` denotes "all other
-                dimensions" DFT was not applied on. If the input tensor is complex,
-                onesided output is not possible. Value can be `0` or `1`. Default is
-                `0`.
+            onesided: If `onesided` is `1`, only values for `k` in `[0, 1, 2, ...,
+                floor(n_fft/2) + 1]` are used or returned because the real-to-complex
+                Fourier transform satisfies the conjugate symmetry, i.e., `X[m, k] =
+                X[m, n_fft-k]*`, where `m` denotes "all other dimensions" DFT was not
+                applied on. When `onesided=1` and `inverse=0` (forward DFT), only real
+                input is supported and a one-sided complex spectrum is returned (RFFT).
+                When `onesided=1` and `inverse=1` (inverse DFT), only complex input is
+                supported and a full real signal is returned (IRFFT). Value can be `0`
+                or `1`. Default is `0`.
         """
 
         schema = get_schema("DFT", 20, "")
@@ -515,17 +520,22 @@ class Opset20(Opset19):
                 which to reduce. The default is to reduce over empty axes. When axes is
                 empty (either not provided or explicitly empty), behavior depends on
                 'noop_with_empty_axes': reduction over all axes if
-                'noop_with_empty_axes' is false, or no reduction is applied if
-                'noop_with_empty_axes' is true (but other operations will be performed).
-                Accepted range is [-r, r-1] where r = rank(data).
+                'noop_with_empty_axes' is false, and reduction over the empty set of
+                axes when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
+                where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
             noop_with_empty_axes: Defines behavior when axes is not provided or is
-                empty. If false (default), reduction happens over all axes. If true, no
-                reduction is applied, but other operations will be performed. For
-                example, ReduceSumSquare acts as a vanilla Square.
+                empty. If false (default), reduction happens over all axes (similar to
+                the case when `axis=None` in numpy). If true, reduction happens over an
+                empty set of axes (similar to the case when `axis=()` in numpy). Note
+                that reduction over an empty set of axes means that the reduction step
+                behaves like a no-op (identity function), but composite-reduction
+                operators will still perform the non-reduction steps as needed. Thus,
+                ReduceLogSum returns the Log of input tensor, and ReduceSumSquare
+                returns the Square of the input tensor, in this case.
         """
 
         schema = get_schema("ReduceMax", 20, "")
@@ -580,17 +590,22 @@ class Opset20(Opset19):
                 which to reduce. The default is to reduce over empty axes. When axes is
                 empty (either not provided or explicitly empty), behavior depends on
                 'noop_with_empty_axes': reduction over all axes if
-                'noop_with_empty_axes' is false, or no reduction is applied if
-                'noop_with_empty_axes' is true (but other operations will be performed).
-                Accepted range is [-r, r-1] where r = rank(data).
+                'noop_with_empty_axes' is false, and reduction over the empty set of
+                axes when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
+                where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
             noop_with_empty_axes: Defines behavior when axes is not provided or is
-                empty. If false (default), reduction happens over all axes. If true, no
-                reduction is applied, but other operations will be performed. For
-                example, ReduceSumSquare acts as a vanilla Square.
+                empty. If false (default), reduction happens over all axes (similar to
+                the case when `axis=None` in numpy). If true, reduction happens over an
+                empty set of axes (similar to the case when `axis=()` in numpy). Note
+                that reduction over an empty set of axes means that the reduction step
+                behaves like a no-op (identity function), but composite-reduction
+                operators will still perform the non-reduction steps as needed. Thus,
+                ReduceLogSum returns the Log of input tensor, and ReduceSumSquare
+                returns the Square of the input tensor, in this case.
         """
 
         schema = get_schema("ReduceMin", 20, "")

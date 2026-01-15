@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: E741, D214, D402, D405, D411, D416
+# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -846,7 +846,7 @@ class Opset11(Opset10):
         ::
 
             intermediate_zero_point = qmin - min(x)/y_scale
-            y_zero_point = cast(round(saturate(itermediate_zero_point)))
+            y_zero_point = cast(round(saturate(intermediate_zero_point)))
 
 
 
@@ -1464,11 +1464,7 @@ class Opset11(Opset10):
     )
 
     def Loop(
-        self,
-        M: Optional[I_Loop],
-        cond: Optional[B_Loop],
-        *v_initial: V_Loop,
-        body: GraphProto,
+        self, M: Optional[I_Loop], cond: Optional[B_Loop], *v_initial: V_Loop, body: GraphProto
     ) -> V_Loop:
         r"""[🌐 Loop(11)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-11 "Online Documentation")
 
@@ -1586,7 +1582,7 @@ class Opset11(Opset10):
         1) Values from the enclosing scope (i.e. variable "a" here) are in scope and can
            be referenced in the inputs of the loop.
         2) Any values computed in the loop body that needs to be used in a subsequent
-           iteration or after the loop are modelled using a pair of variables in the loop-body,
+           iteration or after the loop are modeled using a pair of variables in the loop-body,
            consisting of an input variable (eg., b_in) and an output variable (eg., b_out).
            These are referred to as loop-carried dependences. The loop operation node
            supplies the input value of the input variable for the first iteration, and
@@ -2241,11 +2237,7 @@ class Opset11(Opset10):
     T_ReduceL1 = TypeVar("T_ReduceL1", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceL1(
-        self,
-        data: T_ReduceL1,
-        *,
-        axes: Optional[Sequence[int]] = None,
-        keepdims: int = 1,
+        self, data: T_ReduceL1, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceL1:
         r"""[🌐 ReduceL1(11)](https://onnx.ai/onnx/operators/onnx__ReduceL1.html#reducel1-11 "Online Documentation")
 
@@ -2275,11 +2267,7 @@ class Opset11(Opset10):
     T_ReduceL2 = TypeVar("T_ReduceL2", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceL2(
-        self,
-        data: T_ReduceL2,
-        *,
-        axes: Optional[Sequence[int]] = None,
-        keepdims: int = 1,
+        self, data: T_ReduceL2, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceL2:
         r"""[🌐 ReduceL2(11)](https://onnx.ai/onnx/operators/onnx__ReduceL2.html#reducel2-11 "Online Documentation")
 
@@ -2311,11 +2299,7 @@ class Opset11(Opset10):
     )
 
     def ReduceLogSum(
-        self,
-        data: T_ReduceLogSum,
-        *,
-        axes: Optional[Sequence[int]] = None,
-        keepdims: int = 1,
+        self, data: T_ReduceLogSum, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceLogSum:
         r"""[🌐 ReduceLogSum(11)](https://onnx.ai/onnx/operators/onnx__ReduceLogSum.html#reducelogsum-11 "Online Documentation")
 
@@ -2381,11 +2365,7 @@ class Opset11(Opset10):
     T_ReduceMax = TypeVar("T_ReduceMax", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMax(
-        self,
-        data: T_ReduceMax,
-        *,
-        axes: Optional[Sequence[int]] = None,
-        keepdims: int = 1,
+        self, data: T_ReduceMax, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceMax:
         r"""[🌐 ReduceMax(11)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-11 "Online Documentation")
 
@@ -2418,11 +2398,7 @@ class Opset11(Opset10):
     )
 
     def ReduceMean(
-        self,
-        data: T_ReduceMean,
-        *,
-        axes: Optional[Sequence[int]] = None,
-        keepdims: int = 1,
+        self, data: T_ReduceMean, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceMean:
         r"""[🌐 ReduceMean(11)](https://onnx.ai/onnx/operators/onnx__ReduceMean.html#reducemean-11 "Online Documentation")
 
@@ -2452,11 +2428,7 @@ class Opset11(Opset10):
     T_ReduceMin = TypeVar("T_ReduceMin", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMin(
-        self,
-        data: T_ReduceMin,
-        *,
-        axes: Optional[Sequence[int]] = None,
-        keepdims: int = 1,
+        self, data: T_ReduceMin, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceMin:
         r"""[🌐 ReduceMin(11)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-11 "Online Documentation")
 
@@ -2489,11 +2461,7 @@ class Opset11(Opset10):
     )
 
     def ReduceProd(
-        self,
-        data: T_ReduceProd,
-        *,
-        axes: Optional[Sequence[int]] = None,
-        keepdims: int = 1,
+        self, data: T_ReduceProd, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceProd:
         r"""[🌐 ReduceProd(11)](https://onnx.ai/onnx/operators/onnx__ReduceProd.html#reduceprod-11 "Online Documentation")
 
@@ -2523,11 +2491,7 @@ class Opset11(Opset10):
     T_ReduceSum = TypeVar("T_ReduceSum", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceSum(
-        self,
-        data: T_ReduceSum,
-        *,
-        axes: Optional[Sequence[int]] = None,
-        keepdims: int = 1,
+        self, data: T_ReduceSum, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceSum:
         r"""[🌐 ReduceSum(11)](https://onnx.ai/onnx/operators/onnx__ReduceSum.html#reducesum-11 "Online Documentation")
 
@@ -3130,7 +3094,7 @@ class Opset11(Opset10):
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
-                output[indices[idx]] = updates[idx]
+                output[tuple(indices[idx])] = updates[idx]
 
         The order of iteration in the above loop is not specified.
         In particular, indices should not have duplicate entries: that is, if idx1 != idx2, then indices[idx1] != indices[idx2].
@@ -3349,9 +3313,7 @@ class Opset11(Opset10):
     I_SequenceErase = TypeVar("I_SequenceErase", INT32, INT64)
 
     def SequenceErase(
-        self,
-        input_sequence: S_SequenceErase,
-        position: Optional[I_SequenceErase] = None,
+        self, input_sequence: S_SequenceErase, position: Optional[I_SequenceErase] = None
     ) -> S_SequenceErase:
         r"""[🌐 SequenceErase(11)](https://onnx.ai/onnx/operators/onnx__SequenceErase.html#sequenceerase-11 "Online Documentation")
 
@@ -3835,10 +3797,7 @@ class Opset11(Opset10):
         schema = get_schema("TopK", 11, "")
         op = Op(self, "TopK", schema)
         return op(
-            *self._prepare_inputs(schema, X, K),
-            axis=axis,
-            largest=largest,
-            sorted=sorted,
+            *self._prepare_inputs(schema, X, K), axis=axis, largest=largest, sorted=sorted
         )
 
     T_Unique = TypeVar(
