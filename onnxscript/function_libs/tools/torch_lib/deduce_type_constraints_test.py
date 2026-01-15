@@ -50,12 +50,13 @@ class TestDeduceTypeConstraints(unittest.TestCase):
         except NotImplementedError as e:
             if "Nested function" in str(e):
                 self.skipTest("Unimplemented: function contains nested function.")
-        logger.info(
-            "Original signature: %s%s",
-            onnx_function.name,
-            inspect.signature(onnx_function.function),
-        )
-        logger.info(signature_type_constraint)
+        else:
+            logger.info(
+                "Original signature: %s%s",
+                onnx_function.name,
+                inspect.signature(onnx_function.function),
+            )
+            logger.info("%s", signature_type_constraint)
 
 
 if __name__ == "__main__":

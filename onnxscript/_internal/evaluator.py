@@ -25,6 +25,7 @@ from typing_extensions import TypeAlias
 
 from onnxscript import onnx_opset, tensor
 from onnxscript._internal import autocast, param_manipulation, utils, values
+from onnxscript.ir import _schemas
 
 UserModeValue: TypeAlias = Union[Optional[np.ndarray], Sequence["UserModeValue"]]
 
@@ -273,11 +274,11 @@ class BaseEvaluator(Evaluator, abc.ABC):
             args: The positional arguments to the function.
             kwargs: The keyword arguments to the function.
         """
-        param_schemas = function.param_schemas()
+        op_signature = function.op_signature
         # Split happens in the evaluator instead of the OnnxFunction __call__ method
         # so that evaluators can control behaviors like whether to fill in default values for attributes.
-        tagged_args, tagged_kwargs = param_manipulation.tag_arguments_with_param_schemas(
-            param_schemas,
+        tagged_args, tagged_kwargs = param_manipulation.tag_arguments_with_signature(
+            op_signature,
             args,
             kwargs,
             fill_defaults=False,
@@ -287,16 +288,16 @@ class BaseEvaluator(Evaluator, abc.ABC):
         adapted_args: list[ExtendedModeValue] = []
         adapted_kwargs: dict[str, ExtendedModeValue] = {}
         has_array = False
-        for arg, param_schema in tagged_args:
-            if param_schema.is_input:
+        for arg, param in tagged_args:
+            if isinstance(param, _schemas.Parameter):
                 adapted_arg, has_array_ = _adapt_to_eager_mode(arg)
                 has_array = has_array or has_array_
                 adapted_args.append(adapted_arg)
             else:
                 adapted_args.append(arg)
 
-        for key, (arg, param_schema) in tagged_kwargs.items():
-            if param_schema.is_input:
+        for key, (arg, param) in tagged_kwargs.items():
+            if isinstance(param, _schemas.Parameter):
                 adapted_arg, has_array_ = _adapt_to_eager_mode(arg)
                 has_array = has_array or has_array_
                 adapted_kwargs[key] = adapted_arg

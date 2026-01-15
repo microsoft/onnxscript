@@ -147,45 +147,6 @@ class Opset:
 # ONNX ops
 
 
-@dataclasses.dataclass(frozen=True)
-class ParamSchema:
-    """A schema for a parameter of an Op or a OnnxFunction.
-
-    Attributes:
-        name: The name of the parameter.
-        type: The type of the parameter.
-        default: The default value of the parameter.
-        required: Whether the input or attribute is required.
-            For example, `Slice` has two optional inputs `axes` and `steps`.
-            `SoftmaxCrossEntropyLoss` has an optional attribute `ignore_index`.
-        is_input: Whether the parameter is an ONNX input.
-        is_variadic_input: Whether the parameter, which has to be an INPUT, is variadic.
-    """
-
-    name: str
-    type: Any = None  # Op input does not have a type, for now
-    default: Any = _EmptyDefault
-    required: bool = True
-    is_input: bool = True
-    is_variadic_input: bool = False
-
-    def __str__(self) -> str:
-        """Return a string representation of the parameter.
-
-        E.g. "x: Input[INT64]" or "axis: Attribute[int] = 0"
-        """
-        param_kind = "Input" if self.is_input else "Attribute"
-        text = f"{self.name}: {param_kind}[{self.type}]"
-        if self.default is not _EmptyDefault:
-            text += f" = {self.default}"
-        return text
-
-    @property
-    def is_attribute(self) -> bool:
-        """Returns True if the parameter is an ONNX attribute."""
-        return not self.is_input
-
-
 def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
     """Get the default value of an ONNX attribute."""
     if attr_proto.type == onnx.AttributeProto.UNDEFINED:
@@ -193,82 +154,8 @@ def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
     return onnx.helper.get_attribute_value(attr_proto)
 
 
-def _param_schemas_from_op_schema(
-    op_schema: onnx.defs.OpSchema,
-) -> tuple[ParamSchema, ...]:
-    """Get the parameter schemas from an ONNX OpSchema."""
-    schemas = []
-    for input_ in op_schema.inputs:
-        param_schema = ParamSchema(
-            name=input_.name,
-            is_input=True,
-            required=(input_.option != onnx.defs.OpSchema.FormalParameterOption.Optional),
-            is_variadic_input=(
-                input_.option == onnx.defs.OpSchema.FormalParameterOption.Variadic
-            ),
-        )
-        schemas.append(param_schema)
-    for attr_name, attribute in op_schema.attributes.items():
-        default_attr_proto = attribute.default_value
-        param_schema = ParamSchema(
-            name=attr_name,
-            type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attribute.type],
-            default=_get_attribute_value(default_attr_proto),
-            is_input=False,
-            required=attribute.required,
-        )
-        schemas.append(param_schema)
-
-    return tuple(schemas)
-
-
 def _typeinfo(var: ir.Value) -> Any:
     return var.meta.get("typeinfo")
-
-
-def _param_schema_from_function_ir_input(input: ir.Value):
-    typeinfo = _typeinfo(input)
-    if type_annotation.is_optional(typeinfo):
-        required = False
-    else:
-        required = True
-    return ParamSchema(name=input.name, type=typeinfo, is_input=True, required=required)
-
-
-def _param_schema_from_function_ir_attr(attr: ir.Attr):
-    return ParamSchema(
-        name=attr.name,
-        type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
-            onnx.defs.OpSchema.AttrType(attr.type)  # type: ignore[call-arg]
-        ),
-        default=_EmptyDefault if attr.value is None else attr.value,
-        is_input=False,
-        required=attr.value is None,
-    )
-
-
-def _param_schemas_from_function_ir(
-    function_ir: irbuilder.IRFunction,
-) -> tuple[ParamSchema, ...]:
-    """Get the parameter schemas from a FunctionIR."""
-    schemas = []
-
-    # OnnxFunction supports interleaving inputs and attributes as arguments.
-    # Preserve the original order for param_schemas.
-    # NOTE the interleave ordering is only preserved at OnnxFunction/FunctionIR level.
-    # ONNX OpSchema and FunctionProto does not support interleaving inputs and attributes.
-    # This is by design. See more at https://github.com/microsoft/onnxscript/issues/771.
-    for arg in function_ir.ordered_inputs_and_attrs:
-        if isinstance(arg, ir.Value):
-            # input
-            schemas.append(_param_schema_from_function_ir_input(arg))
-        elif isinstance(arg, ir.Attr):
-            # attr
-            schemas.append(_param_schema_from_function_ir_attr(arg))
-        else:
-            raise TypeError(f"Unknown input/attr type {type(arg)} from FunctionIR.")
-
-    return tuple(schemas)
 
 
 @typing.runtime_checkable
@@ -306,7 +193,6 @@ class Op(OpLike):
         self._name = name
         self._op_schema = op_schema or opset[name]
         self._signature: Optional[_schemas.OpSignature] = None
-        self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
         if self._op_schema is None:
             logger.debug(
@@ -358,18 +244,6 @@ class Op(OpLike):
     @op_signature.setter
     def op_signature(self, value: _schemas.OpSignature):
         self._signature = value
-
-    def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
-        """Returns the parameter schemas for this op, if it has one."""
-        if self._param_schemas is not None:
-            return self._param_schemas
-
-        op_schema = self.op_schema
-        if op_schema is None:
-            return None
-
-        self._param_schemas = _param_schemas_from_op_schema(op_schema)
-        return self._param_schemas
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -517,7 +391,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
         self.function_ir = irfun
         self.source = source
         self.kwargs = kwargs
-        self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
         self._op_schema: Optional[onnx.defs.OpSchema] = None
 
         # Allow the object to be inspected as a function
@@ -593,17 +466,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.function!r})"
-
-    def param_schemas(self) -> tuple[ParamSchema, ...]:
-        """Returns the parameter schemas of this function."""
-        if self._param_schemas is not None:
-            return self._param_schemas
-
-        # NOTE: We generate the parameter schemas from the function_ir instead
-        # of relying on the auto generated OpSchema because we need to preserve the keyword
-        # argument order from the Python function definition, which is lost in OpSchema.
-        self._param_schemas = _param_schemas_from_function_ir(self.function_ir)
-        return self._param_schemas
 
     def to_function_proto(self) -> onnx.FunctionProto:
         """Converts the function into :class:`onnx.FunctionProto`."""
@@ -800,17 +662,6 @@ class TracedOnnxFunction(Op):
     @op_signature.setter
     def op_signature(self, value: _schemas.OpSignature):
         self._signature = value
-
-    def param_schemas(self) -> tuple[ParamSchema, ...]:
-        """Returns the parameter schemas of this function."""
-        if self._param_schemas is not None:
-            return self._param_schemas
-
-        # NOTE: We generate the parameter schemas from the function_ir instead
-        # of relying on the auto generated OpSchema because we need to preserve the keyword
-        # argument order from the Python function definition, which is lost in OpSchema.
-        self._param_schemas = _param_schemas_from_function_ir(self.function_ir)
-        return self._param_schemas
 
 
 class SymbolValue:

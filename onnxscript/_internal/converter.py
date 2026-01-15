@@ -871,13 +871,13 @@ class Converter:
     ) -> tuple[values.Op, list[ir.Value | None], list[ir.Attr]]:
         """Translates a call-expression."""
         callee = self._translate_callee_expr(node.func)
-        param_schemas = callee.param_schemas()
+        op_signature = callee.op_signature
         # If the callee's schema is available, we use it to determine the inputs and attributes.
         # Otherwise, we map named arguments to attributes and positional arguments to inputs.
-        if param_schemas:
+        if op_signature:
             kwargs = {x.arg: x.value for x in node.keywords}
             args, attrs = param_manipulation.separate_input_attributes_from_arguments(
-                param_schemas, node.args, kwargs, fill_defaults=False
+                op_signature, node.args, kwargs, fill_defaults=False
             )
             args = [self._translate_opt_expr(x) for x in args]
             attrs = [
