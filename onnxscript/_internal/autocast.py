@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 import numpy as np
 import onnx
 import onnx.helper  # noqa: TID251
-from onnx.defs import OpSchema
 
 from onnxscript import ir, tensor
+from onnxscript.ir import _schemas
 
 if TYPE_CHECKING:
     from onnxscript._internal import converter
@@ -126,7 +126,7 @@ def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
 def cast_inputs(
     get_type_info: Callable[[Any], Any],
     cast: Callable[[Any, Any], Any],
-    op_schema: OpSchema | None,
+    op_signature: _schemas.OpSignature | None,
     args,
 ) -> tuple[Any, ...]:
     """Uses schema specification to support a limited form of auto-casting.
@@ -140,12 +140,15 @@ def cast_inputs(
     This is used by the converter in a static-mode, as well as by the eager-mode
     execution in a dynamic-mode.
     """
-    if op_schema is None:
+    if op_signature is None:
         # Either an error or a custom op.
         # No checks/casts in this case.
         return tuple(cast(x, None) for x in args)
 
-    expected_inputs = op_schema.inputs
+    # Filter to get only input parameters (not AttributeParameters)
+    expected_inputs = [
+        param for param in op_signature.params if isinstance(param, _schemas.Parameter)
+    ]
     # We make two passes. In the first pass, we identify known type-bindings for
     # type-variables: eg., {'T1' : np.float32, 'T2' : np.int32}.
     # In the second pass, we use these bindings to cast scalar-values to
@@ -156,17 +159,15 @@ def cast_inputs(
     for i, x in enumerate(args):
         if i < len(expected_inputs):
             expected = expected_inputs[i]
-        elif expected_inputs[-1].option == OpSchema.FormalParameterOption.Variadic:
+        elif expected_inputs[-1].variadic:
             expected = expected_inputs[-1]
-            if not expected.is_homogeneous:
-                args_typevars.append((x, None))
-                continue
+            # TODO(justinchuby): Handle is_homogeneous params
         else:
             raise ValueError(
                 f"Number of actual parameters {len(args)} "
                 f"exceeds number of formal parameters {len(expected_inputs)}."
             )
-        typevar = expected.type_str
+        typevar = expected.type_constraint.name
         if "(" not in typevar:
             # typevar is an identifier, like "T"
             typeinfo = get_type_info(x)
@@ -177,18 +178,18 @@ def cast_inputs(
     return tuple(cast_args)
 
 
-def dynamic_cast_inputs(op_schema: OpSchema, args):
+def dynamic_cast_inputs(op_signature: _schemas.OpSignature, args):
     """Used for autocast during eager-mode execution."""
 
     def get_type_info(x):
         return x.dtype if isinstance(x, tensor.Tensor) else None
 
-    return cast_inputs(get_type_info, cast_pyvalue_to_os_tensor, op_schema, args)
+    return cast_inputs(get_type_info, cast_pyvalue_to_os_tensor, op_signature, args)
 
 
 def static_cast_inputs(
     converter_: converter.Converter,
-    op_schema: Optional[OpSchema],
+    op_signature: Optional[_schemas.OpSignature],
     args: Sequence[Optional[ir.Value]],
 ) -> tuple[str, ...]:
     """Used for autocast during script-translation.
@@ -212,4 +213,4 @@ def static_cast_inputs(
             return converter_.emit1([x_cast], "CastLike", [x, y])
         return x
 
-    return cast_inputs(get_type_info, cast_like, op_schema, args)
+    return cast_inputs(get_type_info, cast_like, op_signature, args)

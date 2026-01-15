@@ -189,38 +189,35 @@ class BaseEvaluator(Evaluator, abc.ABC):
             attributes: The ONNX attributes to the op.
         """
         attributes = _unwrap_tensors_in_kwargs(attributes)
-        attributes, closure = self.adapt_attributes(schema, attributes)
-        inputs = self.adapt_inputs(schema, inputs)
+        attributes, closure = self._adapt_attributes(attributes)
+        inputs = self._adapt_inputs(schema, inputs)
         outputs = self._eval(schema, inputs, attributes, closure)
-        return self.adapt_outputs(schema, outputs)
+        return self._adapt_outputs(outputs)
 
-    def adapt_inputs(self, schema: onnx.defs.OpSchema, inputs: Sequence[ExtendedModeValue]):
+    def _adapt_inputs(self, schema: onnx.defs.OpSchema, inputs: Sequence[ExtendedModeValue]):
         """Transform inputs to the expected format for the evaluator.
 
         Enables some syntactic sugar, such as the use of Python scalars,
         in a manner consistent with the translator. See autocast.py for details.
         """
-        return autocast.dynamic_cast_inputs(schema, inputs)
+        op_signature = _schemas.OpSignature.from_op_schema(schema)
+        return autocast.dynamic_cast_inputs(op_signature, inputs)
 
-    def adapt_attributes(
-        self, schema: onnx.defs.OpSchema, attributes: Mapping[str, ExtendedModeValue]
+    def _adapt_attributes(
+        self, attributes: Mapping[str, ExtendedModeValue]
     ) -> tuple[dict[str, ExtendedModeValue], dict[str, ExtendedModeValue]]:
         """Transform attributes to the expected format for the evaluator.
 
         Returns:
             A closure that can be used to evaluate graph-valued attributes.
         """
-        use_graph_attribute = self.use_graph_attribute(schema)
         closure: dict[Any, Any] = {}
         adapted_attributes = {}
         for k, v in attributes.items():
             if isinstance(v, values.OnnxClosure):
-                if use_graph_attribute:
-                    adapted_attributes[k] = v.function_ir.to_graph_proto()
-                    for pyvar, onnxvar in v.function_ir.outer_scope_variables:
-                        closure[onnxvar.value.name] = v.frame.f_locals[pyvar]
-                else:
-                    adapted_attributes[k] = v.function
+                adapted_attributes[k] = v.function_ir.to_graph_proto()
+                for pyvar, onnxvar in v.function_ir.outer_scope_variables:
+                    closure[onnxvar.value.name] = v.frame.f_locals[pyvar]
             elif callable(v):
                 raise TypeError(
                     f"Error: function-valued attribute {v.__name__} has no graph_proto"
@@ -230,17 +227,12 @@ class BaseEvaluator(Evaluator, abc.ABC):
                 adapted_attributes[k] = v
         return adapted_attributes, closure
 
-    def adapt_outputs(self, schema: onnx.defs.OpSchema, outputs: Sequence[EagerModeValue]):
+    def _adapt_outputs(self, outputs: Sequence[EagerModeValue]):
         """Adapt evaluator's output to convention used in onnxscript.
 
         Onnxscript uses a tuple/sequence only when number of outputs > 1.
         """
-        del schema  # unused
         return outputs[0] if len(outputs) == 1 else outputs
-
-    def use_graph_attribute(self, schema: onnx.defs.OpSchema):
-        del schema  # unused
-        return True
 
     @abc.abstractmethod
     def _eval(
