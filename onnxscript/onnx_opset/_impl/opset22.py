@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: E741, D402, D405
+# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -275,11 +275,7 @@ class Opset22(Opset21):
     ]
 
     def Bernoulli(
-        self,
-        input: T1_Bernoulli,
-        *,
-        dtype: Optional[int] = None,
-        seed: Optional[float] = None,
+        self, input: T1_Bernoulli, *, dtype: Optional[int] = None, seed: Optional[float] = None
     ) -> T2_Bernoulli:
         r"""[🌐 Bernoulli(22)](https://onnx.ai/onnx/operators/onnx__Bernoulli.html#bernoulli-22 "Online Documentation")
 
@@ -2328,11 +2324,7 @@ class Opset22(Opset21):
         schema = get_schema("RandomUniformLike", 22, "")
         op = Op(self, "RandomUniformLike", schema)
         return op(
-            *self._prepare_inputs(schema, input),
-            dtype=dtype,
-            high=high,
-            low=low,
-            seed=seed,
+            *self._prepare_inputs(schema, input), dtype=dtype, high=high, low=low, seed=seed
         )
 
     T1_RoiAlign = TypeVar("T1_RoiAlign", BFLOAT16, DOUBLE, FLOAT, FLOAT16)

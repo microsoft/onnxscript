@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: D402, D412
+# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -290,37 +290,36 @@ class Opset15(Opset14):
     )
 
     O_Optional: TypeAlias = Union[
-        None,
-        Sequence[BOOL],
-        Sequence[COMPLEX128],
-        Sequence[COMPLEX64],
-        Sequence[DOUBLE],
-        Sequence[FLOAT],
-        Sequence[FLOAT16],
-        Sequence[INT16],
-        Sequence[INT32],
-        Sequence[INT64],
-        Sequence[INT8],
-        Sequence[STRING],
-        Sequence[UINT16],
-        Sequence[UINT32],
-        Sequence[UINT64],
-        Sequence[UINT8],
-        BOOL,
-        COMPLEX128,
-        COMPLEX64,
-        DOUBLE,
-        FLOAT,
-        FLOAT16,
-        INT16,
-        INT32,
-        INT64,
-        INT8,
-        STRING,
-        UINT16,
-        UINT32,
-        UINT64,
-        UINT8,
+        _Optional[Sequence[BOOL]],
+        _Optional[Sequence[COMPLEX128]],
+        _Optional[Sequence[COMPLEX64]],
+        _Optional[Sequence[DOUBLE]],
+        _Optional[Sequence[FLOAT]],
+        _Optional[Sequence[FLOAT16]],
+        _Optional[Sequence[INT16]],
+        _Optional[Sequence[INT32]],
+        _Optional[Sequence[INT64]],
+        _Optional[Sequence[INT8]],
+        _Optional[Sequence[STRING]],
+        _Optional[Sequence[UINT16]],
+        _Optional[Sequence[UINT32]],
+        _Optional[Sequence[UINT64]],
+        _Optional[Sequence[UINT8]],
+        _Optional[BOOL],
+        _Optional[COMPLEX128],
+        _Optional[COMPLEX64],
+        _Optional[DOUBLE],
+        _Optional[FLOAT],
+        _Optional[FLOAT16],
+        _Optional[INT16],
+        _Optional[INT32],
+        _Optional[INT64],
+        _Optional[INT8],
+        _Optional[STRING],
+        _Optional[UINT16],
+        _Optional[UINT32],
+        _Optional[UINT64],
+        _Optional[UINT8],
     ]
 
     def Optional(

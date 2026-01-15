@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: D402, D411
+# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -131,12 +131,7 @@ class Opset2(Opset1):
     T_Pad = TypeVar("T_Pad", DOUBLE, FLOAT, FLOAT16)
 
     def Pad(
-        self,
-        data: T_Pad,
-        *,
-        mode: str = "constant",
-        pads: Sequence[int],
-        value: float = 0.0,
+        self, data: T_Pad, *, mode: str = "constant", pads: Sequence[int], value: float = 0.0
     ) -> T_Pad:
         r"""[🌐 Pad(2)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-2 "Online Documentation")
 

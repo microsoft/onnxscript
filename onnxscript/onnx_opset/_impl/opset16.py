@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: D214, D402, D405, D411, D416
+# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -252,7 +252,38 @@ class Opset16(Opset15):
     B_If: TypeAlias = BOOL
 
     V_If: TypeAlias = Union[
-        None,
+        Optional[Sequence[BFLOAT16]],
+        Optional[Sequence[BOOL]],
+        Optional[Sequence[COMPLEX128]],
+        Optional[Sequence[COMPLEX64]],
+        Optional[Sequence[DOUBLE]],
+        Optional[Sequence[FLOAT]],
+        Optional[Sequence[FLOAT16]],
+        Optional[Sequence[INT16]],
+        Optional[Sequence[INT32]],
+        Optional[Sequence[INT64]],
+        Optional[Sequence[INT8]],
+        Optional[Sequence[STRING]],
+        Optional[Sequence[UINT16]],
+        Optional[Sequence[UINT32]],
+        Optional[Sequence[UINT64]],
+        Optional[Sequence[UINT8]],
+        Optional[BFLOAT16],
+        Optional[BOOL],
+        Optional[COMPLEX128],
+        Optional[COMPLEX64],
+        Optional[DOUBLE],
+        Optional[FLOAT],
+        Optional[FLOAT16],
+        Optional[INT16],
+        Optional[INT32],
+        Optional[INT64],
+        Optional[INT8],
+        Optional[STRING],
+        Optional[UINT16],
+        Optional[UINT32],
+        Optional[UINT64],
+        Optional[UINT8],
         Sequence[BFLOAT16],
         Sequence[BOOL],
         Sequence[COMPLEX128],
@@ -444,11 +475,7 @@ class Opset16(Opset15):
     )
 
     def Loop(
-        self,
-        M: Optional[I_Loop],
-        cond: Optional[B_Loop],
-        *v_initial: V_Loop,
-        body: GraphProto,
+        self, M: Optional[I_Loop], cond: Optional[B_Loop], *v_initial: V_Loop, body: GraphProto
     ) -> V_Loop:
         r"""[🌐 Loop(16)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-16 "Online Documentation")
 
@@ -566,7 +593,7 @@ class Opset16(Opset15):
         1) Values from the enclosing scope (i.e. variable "a" here) are in scope and can
            be referenced in the inputs of the loop.
         2) Any values computed in the loop body that needs to be used in a subsequent
-           iteration or after the loop are modelled using a pair of variables in the loop-body,
+           iteration or after the loop are modeled using a pair of variables in the loop-body,
            consisting of an input variable (eg., b_in) and an output variable (eg., b_out).
            These are referred to as loop-carried dependences. The loop operation node
            supplies the input value of the input variable for the first iteration, and
@@ -1117,7 +1144,7 @@ class Opset16(Opset15):
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
-                output[indices[idx]] = updates[idx]
+                output[tuple(indices[idx])] = updates[idx]
         The order of iteration in the above loop is not specified.
         In particular, indices should not have duplicate entries: that is, if idx1 != idx2, then indices[idx1] != indices[idx2].
         This ensures that the output value does not depend on the iteration order.
@@ -1130,12 +1157,12 @@ class Opset16(Opset15):
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
-                output[indices[idx]] += updates[idx]
+                output[tuple(indices[idx])] += updates[idx]
         When `reduction` is set to "mul", `output` is calculated as follows:
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
-                output[indices[idx]] *= updates[idx]
+                output[tuple(indices[idx])] *= updates[idx]
         This operator is the inverse of GatherND.
         Example 1:
         ::

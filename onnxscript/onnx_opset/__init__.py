@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
+# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -39,11 +40,16 @@ from onnxscript.onnx_opset._impl.opset21 import Opset21
 from onnxscript.onnx_opset._impl.opset22 import Opset22
 from onnxscript.onnx_opset._impl.opset23 import Opset23
 from onnxscript.onnx_opset._impl.opset24 import Opset24
+from onnxscript.onnx_opset._impl.opset25 import Opset25
+from onnxscript.onnx_opset._impl.opset26 import Opset26
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml1 import Opset_ai_onnx_ml1
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml2 import Opset_ai_onnx_ml2
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml3 import Opset_ai_onnx_ml3
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml4 import Opset_ai_onnx_ml4
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml5 import Opset_ai_onnx_ml5
+from onnxscript.onnx_opset._impl.opset_ai_onnx_preview_training1 import (
+    Opset_ai_onnx_preview_training1,
+)
 from onnxscript.values import Opset
 
 __all__ = [
@@ -72,11 +78,14 @@ __all__ = [
     "opset22",
     "opset23",
     "opset24",
+    "opset25",
+    "opset26",
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
     "opset_ai_onnx_ml4",
     "opset_ai_onnx_ml5",
+    "opset_ai_onnx_preview_training1",
 ]
 
 
@@ -110,11 +119,14 @@ opset21 = Opset21()
 opset22 = Opset22()
 opset23 = Opset23()
 opset24 = Opset24()
+opset25 = Opset25()
+opset26 = Opset26()
 opset_ai_onnx_ml1 = Opset_ai_onnx_ml1()
 opset_ai_onnx_ml2 = Opset_ai_onnx_ml2()
 opset_ai_onnx_ml3 = Opset_ai_onnx_ml3()
 opset_ai_onnx_ml4 = Opset_ai_onnx_ml4()
 opset_ai_onnx_ml5 = Opset_ai_onnx_ml5()
+opset_ai_onnx_preview_training1 = Opset_ai_onnx_preview_training1()
 all_opsets: Mapping[Tuple[str, int], Opset] = {
     (
         "",
@@ -213,6 +225,14 @@ all_opsets: Mapping[Tuple[str, int], Opset] = {
         24,
     ): opset24,
     (
+        "",
+        25,
+    ): opset25,
+    (
+        "",
+        26,
+    ): opset26,
+    (
         "ai.onnx.ml",
         1,
     ): opset_ai_onnx_ml1,
@@ -232,4 +252,8 @@ all_opsets: Mapping[Tuple[str, int], Opset] = {
         "ai.onnx.ml",
         5,
     ): opset_ai_onnx_ml5,
+    (
+        "ai.onnx.preview.training",
+        1,
+    ): opset_ai_onnx_preview_training1,
 }

@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: D402
+# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -210,18 +210,7 @@ class Opset6(Opset5):
     )
 
     T2_Cast: TypeAlias = Union[
-        BOOL,
-        DOUBLE,
-        FLOAT,
-        FLOAT16,
-        INT16,
-        INT32,
-        INT64,
-        INT8,
-        UINT16,
-        UINT32,
-        UINT64,
-        UINT8,
+        BOOL, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
     ]
 
     def Cast(self, input: T1_Cast, *, to: int) -> T2_Cast:

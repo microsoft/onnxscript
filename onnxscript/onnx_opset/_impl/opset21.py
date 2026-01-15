@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: D214, D402, D405, D411, D412, D416
+# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -670,7 +670,44 @@ class Opset21(Opset20):
     B_If: TypeAlias = BOOL
 
     V_If: TypeAlias = Union[
-        None,
+        Optional[Sequence[BFLOAT16]],
+        Optional[Sequence[BOOL]],
+        Optional[Sequence[COMPLEX128]],
+        Optional[Sequence[COMPLEX64]],
+        Optional[Sequence[DOUBLE]],
+        Optional[Sequence[FLOAT]],
+        Optional[Sequence[FLOAT16]],
+        Optional[Sequence[INT16]],
+        Optional[Sequence[INT32]],
+        Optional[Sequence[INT64]],
+        Optional[Sequence[INT8]],
+        Optional[Sequence[STRING]],
+        Optional[Sequence[UINT16]],
+        Optional[Sequence[UINT32]],
+        Optional[Sequence[UINT64]],
+        Optional[Sequence[UINT8]],
+        Optional[BFLOAT16],
+        Optional[BOOL],
+        Optional[COMPLEX128],
+        Optional[COMPLEX64],
+        Optional[DOUBLE],
+        Optional[FLOAT],
+        Optional[FLOAT16],
+        Optional[FLOAT8E4M3FN],
+        Optional[FLOAT8E4M3FNUZ],
+        Optional[FLOAT8E5M2],
+        Optional[FLOAT8E5M2FNUZ],
+        Optional[INT16],
+        Optional[INT32],
+        Optional[INT4],
+        Optional[INT64],
+        Optional[INT8],
+        Optional[STRING],
+        Optional[UINT16],
+        Optional[UINT32],
+        Optional[UINT4],
+        Optional[UINT64],
+        Optional[UINT8],
         Sequence[BFLOAT16],
         Sequence[BOOL],
         Sequence[COMPLEX128],
@@ -678,13 +715,19 @@ class Opset21(Opset20):
         Sequence[DOUBLE],
         Sequence[FLOAT],
         Sequence[FLOAT16],
+        Sequence[FLOAT8E4M3FN],
+        Sequence[FLOAT8E4M3FNUZ],
+        Sequence[FLOAT8E5M2],
+        Sequence[FLOAT8E5M2FNUZ],
         Sequence[INT16],
         Sequence[INT32],
+        Sequence[INT4],
         Sequence[INT64],
         Sequence[INT8],
         Sequence[STRING],
         Sequence[UINT16],
         Sequence[UINT32],
+        Sequence[UINT4],
         Sequence[UINT64],
         Sequence[UINT8],
         BFLOAT16,
@@ -709,12 +752,6 @@ class Opset21(Opset20):
         UINT4,
         UINT64,
         UINT8,
-        Sequence[FLOAT8E4M3FN],
-        Sequence[FLOAT8E4M3FNUZ],
-        Sequence[FLOAT8E5M2],
-        Sequence[FLOAT8E5M2FNUZ],
-        Sequence[INT4],
-        Sequence[UINT4],
     ]
 
     def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
@@ -833,11 +870,7 @@ class Opset21(Opset20):
     )
 
     def Loop(
-        self,
-        M: Optional[I_Loop],
-        cond: Optional[B_Loop],
-        *v_initial: V_Loop,
-        body: GraphProto,
+        self, M: Optional[I_Loop], cond: Optional[B_Loop], *v_initial: V_Loop, body: GraphProto
     ) -> V_Loop:
         r"""[🌐 Loop(21)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-21 "Online Documentation")
 
@@ -955,7 +988,7 @@ class Opset21(Opset20):
         1) Values from the enclosing scope (i.e. variable "a" here) are in scope and can
            be referenced in the inputs of the loop.
         2) Any values computed in the loop body that needs to be used in a subsequent
-           iteration or after the loop are modelled using a pair of variables in the loop-body,
+           iteration or after the loop are modeled using a pair of variables in the loop-body,
            consisting of an input variable (eg., b_in) and an output variable (eg., b_out).
            These are referred to as loop-carried dependences. The loop operation node
            supplies the input value of the input variable for the first iteration, and
@@ -1868,9 +1901,16 @@ class Opset21(Opset20):
         r"""[🌐 Transpose(21)](https://onnx.ai/onnx/operators/onnx__Transpose.html#transpose-21 "Online Documentation")
 
 
-        Transpose the input tensor similar to numpy.transpose. For example, when
-        perm=(1, 0, 2), given an input tensor of shape (1, 2, 3), the output shape
-        will be (2, 1, 3).
+        Returns a transpose of the input tensor. (Similar to `numpy.transpose`).
+        The optional attribute `perm` must be a permutation of the dimensions of
+        the input tensor. Axis `i` of the output tensor corresponds to the axis
+        `perm[i]` of the input tensor.
+        For example, when perm=(1, 0, 2), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 1, 3).
+        When perm=(1, 2, 0), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 3, 1).
+        If the attribute `perm` is omitted, its default value is `(n-1, ..., 0)`,
+        where `n` is the rank of the input tensor.
 
 
         Args:
