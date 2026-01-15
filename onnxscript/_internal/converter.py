@@ -12,7 +12,6 @@ from typing import (
     Union,
 )
 
-import onnx
 import onnx_ir as ir
 
 import onnxscript
@@ -29,6 +28,7 @@ from onnxscript._internal import (
 from onnxscript._internal import (
     type_annotation as ta,
 )
+from onnxscript.ir import _schemas
 
 logger = logging.getLogger("onnxscript")
 
@@ -518,7 +518,7 @@ class Converter:
         self,
         attr_name: str,
         expr: ast.AST,
-        attr_meta: onnx.defs.OpSchema.Attribute | None = None,
+        attr_meta: _schemas.AttributeParameter | None = None,
     ) -> ir.Attr | None:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
@@ -881,7 +881,7 @@ class Converter:
             )
             args = [self._translate_opt_expr(x) for x in args]
             attrs = [
-                self._translate_attr(x, y, callee.op_schema.attributes[x])
+                self._translate_attr(x, y, callee.op_signature.get(x))
                 for x, y in attrs.items()
             ]
         else:
@@ -896,8 +896,7 @@ class Converter:
         return callee, args, attrs
 
     def _cast_like_binary_expression(self, op, left, right) -> tuple[ir.Value, ir.Value]:
-        schema = op.op_schema
-        return autocast.static_cast_inputs(self, schema, (left, right))
+        return autocast.static_cast_inputs(self, op.op_signature, (left, right))
 
     def _translate_binary_op_expr(self, node: ast.BinOp):
         op = type(node.op)

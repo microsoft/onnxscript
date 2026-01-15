@@ -11,7 +11,7 @@ import inspect
 import logging
 import types
 import typing
-from typing import (  # type: ignore[attr-defined]
+from typing import (
     Any,
     Callable,
     ClassVar,
@@ -27,7 +27,7 @@ import onnx.defs
 import onnx_ir as ir
 from typing_extensions import ParamSpec
 
-from onnxscript._internal import ast_utils, deprecation, irbuilder, sourceinfo, type_annotation
+from onnxscript._internal import ast_utils, deprecation, irbuilder, sourceinfo
 from onnxscript._internal import converter as converter_module
 from onnxscript.ir import _schemas
 from onnxscript.onnx_types import ONNXType
@@ -169,9 +169,6 @@ class OpLike(Protocol):
     def opset(self) -> Opset: ...
 
     @property
-    def op_schema(self) -> Optional[onnx.defs.OpSchema]: ...
-
-    @property
     def op_signature(self) -> Optional[_schemas.OpSignature]: ...
 
 
@@ -261,99 +258,6 @@ class OnnxClosure:
     function: Any
 
 
-@dataclasses.dataclass
-class TypeConstraint:
-    """Represents a type constraint for an ONNX op.
-
-    Attributes:
-        name: The name of the type constraint.
-        allowed_types: The allowed types for the type constraint.
-    """
-
-    name: str
-    allowed_types: list[str]
-    description: str = ""
-
-    def as_tuple(self) -> tuple[str, list[str], str]:
-        """Returns the type constraint as a tuple."""
-        return (self.name, self.allowed_types, self.description)
-
-
-def _op_schema_from_function_ir(
-    function_ir: irbuilder.IRFunction, opset: Opset
-) -> onnx.defs.OpSchema:
-    """Construct an ONNX OpSchema from an IRFunction."""
-
-    # Find all distinct types in the inputs and outputs
-    distinct_types = {_typeinfo(arg) for arg in function_ir.inputs}.union(
-        {_typeinfo(arg) for arg in function_ir.outputs}
-    )
-    # Create a mapping from type to a unique name
-    type_to_constraint = {}
-    for i, type_ in enumerate(distinct_types):
-        name = f"T{i}"
-        type_to_constraint[type_] = TypeConstraint(
-            name=type_annotation.get_type_constraint_name(type_) or name,
-            allowed_types=type_annotation.pytype_to_type_strings(type_),
-        )
-
-    formal_inputs = [
-        onnx.defs.OpSchema.FormalParameter(
-            arg.name,
-            type_to_constraint[_typeinfo(arg)].name,
-            param_option=(
-                onnx.defs.OpSchema.FormalParameterOption.Optional
-                if type_annotation.is_optional(_typeinfo(arg))
-                else onnx.defs.OpSchema.FormalParameterOption.Single
-            ),
-            # TODO(justinchu): Check this is_homogeneous thing
-            is_homogeneous=True,
-        )
-        for arg in function_ir.inputs
-    ]
-    formal_outputs = [
-        onnx.defs.OpSchema.FormalParameter(
-            arg.name,
-            type_to_constraint[_typeinfo(arg)].name,
-            param_option=(
-                onnx.defs.OpSchema.FormalParameterOption.Optional
-                if type_annotation.is_optional(_typeinfo(arg))
-                else onnx.defs.OpSchema.FormalParameterOption.Single
-            ),
-            # TODO(justinchu): Check this is_homogeneous thing
-            is_homogeneous=True,
-        )
-        for arg in function_ir.outputs
-    ]
-    return onnx.defs.OpSchema(
-        function_ir.name,
-        opset.domain,
-        since_version=opset.version,
-        doc=function_ir.doc_string or "",
-        inputs=formal_inputs,
-        outputs=formal_outputs,
-        type_constraints=[constraint.as_tuple() for constraint in type_to_constraint.values()],
-        attributes=[
-            *[
-                onnx.defs.OpSchema.Attribute(
-                    attr.name,
-                    type=onnx.defs.OpSchema.AttrType(attr.type),  # type: ignore[call-arg]
-                )
-                for attr in function_ir.attrs
-                if attr.value is None
-            ],
-            *[
-                onnx.defs.OpSchema.Attribute(
-                    attr.name,
-                    default_value=ir.to_proto(attr),
-                )
-                for attr in function_ir.attrs
-                if attr.value is not None
-            ],
-        ],
-    )
-
-
 class OnnxFunction(Op, Generic[_P, _R]):
     """Represents an ONNX op for which a function-body has been defined in onnxscript.
 
@@ -409,16 +313,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
         # NOTE: This is a temporary alias for backward compatibility with PyTorch 2.0.
         # TODO: Remove this in onnxscript 0.3.
         return self.name
-
-    @property
-    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
-        """Construct an OpSchema from function_ir."""
-        if self._op_schema is not None:
-            return self._op_schema
-
-        self._op_schema = _op_schema_from_function_ir(self.function_ir, self.opset)
-
-        return self._op_schema
 
     @property
     def op_signature(self) -> Optional[_schemas.OpSignature]:
@@ -632,18 +526,6 @@ class TracedOnnxFunction(Op):
         )
 
         return converter.translate_function_signature(func_ast)
-
-    @property
-    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
-        """Return the OpSchema."""
-
-        if self._op_schema is not None:
-            return self._op_schema
-
-        # FIXME(justinchuby): outputs are empty. Need to fix.
-        self._op_schema = _op_schema_from_function_ir(self.function_ir, self._opset)
-
-        return self._op_schema
 
     @property
     def op_signature(self) -> Optional[_schemas.OpSignature]:

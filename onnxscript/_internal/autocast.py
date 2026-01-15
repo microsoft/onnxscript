@@ -188,7 +188,7 @@ def dynamic_cast_inputs(op_schema: OpSchema, args):
 
 def static_cast_inputs(
     converter_: converter.Converter,
-    op_schema: Optional[OpSchema],
+    op_signature: Optional[OpSchema],
     args: Sequence[Optional[ir.Value]],
 ) -> tuple[str, ...]:
     """Used for autocast during script-translation.
