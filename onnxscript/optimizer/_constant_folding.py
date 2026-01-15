@@ -484,6 +484,48 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if shape_value is None or input_shape is None:
         return _propagate_shape_value(node, op, state)
 
+    """Replace dynamic reshape shapes with a static -1 dimension when safe.
+
+    f the target shape contains exactly one unknown dimension and all other
+    imensions are static, canonicalize the reshape to use -1 and eliminate
+    untime shape computation.
+    """
+
+    dynamic_indices = []
+    for i, dim in enumerate(shape_value.dims):
+        if isinstance(dim, ir.SymbolicDim) and dim.value is None:
+            dynamic_indices.append(i)
+    
+    if len(dynamic_indices) == 1:
+        # Verify all other dimensions are concrete integers
+        all_others_static = True
+        for i, dim in enumerate(shape_value.dims):
+            if i not in dynamic_indices:
+                if not isinstance(dim, int):
+                    all_others_static = False
+                    break
+        
+        if all_others_static:
+            # Build new shape: replace dynamic dim with -1
+            new_shape_list = []
+            for i, dim in enumerate(shape_value.dims):
+                if i == dynamic_indices[0]:
+                    new_shape_list.append(-1)
+                else:
+                    new_shape_list.append(dim)
+            
+            # Create a Constant node with static shape
+            new_shape_const = op.Constant(value_ints=new_shape_list)
+            
+            logger.debug(
+                "Reshape: eliminating dynamic shape subgraph, "
+                "replacing shape %s with static shape %s",
+                shape_value.dims, new_shape_list
+            )
+            
+            # Return new reshape with static shape
+            return op.Reshape(input, new_shape_const)
+
     # No need to check for special values like -1, 0, etc. here
     if _same_shape(input_shape, shape_value):
         return op.Identity(input)

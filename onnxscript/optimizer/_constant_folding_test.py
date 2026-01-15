@@ -614,6 +614,59 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
 
+    def test_reshape_eliminates_dynamic_shape_subgraph(self):
+        """Test that Reshape with one dynamic dim is optimized to use -1.
+        
+        Pattern: Shape -> Gather -> Concat -> Reshape
+        When the resulting shape has exactly one dynamic dimension and all other
+        dimensions are static integers, the optimizer should replace the dynamic
+        shape subgraph with a Constant shape containing -1 for the dynamic dimension.
+        The Reshape may be further canonicalized to Identity if it is a no-op.
+        """
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[B, 1024, 512] x) => (float[B, 1024, 512] z)
+            {
+                input_shape = Shape (x)
+                index_0 = Constant <value_ints=[0]> ()
+                batch_dim = Gather <axis=0> (input_shape, index_0)
+                static_dims = Constant <value_ints=[1024, 512]> ()
+                shape = Concat <axis=0> (batch_dim, static_dims)
+                z = Reshape (x, shape)
+            }
+        """
+        optimized = self._fold(model)
+        
+        # Assert: No Shape, Gather, or Concat nodes remain in the graph
+        for op_type in ["Shape", "Gather", "Concat"]:
+            nodes = [n for n in optimized.graph if n.op_type == op_type]
+            self.assertEqual(
+                len(nodes), 0,
+                f"Expected no {op_type} nodes after optimization, found {len(nodes)}"
+            )
+        
+        # Assert: Graph contains either one Reshape or one Identity
+        reshape_nodes = [n for n in optimized.graph if n.op_type == "Reshape"]
+        identity_nodes = [n for n in optimized.graph if n.op_type == "Identity"]
+        self.assertTrue(
+            len(reshape_nodes) == 1 or len(identity_nodes) == 1,
+            f"Expected one Reshape or Identity node, found {len(reshape_nodes)} Reshape and {len(identity_nodes)} Identity"
+        )
+        
+        # If Reshape exists, assert its shape input is a Constant with exactly one -1
+        if len(reshape_nodes) == 1:
+            reshape_node = reshape_nodes[0]
+            shape_input = reshape_node.inputs[1]
+            self.assertIsNotNone(shape_input, "Reshape shape input should not be None")
+            self.assertIsNotNone(shape_input.const_value, "Shape input should be a constant")
+            
+            shape_array = shape_input.const_value.numpy()
+            count_minus_one = np.count_nonzero(shape_array == -1)
+            self.assertEqual(
+                count_minus_one, 1,
+                f"Expected exactly one -1 in shape, found {count_minus_one}"
+            )
+
     def test_input_size_limit(self):
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>
