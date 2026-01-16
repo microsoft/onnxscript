@@ -138,6 +138,21 @@ class Evaluator(Protocol):
             inputs: The ONNX inputs to the op.
             attributes: The ONNX attributes to the op.
         """
+        # Deprecated. Implement eval_op instead
+
+    def eval_op(
+        self,
+        op: values.Op,
+        args: Sequence[ExtendedModeValue],
+        kwargs: Mapping[str, ExtendedModeValue],
+    ):
+        """Evaluates an Op.
+
+        Args:
+            op: The Op to evaluate.
+            args: The positional arguments to the op.
+            kwargs: The keyword arguments to the op.
+        """
 
     def eval_function(
         self,
@@ -174,26 +189,6 @@ class BaseEvaluator(Evaluator, abc.ABC):
                 may be provided to the function.
         """
         self._ignore_unknown_function_kwargs = ignore_unknown_function_kwargs
-
-    def eval(
-        self,
-        schema: onnx.defs.OpSchema,
-        inputs: Sequence[ExtendedModeValue],
-        attributes: Mapping[str, Any],
-    ):
-        """Evaluates an ONNX op.
-
-        Args:
-            schema: The OpSchema of the operator to evaluate.
-            inputs: The ONNX inputs to the op.
-            attributes: The ONNX attributes to the op.
-        """
-        op_signature = _schemas.OpSignature.from_op_schema(schema)
-        attributes = _unwrap_tensors_in_kwargs(attributes)
-        attributes, closure = self._adapt_attributes(op_signature, attributes)
-        inputs = self._adapt_inputs(op_signature, inputs)
-        outputs = self._eval(schema, inputs, attributes, closure)
-        return self._adapt_outputs(outputs)
 
     def _adapt_inputs(
         self, op_signature: _schemas.OpSignature, inputs: Sequence[ExtendedModeValue]
@@ -259,6 +254,20 @@ class BaseEvaluator(Evaluator, abc.ABC):
             attributes: The ONNX attributes to the op.
             closure: The closure to use when evaluating graph-valued attributes.
         """
+
+    def eval_op(
+        self,
+        op: values.Op,
+        args: Sequence[ExtendedModeValue],
+        kwargs: Mapping[str, ExtendedModeValue],
+    ):
+        op_signature = op.op_signature
+        assert op_signature is not None, f"Op {op.name} has no signature."
+        attributes = _unwrap_tensors_in_kwargs(kwargs)
+        attributes, closure = self._adapt_attributes(op_signature, attributes)
+        inputs = self._adapt_inputs(op_signature, args)
+        outputs = self._eval(schema, inputs, attributes, closure)
+        return self._adapt_outputs(outputs)
 
     def eval_function(
         self,
