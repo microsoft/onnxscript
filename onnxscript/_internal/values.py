@@ -11,7 +11,6 @@ import inspect
 import logging
 import types
 import typing
-from collections.abc import Collection
 from typing import (
     Any,
     Callable,
@@ -351,7 +350,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
     def _to_model_proto(
         self,
-        functions: Collection[ir.Function] | None = None,
         io_types: Optional[ONNXType] = None,
         input_types: Optional[Sequence[ONNXType]] = None,
         output_types: Optional[Sequence[ONNXType]] = None,
@@ -380,24 +378,24 @@ class OnnxFunction(Op, Generic[_P, _R]):
             An instance of :class:`onnx.ModelProto`.
         """
         # Identify functions to include in the model
-        if functions is None:
-            sub_functions = self.function_ir.get_called_functions()
-            functions = sub_functions.values()
+        sub_functions = self.function_ir.get_called_functions()
+        functions = sub_functions.values()
 
         # Determine opset imports
-        opsets = self.function_ir.graph.opset_imports
+        opset_imports = self.function_ir.graph.opset_imports
 
         for func in functions:
-            if func.domain not in opsets:
-                opsets[func.domain] = 1
+            domain = func.opset.domain
+            if domain is not None and domain not in opset_imports:
+                opset_imports[domain] = func.opset.version
 
-        # No need to collect opsets from functions
+            if "" not in opset_imports and "" in func.function_ir.opset_imports:
+                opset_imports[""] = func.function_ir.opset_imports[""]
 
-        # FIXME: Collect used opsets from the function nodes
-        if "" not in opsets:
+        if "" not in opset_imports:
             # No operator is using the standard opset.
             # Use the specified version if provided or the default value.
-            opsets[""] = (
+            opset_imports[""] = (
                 opset_version if opset_version is not None else onnx.defs.onnx_opset_version()
             )
 
@@ -405,12 +403,12 @@ class OnnxFunction(Op, Generic[_P, _R]):
         if "ir_version" in kwargs:
             ir_version = kwargs.pop("ir_version")
         else:
-            ir_version = select_ir_version(opsets[""])
+            ir_version = select_ir_version(opset_imports[""])
 
         # Create the model
         model = ir.Model(self.function_ir.graph, ir_version=ir_version)
         for func in functions:
-            model.functions[func.identifier()] = func
+            model.functions[func.function_ir.identifier()] = func.function_ir
 
         model_proto = ir.to_proto(model)
 

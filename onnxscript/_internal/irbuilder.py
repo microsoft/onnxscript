@@ -77,7 +77,7 @@ class IRFunction(ir.Function):
     def add_nested_function(self, fun: IRFunction) -> None:
         self.nested_functions[fun.name] = fun
 
-    def get_called_functions(self) -> dict[str, ir.Function]:
+    def get_called_functions(self) -> dict[str, values.OnnxFunction]:
         called_functions: dict[str, values.OnnxFunction] = {}
 
         def visit(function_ir: IRFunction):
@@ -94,7 +94,7 @@ class IRFunction(ir.Function):
 
         visit(self)
 
-        return {name: f.function_ir for name, f in called_functions.items()}
+        return called_functions
 
     def to_graph_proto(self) -> onnx.GraphProto:
         """Converts this instance into a `onnx.GraphProto`."""
