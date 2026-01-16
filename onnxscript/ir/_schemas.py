@@ -106,8 +106,10 @@ class Parameter:
     type_constraint: TypeConstraintParam
     required: bool
     variadic: bool
+    homogeneous: bool = True
+    min_arity: int = 1
+    # TODO: Add differentiation_category
     default: Any = _EMPTY_DEFAULT
-    # TODO: Add other properties too
 
     def __str__(self) -> str:
         type_str = self.type_constraint.name
@@ -188,6 +190,8 @@ def _convert_formal_parameter(
         type_constraint=type_constraint,
         required=param.option != onnx.defs.OpSchema.FormalParameterOption.Optional,
         variadic=param.option == onnx.defs.OpSchema.FormalParameterOption.Variadic,
+        homogeneous=param.is_homogeneous,
+        min_arity=param.min_arity,
     )
 
 
@@ -455,6 +459,7 @@ class OpSignature:
                         required=param.default is inspect.Parameter.empty,
                         # TODO: Handle variadic
                         variadic=False,
+                        homogeneous=True,
                         default=param.default
                         if param.default is not inspect.Parameter.empty
                         else _EMPTY_DEFAULT,
@@ -505,6 +510,7 @@ class OpSignature:
                             required=param.default is inspect.Parameter.empty,
                             # TODO: Handle variadic
                             variadic=False,
+                            homogeneous=True,
                             default=param.default
                             if param.default is not inspect.Parameter.empty
                             else _EMPTY_DEFAULT,
@@ -542,6 +548,7 @@ class OpSignature:
                         type_constraint=type_constraint,
                         required=True,
                         variadic=False,
+                        homogeneous=True,
                         default=_EMPTY_DEFAULT,
                     )
                 )

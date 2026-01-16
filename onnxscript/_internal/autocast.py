@@ -161,7 +161,9 @@ def cast_inputs(
             expected = expected_inputs[i]
         elif expected_inputs[-1].variadic:
             expected = expected_inputs[-1]
-            # TODO(justinchuby): Handle is_homogeneous params
+            if not expected.homogeneous:
+                args_typevars.append((x, None))
+                continue
         else:
             raise ValueError(
                 f"Number of actual parameters {len(args)} "
