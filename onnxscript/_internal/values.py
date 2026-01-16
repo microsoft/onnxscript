@@ -382,7 +382,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
         functions = sub_functions.values()
 
         # Determine opset imports
-        opset_imports = self.function_ir.graph.opset_imports
+        opset_imports = self.function_ir.graph.opset_imports.copy()
 
         for func in functions:
             domain = func.opset.domain

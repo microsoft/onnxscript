@@ -506,8 +506,14 @@ def _call_ort(
     return [_numpy_to_onnxscript_value(x) for x in result]
 
 
-def _op_identifier(schema) -> tuple[str, str, int]:
-    return schema.name, schema.domain, schema.since_version
+def _op_identifier(
+    op_schema_or_signature: onnx.defs.OpSchema | _schemas.OpSignature,
+) -> tuple[str, str, int]:
+    return (
+        op_schema_or_signature.name,
+        op_schema_or_signature.domain,
+        op_schema_or_signature.since_version,
+    )
 
 
 class ORTEvaluator(BaseEvaluator):
