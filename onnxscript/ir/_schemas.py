@@ -106,8 +106,10 @@ class Parameter:
     type_constraint: TypeConstraintParam
     required: bool
     variadic: bool
+    homogeneous: bool = True
+    min_arity: int = 1
+    # TODO: Add differentiation_category
     default: Any = _EMPTY_DEFAULT
-    # TODO: Add other properties too
 
     def __str__(self) -> str:
         type_str = self.type_constraint.name
@@ -188,6 +190,8 @@ def _convert_formal_parameter(
         type_constraint=type_constraint,
         required=param.option != onnx.defs.OpSchema.FormalParameterOption.Optional,
         variadic=param.option == onnx.defs.OpSchema.FormalParameterOption.Variadic,
+        homogeneous=param.is_homogeneous,
+        min_arity=param.min_arity,
     )
 
 
@@ -339,6 +343,7 @@ class OpSignature:
     params_map: Mapping[str, Parameter | AttributeParameter] = dataclasses.field(
         init=False, repr=False
     )
+    since_version: int = 1
 
     def __post_init__(self):
         self.params_map = {param.name: param for param in self.params}
@@ -415,11 +420,17 @@ class OpSignature:
             overload="",
             params=params,
             outputs=outputs,
+            since_version=op_schema.since_version,
         )
 
     @classmethod
     def from_function(
-        cls, func, domain: str, name: str | None = None, overload: str = ""
+        cls,
+        func,
+        domain: str,
+        name: str | None = None,
+        overload: str = "",
+        since_version: int = 1,
     ) -> OpSignature:
         """Produce an OpSignature from a function using type annotation."""
 
@@ -434,7 +445,7 @@ class OpSignature:
 
         for param in py_signature.parameters.values():
             if param.name not in type_hints:
-                logger.warning(
+                logger.debug(
                     "Missing annotation for parameter '%s' from %s. Treating as an Input.",
                     param.name,
                     py_signature,
@@ -448,6 +459,7 @@ class OpSignature:
                         required=param.default is inspect.Parameter.empty,
                         # TODO: Handle variadic
                         variadic=False,
+                        homogeneous=True,
                         default=param.default
                         if param.default is not inspect.Parameter.empty
                         else _EMPTY_DEFAULT,
@@ -498,6 +510,7 @@ class OpSignature:
                             required=param.default is inspect.Parameter.empty,
                             # TODO: Handle variadic
                             variadic=False,
+                            homogeneous=True,
                             default=param.default
                             if param.default is not inspect.Parameter.empty
                             else _EMPTY_DEFAULT,
@@ -535,6 +548,7 @@ class OpSignature:
                         type_constraint=type_constraint,
                         required=True,
                         variadic=False,
+                        homogeneous=True,
                         default=_EMPTY_DEFAULT,
                     )
                 )
@@ -545,4 +559,5 @@ class OpSignature:
             overload=overload,
             params=params,
             outputs=outputs,
+            since_version=since_version,
         )
