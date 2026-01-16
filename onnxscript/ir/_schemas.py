@@ -421,7 +421,12 @@ class OpSignature:
 
     @classmethod
     def from_function(
-        cls, func, domain: str, name: str | None = None, overload: str = "", since_version: int = 1
+        cls,
+        func,
+        domain: str,
+        name: str | None = None,
+        overload: str = "",
+        since_version: int = 1,
     ) -> OpSignature:
         """Produce an OpSignature from a function using type annotation."""
 

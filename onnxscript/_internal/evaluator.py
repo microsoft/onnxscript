@@ -235,11 +235,9 @@ class BaseEvaluator(Evaluator, abc.ABC):
         """
         return outputs[0] if len(outputs) == 1 else outputs
 
-
     def use_graph_attribute(self, op_signature: _schemas.OpSignature) -> bool:
         del op_signature  # unused
         return True
-
 
     @abc.abstractmethod
     def _eval(

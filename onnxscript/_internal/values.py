@@ -108,7 +108,8 @@ class Opset:
 
     def __getitem__(self, opname):
         try:
-            return onnx.defs.get_schema(opname, self.version, self.domain)
+            schema = onnx.defs.get_schema(opname, self.version, self.domain)
+            return Op(self, opname, schema)
         except Exception:  # pylint: disable=broad-except # TODO: more specific exception
             return None
 
@@ -189,7 +190,13 @@ class Op(OpLike):
     ) -> None:
         self._opset = opset
         self._name = name
-        self._op_schema = op_schema or opset[name]
+        self._op_schema: onnx.defs.OpSchema | None
+        if op_schema is not None:
+            self._op_schema = op_schema
+        elif (op := opset[name]) is not None:
+            self._op_schema = op.op_schema
+        else:
+            self._op_schema = None
         self._signature: Optional[_schemas.OpSignature] = None
 
         if self._op_schema is None:
@@ -483,18 +490,6 @@ class TracedOnnxFunction(Op):
         )
 
         return converter.translate_function_signature(func_ast)
-
-    @property
-    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
-        """Return the OpSchema."""
-
-        if self._op_schema is not None:
-            return self._op_schema
-
-        # FIXME(justinchuby): outputs are empty. Need to fix.
-        self._op_schema = _op_schema_from_function_ir(self.function_ir, self._opset)
-
-        return self._op_schema
 
     @property
     def op_signature(self) -> Optional[_schemas.OpSignature]:
