@@ -300,7 +300,9 @@ class OnnxFunction(Op, Generic[_P, _R]):
         self.function_ir = irfun
         self.source = source
         self.kwargs = kwargs
-        self._op_schema: Optional[onnx.defs.OpSchema] = None
+        self._signature = _schemas.OpSignature.from_function(
+            self.function, domain=self.function_ir.domain, name=self.name
+        )
 
         # Allow the object to be inspected as a function
         functools.update_wrapper(self, pyfun)
@@ -311,15 +313,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
     @property
     def op_signature(self) -> Optional[_schemas.OpSignature]:
         """Returns the signature of this op."""
-        if self._signature is not None:
-            return self._signature
-
-        if self.op_schema is None:
-            return None
-
-        self._signature = _schemas.OpSignature.from_function(
-            self.function, domain=self.function_ir.domain, name=self.name
-        )
         return self._signature
 
     @op_signature.setter
@@ -400,6 +393,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
         # No need to collect opsets from functions
 
+        # FIXME: Collect used opsets from the function nodes
         if "" not in opsets:
             # No operator is using the standard opset.
             # Use the specified version if provided or the default value.
@@ -462,6 +456,9 @@ class TracedOnnxFunction(Op):
     def __init__(self, opset: Opset, func: Callable):
         super().__init__(opset, func.__name__)
         self.func = func
+        self._signature = _schemas.OpSignature.from_function(
+            self.func, domain="_traced", name=self.name
+        )
 
         # Allow the object to be inspected as a function
         functools.update_wrapper(self, func)
@@ -494,15 +491,6 @@ class TracedOnnxFunction(Op):
     @property
     def op_signature(self) -> Optional[_schemas.OpSignature]:
         """Returns the signature of this op."""
-        if self._signature is not None:
-            return self._signature
-
-        if self.op_schema is None:
-            return None
-
-        self._signature = _schemas.OpSignature.from_function(
-            self.func, domain="_traced", name=self.name
-        )
         return self._signature
 
     @op_signature.setter

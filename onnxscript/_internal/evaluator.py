@@ -123,22 +123,11 @@ def _unwrap_tensors_in_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
 
 @runtime_checkable
 class Evaluator(Protocol):
-    """Protocol for evaluating ONNX ops."""
+    """Protocol for evaluating ONNX ops.
 
-    def eval(
-        self,
-        schema: onnx.defs.OpSchema,
-        inputs: Sequence[ExtendedModeValue],
-        attributes: Mapping[str, Any],
-    ):
-        """Evaluates an ONNX op.
-
-        Args:
-            schema: The OpSchema of the operator to evaluate.
-            inputs: The ONNX inputs to the op.
-            attributes: The ONNX attributes to the op.
-        """
-        # Deprecated. Implement eval_op instead
+    NOTE: The ``eval`` method was deprecated and removed. Implement ``eval_op``
+    and ``eval_function`` instead.
+    """
 
     def eval_op(
         self,
