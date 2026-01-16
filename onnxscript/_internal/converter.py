@@ -12,7 +12,6 @@ from typing import (
     Union,
 )
 
-import onnx
 import onnx_ir as ir
 
 import onnxscript
@@ -29,6 +28,7 @@ from onnxscript._internal import (
 from onnxscript._internal import (
     type_annotation as ta,
 )
+from onnxscript.ir import _schemas
 
 logger = logging.getLogger("onnxscript")
 
@@ -518,7 +518,7 @@ class Converter:
         self,
         attr_name: str,
         expr: ast.AST,
-        attr_meta: onnx.defs.OpSchema.Attribute | None = None,
+        attr_meta: _schemas.AttributeParameter | None = None,
     ) -> ir.Attr | None:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
@@ -880,14 +880,11 @@ class Converter:
                 op_signature, node.args, kwargs, fill_defaults=False
             )
             args = [self._translate_opt_expr(x) for x in args]
-            attrs = [
-                self._translate_attr(x, y, callee.op_schema.attributes[x])
-                for x, y in attrs.items()
-            ]
+            attrs = [self._translate_attr(x, y, op_signature.get(x)) for x, y in attrs.items()]
         else:
             args = [self._translate_opt_expr(x) for x in node.args]
             attrs = [self._translate_attr(x.arg, x.value) for x in node.keywords]
-        args = autocast.static_cast_inputs(self, callee.op_signature, args)
+        args = autocast.static_cast_inputs(self, op_signature, args)
 
         # In ONNX, there is no way to explicitly specify a None value for an attribute.
         # Instead, the attribute must be omitted from the attribute list.
