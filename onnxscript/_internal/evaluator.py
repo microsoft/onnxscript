@@ -188,29 +188,32 @@ class BaseEvaluator(Evaluator, abc.ABC):
             inputs: The ONNX inputs to the op.
             attributes: The ONNX attributes to the op.
         """
+        op_signature = _schemas.OpSignature.from_op_schema(schema)
         attributes = _unwrap_tensors_in_kwargs(attributes)
-        attributes, closure = self._adapt_attributes(attributes)
-        inputs = self._adapt_inputs(schema, inputs)
+        attributes, closure = self._adapt_attributes(op_signature, attributes)
+        inputs = self._adapt_inputs(op_signature, inputs)
         outputs = self._eval(schema, inputs, attributes, closure)
         return self._adapt_outputs(outputs)
 
-    def _adapt_inputs(self, schema: onnx.defs.OpSchema, inputs: Sequence[ExtendedModeValue]):
+    def _adapt_inputs(
+        self, op_signature: _schemas.OpSignature, inputs: Sequence[ExtendedModeValue]
+    ):
         """Transform inputs to the expected format for the evaluator.
 
         Enables some syntactic sugar, such as the use of Python scalars,
         in a manner consistent with the translator. See autocast.py for details.
         """
-        op_signature = _schemas.OpSignature.from_op_schema(schema)
         return autocast.dynamic_cast_inputs(op_signature, inputs)
 
     def _adapt_attributes(
-        self, attributes: Mapping[str, ExtendedModeValue]
+        self, op_signature, attributes: Mapping[str, ExtendedModeValue]
     ) -> tuple[dict[str, ExtendedModeValue], dict[str, ExtendedModeValue]]:
         """Transform attributes to the expected format for the evaluator.
 
         Returns:
             A closure that can be used to evaluate graph-valued attributes.
         """
+        use_graph_attribute = self.use_graph_attribute(op_singature)
         closure: dict[Any, Any] = {}
         adapted_attributes = {}
         for k, v in attributes.items():
@@ -233,6 +236,12 @@ class BaseEvaluator(Evaluator, abc.ABC):
         Onnxscript uses a tuple/sequence only when number of outputs > 1.
         """
         return outputs[0] if len(outputs) == 1 else outputs
+
+
+    def use_graph_attribute(self, op_signature: _schemas.OpSignature) -> bool:
+        del schema  # unused
+        return True
+
 
     @abc.abstractmethod
     def _eval(
