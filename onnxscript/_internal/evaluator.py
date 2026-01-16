@@ -208,14 +208,17 @@ class BaseEvaluator(Evaluator, abc.ABC):
         Returns:
             A closure that can be used to evaluate graph-valued attributes.
         """
-        use_graph_attribute = self.use_graph_attribute(op_singature)
+        use_graph_attribute = self.use_graph_attribute(op_signature)
         closure: dict[Any, Any] = {}
         adapted_attributes = {}
         for k, v in attributes.items():
             if isinstance(v, values.OnnxClosure):
-                adapted_attributes[k] = v.function_ir.to_graph_proto()
-                for pyvar, onnxvar in v.function_ir.outer_scope_variables:
-                    closure[onnxvar.value.name] = v.frame.f_locals[pyvar]
+                if use_graph_attribute:
+                    adapted_attributes[k] = v.function_ir.to_graph_proto()
+                    for pyvar, onnxvar in v.function_ir.outer_scope_variables:
+                        closure[onnxvar.value.name] = v.frame.f_locals[pyvar]
+                else:
+                    adapted_attributes[k] = v.function
             elif callable(v):
                 raise TypeError(
                     f"Error: function-valued attribute {v.__name__} has no graph_proto"
@@ -234,7 +237,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
 
 
     def use_graph_attribute(self, op_signature: _schemas.OpSignature) -> bool:
-        del schema  # unused
+        del op_signature  # unused
         return True
 
 
@@ -266,7 +269,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
         attributes = _unwrap_tensors_in_kwargs(kwargs)
         attributes, closure = self._adapt_attributes(op_signature, attributes)
         inputs = self._adapt_inputs(op_signature, args)
-        outputs = self._eval(schema, inputs, attributes, closure)
+        outputs = self._eval(op.op_schema, inputs, attributes, closure)
         return self._adapt_outputs(outputs)
 
     def eval_function(
@@ -285,6 +288,8 @@ class BaseEvaluator(Evaluator, abc.ABC):
             kwargs: The keyword arguments to the function.
         """
         op_signature = function.op_signature
+        if op_signature is None:
+            raise RuntimeError(f"Function {function.name} has no signature.")
         # Split happens in the evaluator instead of the OnnxFunction __call__ method
         # so that evaluators can control behaviors like whether to fill in default values for attributes.
         tagged_args, tagged_kwargs = param_manipulation.tag_arguments_with_signature(
@@ -514,7 +519,7 @@ def _call_ort(
     return [_numpy_to_onnxscript_value(x) for x in result]
 
 
-def _schema_id(schema: onnx.defs.OpSchema) -> tuple[str, str, int]:
+def _op_identifier(schema) -> tuple[str, str, int]:
     return schema.name, schema.domain, schema.since_version
 
 
@@ -562,13 +567,13 @@ class ORTMixedEvaluator(ORTEvaluator):
         super().__init__()
         self._python_ops: dict[tuple[str, str, int], Any] = {}
 
-    def use_graph_attribute(self, schema: onnx.defs.OpSchema) -> bool:
-        return _schema_id(schema) not in self._python_ops
+    def use_graph_attribute(self, op_signature: _schemas.OpSignature) -> bool:
+        return _op_identifier(op_signature) not in self._python_ops
 
     def _eval(self, schema, inputs, attributes, closure):
-        schemaid = _schema_id(schema)
-        if schemaid in self._python_ops:
-            return self._python_ops[schemaid](inputs, attributes)
+        identifier = _op_identifier(schema)
+        if identifier in self._python_ops:
+            return self._python_ops[identifier](inputs, attributes)
         else:
             return super()._eval(schema, inputs, attributes, closure)
 
@@ -576,8 +581,8 @@ class ORTMixedEvaluator(ORTEvaluator):
         assert opset is not None
 
         def decorator(function: _T) -> _T:
-            schema = opset[function.__name__]
-            self._python_ops[_schema_id(schema)] = function
+            op_signature = opset[function.__name__].op_signature
+            self._python_ops[_op_identifier(op_signature)] = function
             return function
 
         return decorator

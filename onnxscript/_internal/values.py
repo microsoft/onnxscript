@@ -4,7 +4,6 @@
 # ruff: noqa: TID251
 
 from __future__ import annotations
-from collections.abc import Collection
 
 import dataclasses
 import functools
@@ -12,7 +11,8 @@ import inspect
 import logging
 import types
 import typing
-from typing import (  # type: ignore[attr-defined]
+from collections.abc import Collection
+from typing import (
     Any,
     Callable,
     ClassVar,
@@ -28,7 +28,7 @@ import onnx.defs
 import onnx_ir as ir
 from typing_extensions import ParamSpec
 
-from onnxscript._internal import ast_utils, deprecation, irbuilder, sourceinfo, type_annotation
+from onnxscript._internal import ast_utils, irbuilder, sourceinfo
 from onnxscript._internal import converter as converter_module
 from onnxscript.ir import _schemas
 from onnxscript.onnx_types import ONNXType
@@ -123,7 +123,7 @@ class Opset:
     def __str__(self) -> str:
         return self.domain
 
-    def __getattr__(self, attr: str):
+    def __getattr__(self, attr: str) -> Op:
         try:
             schema = onnx.defs.get_schema(attr, self.version, self.domain)
             return Op(self, attr, schema)
