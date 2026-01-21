@@ -10,6 +10,12 @@ import onnxscript.optimizer as optimizer
 
 
 class OptimizerTest(unittest.TestCase):
+    def test_folded_from_key_is_accessible(self):
+        """Test that FOLDED_FROM_KEY is accessible from the public API."""
+        self.assertTrue(hasattr(optimizer, "FOLDED_FROM_KEY"))
+        self.assertIsInstance(optimizer.FOLDED_FROM_KEY, str)
+        self.assertEqual(optimizer.FOLDED_FROM_KEY, "pkg.onnxscript.optimizer.folded_from")
+
     def _model_proto(self) -> onnx.ModelProto:
         return onnx.parser.parse_model(
             """
