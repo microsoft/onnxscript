@@ -382,7 +382,8 @@ class OnnxFunction(Op, Generic[_P, _R]):
         functions = sub_functions.values()
 
         # Determine opset imports
-        opset_imports = self.function_ir.graph.opset_imports.copy()
+        main_graph = self.function_ir.graph.clone()
+        opset_imports = main_graph.opset_imports
 
         for func in functions:
             domain = func.opset.domain
@@ -406,7 +407,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
             ir_version = select_ir_version(opset_imports[""])
 
         # Create the model
-        model = ir.Model(self.function_ir.graph, ir_version=ir_version)
+        model = ir.Model(main_graph, ir_version=ir_version)
         for func in functions:
             model.functions[func.function_ir.identifier()] = func.function_ir
 
