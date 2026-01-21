@@ -1109,7 +1109,7 @@ class Converter:
 
         def ret(exp, i, suffix):
             preferred_name = f"return_val{suffix}"
-            return_var = self._translate_expr(exp, preferred_name)  # TODO(rama)
+            return_var = self._translate_expr(exp, preferred_name)
             val = self._lookup(return_var.name, self._source_of(exp), raise_exception=False)
             if isinstance(val, values.SymbolValue) and isinstance(val.value, ir.Value):
                 if val.value.is_graph_input():
