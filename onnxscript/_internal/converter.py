@@ -273,25 +273,25 @@ class Converter:
         """Enter a control-flow block (a loop body or if-then-else branch).
         The block is translated into a nested-scope in ONNX.
         """
-        self._outer.insert(0, self._current_fn)
+        self._outer.append(self._current_fn)
         self._current_fn = irbuilder.IRFunction(name)
-        self._locals.insert(0, {})
+        self._locals.append({})
         logger.debug("Converter:_enter_scope:%d:node:%s", len(self._locals), type(parent_node))
 
     def _exit_scope(self) -> irbuilder.IRFunction:
         """Exit from a control-flow block (a loop body or if-then-else branch)."""
         logger.debug("Converter:_exit_scope:%d", len(self._locals))
         graph = self._current_fn
-        self._current_fn = self._outer.pop(0)
-        self._locals.pop(0)
+        self._current_fn = self._outer.pop()
+        self._locals.pop()
         return graph
 
     def _current_scope(self) -> dict[str, LocalSymValue]:
-        return self._locals[0]
+        return self._locals[-1]
 
     def _bind(self, name: str, val: LocalSymValue) -> None:
         logger.debug("Converter:_bind:%s", name)
-        self._locals[0][name] = val
+        self._locals[-1][name] = val
 
     def _lookup(
         self, name: str, info: sourceinfo.SourceInfo, raise_exception: bool = True
@@ -302,7 +302,7 @@ class Converter:
         cases include: constant values or functions (mapped to Graph attributes), etc.
         """
 
-        for scope in self._locals:
+        for scope in reversed(self._locals):
             if name in scope:
                 return scope[name]
         if name in self.globals:
@@ -1392,7 +1392,7 @@ class Converter:
                 self._current_fn.outputs.append(output)
             else:
                 python_var_value = None
-                for scope in self._locals:  # TODO: skip _current_scope
+                for scope in reversed(self._locals):  # TODO: skip _current_scope
                     if python_var in scope:
                         python_var_value = scope[python_var]
                         break
