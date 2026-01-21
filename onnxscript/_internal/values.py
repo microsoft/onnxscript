@@ -350,6 +350,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
     def _to_model_proto(
         self,
+        functions: Optional[Sequence[ir.Function | onnx.FunctionProto | OnnxFunction]] = None,
         io_types: Optional[ONNXType] = None,
         input_types: Optional[Sequence[ONNXType]] = None,
         output_types: Optional[Sequence[ONNXType]] = None,
@@ -377,15 +378,32 @@ class OnnxFunction(Op, Generic[_P, _R]):
         Returns:
             An instance of :class:`onnx.ModelProto`.
         """
-        # Identify functions to include in the model
-        sub_functions = self.function_ir.get_called_functions()
-        functions = sub_functions.values()
+        if functions is None:
+            # Identify functions to include in the model
+            sub_functions = self.function_ir.get_called_functions()
+            ir_functions = sub_functions.values()
+        else:
+            ir_functions = []
+            for func in functions:
+                if isinstance(func, ir.Function):
+                    ir_functions.append(func)
+                elif isinstance(func, onnx.FunctionProto):
+                    ir_functions.append(ir.serde.deserialize_function(func))
+                elif isinstance(func, OnnxFunction):
+                    ir_functions.append(func.function_ir)
+                else:
+                    raise TypeError(
+                        f"functions must be a sequence of "
+                        f"ir.Function, onnx.FunctionProto, or OnnxFunction, "
+                        f"not {type(func)!r}."
+                    )
 
-        # Determine opset imports
+        # Duplicate the graph to create the model
         main_graph = self.function_ir.graph.clone()
+        # Determine opset imports
         opset_imports = main_graph.opset_imports
 
-        for func in functions:
+        for func in ir_functions:
             domain = func.opset.domain
             if domain is not None and domain not in opset_imports:
                 opset_imports[domain] = func.opset.version
@@ -408,7 +426,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
         # Create the model
         model = ir.Model(main_graph, ir_version=ir_version)
-        for func in functions:
+        for func in ir_functions:
             model.functions[func.function_ir.identifier()] = func.function_ir
 
         model_proto = ir.to_proto(model)
