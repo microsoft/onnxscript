@@ -1264,13 +1264,12 @@ class Converter:
             # TODO: retrieve the annotation for variable pv is any is specified.
             # typeinfo = self._eval_constant_expr(pv.annotation)
             typeinfo = None
-            self._current_fn.append_parameter(
-                make_value(onnx_var_name, typeinfo, self._source_of(loop_stmt))
-            )
+            parameter = make_value(onnx_var_name, typeinfo, self._source_of(loop_stmt))
+            self._current_fn.append_parameter(parameter)
             self._bind(
                 pv,
                 values.SymbolValue(
-                    ir.Value(name=onnx_var_name),
+                    parameter,
                     self._source_of(loop_stmt),
                 ),
             )
