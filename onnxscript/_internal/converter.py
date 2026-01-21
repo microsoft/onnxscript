@@ -1110,7 +1110,7 @@ class Converter:
         def ret(exp, i, suffix):
             preferred_name = f"return_val{suffix}"
             return_var = self._translate_expr(exp, preferred_name)  # TODO(rama)
-            val = self._lookup(return_var.name, self._source_of(exp), False)
+            val = self._lookup(return_var.name, self._source_of(exp), raise_exception=False)
             if isinstance(val, values.SymbolValue) and isinstance(val.value, ir.Value):
                 if val.value.is_graph_input():
                     # In ONNX, a graph-input cannot be an output of the graph.
@@ -1121,13 +1121,9 @@ class Converter:
                     # ONNX does not allow duplicate output names.
                     return_var = self._emit_copy(return_var, f"{return_var}_copy")
                     break
-            if self.returntype is None:
-                t = None
-            else:
-                t = self.returntype[i]
-            self._current_fn.outputs.append(
-                make_value(return_var.name, t, self._source_of(stmt))
-            )
+            if self.returntype is not None:
+                set_type_info(return_var, self.returntype[i])
+            self._current_fn.outputs.append(return_var)
             return return_var
 
         val = stmt.value
