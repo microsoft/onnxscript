@@ -772,12 +772,18 @@ def prims_sub(self: TTensor, other: TTensor) -> TTensor:
     return op.Sub(self, other)
 
 
+@torch_op("prims::sum", trace_only=True)
 def prims_sum(
     inp: TensorType, dims: Optional[Sequence[int]], output_dtype: Optional[int] = None
 ) -> TensorType:
     """sum(Tensor inp, int[]? dims, *, ScalarType? output_dtype=None) -> Tensor"""
 
-    raise NotImplementedError()
+    result = op.ReduceSum(inp, dims, keepdims=False)
+
+    if output_dtype is not None and output_dtype != -1:
+        result = op.Cast(result, to=output_dtype)
+
+    return result
 
 
 def prims_svd(A: TensorType, full_matrices: bool) -> tuple[TensorType, TensorType, TensorType]:
