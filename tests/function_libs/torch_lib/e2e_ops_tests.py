@@ -910,7 +910,7 @@ class TorchLibe2eTest(unittest.TestCase):
                 return torch.std_mean(x)
 
         onnx_program = torch.onnx.export(
-            Model(), (torch.rand(10, 10, 10),), dynamo=True, verbose=False, report=True
+            Model(), (torch.rand(10, 10, 10),), dynamo=True, verbose=False
         )
         _testing.assert_onnx_program(onnx_program)
 
