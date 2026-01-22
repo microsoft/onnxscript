@@ -1229,11 +1229,7 @@ class Converter:
                 onnx_types.BOOL,
                 self._source_of(loop_stmt),
             )
-            cond_while = make_value(
-                self.generate_unique_name(test.id),
-                onnx_types.BOOL,
-                self._source_of(loop_stmt),
-            )
+            cond_while = test.id
             onnx_cond_var = None
             o_loop_condition = self._translate_name_expr(test)
             # we need to go through all the instructions to see
@@ -1312,13 +1308,13 @@ class Converter:
         if cond_while is not None:
             # Loop while
             current_scope = self._current_scope()
-            if cond_while.name not in current_scope:
+            if cond_while not in current_scope:
                 self.fail(
                     loop_stmt,
-                    f"Unable to find condition variable {cond_while.name} in known "
+                    f"Unable to find condition variable {cond_while} in known "
                     f"variables {list(current_scope)!r}.",
                 )
-            onnx_cond_var = current_scope[cond_while.name].value
+            onnx_cond_var = current_scope[cond_while].value
 
         cond_out = self.emit1(
             [self.generate_unique_name("cond_out")],
