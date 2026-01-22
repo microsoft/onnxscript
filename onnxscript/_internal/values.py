@@ -297,6 +297,8 @@ class OnnxFunction(Op, Generic[_P, _R]):
         super().__init__(opset, irfun.name)
         self.function = pyfun
         self.function_ir = irfun
+        # Record the function domain's opset version in the function metadata
+        self.function_ir.meta["opset_version"] = opset.version
         self.source = source
         self.kwargs = kwargs
         self._signature = _schemas.OpSignature.from_function(
@@ -381,7 +383,9 @@ class OnnxFunction(Op, Generic[_P, _R]):
         if functions is None:
             # Identify functions to include in the model
             sub_functions = self.function_ir.get_called_functions()
-            ir_functions = sub_functions.values()
+            ir_functions: list[ir.Function] = [
+                func.function_ir for func in sub_functions.values()
+            ]
         else:
             ir_functions = []
             for func in functions:
@@ -404,12 +408,12 @@ class OnnxFunction(Op, Generic[_P, _R]):
         opset_imports = main_graph.opset_imports
 
         for func in ir_functions:
-            domain = func.opset.domain
+            domain = func.domain
             if domain is not None and domain not in opset_imports:
-                opset_imports[domain] = func.opset.version
+                opset_imports[domain] = func.meta.get("opset_version", 1)
 
-            if "" not in opset_imports and "" in func.function_ir.opset_imports:
-                opset_imports[""] = func.function_ir.opset_imports[""]
+            if "" not in opset_imports and "" in func.opset_imports:
+                opset_imports[""] = func.opset_imports[""]
 
         if "" not in opset_imports:
             # No operator is using the standard opset.
