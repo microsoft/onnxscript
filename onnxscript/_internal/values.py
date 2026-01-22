@@ -431,7 +431,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
         # Create the model
         model = ir.Model(main_graph, ir_version=ir_version)
         for func in ir_functions:
-            model.functions[func.function_ir.identifier()] = func.function_ir
+            model.functions[func.identifier()] = func
 
         model_proto = ir.to_proto(model)
 
