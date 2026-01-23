@@ -6,8 +6,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 import numpy as np
-import onnx
-import onnx.helper  # noqa: TID251
 
 from onnxscript import ir, tensor
 from onnxscript.ir import _schemas
@@ -20,23 +18,15 @@ if TYPE_CHECKING:
 # python values into ONNX TensorProto, while the runtime converts python values into
 # ONNXScript runtime's value-representation (based on Tensor).
 
-
-# Utilities to convert a python value to TensorProto (for use by the script converter)
-
-
-def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
-    return ir.serde.serialize_tensor(ir.tensor(pyvalue, name=tensor_name))
-
-
 _REPEATED_ATTRIBUTE_TYPES = frozenset(
     {
-        onnx.AttributeProto.FLOATS,
-        onnx.AttributeProto.INTS,
-        onnx.AttributeProto.STRINGS,
-        onnx.AttributeProto.TENSORS,
-        onnx.AttributeProto.GRAPHS,
-        onnx.AttributeProto.SPARSE_TENSORS,
-        onnx.AttributeProto.TYPE_PROTOS,
+        ir.AttributeType.FLOATS,
+        ir.AttributeType.INTS,
+        ir.AttributeType.STRINGS,
+        ir.AttributeType.TENSORS,
+        ir.AttributeType.GRAPHS,
+        ir.AttributeType.SPARSE_TENSORS,
+        ir.AttributeType.TYPE_PROTOS,
     }
 )
 
@@ -45,33 +35,26 @@ def pyvalue_to_onnx_attribute(
     key: str,
     value: Any,
     name_generator: Callable[[], str],
-    attr_type: onnx.AttributeProto.AttributeType | None = None,
-) -> onnx.AttributeProto:
+    attr_type: ir.AttributeType | None = None,
+) -> ir.Attr:
     """Helper function to create an ONNX AttributeProto.
 
-    This is a refinement of onnx.helper.make_attribute that works with ONNX Script
-    conventions for allowed types for attribute-values. In particular, it allows
-    * Empty lists as attribute values, provided the attribute type is specified
+    * Empty lists can be attribute values, provided the attribute type is specified
     and is a list type.
     * Scalar-values like 1.0 as well as lists like [1, -1] to be specified
     when the attribute type is TensorProto by automatically converting the value
     into a 0-D or 1-D tensor respectively.
     """
+    # TODO(justinchuby): Remove this function and use onnx-ir directly.
     if isinstance(value, list) and not value:
         # Empty list value:
         if attr_type is None:
             raise ValueError("Attribute type must be specified for empty list value.")
         if attr_type not in _REPEATED_ATTRIBUTE_TYPES:
             raise ValueError("Empty list value is only allowed for repeated attribute types.")
-        return onnx.AttributeProto(name=key, type=attr_type)
-    elif attr_type == onnx.AttributeProto.TENSOR and not isinstance(value, onnx.TensorProto):
-        return onnx.AttributeProto(
-            name=key, type=attr_type, t=pyvalue_to_onnx_tensor(name_generator(), value)
-        )
+        return ir.Attr(name=key, type=attr_type, value=[])
     else:
-        # When the value is a subgraph, ONNX IR will complain that some values are
-        # not found from the scope.
-        return onnx.helper.make_attribute(key, value)  # noqa: TID251
+        return ir.convenience.convert_attribute(key, value, attr_type=attr_type)
 
 
 # Utilities to convert python values into onnxscript tensors.

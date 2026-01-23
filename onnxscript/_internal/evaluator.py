@@ -21,6 +21,7 @@ import numpy as np
 import onnx
 import onnx.defs
 import onnx.reference
+import onnx_ir as ir
 from typing_extensions import TypeAlias
 
 from onnxscript import onnx_opset, tensor
@@ -418,12 +419,15 @@ def _prepare_model_and_inputs_for_eager(
     implicit_args = {k: _onnxscript_to_numpy_value(v) for k, v in implicit_args.items()}
 
     # Utility to convert kwarg to ONNX AttributeProto:
+    # TODO(justinchuby): Clean up this function to use onnx-ir
     def make_attr(key: str, value: Any) -> onnx.AttributeProto:
         def make_tensor_name() -> str:
             return f"attr_{key}"
 
-        return autocast.pyvalue_to_onnx_attribute(
-            key, value, make_tensor_name, int(schema.attributes[key].type)
+        return ir.to_proto(
+            autocast.pyvalue_to_onnx_attribute(
+                key, value, make_tensor_name, int(schema.attributes[key].type)
+            )
         )
 
     # Construct ONNX model with a single op call:

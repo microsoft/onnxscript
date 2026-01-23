@@ -320,21 +320,6 @@ class Converter:
         self._used_vars.add(r)
         return r
 
-    def _make_onnx_attr(
-        self, attrname: str, attrval: Any, attrtype: int | None = None
-    ) -> ir.Attr:
-        if isinstance(attrval, ir.Graph):
-            return ir.Attr(attrname, ir.AttributeType.GRAPH, attrval)
-
-        def tensor_name_generator() -> str:
-            """Return name to be used for tensor, if we need to create one."""
-            return self.generate_unique_name(f"attr_{attrname}")
-
-        proto = autocast.pyvalue_to_onnx_attribute(
-            attrname, attrval, tensor_name_generator, attrtype
-        )
-        return ir.from_proto(proto)
-
     def _to_onnx_attr_ref(
         self, val: values.AttrRef, info: sourceinfo.SourceInfo | None
     ) -> ir.Attr:
@@ -371,7 +356,7 @@ class Converter:
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
                 result_as_bool = self.generate_unique_name(result_name + "_as_bool")
-                cast_attr = self._make_onnx_attr("to", onnx_types.BOOL.dtype)
+                cast_attr = ir.AttrInt64("to", onnx_types.BOOL.dtype)
                 self._castable.add(result_as_bool)
                 return self.emit1(
                     [result_as_bool],
@@ -448,11 +433,8 @@ class Converter:
             else:
                 suggested_name = "const"
         ovar = self.generate_unique_name(suggested_name)
-        try:
-            tensor = autocast.pyvalue_to_onnx_tensor(ovar, pyvalue)
-        except ValueError as e:
-            fail(info.msg(str(e)))
-        attr = self._make_onnx_attr("value", tensor)
+
+        attr = ir.AttrTensor("value", ir.tensor(pyvalue, name=ovar))
         self._castable.add(ovar)
         return self.emit1([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
 
@@ -581,13 +563,9 @@ class Converter:
             if attr_meta and attr_meta.required:
                 self.fail(expr, f"Attribute '{attr_name}' is required.")
             return None
-        attr_type = int(attr_meta.type) if attr_meta else None
-        attr = self._make_onnx_attr(attr_name, val, attrtype=attr_type)
-        if attr_meta and (attr.type != attr_meta.type):
-            self.fail(
-                expr,
-                f"Attribute type '{attr.type}' does not match expected type '{attr_meta.type}'",
-            )
+        attr = ir.Attr(
+            attr_name, attr_meta.type if attr_meta else ir.AttributeType.UNDEFINED, val
+        )
         return attr
 
     def _translate_docstring(self, node: ast.Expr) -> None:
@@ -805,7 +783,7 @@ class Converter:
                 steps.append(inputs[2])
 
             if len(starts) > 1:
-                axis_0_attr = self._make_onnx_attr("axis", 0)
+                axis_0_attr = ir.AttrInt64("axis", 0)
                 start_name = self.generate_unique_name(f"{var_name}_start")
                 start_value = self.emit([start_name], "Concat", starts, [axis_0_attr])
 
@@ -855,7 +833,7 @@ class Converter:
             last_axis = None
         for axis, index_expr in non_scalar_indices:
             index_value = self._translate_expr(index_expr)
-            axis_attr = self._make_onnx_attr("axis", axis)
+            axis_attr = ir.AttrInt64("axis", axis)
             # use Gather to perform indexing
             # Assign gathered value to either temporary or final target
             if axis != last_axis:  # use temporary to store result of Gather
@@ -901,19 +879,20 @@ class Converter:
         if op not in primop_map:
             raise ValueError(self._message(node, f"Unsupported operator {op!r}."))
 
-        attr = []
         if isinstance(node.op, ast.Mod) and self._is_constant_expr(node.right):
             # specific case X % f where f is a float.
             # attribute fmod=1 is added in that case.
             cst = self._eval_constant_expr(node.right)
             if isinstance(cst, float):
-                attr = [self._make_onnx_attr("fmod", 1)]
+                attrs = [ir.AttrInt64("fmod", 1)]
+        else:
+            attrs = []
 
         op = values.Op(self.default_opset, primop_map[op])
         left, right = self._cast_like_binary_expression(
             op, self._translate_expr(node.left), self._translate_expr(node.right)
         )
-        return op, [left, right], attr
+        return op, [left, right], attrs
 
     def _translate_unary_op_expr(self, node):
         op = type(node.op)
@@ -1156,9 +1135,9 @@ class Converter:
         test = self._translate_expr(stmt.test, "cond")
         lineno = self._source_of(stmt).lineno
         thenGraph = self._translate_block(stmt.body, f"thenGraph_{lineno}", live_defs)
-        thenAttr = self._make_onnx_attr("then_branch", thenGraph)
+        thenAttr = ir.AttrGraph("then_branch", thenGraph)
         elseGraph = self._translate_block(stmt.orelse, f"elseGraph_{lineno}", live_defs)
-        elseAttr = self._make_onnx_attr("else_branch", elseGraph)
+        elseAttr = ir.AttrGraph("else_branch", elseGraph)
 
         def rename(x):
             return self.generate_unique_name(x)
@@ -1335,7 +1314,7 @@ class Converter:
         inputs = [o_loop_bound, o_loop_condition] + [
             self._py_var_to_onnx_var(pv, self._source_of(loop_stmt)) for pv in loop_state_vars
         ]
-        attrs = [self._make_onnx_attr("body", body.graph)]
+        attrs = [ir.AttrGraph("body", body.graph)]
         info = self._source_of(loop_stmt)
 
         def rename(x):
