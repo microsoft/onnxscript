@@ -127,7 +127,7 @@ class Opset:
         try:
             schema = onnx.defs.get_schema(attr, self.version, self.domain)
             return Op(self, attr, schema)
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             raise AttributeError(f"Attribute {attr} not found.") from exc
 
     def add_function_def(self, fun):

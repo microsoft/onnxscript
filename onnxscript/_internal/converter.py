@@ -436,9 +436,9 @@ class Converter:
 
         try:
             tensor = ir.tensor(pyvalue, name=ovar)
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             self.fail(
-                info,
+                info.ast_node,
                 f"Failed to convert constant value {pyvalue!r} to ONNX tensor: {exc}",
             )
         attr = ir.AttrTensor("value", tensor)
