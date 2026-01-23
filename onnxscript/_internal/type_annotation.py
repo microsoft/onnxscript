@@ -22,22 +22,8 @@ from onnxscript import onnx_types
 # - Above types with annotation attached
 TypeAnnotationValue = typing.Any
 
-# Map from python type to corresponding ONNX AttributeProto type
-_PYTYPE_TO_ATTRTYPE_MAP = {
-    float: onnx.AttributeProto.FLOAT,
-    int: onnx.AttributeProto.INT,
-    str: onnx.AttributeProto.STRING,
-    bool: onnx.AttributeProto.INT,  # experimental
-}
 
-# Map from python type to corresponding ONNX AttributeProto type,
-# for repeated (i.e., list of) values
-_LISTTYPE_TO_ATTRTYPE_MAP = {
-    float: onnx.AttributeProto.FLOATS,
-    int: onnx.AttributeProto.INTS,
-    str: onnx.AttributeProto.STRINGS,
-    bool: onnx.AttributeProto.INTS,  # experimental
-}
+_PRIMITIVE_ATTR_TYPE = frozenset((float, int, str, bool))
 
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
@@ -92,33 +78,13 @@ def _remove_annotation(typeinfo: TypeAnnotationValue) -> TypeAnnotationValue:
 
 
 def _is_primitive_attr_type(typeinfo: TypeAnnotationValue) -> bool:
-    return typeinfo in _PYTYPE_TO_ATTRTYPE_MAP
-
-
-def pytype_to_attrtype(
-    pytype: TypeAnnotationValue,
-) -> Optional[onnx.AttributeProto.AttributeType]:
-    pytype = _remove_annotation(pytype)
-    if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
-        return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
-    type_constructor = typing.get_origin(pytype)
-    # Remove Optional wrapper if present, which is represented as an Union[..., type(None)]
-    if type_constructor is typing.Union:
-        # Filter out type(None), since typing.Optional[X] evaluates to Union[X, type(None)]
-        args = [x for x in typing.get_args(pytype) if x is not type(None)]
-        if len(args) == 1:
-            return pytype_to_attrtype(args[0])
-    if type_constructor in _LIST_CONSTRUCTORS:
-        elt_type = typing.get_args(pytype)[0]
-        if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
-            return _LISTTYPE_TO_ATTRTYPE_MAP[elt_type]
-    return None
+    return typeinfo in _PRIMITIVE_ATTR_TYPE
 
 
 def base_type_is_bool(pytype: TypeAnnotationValue) -> bool:
     """Returns True if base type of pytype is bool, False otherwise."""
     pytype = _remove_annotation(pytype)
-    if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
+    if pytype in _PRIMITIVE_ATTR_TYPE:
         return pytype is bool
     type_constructor = typing.get_origin(pytype)
     if type_constructor in _LIST_CONSTRUCTORS:

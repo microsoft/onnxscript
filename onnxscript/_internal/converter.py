@@ -540,8 +540,8 @@ class Converter:
                                 f"Outer scope variable '{pyvar}' referenced by function "
                                 f"'{expr.id!r}' modified.",
                             )
-                    # Create GraphProto attribute
-                    val = irfunction.to_graph_proto()
+
+                    val = irfunction.graph
                 if isinstance(val, ir.Value):
                     self.fail(expr, f"Cannot use ir.Value '{expr.id}' as an attribute.")
                 else:
