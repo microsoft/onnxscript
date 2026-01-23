@@ -563,10 +563,10 @@ class Converter:
             if attr_meta and attr_meta.required:
                 self.fail(expr, f"Attribute '{attr_name}' is required.")
             return None
-        attr_type = attr_meta.type if attr_meta else ir.AttributeType.UNDEFINED
+        attr_type = attr_meta.type if attr_meta else None
         if attr_type == ir.AttributeType.TENSOR:
             val = ir.tensor(val)
-        attr = ir.Attr(attr_name, attr_type, val)
+        attr = ir.convenience.convert_attribute(attr_name, val, attr_type)
         return attr
 
     def _translate_docstring(self, node: ast.Expr) -> None:
