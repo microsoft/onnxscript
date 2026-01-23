@@ -463,6 +463,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         fft_ops.aten__fft_c2r,
         tolerance={torch.complex64: (3e-3, 1.8e-4)},
         complex=True,
+    ).xfail(
+        matcher=lambda sample: True,
+        reason="Requires ONNX with IRFFT support (onesided=True, inverse=True)",
     ),
     TorchLibOpInfo(
         "ops.aten._fft_r2c",  # Custom from extra_opinfo
