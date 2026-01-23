@@ -374,6 +374,16 @@ class OpSignature:
         )
         return f"{domain}::{self.name}{overload}({params}) -> ({outputs}) where {type_constraints_str}"
 
+    @property
+    def inputs(self) -> Sequence[Parameter]:
+        """Returns the input parameters."""
+        return [param for param in self.params if isinstance(param, Parameter)]
+
+    @property
+    def attributes(self) -> Sequence[AttributeParameter]:
+        """Returns the attribute parameters."""
+        return [param for param in self.params if isinstance(param, AttributeParameter)]
+
     @classmethod
     def from_op_schema(cls, op_schema: onnx.defs.OpSchema) -> OpSignature:
         """Produce an OpSignature from an ONNX OpSchema."""
