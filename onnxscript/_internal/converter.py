@@ -434,7 +434,14 @@ class Converter:
                 suggested_name = "const"
         ovar = self.generate_unique_name(suggested_name)
 
-        attr = ir.AttrTensor("value", ir.tensor(pyvalue, name=ovar))
+        try:
+            tensor = ir.tensor(pyvalue, name=ovar)
+        except Exception as exc:  # noqa: BLE001
+            self.fail(
+                info,
+                f"Failed to convert constant value {pyvalue!r} to ONNX tensor: {exc}",
+            )
+        attr = ir.AttrTensor("value", tensor)
         self._castable.add(ovar)
         return self.emit1([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
 
