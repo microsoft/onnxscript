@@ -424,11 +424,12 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: _schemas.OpSignature)
     Returns:
         True if the dtype is compatible with the schema.
     """
-    if not schema.params:
+    inputs = schema.inputs
+    if not inputs:
         # If there are no inputs, we can't check compatibility. Assume it is compatible.
         # e.g. aten_randn has only attributes.
         return True
-    if schema.inputs[0].name not in {"self", "input"}:
+    if inputs[0].name not in {"self", "input"}:
         # If the name of the first input is not "self" or "input",
         # it is usually an input that is not of the same type as the output.
         # We assume support in this case.
@@ -458,7 +459,7 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: _schemas.OpSignature)
     # 'tensor(bfloat16)'].
     # Since torch.float32 (tensor(float)) is in the allowed types, we return True.
 
-    first_input_type_constraint = schema.inputs[0].type_constraint
+    first_input_type_constraint = inputs[0].type_constraint
     assert first_input_type_constraint is not None
     allowed_types = first_input_type_constraint.allowed_types
     # Here we consider seq(tensor(float)) compatible with tensor(float) as well
