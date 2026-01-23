@@ -132,9 +132,7 @@ def cast_inputs(
         return tuple(cast(x, None) for x in args)
 
     # Filter to get only input parameters (not AttributeParameters)
-    expected_inputs = [
-        param for param in op_signature.params if isinstance(param, _schemas.Parameter)
-    ]
+    expected_inputs = op_signature.inputs
     # We make two passes. In the first pass, we identify known type-bindings for
     # type-variables: eg., {'T1' : np.float32, 'T2' : np.int32}.
     # In the second pass, we use these bindings to cast scalar-values to
