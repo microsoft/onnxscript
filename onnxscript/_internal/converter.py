@@ -880,14 +880,13 @@ class Converter:
         if op not in primop_map:
             raise ValueError(self._message(node, f"Unsupported operator {op!r}."))
 
+        attrs = []
         if isinstance(node.op, ast.Mod) and self._is_constant_expr(node.right):
             # specific case X % f where f is a float.
             # attribute fmod=1 is added in that case.
             cst = self._eval_constant_expr(node.right)
             if isinstance(cst, float):
                 attrs = [ir.AttrInt64("fmod", 1)]
-        else:
-            attrs = []
 
         op = values.Op(self.default_opset, primop_map[op])
         left, right = self._cast_like_binary_expression(
