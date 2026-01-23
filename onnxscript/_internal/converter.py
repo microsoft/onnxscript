@@ -436,7 +436,7 @@ class Converter:
 
         try:
             tensor = ir.tensor(pyvalue, name=ovar)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self.fail(
                 info,
                 f"Failed to convert constant value {pyvalue!r} to ONNX tensor: {exc}",
