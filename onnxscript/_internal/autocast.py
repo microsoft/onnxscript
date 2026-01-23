@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 import numpy as np
+import onnx
 
 from onnxscript import ir, tensor
 from onnxscript.ir import _schemas
@@ -53,6 +54,8 @@ def pyvalue_to_onnx_attribute(
         if attr_type not in _REPEATED_ATTRIBUTE_TYPES:
             raise ValueError("Empty list value is only allowed for repeated attribute types.")
         return ir.Attr(name=key, type=attr_type, value=[])
+    elif attr_type == ir.AttributeType.TENSOR and not isinstance(value, onnx.TensorProto):
+        return ir.AttrTensor(name=key, value=ir.tensor(value, name=name_generator()))
     else:
         return ir.convenience.convert_attribute(key, value, attr_type=attr_type)
 

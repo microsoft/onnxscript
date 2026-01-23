@@ -214,7 +214,7 @@ def _is_optional(type_: type) -> bool:
     return False
 
 
-def _get_attr_type(type_: type) -> ir.AttributeType:
+def get_attr_type(type_: type) -> ir.AttributeType:
     """Obtain the type of the attribute from a Python class."""
     try:
         if type_ in _PY_TYPE_TO_ATTR_TYPE:
@@ -467,7 +467,7 @@ class OpSignature:
                 )
             else:
                 type_ = type_hints[param.name]
-                if (attr_type := _get_attr_type(type_)) != ir.AttributeType.UNDEFINED:
+                if (attr_type := get_attr_type(type_)) != ir.AttributeType.UNDEFINED:
                     # Construct the default attribute
                     if param.default is not inspect.Parameter.empty:
                         # TODO: Use ir_convenience instead to handle int as float

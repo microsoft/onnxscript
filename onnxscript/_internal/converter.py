@@ -563,9 +563,10 @@ class Converter:
             if attr_meta and attr_meta.required:
                 self.fail(expr, f"Attribute '{attr_name}' is required.")
             return None
-        attr = ir.Attr(
-            attr_name, attr_meta.type if attr_meta else ir.AttributeType.UNDEFINED, val
-        )
+        attr_type = attr_meta.type if attr_meta else ir.AttributeType.UNDEFINED
+        if attr_type == ir.AttributeType.TENSOR:
+            val = ir.tensor(val)
+        attr = ir.Attr(attr_name, attr_type, val)
         return attr
 
     def _translate_docstring(self, node: ast.Expr) -> None:
@@ -1411,8 +1412,8 @@ class Converter:
                 # The code can only be exported as a function.
                 typeinfo = None
             if typeinfo and ta.is_attr_type(typeinfo):
-                attribute_type = ta.pytype_to_attrtype(typeinfo)
-                attr = ir.Attr(x.arg, ir.AttributeType(attribute_type), default_value, None)
+                attribute_type = _schemas.get_attr_type(typeinfo)
+                attr = ir.Attr(x.arg, attribute_type, default_value, None)
                 self._current_fn.append_parameter(attr)
                 as_bool = ta.base_type_is_bool(typeinfo)
                 self._bind(x.arg, values.AttrRef(attr, as_bool, self._source_of(x)))
