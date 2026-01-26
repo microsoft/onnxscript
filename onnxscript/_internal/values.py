@@ -352,7 +352,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
     def _to_model_proto(
         self,
-        functions: Optional[Sequence[ir.Function | onnx.FunctionProto | OnnxFunction]] = None,
         io_types: Optional[ONNXType] = None,
         input_types: Optional[Sequence[ONNXType]] = None,
         output_types: Optional[Sequence[ONNXType]] = None,
@@ -363,8 +362,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
         """Converts this instance into a `onnx.ModelProto`.
 
         Args:
-            functions: A list of functions to include in the model.
-                By default, all functions called at least once are included.
             io_types: When specified, all the inputs/outputs of the model
                 are set to be of this type.
             input_types: When specified, all the inputs of the model
@@ -380,32 +377,14 @@ class OnnxFunction(Op, Generic[_P, _R]):
         Returns:
             An instance of :class:`onnx.ModelProto`.
         """
-        if functions is None:
-            # Identify functions to include in the model
-            sub_functions = self.function_ir.get_called_functions()
-            ir_functions: list[ir.Function] = [
-                func.function_ir for func in sub_functions.values()
-            ]
-        else:
-            ir_functions = []
-            for func in functions:
-                if isinstance(func, ir.Function):
-                    ir_functions.append(func)
-                elif isinstance(func, onnx.FunctionProto):
-                    ir_functions.append(ir.serde.deserialize_function(func))
-                elif isinstance(func, OnnxFunction):
-                    ir_functions.append(func.function_ir)
-                else:
-                    raise TypeError(
-                        f"functions must be a sequence of "
-                        f"ir.Function, onnx.FunctionProto, or OnnxFunction, "
-                        f"not {type(func)!r}."
-                    )
+        # Identify functions to include in the model
+        sub_functions = self.function_ir.get_called_functions()
+        ir_functions: list[ir.Function] = [func.function_ir for func in sub_functions.values()]
 
         # Duplicate the graph to create the model
         main_graph = self.function_ir.graph.clone()
         # Determine opset imports
-        opset_imports = main_graph.opset_imports
+        opset_imports = main_graph.opset_imports.copy()
 
         for func in ir_functions:
             domain = func.domain
@@ -434,6 +413,15 @@ class OnnxFunction(Op, Generic[_P, _R]):
             model.functions[func.identifier()] = func
 
         model_proto = ir.to_proto(model)
+
+        # Update opset imports
+        del model_proto.opset_import[:]
+        model_proto.opset_import.extend(
+            [
+                onnx.OperatorSetIdProto(domain=domain, version=version)
+                for domain, version in opset_imports.items()
+            ]
+        )
 
         # Set additional type information if provided
         graph = model_proto.graph
