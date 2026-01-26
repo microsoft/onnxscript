@@ -12,12 +12,13 @@ from typing import Callable, Sequence, Union
 import onnx_ir.convenience as ir_convenience
 
 import onnxscript.ir._tape as _tape
+import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)
 
 
-SUPPORTED_MAX_ONNX_OPSET = 23
+SUPPORTED_MAX_ONNX_OPSET = 25
 SUPPORTED_MIN_ONNX_OPSET = 18
 
 
@@ -235,6 +236,12 @@ def groupnormalization_20_21(node: ir.Node, op):
     return None
 
 
+# Default metadata merger: no merging should be needed; keep the first value.
+_default_metadata_merger: metadata_merger.MetadataMerger = metadata_merger.MetadataMerger(
+    dict(),
+)
+
+
 class _VersionConverter:
     def __init__(self, target_version: int):
         self._target_version = target_version
@@ -293,6 +300,7 @@ class _VersionConverter:
             for new_node in replacement.new_nodes:
                 # TODO: control-flow
                 new_node.version = to_version
+            _default_metadata_merger.copy_merged_metadata([node], replacement.new_nodes)
             self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:
