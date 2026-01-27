@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Iterable
+from collections.abc import Callable, Sequence
 
 import onnx_ir as ir
 
@@ -73,7 +73,7 @@ class MetadataMerger:
                 updated[key] = new_value
 
     def copy_merged_metadata(
-        self, from_nodes: Iterable[ir.Node], to: ir.Node | Iterable[ir.Node]
+        self, from_nodes: Sequence[ir.Node], to: ir.Node | Sequence[ir.Node]
     ) -> None:
         """Merges metadata from multiple nodes and assigns it to one or more target nodes.
 

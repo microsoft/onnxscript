@@ -403,6 +403,7 @@ def add(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     output = _get_output(node, 0)
     if output is not None:
         state.set_sym_value(output, ir.Shape([result_dim_value]))
+    return None
 
 
 @register("Abs")
@@ -541,7 +542,7 @@ def shape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if output is not None:
         state.set_sym_value(output, ir.Shape(shape_slice))
     if all(isinstance(d, int) for d in shape_slice):
-        return op.Constant(value_ints=ir.AttrInt64s("value_ints", list(shape_slice)))
+        return op.Constant(value_ints=ir.AttrInt64s("value_ints", list(shape_slice)))  # type: ignore[arg-type]
     return None
 
 
@@ -631,7 +632,7 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     del op
     output = node.outputs[0]
     if output is not None:
-        state.set_sym_value(output, list(node.inputs))
+        state.set_sym_value(output, list(node.inputs))  # type: ignore[arg-type]
     return None
 
 
@@ -756,7 +757,7 @@ def expand(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 def concat_from_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = node.inputs[0]
     inputs = state.get_sym_value(input)
-    if inputs is None or any(x is None for x in inputs):
+    if inputs is None or any(x is None for x in inputs):  # type: ignore[union-attr]
         return None
     new_axis = _get_int_attribute(node, "new_axis", 0)
     axis = _get_int_attribute(node, "axis", None)
@@ -850,14 +851,14 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         num_outputs = split_dimension_size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
         split_values = op.Split(input, split, axis=axis, _outputs=split_outputs)
-    elif split_value.ndim == 1:
+    elif split_value is not None and split_value.ndim == 1:
         # split into 'size(split)' chunks
         num_outputs = split_value.size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
         split_values = op.Split(input, split, axis=axis, _outputs=split_outputs)
-    elif split_value.ndim == 0:
+    elif split_value is not None and split_value.ndim == 0:
         # split into chunks all of size 'split' if possible.
-        split_dimension_size = shape[axis]
+        split_dimension_size: int | ir.SymbolicDim = shape[axis]
         if not isinstance(split_dimension_size, int):
             return None
         num_outputs = math.ceil(split_dimension_size / split_value.item())
@@ -1096,12 +1097,12 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 )
                 return None
 
-        return tensor
+        return tensor  # type: ignore[return-value]
 
     def new_constant(self, node: ir.Node, array: np.ndarray | Any) -> ir.Node | None:
         """Create a new Constant node with the given array as its value."""
         original_value = node.outputs[0]
-
+        assert original_value.name is not None
         tensor = self._prepare_folded_tensor(node, original_value.name, array)
         if tensor is None:
             return None
@@ -1119,7 +1120,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
     def new_initializer(self, node: ir.Node, array: np.ndarray | Any) -> ir.Value | None:
         """Create a new initializer value with the given array as its value."""
         original_value = node.outputs[0]
-
+        assert original_value.name is not None
         tensor = self._prepare_folded_tensor(node, original_value.name, array)
         if tensor is None:
             return None

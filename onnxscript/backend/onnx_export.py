@@ -475,7 +475,7 @@ class _Exporter:
             return f"{sindent}{to_var(lhs_var)} = {to_var(rhs_var)}"
 
         if isinstance(lhs, (str, ValueInfoProto)):
-            return [assign(lhs, rhs)]
+            return [assign(lhs, rhs)]  # type: ignore[arg-type]
         return [assign(x, y) for x, y in zip(lhs, rhs)]
 
     def _translate_loop(self, node, opsets, indent=0):
@@ -789,9 +789,9 @@ def make_model_with_random_weights():
     ) -> str:
         """Generate import statements for types used in the graph."""
         if isinstance(proto, ModelProto):
-            graph_or_function = proto.graph
+            graph_or_function: onnx.GraphProto = proto.graph
         else:
-            graph_or_function = proto
+            graph_or_function = proto  # type: ignore[assignment]
         used_types: set[str] = set()
         for t in list(graph_or_function.input) + list(graph_or_function.output):
             if hasattr(t, "type"):

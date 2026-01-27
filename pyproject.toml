@@ -161,6 +161,7 @@ ignore = [
     "RUF022", # We don't need to sort __all__ for elements to be grouped
     "RUF031", # Parentheses for tuple in subscripts is more readable
     "RUF052", # Variables with `_` prefix may not be dummy variables in all cases
+    "RUF067", # OK to contain logic in __init__
     "SIM102", # Collapible if statements are not always more readable
     "SIM108", # We don't always encourage ternary operators
     "SIM114", # Don't always combine if branches for debugability
