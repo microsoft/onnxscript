@@ -376,7 +376,7 @@ class VersionConverterMetadataMergeTest(unittest.TestCase):
 
 
 class VersionConverter25to26Test(unittest.TestCase):
-    @pytest.mark.xfail(strict=True, reason="Version upgrade beyond 26 not yet supported.")
+    @pytest.mark.xfail(strict=True, reason="Version upgrade beyond 25 not yet supported.")
     def test_version_convert_compatible(self):
         model = ir.from_onnx_text(
             """
