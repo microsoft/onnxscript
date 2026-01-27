@@ -46,6 +46,7 @@ exclude_patterns = [
     'onnxscript/onnx_types.py',
     'onnxscript/rewriter/ort_fusions/_rotary_embedding_models.py',  # onnxscript code
     'onnxscript/rewriter/ort_fusions/models/*.py',  # onnxscript code
+    'onnxscript/rewriter/models/*.py',  # onnxscript code
 ]
 command = [
     'python',
