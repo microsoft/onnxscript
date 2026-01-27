@@ -43,8 +43,9 @@ class _FuseMinMaxBase(RewriteRuleClassBase, abc.ABC):
         - If ``check_bounds`` is True (Clip fusion in the pattern Max(Min(X, upper_bound), lower_bound)), lower_bound ≤ upper_bound.
     """
 
-    need_scalars: ClassVar = False
-    check_bounds: ClassVar = False
+    op_type: ClassVar[str]
+    need_scalars: ClassVar[bool] = False
+    check_bounds: ClassVar[bool] = False
 
     @abc.abstractmethod
     def compute_constants(
@@ -93,7 +94,7 @@ class _FuseMinMaxBase(RewriteRuleClassBase, abc.ABC):
         second_node = out2.producer()
 
         # Ensure all inputs except the first are constants
-        for input_ in first_node.inputs[1:] + second_node.inputs[1:]:
+        for input_ in list(first_node.inputs[1:]) + list(second_node.inputs[1:]):  # type: ignore[union-attr]
             if ir.convenience.get_const_tensor(input_) is None:
                 return check_result.fail(f"{input_.name} is not a constant.")
 
@@ -128,9 +129,9 @@ class FuseSuccessiveMin(_FuseMinMaxBase):
         second_node: ir.Node,
         input_name: str = "",
     ) -> list[tuple[ir.Tensor, str]]:
-        inputs = first_node.inputs[1:] + second_node.inputs[1:]
-        values = [input_.const_value.numpy() for input_ in inputs]
-        return [(ir.tensor(functools.reduce(np.minimum, values)), f"{input_name}_min")]
+        inputs = list(first_node.inputs[1:]) + list(second_node.inputs[1:])  # type: ignore[union-attr]
+        values = [input_.const_value.numpy() for input_ in inputs]  # type: ignore[union-attr]
+        return [(ir.tensor(functools.reduce(np.minimum, values)), f"{input_name}_min")]  # type: ignore[list-item]
 
     def pattern(self, op, x):
         return op.Min(
@@ -155,9 +156,9 @@ class FuseSuccessiveMax(_FuseMinMaxBase):
         second_node: ir.Node,
         input_name: str = "",
     ) -> list[tuple[ir.Tensor, str]]:
-        inputs = first_node.inputs[1:] + second_node.inputs[1:]
-        values = [input_.const_value.numpy() for input_ in inputs]
-        return [(ir.tensor(functools.reduce(np.maximum, values)), f"{input_name}_max")]
+        inputs = list(first_node.inputs[1:]) + list(second_node.inputs[1:])  # type: ignore[operator]
+        values = [input_.const_value.numpy() for input_ in inputs]  # type: ignore[union-attr]
+        return [(ir.tensor(functools.reduce(np.maximum, values)), f"{input_name}_max")]  # type: ignore[list-item]
 
     def pattern(self, op, x):
         return op.Max(
@@ -186,11 +187,11 @@ class FuseMaxMinToClip(_FuseMinMaxBase):
         second_node: ir.Node,
         input_name: str = "",
     ) -> list[tuple[ir.Tensor, str]]:
-        lower_bound = np.max([input_.const_value.numpy() for input_ in first_node.inputs[1:]])
-        upper_bound = np.min([input_.const_value.numpy() for input_ in second_node.inputs[1:]])
+        lower_bound = np.max([input_.const_value.numpy() for input_ in first_node.inputs[1:]])  # type: ignore[union-attr]
+        upper_bound = np.min([input_.const_value.numpy() for input_ in second_node.inputs[1:]])  # type: ignore[union-attr]
         return [
-            (ir.tensor(lower_bound), f"{input_name}_min"),
-            (ir.tensor(upper_bound), f"{input_name}_max"),
+            (ir.tensor(lower_bound), f"{input_name}_min"),  # type: ignore[list-item]
+            (ir.tensor(upper_bound), f"{input_name}_max"),  # type: ignore[list-item]
         ]
 
     def pattern(self, op, x):
@@ -222,11 +223,11 @@ class FuseMinMaxToClip(_FuseMinMaxBase):
         second_node: ir.Node,
         input_name: str = "",
     ) -> list[tuple[ir.Tensor, str]]:
-        upper_bound = np.min([input_.const_value.numpy() for input_ in first_node.inputs[1:]])
-        lower_bound = np.max([input_.const_value.numpy() for input_ in second_node.inputs[1:]])
+        upper_bound = np.min([input_.const_value.numpy() for input_ in first_node.inputs[1:]])  # type: ignore[union-attr]
+        lower_bound = np.max([input_.const_value.numpy() for input_ in second_node.inputs[1:]])  # type: ignore[union-attr]
         return [
-            (ir.tensor(lower_bound), f"{input_name}_min"),
-            (ir.tensor(upper_bound), f"{input_name}_max"),
+            (ir.tensor(lower_bound), f"{input_name}_min"),  # type: ignore[list-item]
+            (ir.tensor(upper_bound), f"{input_name}_max"),  # type: ignore[list-item]
         ]
 
     def pattern(self, op, x):

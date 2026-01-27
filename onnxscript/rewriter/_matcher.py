@@ -161,7 +161,7 @@ class SimplePatternMatcher(PatternMatcher):
         else:
             # In ONNX, trailing Nones can be omitted in the inputs of a node. So, we extend actual
             # node inputs with None values to match the pattern node inputs length when zipping.
-            checked_inputs = itertools.zip_longest(
+            checked_inputs = itertools.zip_longest(  # type: ignore[assignment]
                 node.inputs, pattern_node.inputs, fillvalue=None
             )
 

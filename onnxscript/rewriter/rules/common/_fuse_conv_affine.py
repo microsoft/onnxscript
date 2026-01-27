@@ -63,16 +63,16 @@ class AffineConvFusion(_ConvAffineFusionBase):
         offset: ir.Value,
         conv_out: ir.Value,
     ) -> ir.Value:
-        scale_value = scale.const_value.numpy()
-        offset_value = offset.const_value.numpy()
-        w_value = w.const_value.numpy()
-        b_value = b.const_value.numpy()
-        scaled_w_value = op.initializer(ir.tensor(w_value * scale_value), w.name + "_scaled")
-        offset_bias = ir.tensor(
+        scale_value = scale.const_value.numpy()  # type: ignore[union-attr]
+        offset_value = offset.const_value.numpy()  # type: ignore[union-attr]
+        w_value = w.const_value.numpy()  # type: ignore[union-attr]
+        b_value = b.const_value.numpy()  # type: ignore[union-attr]
+        scaled_w_value = op.initializer(ir.tensor(w_value * scale_value), (w.name or "") + "_scaled")  # type: ignore[operator]
+        offset_bias: ir.Tensor | ir.Value = ir.tensor(
             b_value + np.sum(w_value * offset_value, axis=(1, 2, 3), keepdims=False)
         )
-        offset_bias = op.initializer(offset_bias, b.name + "_offset")
-        conv_attributes = conv_out.producer().attributes
+        offset_bias = op.initializer(offset_bias, (b.name or "") + "_offset")  # type: ignore[arg-type]
+        conv_attributes = conv_out.producer().attributes  # type: ignore[union-attr]
         return op.Conv(x, scaled_w_value, offset_bias, **conv_attributes)
 
 
@@ -97,14 +97,14 @@ class ConvAffineFusion(_ConvAffineFusionBase):
         offset: ir.Value,
         conv_out: ir.Value,
     ) -> ir.Value:
-        scale_value = scale.const_value.numpy()
-        offset_value = offset.const_value.numpy()
-        w_value = w.const_value.numpy()
-        b_value = b.const_value.numpy()
-        scaled_w_weight = op.initializer(ir.tensor(w_value * scale_value), w.name + "_scaled")
-        offset_bias = ir.tensor(b_value * scale_value + offset_value)
-        offset_bias = op.initializer(offset_bias, b.name + "_offset")
-        conv_attributes = conv_out.producer().attributes
+        scale_value = scale.const_value.numpy()  # type: ignore[union-attr]
+        offset_value = offset.const_value.numpy()  # type: ignore[union-attr]
+        w_value = w.const_value.numpy()  # type: ignore[union-attr]
+        b_value = b.const_value.numpy()  # type: ignore[union-attr]
+        scaled_w_weight = op.initializer(ir.tensor(w_value * scale_value), (w.name or "") + "_scaled")  # type: ignore[operator]
+        offset_bias: ir.Tensor | ir.Value = ir.tensor(b_value * scale_value + offset_value)
+        offset_bias = op.initializer(offset_bias, (b.name or "") + "_offset")  # type: ignore[arg-type]
+        conv_attributes = conv_out.producer().attributes  # type: ignore[union-attr]
         return op.Conv(x, scaled_w_weight, offset_bias, **conv_attributes)
 
 

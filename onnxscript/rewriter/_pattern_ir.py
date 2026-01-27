@@ -132,7 +132,7 @@ class AttrConstantPattern(AttrPattern):
             ir.AttributeType.STRINGS,
         }:
             # Since the type of attr.value is Sequence, we need to convert to the same type for comparison.
-            return tuple(attr.value) == tuple(self._value)
+            return tuple(attr.value) == tuple(self._value)  # type: ignore[arg-type]
         return attr.value == self._value
 
     def __str__(self) -> str:

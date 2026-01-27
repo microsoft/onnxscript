@@ -341,9 +341,9 @@ class Flatten2Reshape(RewriteRuleClassBase):
         # Try to update shape if input is known.
         if input_shape is not None:
             if all(isinstance(dim, int) for dim in input_shape[:axis]):
-                self._new_shape[0] = np.prod(input_shape[:axis])
+                self._new_shape[0] = np.prod(input_shape[:axis])  # type: ignore[arg-type]
             if all(isinstance(dim, int) for dim in input_shape[axis:]):
-                self._new_shape[1] = np.prod(input_shape[axis:])
+                self._new_shape[1] = np.prod(input_shape[axis:])  # type: ignore[arg-type]
 
         # Verify if it is possible to apply rule.
         if np.count_nonzero(self._new_shape == -1) > 1:

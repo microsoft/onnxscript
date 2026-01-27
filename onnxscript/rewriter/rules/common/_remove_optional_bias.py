@@ -14,9 +14,11 @@ from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleS
 
 
 class _RemoveOptionalBias(RewriteRuleClassBase):
+    op_type: ClassVar[str]
+
     def rewrite(self, op: ir.tape.Tape, out: ir.Value, **_) -> ir.Value:
         node = out.producer()
-
+        assert node is not None
         return op.op(
             self.op_type,
             inputs=node.inputs[:-1],

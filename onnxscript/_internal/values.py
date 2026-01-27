@@ -299,7 +299,7 @@ def _op_schema_from_function_ir(
 
     formal_inputs = [
         onnx.defs.OpSchema.FormalParameter(
-            arg.name,
+            arg.name,  # type: ignore[arg-type]
             type_to_constraint[_typeinfo(arg)].name,
             param_option=(
                 onnx.defs.OpSchema.FormalParameterOption.Optional
@@ -313,7 +313,7 @@ def _op_schema_from_function_ir(
     ]
     formal_outputs = [
         onnx.defs.OpSchema.FormalParameter(
-            arg.name,
+            arg.name,  # type: ignore[arg-type]
             type_to_constraint[_typeinfo(arg)].name,
             param_option=(
                 onnx.defs.OpSchema.FormalParameterOption.Optional

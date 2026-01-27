@@ -70,6 +70,7 @@ def separate_input_attributes_from_arguments(
             # User did not provide the attribute
             if fill_defaults:
                 # Extract the value from the Attr object
+                assert param.default is not None
                 onnx_attributes[param.name] = param.default.value
         elif param.required:
             raise TypeError(f"Required input '{param}' was not provided")
@@ -136,6 +137,7 @@ def tag_arguments_with_signature(
                 default_value = param.default
                 # Extract value from Attr object if it's an AttributeParameter
                 if isinstance(param, _schemas.AttributeParameter):
+                    assert param.default is not None
                     default_value = param.default.value
                 tagged_kwargs[param.name] = (default_value, param)
         elif param.required:

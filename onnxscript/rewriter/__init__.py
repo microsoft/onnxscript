@@ -126,5 +126,5 @@ def rewrite(
     )
     model_ir = rewrite_pass(model_ir).model
     if proto:
-        return ir.serde.serialize_model(model_ir)
+        return ir.serde.serialize_model(model_ir)  # type: ignore[return-value]
     return model_ir  # type: ignore[return-value]

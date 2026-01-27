@@ -41,7 +41,8 @@ class IRFunction(ir.Function):
     @property
     def assigned_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this function."""
-        return [v.name for n in self for v in n.outputs]
+        # FIXME(justinchuby)
+        return [v.name for n in self for v in n.outputs if v.name is not None]
 
     @property
     def attrs(self) -> Sequence[ir.Attr]:
@@ -52,10 +53,9 @@ class IRFunction(ir.Function):
         node.name = f"n{count}"
         self.append(node)
         domain = node.domain
-        version = node.version
-        if domain not in self.opset_imports:
+        version: int | None = node.version
+        if domain not in self.opset_imports and version is not None:
             self.opset_imports[domain] = version
-        else:
             existing_version = self.opset_imports[domain]
             if existing_version != version:
                 warnings.warn(

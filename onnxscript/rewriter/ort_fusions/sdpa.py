@@ -128,11 +128,11 @@ class SDPA(pattern.RewriteRuleClassBase):
         # Key and Value should have same sequence length (Skv), while Query can have different sequence length (S).
         _fusion_utils.check_shape(bindings, query, ["B", "H", "S", "Dh"])
         if key_format == "BHSd":
-            _fusion_utils.check_shape(bindings, key, ["B", "H", "Skv", "Dh"])
+            _fusion_utils.check_shape(bindings, key, ["B", "H", "Skv", "Dh"])  # type: ignore[arg-type]
         else:
             assert key_format == "BSHd", f"Unexpected key format: {key_format}"
-            _fusion_utils.check_shape(bindings, key, ["B", "Skv", "H", "Dh"])
-        _fusion_utils.check_shape(bindings, value, ["B", "H", "Skv", "Dv"])
+            _fusion_utils.check_shape(bindings, key, ["B", "Skv", "H", "Dh"])  # type: ignore[arg-type]
+        _fusion_utils.check_shape(bindings, value, ["B", "H", "Skv", "Dv"])  # type: ignore[arg-type]
 
         def get_scale_value(tag_name: str, scale_name: str) -> float:
             scaling_type = match_bindings.get(tag_name, "None")
@@ -142,7 +142,7 @@ class SDPA(pattern.RewriteRuleClassBase):
                 scale = match_bindings.get(scale_name)
                 value = _ir_utils.get_singleton_value(scale)
                 if value is None:
-                    raise MatchFailureError(f"{scale_name} is not a scalar.", scale)
+                    raise MatchFailureError(f"{scale_name} is not a scalar.", scale)  # type: ignore[arg-type]
                 if scaling_type == "Mul":
                     return value
                 else:

@@ -39,9 +39,10 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
 
     def rewrite(self, op, x: ir.Value, inbound_out: ir.Value, batchnorm_out: ir.Value):
         batchnorm_node = batchnorm_out.producer()
+        assert batchnorm_node is not None
         # Get BatchNorm parameters
         gamma, beta, input_mean, input_var = [
-            inp.const_value.numpy() for inp in batchnorm_node.inputs[1:]
+            inp.const_value.numpy() for inp in batchnorm_node.inputs[1:]  # type: ignore[union-attr]
         ]
 
         # 1e-5 is the default value for epsilon according to
@@ -54,7 +55,8 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
 
         # Update inbound weights
         inbound_node = inbound_out.producer()
-        weights = inbound_node.inputs[1].const_value.numpy()
+        assert inbound_node is not None
+        weights = inbound_node.inputs[1].const_value.numpy()  # type: ignore[union-attr]
 
         # Reshape scale factor so it is broadcastable
         axis = self.get_filters_axis(inbound_node.attributes)
@@ -64,21 +66,21 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
 
         # Update bias
         if len(inbound_node.inputs) > 2:
-            original_bias = inbound_node.inputs[2].const_value.numpy()
-            bias_name = inbound_node.inputs[2].name
+            original_bias = inbound_node.inputs[2].const_value.numpy()  # type: ignore[union-attr]
+            bias_name = inbound_node.inputs[2].name  # type: ignore[union-attr]
         else:
             original_bias = np.zeros_like(input_mean)
             # Use inbound input 1 (should be weight) to derive a name for the bias
             # to avoid name collision on initializer creation when there are multiple patterns
             # sharing the same parent nodes.
-            bias_name = inbound_node.inputs[1].name + "_bias"
+            bias_name = (inbound_node.inputs[1].name or "") + "_bias"  # type: ignore[union-attr]
         fused_bias = ir.tensor((original_bias - input_mean) * scale_factor + beta)
 
         return op.op(
             self.op_type,
             inputs=[
                 x,
-                op.initializer(fused_weights, name=inbound_node.inputs[1].name),
+                op.initializer(fused_weights, name=inbound_node.inputs[1].name),  # type: ignore[union-attr]
                 op.initializer(fused_bias, name=bias_name),
             ],
             attributes=inbound_node.attributes,
@@ -90,7 +92,8 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
 
         inbound_node = inbound_out.producer()
         batchnorm_node = batchnorm_out.producer()
-
+        assert inbound_node is not None
+        assert batchnorm_node is not None
         # Check that inbound weights + (inbound bias) + batchnorm params are initializers
         # and that they are not graph inputs
         initializers = [inbound_node.inputs[1], *batchnorm_node.inputs[1:]]

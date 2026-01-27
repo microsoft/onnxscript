@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
+from onnxscript.rewriter._basics import MatchResult
 
 
 class BiasGeluFusion(pattern.RewriteRuleClassBase):
@@ -30,8 +31,8 @@ class BiasGeluFusion(pattern.RewriteRuleClassBase):
         else:
             return op.Gelu(gelu_add, _outputs=["gelu"])
 
-    def check(self, op, gelu, input, bias, **_) -> pattern.MatchResult:
-        check_result = pattern.MatchResult()
+    def check(self, op, gelu, input, bias, **_) -> MatchResult:
+        check_result = MatchResult()
         approximate = gelu.producer().attributes.get_string("approximate")
         if approximate is not None and approximate == "tanh":
             return check_result.fail(
