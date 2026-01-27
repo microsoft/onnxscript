@@ -85,6 +85,7 @@ class HardSwishFusionFromHardSigmoid(pattern.RewriteRuleClassBase):
     def check(self, op, x: ir.Value, hardsigmoid_out: ir.Value) -> MatchResult:
         check_result = MatchResult()
         hardsigmoid = hardsigmoid_out.producer()
+        assert hardsigmoid is not None
         # Use getter to protect when 'alpha' / 'beta' is not in attributes
         alpha = hardsigmoid.attributes.get_float("alpha", -1)
         beta = hardsigmoid.attributes.get_float("beta", -1)

@@ -136,15 +136,15 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
     ):
         if q_bias is None:
             q_bias = op.Constant(
-                value=ir.tensor(numpy.zeros((self.Dh_q,), dtype=query_matmul.dtype.numpy()))
+                value=ir.tensor(numpy.zeros((self.Dh_q,), dtype=query_matmul.dtype.numpy()))  # type: ignore[arg-type]
             )
         if k_bias is None:
             k_bias = op.Constant(
-                value=ir.tensor(numpy.zeros((self.Dh_k,), dtype=key_matmul.dtype.numpy()))
+                value=ir.tensor(numpy.zeros((self.Dh_k,), dtype=key_matmul.dtype.numpy()))  # type: ignore[arg-type]
             )
         if v_bias is None:
             v_bias = op.Constant(
-                value=ir.tensor(numpy.zeros((self.Dh_v,), dtype=value_matmul.dtype.numpy()))
+                value=ir.tensor(numpy.zeros((self.Dh_v,), dtype=value_matmul.dtype.numpy()))  # type: ignore[arg-type]
             )
         bias = op.Concat(q_bias, k_bias, v_bias, axis=0)
         return op.MultiHeadAttention(

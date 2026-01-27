@@ -19,10 +19,10 @@ def generate_random_inputs(model: onnx.ModelProto) -> dict[str, Any]:
         shape = tuple(input_type.shape.dim)
         if not all(hasattr(d, "dim_value") for d in shape):
             raise ValueError(f"Input {input.name} has dynamic shape dimensions.")
-        shape = tuple(d.dim_value for d in shape)
+        shape = tuple(d.dim_value for d in shape)  # type: ignore[misc]
         if input_type.elem_type == onnx.TensorProto.FLOAT:
             if shape:
-                feeds[input.name] = np.random.randn(*shape).astype(np.float32)
+                feeds[input.name] = np.random.randn(*shape).astype(np.float32)  # type: ignore[attr-defined]
             else:
                 feeds[input.name] = np.random.randn(1).astype(np.float32)
         else:
@@ -100,7 +100,7 @@ def assert_numerically_equal(
         )
 
     np.testing.assert_allclose(
-        original_outputs, the_rewritten_outputs, rtol=rtol, atol=atol, equal_nan=True
+        original_outputs, the_rewritten_outputs, rtol=rtol, atol=atol, equal_nan=True  # type: ignore[arg-type]
     )
 
 

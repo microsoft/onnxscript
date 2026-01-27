@@ -201,15 +201,15 @@ def static_cast_inputs(
         argument of CastLike) and None otherwise. In the expression "Add(X, 1), 1 is
         castable, while X can serve as the target-type.
         """
-        return None if x is None or converter_.is_castable(x.name) else x
+        return None if x is None or converter_.is_castable(x.name) else x  # type: ignore[arg-type]
 
     def cast_like(x: Optional[ir.Value], y: Optional[ir.Value]) -> Optional[str]:
         if x is None:
             return None
-        if converter_.is_castable(x.name) and y is not None:
+        if converter_.is_castable(x.name) and y is not None:  # type: ignore[arg-type]
             # Polymorphic constant x is cast to the type of y:
             x_cast = converter_.generate_unique_name(f"{x.name}_cast")
-            return converter_.emit1([x_cast], "CastLike", [x, y])
-        return x
+            return converter_.emit1([x_cast], "CastLike", [x, y])  # type: ignore[return-value]
+        return x  # type: ignore[return-value]
 
     return cast_inputs(get_type_info, cast_like, op_schema, args)

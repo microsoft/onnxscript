@@ -30,7 +30,7 @@ class FuseSuccessiveRelu(RewriteRuleClassBase):
 
 class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
     def rewrite(self, op, x, **kwargs):
-        first_clip_node = kwargs.get("out_first_clip").producer()
+        first_clip_node = kwargs.get("out_first_clip").producer()  # type: ignore[union-attr]
         second_clip_node = None
 
         if out_second_clip := kwargs.get("out_second_clip"):
@@ -64,17 +64,17 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
 
     def extract_min_max(self, node: ir.Node):
         # Infer dtype from node first input
-        dtype = node.inputs[0].dtype.numpy()
+        dtype = node.inputs[0].dtype.numpy()  # type: ignore[union-attr]
         min_clip, max_clip = None, None
 
         if len(node.inputs) > 1:
             min_input = node.inputs[1]
             # If only a max is provided, min is implicitly None, so we check that
             if min_input is not None:
-                min_clip = min_input.const_value.numpy()
+                min_clip = min_input.const_value.numpy()  # type: ignore[union-attr]
 
         if len(node.inputs) > 2:
-            max_clip = node.inputs[2].const_value.numpy()
+            max_clip = node.inputs[2].const_value.numpy()  # type: ignore[union-attr]
 
         return min_clip, max_clip, dtype
 
@@ -94,7 +94,7 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
         # Check if Clip min/max are not graph inputs and are constant values
         clip_min_max = []
 
-        first_clip_node = kwargs.get("out_first_clip").producer()
+        first_clip_node = kwargs.get("out_first_clip").producer()  # type: ignore[union-attr]
         clip_min_max.extend([inp for inp in first_clip_node.inputs[1:] if inp is not None])
 
         if out_second_clip := kwargs.get("out_second_clip"):

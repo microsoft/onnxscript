@@ -88,7 +88,7 @@ def value_to_type_proto(val):
     raise ValueError(f"Value of type {type(val)} is invalid as an ONNX input/output.")
 
 
-def value_to_type(val):
+def value_to_type(val) -> tuple[ir.TypeProtocol, ir.Shape]:
     """Return an ir.Value representation of a python-value."""
     if isinstance(val, (np.ndarray, tensor.Tensor)):
         elem_type = onnx.helper.np_dtype_to_tensor_dtype(val.dtype)  # noqa: TID251
@@ -96,11 +96,11 @@ def value_to_type(val):
         return (ir.TensorType(elem_type), shape)
     elif isinstance(val, int):
         elem_type = onnx.TensorProto.INT32
-        shape = []
+        shape = ir.Shape([])
         return (ir.TensorType(elem_type), shape)
     elif isinstance(val, (float, np.float32)):
         elem_type = onnx.TensorProto.FLOAT
-        shape = []
+        shape = ir.Shape([])
         return (ir.TensorType(elem_type), shape)
     elif isinstance(val, list):
         if len(val) > 0:
@@ -109,11 +109,11 @@ def value_to_type(val):
         # Edge-case. Cannot determine a suitable ONNX type for an empty list.
         # Should be using a typed-value instead.
         # Treated as a sequence of tensors of float-type.
-        return ir.SequenceType(ir.TensorType(onnx.TensorProto.FLOAT)), None
+        return ir.SequenceType(ir.TensorType(onnx.TensorProto.FLOAT)), None  # type: ignore[arg-type]
     if isinstance(val, numbers.Number):
         nparray = np.array(val)
         elem_type = onnx.helper.np_dtype_to_tensor_dtype(nparray.dtype)  # noqa: TID251
-        return ir.TensorType(elem_type), []
+        return ir.TensorType(elem_type), []  # type: ignore[arg-type]
     raise ValueError(f"Value of type {type(val)} is invalid as an ONNX input/output.")
 
 
