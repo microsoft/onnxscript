@@ -32,5 +32,5 @@ torchvision>=0.18.0
 transformers>=4.37.2
 
 # Lint
-lintrunner>=0.10.7
+lintrunner==0.12.11
 lintrunner_adapters>=0.12.0
