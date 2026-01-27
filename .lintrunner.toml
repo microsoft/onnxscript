@@ -37,16 +37,13 @@ include_patterns = [
     'onnxscript/**/*.pyi',
 ]
 exclude_patterns = [
-    'tests/**', # Skip linting test files for speed
-    # FIXME: Fix typing annotations in these files
-    'examples/custom_op_expansion.py',
-    'onnxscript/_internal/converter_test.py',
     'onnxscript/_internal/converter.py',
-    'onnxscript/_internal/evaluator_test.py',
     'onnxscript/_internal/evaluator.py',
     'onnxscript/onnx_types.py',
     'onnxscript/**/*_test.py', # Skip linting test files for speed
     'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
+    'onnxscript/onnx_opset/**/*.py',  # auto-generated code
+    'onnxscript/**/tools/**/*.py',
     'onnxscript/optimizer/_legacy/evaluator.py',  # FIXME
     'onnxscript/optimizer/_legacy/constant_folding.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/fastgelu.py',  # FIXME
@@ -56,7 +53,6 @@ exclude_patterns = [
     'onnxscript/rewriter/ort_fusions/models/_phi4lm.py',  # onnxscript code
     'onnxscript/rewriter/ort_fusions/_rotary_embedding_models.py',  # onnxscript code
     'onnxscript/rewriter/onnxruntime/transformers/multihead_attention.py',  # FIXME
-    'onnxscript/tools/function_unittest_producer.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
 ]
 command = [
