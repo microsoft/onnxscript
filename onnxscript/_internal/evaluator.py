@@ -21,6 +21,7 @@ import numpy as np
 import onnx
 import onnx.defs
 import onnx.reference
+import onnx_ir as ir
 from typing_extensions import TypeAlias
 
 from onnxscript import onnx_opset, tensor
@@ -123,20 +124,24 @@ def _unwrap_tensors_in_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
 
 @runtime_checkable
 class Evaluator(Protocol):
-    """Protocol for evaluating ONNX ops."""
+    """Protocol for evaluating ONNX ops.
 
-    def eval(
+    NOTE: The ``eval`` method was deprecated and removed. Implement ``eval_op``
+    and ``eval_function`` instead.
+    """
+
+    def eval_op(
         self,
-        schema: onnx.defs.OpSchema,
-        inputs: Sequence[ExtendedModeValue],
-        attributes: Mapping[str, Any],
+        op: values.Op,
+        args: Sequence[ExtendedModeValue],
+        kwargs: Mapping[str, ExtendedModeValue],
     ):
-        """Evaluates an ONNX op.
+        """Evaluates an Op.
 
         Args:
-            schema: The OpSchema of the operator to evaluate.
-            inputs: The ONNX inputs to the op.
-            attributes: The ONNX attributes to the op.
+            op: The Op to evaluate.
+            args: The positional arguments to the op.
+            kwargs: The keyword arguments to the op.
         """
 
     def eval_function(
@@ -175,42 +180,25 @@ class BaseEvaluator(Evaluator, abc.ABC):
         """
         self._ignore_unknown_function_kwargs = ignore_unknown_function_kwargs
 
-    def eval(
-        self,
-        schema: onnx.defs.OpSchema,
-        inputs: Sequence[ExtendedModeValue],
-        attributes: Mapping[str, Any],
+    def _adapt_inputs(
+        self, op_signature: _schemas.OpSignature, inputs: Sequence[ExtendedModeValue]
     ):
-        """Evaluates an ONNX op.
-
-        Args:
-            schema: The OpSchema of the operator to evaluate.
-            inputs: The ONNX inputs to the op.
-            attributes: The ONNX attributes to the op.
-        """
-        attributes = _unwrap_tensors_in_kwargs(attributes)
-        attributes, closure = self.adapt_attributes(schema, attributes)
-        inputs = self.adapt_inputs(schema, inputs)
-        outputs = self._eval(schema, inputs, attributes, closure)
-        return self.adapt_outputs(schema, outputs)
-
-    def adapt_inputs(self, schema: onnx.defs.OpSchema, inputs: Sequence[ExtendedModeValue]):
         """Transform inputs to the expected format for the evaluator.
 
         Enables some syntactic sugar, such as the use of Python scalars,
         in a manner consistent with the translator. See autocast.py for details.
         """
-        return autocast.dynamic_cast_inputs(schema, inputs)
+        return autocast.dynamic_cast_inputs(op_signature, inputs)
 
-    def adapt_attributes(
-        self, schema: onnx.defs.OpSchema, attributes: Mapping[str, ExtendedModeValue]
+    def _adapt_attributes(
+        self, op_signature, attributes: Mapping[str, ExtendedModeValue]
     ) -> tuple[dict[str, ExtendedModeValue], dict[str, ExtendedModeValue]]:
         """Transform attributes to the expected format for the evaluator.
 
         Returns:
             A closure that can be used to evaluate graph-valued attributes.
         """
-        use_graph_attribute = self.use_graph_attribute(schema)
+        use_graph_attribute = self.use_graph_attribute(op_signature)
         closure: dict[Any, Any] = {}
         adapted_attributes = {}
         for k, v in attributes.items():
@@ -230,16 +218,15 @@ class BaseEvaluator(Evaluator, abc.ABC):
                 adapted_attributes[k] = v
         return adapted_attributes, closure
 
-    def adapt_outputs(self, schema: onnx.defs.OpSchema, outputs: Sequence[EagerModeValue]):
+    def _adapt_outputs(self, outputs: Sequence[EagerModeValue]):
         """Adapt evaluator's output to convention used in onnxscript.
 
         Onnxscript uses a tuple/sequence only when number of outputs > 1.
         """
-        del schema  # unused
         return outputs[0] if len(outputs) == 1 else outputs
 
-    def use_graph_attribute(self, schema: onnx.defs.OpSchema):
-        del schema  # unused
+    def use_graph_attribute(self, op_signature: _schemas.OpSignature) -> bool:
+        del op_signature  # unused
         return True
 
     @abc.abstractmethod
@@ -259,6 +246,20 @@ class BaseEvaluator(Evaluator, abc.ABC):
             closure: The closure to use when evaluating graph-valued attributes.
         """
 
+    def eval_op(
+        self,
+        op: values.Op,
+        args: Sequence[ExtendedModeValue],
+        kwargs: Mapping[str, ExtendedModeValue],
+    ):
+        op_signature = op.op_signature
+        assert op_signature is not None, f"Op {op.name} has no signature."
+        attributes = _unwrap_tensors_in_kwargs(kwargs)
+        attributes, closure = self._adapt_attributes(op_signature, attributes)
+        inputs = self._adapt_inputs(op_signature, args)
+        outputs = self._eval(op.op_schema, inputs, attributes, closure)
+        return self._adapt_outputs(outputs)
+
     def eval_function(
         self,
         function: values.OnnxFunction,
@@ -275,6 +276,8 @@ class BaseEvaluator(Evaluator, abc.ABC):
             kwargs: The keyword arguments to the function.
         """
         op_signature = function.op_signature
+        if op_signature is None:
+            raise RuntimeError(f"Function {function.name} has no signature.")
         # Split happens in the evaluator instead of the OnnxFunction __call__ method
         # so that evaluators can control behaviors like whether to fill in default values for attributes.
         tagged_args, tagged_kwargs = param_manipulation.tag_arguments_with_signature(
@@ -416,12 +419,15 @@ def _prepare_model_and_inputs_for_eager(
     implicit_args = {k: _onnxscript_to_numpy_value(v) for k, v in implicit_args.items()}
 
     # Utility to convert kwarg to ONNX AttributeProto:
+    # TODO(justinchuby): Clean up this function to use onnx-ir
     def make_attr(key: str, value: Any) -> onnx.AttributeProto:
         def make_tensor_name() -> str:
             return f"attr_{key}"
 
-        return autocast.pyvalue_to_onnx_attribute(
-            key, value, make_tensor_name, int(schema.attributes[key].type)
+        return ir.to_proto(
+            autocast.pyvalue_to_onnx_attribute(
+                key, value, make_tensor_name, int(schema.attributes[key].type)
+            )
         )
 
     # Construct ONNX model with a single op call:
@@ -504,8 +510,14 @@ def _call_ort(
     return [_numpy_to_onnxscript_value(x) for x in result]
 
 
-def _schema_id(schema: onnx.defs.OpSchema) -> tuple[str, str, int]:
-    return schema.name, schema.domain, schema.since_version
+def _op_identifier(
+    op_schema_or_signature: onnx.defs.OpSchema | _schemas.OpSignature,
+) -> tuple[str, str, int]:
+    return (
+        op_schema_or_signature.name,
+        op_schema_or_signature.domain,
+        op_schema_or_signature.since_version,
+    )
 
 
 class ORTEvaluator(BaseEvaluator):
@@ -552,13 +564,13 @@ class ORTMixedEvaluator(ORTEvaluator):
         super().__init__()
         self._python_ops: dict[tuple[str, str, int], Any] = {}
 
-    def use_graph_attribute(self, schema: onnx.defs.OpSchema) -> bool:
-        return _schema_id(schema) not in self._python_ops
+    def use_graph_attribute(self, op_signature: _schemas.OpSignature) -> bool:
+        return _op_identifier(op_signature) not in self._python_ops
 
     def _eval(self, schema, inputs, attributes, closure):
-        schemaid = _schema_id(schema)
-        if schemaid in self._python_ops:
-            return self._python_ops[schemaid](inputs, attributes)
+        identifier = _op_identifier(schema)
+        if identifier in self._python_ops:
+            return self._python_ops[identifier](inputs, attributes)
         else:
             return super()._eval(schema, inputs, attributes, closure)
 
@@ -566,8 +578,8 @@ class ORTMixedEvaluator(ORTEvaluator):
         assert opset is not None
 
         def decorator(function: _T) -> _T:
-            schema = opset[function.__name__]
-            self._python_ops[_schema_id(schema)] = function
+            op_signature = opset[function.__name__].op_signature
+            self._python_ops[_op_identifier(op_signature)] = function
             return function
 
         return decorator

@@ -7,10 +7,9 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 import numpy as np
 import onnx
-import onnx.helper  # noqa: TID251
-from onnx.defs import OpSchema
 
 from onnxscript import ir, tensor
+from onnxscript.ir import _schemas
 
 if TYPE_CHECKING:
     from onnxscript._internal import converter
@@ -20,23 +19,15 @@ if TYPE_CHECKING:
 # python values into ONNX TensorProto, while the runtime converts python values into
 # ONNXScript runtime's value-representation (based on Tensor).
 
-
-# Utilities to convert a python value to TensorProto (for use by the script converter)
-
-
-def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
-    return ir.serde.serialize_tensor(ir.tensor(pyvalue, name=tensor_name))
-
-
 _REPEATED_ATTRIBUTE_TYPES = frozenset(
     {
-        onnx.AttributeProto.FLOATS,
-        onnx.AttributeProto.INTS,
-        onnx.AttributeProto.STRINGS,
-        onnx.AttributeProto.TENSORS,
-        onnx.AttributeProto.GRAPHS,
-        onnx.AttributeProto.SPARSE_TENSORS,
-        onnx.AttributeProto.TYPE_PROTOS,
+        ir.AttributeType.FLOATS,
+        ir.AttributeType.INTS,
+        ir.AttributeType.STRINGS,
+        ir.AttributeType.TENSORS,
+        ir.AttributeType.GRAPHS,
+        ir.AttributeType.SPARSE_TENSORS,
+        ir.AttributeType.TYPE_PROTOS,
     }
 )
 
@@ -45,33 +36,28 @@ def pyvalue_to_onnx_attribute(
     key: str,
     value: Any,
     name_generator: Callable[[], str],
-    attr_type: onnx.AttributeProto.AttributeType | None = None,
-) -> onnx.AttributeProto:
+    attr_type: ir.AttributeType | None = None,
+) -> ir.Attr:
     """Helper function to create an ONNX AttributeProto.
 
-    This is a refinement of onnx.helper.make_attribute that works with ONNX Script
-    conventions for allowed types for attribute-values. In particular, it allows
-    * Empty lists as attribute values, provided the attribute type is specified
+    * Empty lists can be attribute values, provided the attribute type is specified
     and is a list type.
     * Scalar-values like 1.0 as well as lists like [1, -1] to be specified
     when the attribute type is TensorProto by automatically converting the value
     into a 0-D or 1-D tensor respectively.
     """
+    # TODO(justinchuby): Remove this function and use onnx-ir directly.
     if isinstance(value, list) and not value:
         # Empty list value:
         if attr_type is None:
             raise ValueError("Attribute type must be specified for empty list value.")
         if attr_type not in _REPEATED_ATTRIBUTE_TYPES:
             raise ValueError("Empty list value is only allowed for repeated attribute types.")
-        return onnx.AttributeProto(name=key, type=attr_type)
-    elif attr_type == onnx.AttributeProto.TENSOR and not isinstance(value, onnx.TensorProto):
-        return onnx.AttributeProto(
-            name=key, type=attr_type, t=pyvalue_to_onnx_tensor(name_generator(), value)
-        )
+        return ir.Attr(name=key, type=attr_type, value=[])
+    elif attr_type == ir.AttributeType.TENSOR and not isinstance(value, onnx.TensorProto):
+        return ir.AttrTensor(name=key, value=ir.tensor(value, name=name_generator()))
     else:
-        # When the value is a subgraph, ONNX IR will complain that some values are
-        # not found from the scope.
-        return onnx.helper.make_attribute(key, value)  # noqa: TID251
+        return ir.convenience.convert_attribute(key, value, attr_type=attr_type)
 
 
 # Utilities to convert python values into onnxscript tensors.
@@ -126,7 +112,7 @@ def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
 def cast_inputs(
     get_type_info: Callable[[Any], Any],
     cast: Callable[[Any, Any], Any],
-    op_schema: OpSchema | None,
+    op_signature: _schemas.OpSignature | None,
     args,
 ) -> tuple[Any, ...]:
     """Uses schema specification to support a limited form of auto-casting.
@@ -140,12 +126,13 @@ def cast_inputs(
     This is used by the converter in a static-mode, as well as by the eager-mode
     execution in a dynamic-mode.
     """
-    if op_schema is None:
+    if op_signature is None:
         # Either an error or a custom op.
         # No checks/casts in this case.
         return tuple(cast(x, None) for x in args)
 
-    expected_inputs = op_schema.inputs
+    # Filter to get only input parameters (not AttributeParameters)
+    expected_inputs = op_signature.inputs
     # We make two passes. In the first pass, we identify known type-bindings for
     # type-variables: eg., {'T1' : np.float32, 'T2' : np.int32}.
     # In the second pass, we use these bindings to cast scalar-values to
@@ -156,9 +143,9 @@ def cast_inputs(
     for i, x in enumerate(args):
         if i < len(expected_inputs):
             expected = expected_inputs[i]
-        elif expected_inputs[-1].option == OpSchema.FormalParameterOption.Variadic:
+        elif expected_inputs[-1].variadic:
             expected = expected_inputs[-1]
-            if not expected.is_homogeneous:
+            if not expected.homogeneous:
                 args_typevars.append((x, None))
                 continue
         else:
@@ -166,7 +153,7 @@ def cast_inputs(
                 f"Number of actual parameters {len(args)} "
                 f"exceeds number of formal parameters {len(expected_inputs)}."
             )
-        typevar = expected.type_str
+        typevar = expected.type_constraint.name
         if "(" not in typevar:
             # typevar is an identifier, like "T"
             typeinfo = get_type_info(x)
@@ -177,18 +164,18 @@ def cast_inputs(
     return tuple(cast_args)
 
 
-def dynamic_cast_inputs(op_schema: OpSchema, args):
+def dynamic_cast_inputs(op_signature: _schemas.OpSignature, args):
     """Used for autocast during eager-mode execution."""
 
     def get_type_info(x):
         return x.dtype if isinstance(x, tensor.Tensor) else None
 
-    return cast_inputs(get_type_info, cast_pyvalue_to_os_tensor, op_schema, args)
+    return cast_inputs(get_type_info, cast_pyvalue_to_os_tensor, op_signature, args)
 
 
 def static_cast_inputs(
     converter_: converter.Converter,
-    op_schema: Optional[OpSchema],
+    op_signature: Optional[_schemas.OpSignature],
     args: Sequence[Optional[ir.Value]],
 ) -> tuple[str, ...]:
     """Used for autocast during script-translation.
@@ -212,4 +199,4 @@ def static_cast_inputs(
             return converter_.emit1([x_cast], "CastLike", [x, y])
         return x
 
-    return cast_inputs(get_type_info, cast_like, op_schema, args)
+    return cast_inputs(get_type_info, cast_like, op_signature, args)

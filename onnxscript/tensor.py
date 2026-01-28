@@ -16,6 +16,8 @@ class Tensor:
     Serves to define overloaded ops with an ONNX/ONNXScript semantics.
     """
 
+    # TODO(justinchuby): Remove the tensor class and use ir.Value instead
+
     def __init__(self, nparray: Optional[np.ndarray], opset=None):
         if nparray is not None and not isinstance(nparray, np.ndarray):
             raise TypeError(

@@ -28,7 +28,7 @@ classifiers = [
 dependencies = [
   "ml_dtypes",
   "numpy",
-  "onnx_ir>=0.1.13,<2",  # Expect onnx_ir to have a breaking change in 2.0. If not, extend this range.
+  "onnx_ir>=0.1.15,<2",  # Expect onnx_ir to have a breaking change in 2.0. If not, extend this range.
   "onnx>=1.17",
   "packaging",
   "typing_extensions>=4.10",
