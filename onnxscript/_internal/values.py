@@ -449,7 +449,11 @@ class OnnxFunction(Op, Generic[_P, _R]):
                 output.type.CopyFrom(type.to_type_proto())
 
         for k, v in kwargs.items():
-            setattr(model_proto, k, v)
+            if k == "functions":
+                # Assignment not allowed to map, or repeated field "functions" in protocol message object.
+                model_proto.functions.extend(v)
+            else:
+                setattr(model_proto, k, v)
 
         return model_proto
 

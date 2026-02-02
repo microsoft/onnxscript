@@ -63,6 +63,31 @@ class OnnxFunctionTest(unittest.TestCase):
         self.assertEqual(annotations["attr2"], float)
         self.assertEqual(annotations["attr3"], str)
 
+    def test_functions(self):
+        op = onnxscript.opset18
+        my_opset = onnxscript.values.Opset("m_opset.ml", version=1)
+
+        @onnxscript.script(my_opset, default_opset=op)
+        def do_this(x, y):
+            return op.Add(x, y)
+
+        @onnxscript.script(my_opset, default_opset=op)
+        def do_that(x, y):
+            return op.Sub(x, y)
+
+        @onnxscript.script(my_opset, default_opset=op)
+        def do_this_or_do_that(x, y, do_this_or_do_that: bool = True):
+            if do_this_or_do_that:
+                ret = my_opset.do_this(x, y)
+            else:
+                ret = my_opset.do_that(x, y)
+            return ret
+
+        proto = do_this_or_do_that.to_model_proto(
+            functions=[do_this.to_function_proto(), do_that.to_function_proto()]
+        )
+        self.assertEqual(len(proto.functions), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
