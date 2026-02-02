@@ -1067,7 +1067,10 @@ class Converter:
             if val and val.kind == values.DynamicKind.Input:
                 # In ONNX, a graph-input cannot be an output of the graph.
                 # We need to insert a copy.
-                return_var = self._emit_copy(return_var, preferred_name)
+                suggested_name = preferred_name
+                if isinstance(exp, ast.Name):
+                    suggested_name = exp.id
+                return_var = self._emit_copy(return_var, suggested_name)
             for prev_output in self._current_fn.outputs:
                 if prev_output.name == return_var:
                     # ONNX does not allow duplicate output names.
