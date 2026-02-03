@@ -1095,29 +1095,20 @@ class Converter:
 
         def ret(exp, i, suffix):
             preferred_name = f"return_val{suffix}"
-<<<<<<< HEAD:onnxscript/converter.py
-            return_var = self._translate_expr(exp, preferred_name).name
-            val = self._lookup(return_var, self._source_of(exp), False)
-            if val and val.kind == values.DynamicKind.Input:
-                # In ONNX, a graph-input cannot be an output of the graph.
-                # We need to insert a copy.
-                suggested_name = preferred_name
-                if isinstance(exp, ast.Name):
-                    suggested_name = exp.id
-                return_var = self._emit_copy(return_var, suggested_name)
-=======
             return_var = self._translate_expr(exp, preferred_name)
             val = self._lookup(return_var.name, self._source_of(exp), raise_exception=False)
             if isinstance(val, values.SymbolValue) and isinstance(val.value, ir.Value):
                 if val.value.is_graph_input():
                     # In ONNX, a graph-input cannot be an output of the graph.
                     # We need to insert a copy.
-                    return_var = self._emit_copy(return_var, preferred_name)
->>>>>>> upstream/main:onnxscript/_internal/converter.py
+                    suggested_name = preferred_name
+                    if isinstance(exp, ast.Name):
+                        suggested_name = exp.id
+                    return_var = self._emit_copy(return_var, suggested_name)
             for prev_output in self._current_fn.outputs:
                 if prev_output.name == return_var.name:
                     # ONNX does not allow duplicate output names.
-                    return_var = self._emit_copy(return_var, f"{return_var}_copy")
+                    return_var = self._emit_copy(return_var, f"{return_var.name}_copy")
                     break
             if self.returntype is not None:
                 set_type_info(return_var, self.returntype[i])
