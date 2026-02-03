@@ -6155,13 +6155,9 @@ def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, I
         result = self
         indices = op.Constant(value_int=0)
     else:
-        values, indices = op.TopK(self, K=[1], axis=dim, largest=1, sorted=0)
-        if keepdim:
-            result = values
-        else:
-            squeeze_axe = op.Constant(value_ints=[dim])
-            result = op.Squeeze(values, axes=squeeze_axe)
-            indices = op.Squeeze(indices, axes=squeeze_axe)
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result = op.ReduceMax(self, dims, keepdims=keepdim)
+        indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
     return result, indices
 
 
@@ -6246,13 +6242,10 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
         result = self
         indices = op.Constant(value_int=0)
     else:
-        values, indices = op.TopK(self, K=[1], axis=dim, largest=0, sorted=0)
-        if keepdim:
-            result = values
-        else:
-            squeeze_axe = op.Constant(value_ints=[dim])
-            result = op.Squeeze(values, axes=squeeze_axe)
-            indices = op.Squeeze(indices, axes=squeeze_axe)
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result = op.ReduceMin(self, dims, keepdims=keepdim)
+        indices = op.ArgMin(self, axis=dim, keepdims=keepdim)
+
     return result, indices
 
 

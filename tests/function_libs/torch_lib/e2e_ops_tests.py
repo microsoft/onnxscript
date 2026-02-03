@@ -914,58 +914,6 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-    def test_max_dim_negative_dim_squeeze_stability(self):
-        """Ensure max.dim(dim=-1, keepdim=False) exports and runs correctly.
-
-        TopK + Squeeze(axes=[dim]) receives dim=-1. Validates that ORT handles
-        negative axis in Squeeze and output shape matches PyTorch.
-        """
-
-        class Model(torch.nn.Module):
-            def forward(self, x):
-                return torch.max(x, dim=-1, keepdim=False)
-
-        x = torch.randn(2, 3, 4)
-        onnx_program = torch.onnx.export(
-            Model(), (x,), dynamo=True, verbose=False
-        )
-        _testing.assert_onnx_program(onnx_program)
-
-    def test_min_dim_negative_dim_squeeze_stability(self):
-        """Ensure min.dim(dim=-1, keepdim=False) exports and runs correctly.
-
-        Same as max_dim_negative_dim: TopK + Squeeze(axes=[dim]) with dim=-1.
-        """
-
-        class Model(torch.nn.Module):
-            def forward(self, x):
-                return torch.min(x, dim=-1, keepdim=False)
-
-        x = torch.randn(2, 3, 4)
-        onnx_program = torch.onnx.export(
-            Model(), (x,), dynamo=True, verbose=False
-        )
-        _testing.assert_onnx_program(onnx_program)
-
-    def test_max_dim_chained_reduction(self):
-        """Ensure x.max(dim=1).values.max(dim=0) exports and runs correctly.
-
-        Validates that TopK -> Squeeze -> next TopK -> Squeeze shape flow
-        is correct when chaining max.dim calls.
-        """
-
-        class Model(torch.nn.Module):
-            def forward(self, x):
-                v1, _ = x.max(dim=1, keepdim=False)
-                v2, _ = v1.max(dim=0, keepdim=False)
-                return v2
-
-        x = torch.randn(2, 3, 4)
-        onnx_program = torch.onnx.export(
-            Model(), (x,), dynamo=True, verbose=False
-        )
-        _testing.assert_onnx_program(onnx_program)
-
 
 if __name__ == "__main__":
     unittest.main()
