@@ -144,7 +144,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(3).version, 20)
         self.assertEqual(model.graph.node(3).op_type, "DFT")
         self.assertEqual(model.graph.node(3).version, 20)
-        self.assertEqual(len(model.graph.node(3).inputs), 2)
+        self.assertEqual(len(model.graph.node(3).inputs), 3)
 
     def test_version_convert_gridsample_linear(self):
         model = ir.from_onnx_text(
@@ -241,7 +241,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(4).attributes["mode"].value, "linear")
         self.assertEqual(model.graph.node(6).op_type, "DFT")
         self.assertEqual(model.graph.node(6).version, 20)
-        self.assertEqual(len(model.graph.node(6).inputs), 2)
+        self.assertEqual(len(model.graph.node(6).inputs), 3)
 
 
 class VersionConverter20to21Test(unittest.TestCase):
@@ -296,12 +296,91 @@ class VersionConverter20to21Test(unittest.TestCase):
         self.assertEqual(model.graph.node(0).version, 20)
 
 
-class VersionConverter23to24Test(unittest.TestCase):
-    @pytest.mark.xfail(strict=True, reason="Version upgrade beyond 23 not yet supported.")
+class VersionConverterMetadataMergeTest(unittest.TestCase):
+    def test_metadata_is_copied_on_version_conversion(self):
+        """Test that metadata is copied from original node to replacement nodes during version conversion."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[4, 512, 512] input_x) => (float[4, 257, 64, 2] output)
+            {
+                shape_a = Constant<value: tensor = int64[5] {1, 4, 512, 512, 1}>()
+                reshape_x = Reshape (input_x, shape_a)
+                dft = DFT <axis = 2, onesided = 1> (reshape_x)
+                shape_c = Constant<value: tensor = int64[4] {4, 257, 64, 2}>()
+                output = Reshape (dft, shape_c)
+            }
+        """
+        )
+        # Find the DFT node and add metadata to it
+        dft_node = model.graph.node(2)
+        self.assertEqual(dft_node.op_type, "DFT")
+        dft_node.metadata_props["test_key"] = "test_value"
+        dft_node.metadata_props["another_key"] = "another_value"
+
+        target_version = 25
+        version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
+
+        # After conversion, DFT adapter adds a Constant node for axis and the DFT node is replaced
+        # The replacement DFT node should have the metadata copied
+        new_dft_node = model.graph.node(3)
+        self.assertEqual(new_dft_node.op_type, "DFT")
+        self.assertEqual(new_dft_node.version, 25)
+
+        # Verify metadata was copied to the new DFT node
+        self.assertEqual(new_dft_node.metadata_props.get("test_key"), "test_value")
+        self.assertEqual(new_dft_node.metadata_props.get("another_key"), "another_value")
+
+    def test_metadata_is_copied_to_multiple_replacement_nodes(self):
+        """Test that metadata is copied to all replacement nodes when an adapter creates multiple nodes."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[1, 4, 512, 512] input_x, float[2] scale, float[2] bias) => (float[4, 512, 512] output)
+            {
+                groupnorm = GroupNormalization <num_groups = 2> (input_x, scale, bias)
+                shape_c = Constant<value: tensor = int64[4] {4, 512, 512}>()
+                output = Reshape (groupnorm, shape_c)
+            }
+        """
+        )
+        # Find the GroupNormalization node and add metadata to it
+        groupnorm_node = model.graph.node(0)
+        self.assertEqual(groupnorm_node.op_type, "GroupNormalization")
+        groupnorm_node.metadata_props["source"] = "original_groupnorm"
+
+        target_version = 21
+        version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
+
+        # GroupNormalization adapter creates multiple nodes (Reshape, Expand, etc.)
+        # Verify that metadata was copied to the new nodes created by the adapter
+        new_groupnorm_node = model.graph.node(9)
+        self.assertEqual(new_groupnorm_node.op_type, "GroupNormalization")
+        self.assertEqual(new_groupnorm_node.version, 21)
+
+        # Verify metadata was copied to the new GroupNormalization node
+        self.assertEqual(new_groupnorm_node.metadata_props.get("source"), "original_groupnorm")
+
+        # Also check that intermediate nodes created by the adapter received the metadata
+        # The adapter creates Reshape, Expand, Reshape nodes for scale and bias
+        for i in range(9):
+            node = model.graph.node(i)
+            if node.version == 21 and node.op_type in ("Reshape", "Expand", "Constant"):
+                self.assertEqual(
+                    node.metadata_props.get("source"),
+                    "original_groupnorm",
+                    f"Node {i} ({node.op_type}) should have metadata copied",
+                )
+
+
+class VersionConverter25to26Test(unittest.TestCase):
+    @pytest.mark.xfail(strict=True, reason="Version upgrade beyond 25 not yet supported.")
     def test_version_convert_compatible(self):
         model = ir.from_onnx_text(
             """
-            <ir_version: 7, opset_import: [ "" : 23]>
+            <ir_version: 7, opset_import: [ "" : 25]>
             agraph (float[1, 4, 512, 512] input_x, float[1, 4, 512, 64] input_y) => (float[1, 4, 512, 64] output)
             {
                 shape_a = Constant<value: tensor = int64[3] {4, 512, 512}>()
@@ -314,7 +393,7 @@ class VersionConverter23to24Test(unittest.TestCase):
             }
         """
         )
-        target_version = 24
+        target_version = 26
         version_converter.convert_version(model, target_version=target_version)
 
 

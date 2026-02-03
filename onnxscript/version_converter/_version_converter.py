@@ -12,12 +12,13 @@ from typing import Callable, Sequence, Union
 import onnx_ir.convenience as ir_convenience
 
 import onnxscript.ir._tape as _tape
+import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)
 
 
-SUPPORTED_MAX_ONNX_OPSET = 23
+SUPPORTED_MAX_ONNX_OPSET = 25
 SUPPORTED_MIN_ONNX_OPSET = 18
 
 
@@ -155,12 +156,13 @@ def _get_str_attribute(node: ir.Node, name: str, default: str | None = None) -> 
 @register("DFT", node_version=19, up_conversion=True)
 def dft_19_20(node: ir.Node, op):
     input = node.inputs[0]
+    dft_length = node.inputs[1] if len(node.inputs) > 1 else None
     inverse = _get_int_attribute(node, "inverse", 0)
     onesided = _get_int_attribute(node, "onesided", 0)
     axis = _get_int_attribute(node, "axis", None)
     if axis is not None:
         axis_value = op.Constant(value_int=axis)
-        return op.DFT(input, axis_value, inverse=inverse, onesided=onesided)
+        return op.DFT(input, dft_length, axis_value, inverse=inverse, onesided=onesided)
     return None
 
 
@@ -237,6 +239,12 @@ def groupnormalization_20_21(node: ir.Node, op):
 class _VersionConverter:
     def __init__(self, target_version: int):
         self._target_version = target_version
+        # Default metadata merger: no merging should be needed; keep the first value.
+        self._default_metadata_merger: metadata_merger.MetadataMerger = (
+            metadata_merger.MetadataMerger(
+                dict(),
+            )
+        )
 
     def process_node(
         self, node: ir.Node, from_version: int, up_conversion: bool = True
@@ -292,6 +300,7 @@ class _VersionConverter:
             for new_node in replacement.new_nodes:
                 # TODO: control-flow
                 new_node.version = to_version
+            self._default_metadata_merger.copy_merged_metadata([node], replacement.new_nodes)
             self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:

@@ -11,6 +11,7 @@ import onnx
 import onnx.defs
 
 import onnxscript
+from onnxscript.ir import _schemas
 
 logger = logging.getLogger(__name__)
 
@@ -235,10 +236,11 @@ class TypeConstraintDeducer:
         self.function_proto = self.onnx_function.to_function_proto()
         self.opset_version = self.function_proto.opset_import[0].version
 
-        param_schemas = self.onnx_function.param_schemas()
-        for param_schema in param_schemas:
-            if param_schema.is_input:
-                self.values[param_schema.name] = Value(param_schema.name)
+        op_signature = self.onnx_function.op_signature
+        if op_signature is not None:
+            for param in op_signature.params:
+                if isinstance(param, _schemas.Parameter):
+                    self.values[param.name] = Value(param.name)
 
         for node in self.function_proto.node:
             self._process_node(node)
@@ -249,18 +251,15 @@ class TypeConstraintDeducer:
         self,
         node: onnx.NodeProto,
         param_names: Sequence[str],
-        param_schemas: Sequence[onnx.defs.OpSchema.FormalParameter],
+        params: Sequence[_schemas.Parameter],
         op_type_constraints: Dict[str, TypeConstraint],
         is_output: bool = False,
     ):
-        param_schemas = list(param_schemas)
+        params_list = list(params)
         # If the last parameter is variadic, duplicate it to match the number of parameters.
-        if (
-            len(param_schemas) < len(param_names)
-            and param_schemas[-1].option == onnx.defs.OpSchema.FormalParameterOption.Variadic
-        ):
-            param_schemas += [param_schemas[-1]] * (len(param_names) - len(param_schemas))
-        for name, schema in zip(param_names, param_schemas):
+        if len(params_list) < len(param_names) and params_list[-1].variadic:
+            params_list += [params_list[-1]] * (len(param_names) - len(params_list))
+        for name, param in zip(param_names, params_list):
             if is_output:
                 if name in self.values:
                     raise ValueError(f"Output {name} already exists.")
@@ -271,19 +270,24 @@ class TypeConstraintDeducer:
                     # Skip optional inputs
                     continue
                 value = self.values[name]
-            if (new_type_constraint := op_type_constraints.get(schema.type_str)) is None:
+            if (
+                new_type_constraint := op_type_constraints.get(param.type_constraint.name)
+            ) is None:
                 # parameter is annotated with type string instead of type constraint.
                 # Create individual type constraint.
+                # Convert allowed_types from Parameter.type_constraint to type_strs
+                type_strs = {str(t) for t in param.type_constraint.allowed_types}
                 new_type_constraint = TypeConstraint(
                     name=f"T_{name}",
-                    type_strs={schema.type_str},
+                    type_strs=type_strs,
                 )
-            if not schema.is_homogeneous:
-                # Parameter is not homogeneous, this appears with variadic parameters.
+            # Note: OpSignature Parameter always has is_homogeneous=True for non-variadic params
+            # For variadic params, each occurrence gets its own type constraint
+            if param.variadic:
+                # Parameter is variadic, create a type constraint copy.
                 # Meaning the type constraint is not shared amongst them.
-                # Creating a type constraint copy.
                 new_type_constraint = TypeConstraint(
-                    name=f"{schema.name}_{name}",
+                    name=f"{param.name}_{name}",
                     type_strs=new_type_constraint.type_strs,
                 )
             prev_value_constraint = copy.deepcopy(value.type_constraint)
@@ -294,7 +298,7 @@ class TypeConstraintDeducer:
                 logger.info(
                     "Type constraint is tightened due to binding %s with parameter %s in node %s(%s)",
                     value.name,
-                    schema.name,
+                    param.name,
                     node.op_type,
                     node.name,
                 )
@@ -359,20 +363,31 @@ class TypeConstraintDeducer:
         op_schema = onnx.defs.get_schema(
             node.op_type, max_inclusive_version=self.opset_version, domain=node.domain
         )
+        op_signature = _schemas.OpSignature.from_op_schema(op_schema)
+
         op_type_constraints = {
-            ts.type_param_str: TypeConstraint(
-                name=f"{ts.type_param_str}_{node.name}", type_strs=set(ts.allowed_type_strs)
+            param.type_constraint.name: TypeConstraint(
+                name=f"{param.type_constraint.name}_{node.name}",
+                type_strs={str(t) for t in param.type_constraint.allowed_types},
             )
-            for ts in op_schema.type_constraints
+            for param in op_signature.params
+            if isinstance(param, _schemas.Parameter)
         }
+        # Add output type constraints
+        for output_param in op_signature.outputs:
+            op_type_constraints[output_param.type_constraint.name] = TypeConstraint(
+                name=f"{output_param.type_constraint.name}_{node.name}",
+                type_strs={str(t) for t in output_param.type_constraint.allowed_types},
+            )
 
         # Binding new type constraints to input values.
-        self._bind_signature(node, node.input, op_schema.inputs, op_type_constraints)
+        input_params = [p for p in op_signature.params if isinstance(p, _schemas.Parameter)]
+        self._bind_signature(node, node.input, input_params, op_type_constraints)
         # Creating new values for outputs, and bind with type constraints.
         self._bind_signature(
             node,
             node.output,
-            op_schema.outputs,
+            op_signature.outputs,
             op_type_constraints,
             is_output=True,
         )

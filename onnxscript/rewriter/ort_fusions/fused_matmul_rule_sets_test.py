@@ -66,7 +66,7 @@ class FusedMatMul(onnx.reference.op_run.OpRun):
 
 @script()
 def _fused_matmul_div(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
-    C = 0.6
+    C = op.Constant(value_float=0.6)
     ab = ms_op.FusedMatMul(A, B, alpha=0.4, transA=1)
     out = op.Div(ab, C)
     return out
@@ -74,7 +74,7 @@ def _fused_matmul_div(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
 
 @script()
 def _matmul_div(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
-    C = 0.8
+    C = op.Constant(value_float=0.8)
     ab = op.MatMul(A, B)
     out = op.Div(ab, C)
     return out
@@ -82,7 +82,7 @@ def _matmul_div(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
 
 @script()
 def _matmul_div_div(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
-    C = 0.6
+    C = op.Constant(value_float=0.6)
     ab = op.MatMul(A, B)
     abd = op.Div(ab, C)
     out = op.Div(abd, C)

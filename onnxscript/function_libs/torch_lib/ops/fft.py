@@ -100,8 +100,6 @@ def aten__fft_c2r(
 
     Complex to real inverse FFT. Assumes that input tensor is output of previous FFT operation.
     """
-    if len(dim) != 1:
-        raise NotImplementedError("Only one dimension is supported for inverse FFT")
 
     dimension = dim[0]
     unsqueeze_first_dim = dimension == 0
@@ -111,26 +109,34 @@ def aten__fft_c2r(
 
     if unsqueeze_first_dim:
         transformed = op.Unsqueeze(self, axes=[0])
-        dimension = 1
     else:
         transformed = self
 
-    # Torch truncates/pads on the last dimension only. Typically, the only valid values that can be passed
-    # into PyTorch are n or n//2+1, where n is self.shape[dim[-1]], but this is not always the case, so we
-    # place no such restriction on the ONNX side.
-    transformed = op.DFT(
-        transformed,
-        dft_length=last_dim_size,
-        axis=dimension,
-        inverse=True,
-        onesided=False,
-    )
-    transformed = _fftn_onnx_normalization(
-        transformed,
-        normalization,
-        op.Shape(transformed, start=dimension, end=dimension + 1),
-        inverse=True,
-    )
+    for idx, dimension in enumerate(dim):
+        # Adjust dimension if we unsqueezed at the beginning
+        dimension += unsqueeze_first_dim
+
+        if idx < len(dim) - 1:
+            transformed = op.DFT(transformed, axis=dimension, inverse=True, onesided=False)
+        else:
+            # last operation is one-sided, transform to real
+            # Torch truncates/pads on the last dimension only. Typically, the only valid values that can be passed
+            # into PyTorch are n or n//2+1, where n is self.shape[dim[-1]], but this is not always the case, so we
+            # place no such restriction on the ONNX side.
+            transformed = op.DFT(
+                transformed,
+                dft_length=last_dim_size,
+                axis=dimension,
+                inverse=True,
+                onesided=True,
+            )
+
+        transformed = _fftn_onnx_normalization(
+            transformed,
+            normalization,
+            op.Shape(transformed, start=dimension, end=dimension + 1),
+            inverse=True,
+        )
 
     if unsqueeze_first_dim:
         transformed = op.Squeeze(transformed, axes=[0])

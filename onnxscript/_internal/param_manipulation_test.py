@@ -7,8 +7,8 @@ import unittest
 
 import parameterized
 
-from onnxscript import INT64, values
 from onnxscript._internal import param_manipulation
+from onnxscript.ir import _schemas
 
 TEST_INPUT = "TEST_INPUT"
 
@@ -63,10 +63,27 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
         ]
     )
     def test_it_is_correct_on(self, _, args, kwargs, expected_c):
-        param_schemas = (
-            values.ParamSchema(name="a", type=INT64, is_input=True),
-            values.ParamSchema(name="b", type=int, is_input=False),
-            values.ParamSchema(name="c", type=float, default=100.0, is_input=False),
+        # Create OpSignature with one input and two attributes
+        type_constraint = _schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = _schemas.OpSignature(
+            domain="",
+            name="TestOp",
+            overload="",
+            params=[
+                _schemas.Parameter(
+                    name="a", type_constraint=type_constraint, required=True, variadic=False
+                ),
+                _schemas.AttributeParameter(
+                    name="b", type=_schemas.ir.AttributeType.INT, required=True, default=None
+                ),
+                _schemas.AttributeParameter(
+                    name="c",
+                    type=_schemas.ir.AttributeType.FLOAT,
+                    required=False,
+                    default=_schemas.ir.Attr("c", _schemas.ir.AttributeType.FLOAT, 100.0),
+                ),
+            ],
+            outputs=[],
         )
 
         expected_inputs = [TEST_INPUT]
@@ -78,7 +95,7 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
         )
 
         inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
-            param_schemas, args, kwargs
+            op_signature, args, kwargs
         )
 
         self.assertEqual(len(inputs), len(expected_inputs))
@@ -96,15 +113,31 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
         ]
     )
     def test_it_raises_on_extra_args(self, _, args, kwargs):
-        param_schemas = (
-            values.ParamSchema(name="a", type=INT64, is_input=True),
-            values.ParamSchema(name="b", type=int, is_input=False),
-            values.ParamSchema(name="c", type=float, default=100.0, is_input=False),
+        type_constraint = _schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = _schemas.OpSignature(
+            domain="",
+            name="TestOp",
+            overload="",
+            params=[
+                _schemas.Parameter(
+                    name="a", type_constraint=type_constraint, required=True, variadic=False
+                ),
+                _schemas.AttributeParameter(
+                    name="b", type=_schemas.ir.AttributeType.INT, required=True, default=None
+                ),
+                _schemas.AttributeParameter(
+                    name="c",
+                    type=_schemas.ir.AttributeType.FLOAT,
+                    required=False,
+                    default=_schemas.ir.Attr("c", _schemas.ir.AttributeType.FLOAT, 100.0),
+                ),
+            ],
+            outputs=[],
         )
 
         with self.assertRaises(TypeError):
             _, _ = param_manipulation.separate_input_attributes_from_arguments(
-                param_schemas, args, kwargs
+                op_signature, args, kwargs
             )
 
     @parameterized.parameterized.expand(
@@ -117,15 +150,31 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
         self,
         fill_defaults: bool,
     ):
-        param_schemas = (
-            values.ParamSchema(name="a", type=INT64, is_input=True),
-            values.ParamSchema(name="b", type=int, is_input=False),
-            values.ParamSchema(name="c", type=float, default=100.0, is_input=False),
+        type_constraint = _schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = _schemas.OpSignature(
+            domain="",
+            name="TestOp",
+            overload="",
+            params=[
+                _schemas.Parameter(
+                    name="a", type_constraint=type_constraint, required=True, variadic=False
+                ),
+                _schemas.AttributeParameter(
+                    name="b", type=_schemas.ir.AttributeType.INT, required=True, default=None
+                ),
+                _schemas.AttributeParameter(
+                    name="c",
+                    type=_schemas.ir.AttributeType.FLOAT,
+                    required=False,
+                    default=_schemas.ir.Attr("c", _schemas.ir.AttributeType.FLOAT, 100.0),
+                ),
+            ],
+            outputs=[],
         )
 
         with self.assertRaises(TypeError):
             _, _ = param_manipulation.separate_input_attributes_from_arguments(
-                param_schemas,
+                op_signature,
                 (TEST_INPUT, 42),
                 {"c": 1.0, "extra": 42},
                 fill_defaults=fill_defaults,
@@ -141,14 +190,30 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
     def test_it_does_not_fill_default_when_fill_defaults_is_false(
         self, allow_extra_kwargs: bool
     ):
-        param_schemas = (
-            values.ParamSchema(name="a", type=INT64, is_input=True),
-            values.ParamSchema(name="b", type=int, is_input=False),
-            values.ParamSchema(name="c", type=float, default=100.0, is_input=False),
+        type_constraint = _schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = _schemas.OpSignature(
+            domain="",
+            name="TestOp",
+            overload="",
+            params=[
+                _schemas.Parameter(
+                    name="a", type_constraint=type_constraint, required=True, variadic=False
+                ),
+                _schemas.AttributeParameter(
+                    name="b", type=_schemas.ir.AttributeType.INT, required=True, default=None
+                ),
+                _schemas.AttributeParameter(
+                    name="c",
+                    type=_schemas.ir.AttributeType.FLOAT,
+                    required=False,
+                    default=_schemas.ir.Attr("c", _schemas.ir.AttributeType.FLOAT, 100.0),
+                ),
+            ],
+            outputs=[],
         )
 
         inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
-            param_schemas,
+            op_signature,
             (TEST_INPUT, 42),
             {},
             fill_defaults=False,
@@ -169,15 +234,31 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
     def test_it_raises_on_insufficient_args(
         self, fill_defaults: bool, allow_extra_kwargs: bool
     ):
-        param_schemas = (
-            values.ParamSchema(name="a", type=INT64, is_input=True),
-            values.ParamSchema(name="b", type=int, is_input=False),
-            values.ParamSchema(name="c", type=float, default=100.0, is_input=False),
+        type_constraint = _schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = _schemas.OpSignature(
+            domain="",
+            name="TestOp",
+            overload="",
+            params=[
+                _schemas.Parameter(
+                    name="a", type_constraint=type_constraint, required=True, variadic=False
+                ),
+                _schemas.AttributeParameter(
+                    name="b", type=_schemas.ir.AttributeType.INT, required=True, default=None
+                ),
+                _schemas.AttributeParameter(
+                    name="c",
+                    type=_schemas.ir.AttributeType.FLOAT,
+                    required=False,
+                    default=_schemas.ir.Attr("c", _schemas.ir.AttributeType.FLOAT, 100.0),
+                ),
+            ],
+            outputs=[],
         )
 
         with self.assertRaises(TypeError):
             _, _ = param_manipulation.separate_input_attributes_from_arguments(
-                param_schemas,
+                op_signature,
                 (TEST_INPUT,),
                 {},
                 fill_defaults=fill_defaults,
