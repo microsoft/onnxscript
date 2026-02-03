@@ -779,6 +779,109 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
             )
 
 
+def sample_inputs_fake_quantize_per_tensor_affine(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    del op_info, kwargs  # Unused
+    make_arg = functools.partial(
+        opinfo_core.make_tensor,
+        device=device,
+        requires_grad=requires_grad,
+    )
+
+    # Test 1D, empty and scalar tensors (like sample_inputs_elementwise_unary)
+    shapes = [
+        (S,),
+        (1, 0, 3),
+        (),
+    ]
+
+    scale_zero_point_dtypes = [
+        # default (float, int)
+        (None, None)
+    ] + [
+        # tensor_qparams (tensor, tensor)
+        (t1, t2)
+        for t1 in common_dtype.all_types_and()
+        for t2 in common_dtype.all_types_and()
+    ]
+
+    # NOTE: (0, 127) is allowed as special case. PyTorch restricts activations to be in the range (0, 127).
+    #   https://github.com/pytorch/pytorch/blob/b34b192d6b97325c9f78e5995c48c8498ede34bd/torch/ao/quantization/observer.py#L1422
+    quant_vals = [(0, 255), (-128, 127), (0, 127)]
+
+    cases = itertools.product(shapes, scale_zero_point_dtypes, quant_vals)
+    for shape, (scale_dtype, zero_point_dtype), (quant_min, quant_max) in cases:
+        scale = make_arg(
+            (),
+            dtype=scale_dtype or torch.float64,
+        )
+        if scale_dtype is None:
+            scale = scale.item()
+
+        zero_point = make_arg(
+            (),
+            dtype=zero_point_dtype or torch.int64,
+            # zero_point must be between quant_min and quant_max
+            low=quant_min,
+            high=quant_max,
+        )
+        if zero_point_dtype is None:
+            zero_point = zero_point.item()
+
+        args = (scale, zero_point, quant_min, quant_max)
+        yield opinfo_core.SampleInput(make_arg(shape, dtype=dtype), args=args)
+
+
+def sample_inputs_fake_quantize_per_channel_affine(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    del op_info, kwargs  # Unused
+    make_arg = functools.partial(
+        opinfo_core.make_tensor,
+        device=device,
+        requires_grad=requires_grad,
+    )
+
+    # Test 1D, 2D, 4D and empty tensors (scalar tensors not supported)
+    axes_and_shapes = [
+        # 1D, 2D, 4D
+        (axis, (S,) * dims)
+        for dims in (1, 2, 4)
+        for axis in range(dims)
+    ] + [
+        # empty
+        (0, (1, 0, 3)),
+        (2, (1, 0, 3)),
+        # empty channel axis causes an error due to
+        # an internal zero_point.min() calculation
+        # (1, (1, 0, 3)),
+    ]
+
+    # tensor_qparams
+    scale_dtype = torch.float
+    zero_point_dtypes = [torch.int32, torch.float, torch.half]
+
+    # NOTE: (0, 127) is allowed as special case. PyTorch restricts activations to be in the range (0, 127).
+    #   https://github.com/pytorch/pytorch/blob/b34b192d6b97325c9f78e5995c48c8498ede34bd/torch/ao/quantization/observer.py#L1422
+    quant_vals = [(0, 255), (-128, 127), (0, 127)]
+
+    cases = itertools.product(axes_and_shapes, zero_point_dtypes, quant_vals)
+    for (axis, shape), zero_point_dtype, (quant_min, quant_max) in cases:
+        scale = make_arg((shape[axis],), dtype=scale_dtype)
+
+        zero_point = make_arg(
+            (shape[axis],),
+            dtype=zero_point_dtype or torch.int64,
+            # zero_point must be between quant_min and quant_max
+            low=quant_min,
+            high=quant_max,
+        )
+
+        args = (scale, zero_point, axis, quant_min, quant_max)
+        yield opinfo_core.SampleInput(make_arg(shape, dtype=dtype), args=args)
+
+
 def _index_variable_bool(shape, max_indices, device):
     if not isinstance(shape, tuple):
         shape = (shape,)
@@ -1365,6 +1468,98 @@ def sample_inputs_replication_pad1d(op_info, device, dtype, requires_grad, **kwa
 
     for shape, pad in cases:
         yield opinfo_core.SampleInput(make_inp(shape), args=(pad,))
+
+
+def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    # roi_align signature: (input, boxes, output_size, spatial_scale=1.0, sampling_ratio=-1, aligned=False)
+
+    # Test 1: spatial_scale=1, sampling_ratio=2
+    x1 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi1 = torch.tensor([[0, 1.5, 1.5, 3, 3]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x1,
+        args=(roi1, (5, 5)),
+        kwargs={"spatial_scale": 1.0, "sampling_ratio": 2, "aligned": True},
+    )
+
+    # Test 2: spatial_scale=0.5, sampling_ratio=3
+    x2 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi2 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x2,
+        args=(roi2, (5, 5)),
+        kwargs={"spatial_scale": 0.5, "sampling_ratio": 3, "aligned": True},
+    )
+
+    # Test 3: spatial_scale=1.8, sampling_ratio=2
+    x3 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi3 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x3,
+        args=(roi3, (5, 5)),
+        kwargs={"spatial_scale": 1.8, "sampling_ratio": 2, "aligned": True},
+    )
+
+    # Test 4: spatial_scale=2.5, sampling_ratio=0, output_size=(2,2)
+    x4 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi4 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x4,
+        args=(roi4, (2, 2)),
+        kwargs={"spatial_scale": 2.5, "sampling_ratio": 0, "aligned": True},
+    )
+
+    # Test 5: spatial_scale=2.5, sampling_ratio=-1, output_size=(2,2)
+    x5 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi5 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x5,
+        args=(roi5, (2, 2)),
+        kwargs={"spatial_scale": 2.5, "sampling_ratio": -1, "aligned": True},
+    )
+
+    # Test 6: malformed boxes (test_roi_align_malformed_boxes)
+    x6 = torch.randn(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi6 = torch.tensor([[0, 2, 0.3, 1.5, 1.5]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x6,
+        args=(roi6, (5, 5)),
+        kwargs={"spatial_scale": 1.0, "sampling_ratio": 1, "aligned": True},
+    )
+
+    # Test 7: aligned=False, spatial_scale=1, sampling_ratio=2
+    x7 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi7 = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x7,
+        args=(roi7, (5, 5)),
+        kwargs={"spatial_scale": 1.0, "sampling_ratio": 2, "aligned": False},
+    )
+
+    # Test 8: aligned=False, spatial_scale=1, sampling_ratio=-1
+    x8 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    roi8 = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x8,
+        args=(roi8, (5, 5)),
+        kwargs={"spatial_scale": 1.0, "sampling_ratio": -1, "aligned": False},
+    )
+
+
+def sample_inputs_roi_pool(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    # roi_pool signature: (input, boxes, output_size, spatial_scale=1.0)
+
+    x = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+    rois = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
+    yield opinfo_core.SampleInput(
+        x,
+        args=(rois, (5, 5)),
+        kwargs={"spatial_scale": 2.0},
+    )
 
 
 def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs):
@@ -2408,6 +2603,22 @@ OP_DB: List[opinfo_core.OpInfo] = [
         sample_inputs_func=sample_inputs__fft_r2c,
         supports_out=False,
     ),
+    opinfo_core.OpInfo(
+        "ops.aten.fake_quantize_per_tensor_affine",
+        aten_name="fake_quantize_per_tensor_affine",
+        op=torch.fake_quantize_per_tensor_affine,
+        dtypes=common_dtype.floating_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_fake_quantize_per_tensor_affine,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.fake_quantize_per_channel_affine",
+        aten_name="fake_quantize_per_channel_affine",
+        op=torch.fake_quantize_per_channel_affine,
+        dtypes=common_dtype.floating_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_fake_quantize_per_channel_affine,
+        supports_out=False,
+    ),
     opinfo_core.BinaryUfuncInfo(
         "ops.aten.floor_divide",
         aten_name="floor_divide",
@@ -2917,6 +3128,20 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torchvision.ops.nms,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_non_max_suppression,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "torchvision.ops.roi_align",
+        op=torchvision.ops.roi_align,
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_roi_align,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "torchvision.ops.roi_pool",
+        op=torchvision.ops.roi_pool,
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_roi_pool,
         supports_out=False,
     ),
 ]

@@ -7,6 +7,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 
 from onnxscript import tensor
 
@@ -87,6 +88,41 @@ def value_to_type_proto(val):
     raise ValueError(f"Value of type {type(val)} is invalid as an ONNX input/output.")
 
 
+def value_to_type(val):
+    """Return an ir.Value representation of a python-value."""
+    if isinstance(val, (np.ndarray, tensor.Tensor)):
+        elem_type = onnx.helper.np_dtype_to_tensor_dtype(val.dtype)  # noqa: TID251
+        shape = val.shape
+        return (ir.TensorType(elem_type), shape)
+    elif isinstance(val, int):
+        elem_type = onnx.TensorProto.INT32
+        shape = []
+        return (ir.TensorType(elem_type), shape)
+    elif isinstance(val, (float, np.float32)):
+        elem_type = onnx.TensorProto.FLOAT
+        shape = []
+        return (ir.TensorType(elem_type), shape)
+    elif isinstance(val, list):
+        if len(val) > 0:
+            type, shape = value_to_type(val[0])
+            return ir.SequenceType(type), shape
+        # Edge-case. Cannot determine a suitable ONNX type for an empty list.
+        # Should be using a typed-value instead.
+        # Treated as a sequence of tensors of float-type.
+        return ir.SequenceType(ir.TensorType(onnx.TensorProto.FLOAT)), None
+    if isinstance(val, numbers.Number):
+        nparray = np.array(val)
+        elem_type = onnx.helper.np_dtype_to_tensor_dtype(nparray.dtype)  # noqa: TID251
+        return ir.TensorType(elem_type), []
+    raise ValueError(f"Value of type {type(val)} is invalid as an ONNX input/output.")
+
+
+def value_to_ir_value(name: str, val) -> ir.Value:
+    """Return an ir.Value representation of a python-value."""
+    type, shape = value_to_type(val)
+    return ir.Value(name=name, type=type, shape=shape)
+
+
 def values_to_value_infos(name_values):
     """Create a list of ValueInfoProto from a list of (name, value) pairs,
     skipping any None values.
@@ -96,3 +132,10 @@ def values_to_value_infos(name_values):
         for (name, val) in name_values
         if val is not None
     ]
+
+
+def values_to_ir_values(name_values):
+    """Create a list of ir.Value from a list of (name, value) pairs,
+    skipping any None values.
+    """
+    return [value_to_ir_value(name, val) for (name, val) in name_values if val is not None]

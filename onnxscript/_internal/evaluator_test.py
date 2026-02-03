@@ -4,7 +4,8 @@ import unittest
 
 import numpy as np
 
-from onnxscript import evaluator, graph, script
+from onnxscript import graph, script
+from onnxscript._internal import evaluator
 from onnxscript.onnx_opset import opset17 as op
 from onnxscript.onnx_types import FLOAT
 
@@ -30,11 +31,13 @@ class EvaluatorTest(unittest.TestCase):
         np.testing.assert_equal(output, expected)
 
         # Test using ort-mixed-evaluator
-        output = seq_map[evaluator.ort_mixed_evaluator](x)
+        with evaluator.default_as(evaluator.ort_mixed_evaluator):
+            output = seq_map(x)
         np.testing.assert_equal(output, expected)
 
         # Test using ort-evaluator
-        output = seq_map[evaluator.ort_evaluator](x)
+        with evaluator.default_as(evaluator.ort_evaluator):
+            output = seq_map(x)
         np.testing.assert_equal(output, expected)
 
 

@@ -114,6 +114,33 @@ def _adjust_attributes_of_avg_pool(
     return (kernel_shape, strides, pads)
 
 
+def _aten_avg_pool_onnx(
+    self: TFloat,
+    kernel_shape: Sequence[int],
+    strides: Sequence[int],
+    pads: Sequence[int],
+    ceil_mode: bool,
+    count_include_pad: bool,
+) -> TFloat:
+    self_rank_is_unbatched_rank = len(self.shape) == len(kernel_shape) + 1
+    if self_rank_is_unbatched_rank:  # C,H,W -> N,C,H,W and N=1
+        self = op.Unsqueeze(self, [0])
+
+    result = op.AveragePool(
+        self,
+        ceil_mode=ceil_mode,
+        count_include_pad=count_include_pad,
+        kernel_shape=kernel_shape,
+        pads=pads,
+        strides=strides,
+    )
+
+    if self_rank_is_unbatched_rank:
+        result = op.Squeeze(result, [0])
+
+    return result
+
+
 @torch_op("aten::avg_pool1d", trace_only=True)
 def aten_avg_pool1d(
     self: TFloat,
@@ -134,16 +161,7 @@ def aten_avg_pool1d(
         expand_size, kernel_size, stride, padding
     )
 
-    result = op.AveragePool(
-        self,
-        ceil_mode=ceil_mode,
-        count_include_pad=count_include_pad,
-        kernel_shape=kernel_shape,
-        pads=pads,
-        strides=strides,
-    )
-
-    return result
+    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
 
 @torch_op("aten::avg_pool2d", trace_only=True)
@@ -167,15 +185,6 @@ def aten_avg_pool2d(
         expand_size, kernel_size, stride, padding
     )
 
-    result = op.AveragePool(
-        self,
-        ceil_mode=ceil_mode,
-        count_include_pad=count_include_pad,
-        kernel_shape=kernel_shape,
-        pads=pads,
-        strides=strides,
-    )
-
     # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
     # mask = [
     #    1, 2, 3, S,..3, 2, 1
@@ -189,7 +198,7 @@ def aten_avg_pool2d(
     # S is stride size, in this case S=4,
     # S may dup lot of times according to the image size
 
-    return result
+    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
 
 def aten_avg_pool2d_backward(
@@ -228,15 +237,6 @@ def aten_avg_pool3d(
         expand_size, kernel_size, stride, padding
     )
 
-    result = op.AveragePool(
-        self,
-        kernel_shape=kernel_shape,
-        strides=strides,
-        pads=pads,
-        count_include_pad=count_include_pad,
-        ceil_mode=ceil_mode,
-    )
-
     # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
     # mask = [
     #    1, 2, 3, S,..3, 2, 1
@@ -250,7 +250,7 @@ def aten_avg_pool3d(
     # S is stride size, in this case S=4,
     # S may dup lot of times according to the image size
 
-    return result
+    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
 
 def aten_avg_pool3d_backward(
@@ -328,7 +328,6 @@ def aten_col2im(
     else:  # assert len(padding) == 4, already [w, x, y, z]
         pads = padding
 
-    # Only one ONNX op here so didn't write a private function
     return op.Col2Im(
         self,
         output_size,
@@ -1838,10 +1837,6 @@ def aten_scaled_dot_product_attention(
 
     if enable_gqa:
         key, value = _attention_repeat_kv_for_group_query(query, key, value)
-    else:
-        assert query.shape[1] == key.shape[1] == value.shape[1], (
-            "SDPA (MHA) requires q_num_heads = kv_num_heads"
-        )
 
     if attn_mask is None:
         return _aten_scaled_dot_product_attention_no_mask_onnx(

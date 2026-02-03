@@ -184,6 +184,25 @@ class TorchLibOpInfo:
 # Modify this section ##########################################################
 
 
+def _embedding_bag_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # ONNX attributes cannot be None; omit padding_idx if it's None.
+    if "padding_idx" in kwargs:
+        padding_idx = kwargs.pop("padding_idx")
+        if padding_idx is not None:
+            kwargs["padding_idx"] = int(padding_idx)
+
+    # Ensure indices/offsets are int64 (positional: weight, indices, offsets, ...)
+    if len(args) >= 3:
+        if isinstance(args[1], torch.Tensor):
+            args[1] = args[1].to(torch.long)
+        if isinstance(args[2], torch.Tensor):
+            args[2] = args[2].to(torch.long)
+
+    return args, kwargs
+
+
 def _amin_amax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -421,14 +440,6 @@ def _scatter_reduce_input_wrangler(
     return args, kwargs
 
 
-def _sum_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if kwargs.get("dim") is not None:
-        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
-    return args, kwargs
-
-
 def _where_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -452,6 +463,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         fft_ops.aten__fft_c2r,
         tolerance={torch.complex64: (3e-3, 1.8e-4)},
         complex=True,
+    ).xfail(
+        matcher=lambda sample: True,
+        reason="Requires ONNX with IRFFT support (onesided=True, inverse=True)",
     ),
     TorchLibOpInfo(
         "ops.aten._fft_r2c",  # Custom from extra_opinfo
@@ -513,6 +527,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("addr", core_ops.aten_addr, tolerance={torch.float16: (3e-3, 4e-3)}),
     TorchLibOpInfo("amax", core_ops.aten_amax, input_wrangler=_amin_amax_input_wrangler),
     TorchLibOpInfo("amin", core_ops.aten_amin, input_wrangler=_amin_amax_input_wrangler),
+    TorchLibOpInfo("angle", core_ops.aten_angle),
+    TorchLibOpInfo("angle", core_ops.aten_angle_complex, complex=True),
     TorchLibOpInfo("any", core_ops.aten_any).skip(
         matcher=lambda sample: len(sample.kwargs) != 0,
         reason="this Aten overload only support one tensor as input by design",
@@ -623,6 +639,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.input.numel() == 0,
     ),
     TorchLibOpInfo("clone", core_ops.aten_clone),
+    TorchLibOpInfo("clone", core_ops.aten_clone_complex, complex=True),
     TorchLibOpInfo("complex", core_ops.aten_complex),
     TorchLibOpInfo("concat", core_ops.aten_cat).skip(
         matcher=lambda sample: sample.input[0].equal(
@@ -698,11 +715,23 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("special.erfcx", special_ops.aten_special_erfcx).xfail(
         reason="fixme: The implementation is numerically unstable: https://github.com/microsoft/onnxscript/issues/1223"
     ),
+    TorchLibOpInfo(
+        "ops.aten.fake_quantize_per_channel_affine",
+        core_ops.aten_fake_quantize_per_channel_affine,
+    ).xfail(
+        reason="fixme: ONNX (De)QuantizeLinear only supports integer zero_point values",
+        matcher=lambda sample: sample.args[1].dtype != torch.int32,
+    ),
+    TorchLibOpInfo(
+        "ops.aten.fake_quantize_per_tensor_affine",
+        core_ops.aten_fake_quantize_per_tensor_affine,
+    ),
     TorchLibOpInfo("fill", core_ops.aten_fill),
     TorchLibOpInfo("flip", core_ops.aten_flip).skip(
         reason="fixme: size 0 inputs are not handled yet",
         matcher=lambda sample: sample.input.numel() == 0,
     ),
+    TorchLibOpInfo("flip", core_ops.aten_flip_complex, complex=True),
     TorchLibOpInfo("flatten", core_ops.aten_flatten),
     TorchLibOpInfo("floor", core_ops.aten_floor),
     TorchLibOpInfo("ops.aten.floor_divide", core_ops.aten_floor_divide),
@@ -721,23 +750,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
     TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index),
-    TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index_bool),
-    TorchLibOpInfo(
-        "index_put_bool",
-        core_ops.aten_index_put_bool,
-        input_wrangler=_index_put_input_wrangler,
-    ).skip(
-        matcher=lambda sample: sample.args[0][0].dtype != torch.bool,
-        reason="this Aten overload only supports tensor(bool) as indices",
-    ),
+    TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index),
     TorchLibOpInfo(
         "index_put", core_ops.aten_index_put, input_wrangler=_index_put_input_wrangler
-    )
-    .skip(
-        matcher=lambda sample: sample.args[0][0].dtype != torch.int64,
-        reason="this Aten overload only supports tensor(int) as indices",
-    )
-    .xfail(
+    ).skip(
         dtypes=(torch.float16,),
         matcher=lambda sample: sample.kwargs.get("accumulate") is True,
         reason="fixme: ORT only supports float32 when accumulate is True:  MLFloat16 data type is not supported with ScatterND when reduction is 'add'",
@@ -766,14 +782,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "linspace",
         core_ops.aten_linspace,
         tolerance={torch.float16: (2e-2, 2e-3)},
-    )
-    .xfail(
-        dtypes=(torch.int64, torch.int32),
-        reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
-    )
-    .skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") in (torch.int64, torch.int32),
-        reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
     ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
@@ -830,6 +838,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
+    TorchLibOpInfo(
+        "matmul",
+        core_ops.aten_matmul_complex,
+        # Windows requires a more relaxed tolerance
+        tolerance={torch.complex64: (2e-5, 2e-5), torch.complex32: (1e-2, 1e-2)},
+        complex=True,
+    ).skip(
+        matcher=lambda sample: torch.numel(sample.input) == 0,
+        reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
+    ),
     TorchLibOpInfo("maximum", core_ops.aten_maximum),
     TorchLibOpInfo("mean", core_ops.aten_mean, input_wrangler=_mean_input_wrangler).skip(
         matcher=lambda sample: sample.kwargs.get("dim") is not None,
@@ -837,6 +855,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "mean_dim", core_ops.aten_mean_dim, input_wrangler=_mean_input_wrangler
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("dim") is None,
+        reason="this Aten overload can accept 2 inputs:(self, dim)",
+    ),
+    TorchLibOpInfo(
+        "mean_dim",
+        core_ops.aten_mean_dim_complex,
+        input_wrangler=_mean_input_wrangler,
+        complex=True,
     ).skip(
         matcher=lambda sample: sample.kwargs.get("dim") is None,
         reason="this Aten overload can accept 2 inputs:(self, dim)",
@@ -866,6 +893,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ops.aten.native_dropout", core_ops.aten_native_dropout),
     TorchLibOpInfo("ne", core_ops.aten_ne),
     TorchLibOpInfo("neg", core_ops.aten_neg),
+    TorchLibOpInfo("neg", core_ops.aten_neg_complex, complex=True),
     TorchLibOpInfo("new_empty", core_ops.aten_new_empty, nondeterministic=True),
     TorchLibOpInfo(
         "new_empty_strided", core_ops.aten_new_empty_strided, nondeterministic=True
@@ -897,12 +925,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_embedding_bag,
         tolerance={torch.float32: (1e-4, 5e-4)},
         compare_shape_only_for_output=(1, 2, 3),
-    ).skip(dtypes=(torch.float16,), reason="fixme: results mismatch in torch nightly."),
+        input_wrangler=_embedding_bag_input_wrangler,
+    ).skip(
+        dtypes=(torch.float16,),
+        reason="fixme: results mismatch in torch nightly.",
+    ),
     TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx",
         core_ops.aten_embedding_bag_padding_idx,
         tolerance={torch.float16: (1e-2, 1e-2)},
         compare_shape_only_for_output=(1, 2, 3),
+        input_wrangler=_embedding_bag_input_wrangler,
     ),
     TorchLibOpInfo(
         "ops.aten.embedding_renorm",
@@ -1031,12 +1064,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
     TorchLibOpInfo("permute", core_ops.aten_permute),
+    TorchLibOpInfo("permute", core_ops.aten_permute_complex, complex=True),
     TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     TorchLibOpInfo("prod", core_ops.aten_prod).skip(
         matcher=lambda sample: sample.kwargs.get("dim") is not None
         or sample.kwargs.get("keepdim") is not None
-        or sample.kwargs.get("dtype") != -1,
+        or len(sample.args) > 0,
         reason="this Aten overload only accept 1 inputs: self",
     ),
     TorchLibOpInfo("prod_dim_int", core_ops.aten_prod_dim_int).skip(
@@ -1063,6 +1097,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ops.aten.randn_like", core_ops.aten_randn_like, nondeterministic=True),
     TorchLibOpInfo("rad2deg", core_ops.aten_rad2deg),
     TorchLibOpInfo("reciprocal", core_ops.aten_reciprocal),
+    TorchLibOpInfo("reciprocal", core_ops.aten_reciprocal_complex, complex=True),
     TorchLibOpInfo("remainder", core_ops.aten_remainder),
     TorchLibOpInfo("repeat", core_ops.aten_repeat),
     TorchLibOpInfo("repeat_interleave", core_ops.aten_repeat_interleave_self_int)
@@ -1129,6 +1164,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("select_scatter", core_ops.aten_select_scatter),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
+    TorchLibOpInfo("signbit", core_ops.aten_signbit),
     TorchLibOpInfo("nn.functional.silu", nn_ops.aten_silu),
     TorchLibOpInfo("sin", core_ops.aten_sin),
     TorchLibOpInfo(
@@ -1528,9 +1564,27 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="String padding is not accepted by aten::conv1d",
     ),
     TorchLibOpInfo(
+        "nn.functional.conv1d",
+        core_ops.aten_conv1d_complex,
+        complex=True,
+        tolerance={torch.complex64: (2e-5, 3e-5)},
+    ).xfail(
+        matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
+        reason="String padding is not accepted by aten::conv1d",
+    ),
+    TorchLibOpInfo(
         "nn.functional.conv2d",
         core_ops.aten_conv2d,
         tolerance={torch.float32: (2e-5, 3e-5)},
+    ).xfail(
+        matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
+        reason="String padding is not accepted by aten::conv2d",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.conv2d",
+        core_ops.aten_conv2d_complex,
+        complex=True,
+        tolerance={torch.complex64: (4e-5, 6e-5)},
     ).xfail(
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
@@ -1542,6 +1596,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "ops.aten.conv3d", core_ops.aten_conv3d, tolerance={torch.float32: (3.7e-5, 1.8e-4)}
+    ),
+    TorchLibOpInfo(
+        "ops.aten.conv3d",
+        core_ops.aten_conv3d_complex,
+        complex=True,
+        tolerance={torch.complex64: (1e-4, 5e-4)},
     ),
     TorchLibOpInfo("nn.functional.gelu", nn_ops.aten_gelu),
     TorchLibOpInfo("nn.functional.glu", nn_ops.aten_glu),
@@ -1761,12 +1821,24 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("slice", core_ops.aten_slice),
     TorchLibOpInfo("slice", core_ops.aten_slice_complex, complex=True),
     TorchLibOpInfo(
+        "ops.aten.stft",  # Custom from extra_opinfo
+        core_ops.aten_stft,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ).xfail(
+        dtypes=(torch.float16,),
+        reason="RuntimeError: MKL FFT doesn't support tensors of type: Half",
+    ),
+    TorchLibOpInfo(
         "sum",
         core_ops.aten_sum_dim_IntList,
-        input_wrangler=_sum_input_wrangler,
     ).xfail(
         dtypes=(torch.int32,),
         reason="fixme: torch.sum uses int64 as the accumulator for int32 inputs",
+    ),
+    TorchLibOpInfo(
+        "sum",
+        core_ops.aten_sum_dim_IntList_complex,
+        complex=True,
     ),
     TorchLibOpInfo(
         "ops.aten.tensor.bool", core_ops.aten_tensor_bool
@@ -1795,6 +1867,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like),
     TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
+    TorchLibOpInfo("torchvision.ops.roi_align", vision_ops.torchvision_roi_align),
+    TorchLibOpInfo("torchvision.ops.roi_pool", vision_ops.torchvision_roi_pool),
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim", "all_dims"))
@@ -1806,7 +1880,6 @@ ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode",))
-ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))
