@@ -237,7 +237,6 @@ class FuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKBase):
     @property
     def reduce_op_type(self) -> str:
         return "ReduceMax"
-        
 
     @property
     def arg_op_type(self) -> str:
