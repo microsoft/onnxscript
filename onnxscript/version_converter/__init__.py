@@ -73,12 +73,6 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         self.fallback = fallback
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        if model.functions:
-            raise ValueError(
-                "The model contains functions. The version conversion pass does not support "
-                "functions. Please use `common_passes.InlinePass` to inline the "
-                f"functions before applying this pass ({self.__class__.__name__})."
-            )
         if "" in model.graph.opset_imports:
             onnx_opset_version = model.graph.opset_imports[""]
             if onnx_opset_version == self.target_version:
