@@ -38,7 +38,6 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         self.target_version = target_version
         self.fallback = fallback
         self.convert_pass = ir.passes.Sequential(
-            common_passes.InlinePass(),
             _ConvertVersionPassRequiresInline(
                 target_version=target_version,
                 fallback=fallback,

@@ -243,6 +243,48 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(6).version, 20)
         self.assertEqual(len(model.graph.node(6).inputs), 3)
 
+    def test_version_convert_function_nodes(self):
+        """Test that version converter processes nodes inside model functions."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 8, opset_import: [ "" : 18, "pkg.custom": 1]>
+            agraph (float[4, 512, 512] input_x) => (float[4, 257, 64, 2] output)
+            {
+                output = pkg.custom.dft_func (input_x)
+            }
+
+            <domain: "pkg.custom", opset_import: [ "" : 18]>
+            dft_func (x) => (result) {
+                shape_a = Constant<value: tensor = int64[5] {1, 4, 512, 512, 1}>()
+                reshape_x = Reshape (x, shape_a)
+                dft = DFT <axis = 2, onesided = 1> (reshape_x)
+                shape_c = Constant<value: tensor = int64[4] {4, 257, 64, 2}>()
+                result = Reshape (dft, shape_c)
+            }
+        """
+        )
+        # Verify the function exists with correct initial state
+        self.assertEqual(len(model.functions), 1)
+        func = model.functions[("pkg.custom", "dft_func", "")]
+        self.assertEqual(len(func), 5)  # 5 nodes in the function
+
+        target_version = 20
+        version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
+
+        # Verify that nodes inside the function were version-converted
+        func = model.functions[("pkg.custom", "dft_func", "")]
+        self.assertEqual(func[0].op_type, "Constant")
+        self.assertEqual(func[0].version, 20)
+        self.assertEqual(func[1].op_type, "Reshape")
+        self.assertEqual(func[1].version, 20)
+        # After DFT adapter, a new Constant node is inserted for dft_length
+        self.assertEqual(func[2].op_type, "Constant")
+        self.assertEqual(func[2].version, 20)
+        self.assertEqual(func[3].op_type, "DFT")
+        self.assertEqual(func[3].version, 20)
+        self.assertEqual(len(func[3].inputs), 3)  # DFT 19->20 adds dft_length input
+
 
 class VersionConverter20to21Test(unittest.TestCase):
     def test_version_groupnorm(self):

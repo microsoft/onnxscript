@@ -329,9 +329,34 @@ class _VersionConverter:
                         e,
                     )
 
+    def visit_function(self, function: ir.Function) -> None:
+        """Visit a function and convert nodes to the target opset version."""
+        for node in function:
+            if node.domain != "":
+                continue
+            node_version = node.version or self._default_onnx_opset
+            if node_version is None:
+                raise VersionConverterError(f"Node {node} has no version.")
+            if self._target_version < node_version:
+                raise VersionConverterError(
+                    f"Target opset: {self._target_version} less than node version: {node.version}, "
+                    "downstream version conversion not currently handled."
+                )
+            for from_version in range(node_version, self._target_version):
+                try:
+                    self.visit_node(node, function, from_version, up_conversion=True)
+                except VersionConverterError as e:
+                    logger.warning(
+                        "Skipping version conversion for node %s due to exception: %s",
+                        node.op_type,
+                        e,
+                    )
+
     def visit_model(self, model: ir.Model) -> None:
         self._default_onnx_opset = _get_onnx_opset_version(model)
         self.visit_graph(model.graph)
+        for function in model.functions.values():
+            self.visit_function(function)
         _set_onnx_opset_version(model, self._target_version)
 
 
