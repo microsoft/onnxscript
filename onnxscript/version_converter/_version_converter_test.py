@@ -250,6 +250,73 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(func[3].version, 20)
         self.assertEqual(len(func[3].inputs), 3)  # DFT 19->20 adds dft_length input
 
+    def test_version_convert_function_with_control_flow_subgraph(self):
+        """Test that version converter processes subgraphs inside control flow nodes in functions."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 8, opset_import: [ "" : 18, "pkg.custom": 1]>
+            agraph (float[4, 512, 512] input_x, bool cond) => (float[4, 257, 64, 2] output)
+            {
+                output = pkg.custom.conditional_dft (input_x, cond)
+            }
+
+            <domain: "pkg.custom", opset_import: [ "" : 18]>
+            conditional_dft (x, cond) => (result) {
+                result = If (cond) <then_branch: graph = then_graph () => (out) {
+                    shape_a = Constant<value: tensor = int64[5] {1, 4, 512, 512, 1}>()
+                    reshape_x = Reshape (x, shape_a)
+                    dft = DFT <axis = 2, onesided = 1> (reshape_x)
+                    shape_c = Constant<value: tensor = int64[4] {4, 257, 64, 2}>()
+                    out = Reshape (dft, shape_c)
+                }, else_branch: graph = else_graph () => (out) {
+                    shape_c = Constant<value: tensor = int64[4] {4, 257, 64, 2}>()
+                    out = Reshape (x, shape_c)
+                }>
+            }
+        """
+        )
+        # Verify the function exists with correct initial state
+        self.assertEqual(len(model.functions), 1)
+        func = model.functions[("pkg.custom", "conditional_dft", "")]
+        self.assertEqual(len(func), 1)  # 1 node (If) in the function
+
+        # Verify the If node has subgraphs
+        if_node = func[0]
+        self.assertEqual(if_node.op_type, "If")
+        then_branch = if_node.attributes["then_branch"].as_graph()
+        else_branch = if_node.attributes["else_branch"].as_graph()
+        self.assertEqual(len(then_branch), 5)  # 5 nodes in then_branch
+        self.assertEqual(len(else_branch), 2)  # 2 nodes in else_branch
+
+        target_version = 20
+        # Use internal API to test function version conversion without inlining
+        version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
+
+        # Verify nodes inside the function's If node subgraphs were version-converted
+        func = model.functions[("pkg.custom", "conditional_dft", "")]
+        if_node = func[0]
+        self.assertEqual(if_node.op_type, "If")
+        self.assertEqual(if_node.version, 20)
+
+        # Check then_branch subgraph nodes
+        then_branch = if_node.attributes["then_branch"].as_graph()
+        # After DFT adapter, a new Constant node is inserted for dft_length
+        self.assertEqual(len(then_branch), 6)  # 5 + 1 new Constant for DFT
+        dft_node = None
+        for node in then_branch:
+            self.assertEqual(node.version, 20)
+            if node.op_type == "DFT":
+                dft_node = node
+        self.assertIsNotNone(dft_node)
+        self.assertEqual(len(dft_node.inputs), 3)  # DFT 19->20 adds dft_length input
+
+        # Check else_branch subgraph nodes
+        else_branch = if_node.attributes["else_branch"].as_graph()
+        self.assertEqual(len(else_branch), 2)
+        for node in else_branch:
+            self.assertEqual(node.version, 20)
+
 
 class VersionConverter20to21Test(unittest.TestCase):
     def test_version_groupnorm(self):
