@@ -274,10 +274,10 @@ class _VersionConverter:
         if attr.is_ref():
             return
         if attr.type == ir.AttributeType.GRAPH:
-            self.visit_graph(attr.as_graph())
+            self.visit_graph_or_function(attr.as_graph())
         elif attr.type == ir.AttributeType.GRAPHS:
             for graph in attr.as_graphs():
-                self.visit_graph(graph)
+                self.visit_graph_or_function(graph)
 
     def visit_node(
         self,
@@ -303,8 +303,8 @@ class _VersionConverter:
             self._default_metadata_merger.copy_merged_metadata([node], replacement.new_nodes)
             self.replace_node(node, replacement, root)
 
-    def visit_graph(self, graph: ir.Graph) -> None:
-        for node in graph:
+    def visit_graph_or_function(self, graph_or_function: ir.Graph | ir.Function) -> None:
+        for node in graph_or_function:
             if node.domain != "":
                 continue
             node_version = node.version or self._default_onnx_opset
@@ -321,30 +321,7 @@ class _VersionConverter:
                 )
             for from_version in range(node_version, self._target_version):
                 try:
-                    self.visit_node(node, graph, from_version, up_conversion=True)
-                except VersionConverterError as e:
-                    logger.warning(
-                        "Skipping version conversion for node %s due to exception: %s",
-                        node.op_type,
-                        e,
-                    )
-
-    def visit_function(self, function: ir.Function) -> None:
-        """Visit a function and convert nodes to the target opset version."""
-        for node in function:
-            if node.domain != "":
-                continue
-            node_version = node.version or self._default_onnx_opset
-            if node_version is None:
-                raise VersionConverterError(f"Node {node} has no version.")
-            if self._target_version < node_version:
-                raise VersionConverterError(
-                    f"Target opset: {self._target_version} less than node version: {node.version}, "
-                    "downstream version conversion not currently handled."
-                )
-            for from_version in range(node_version, self._target_version):
-                try:
-                    self.visit_node(node, function, from_version, up_conversion=True)
+                    self.visit_node(node, graph_or_function, from_version, up_conversion=True)
                 except VersionConverterError as e:
                     logger.warning(
                         "Skipping version conversion for node %s due to exception: %s",
@@ -354,9 +331,9 @@ class _VersionConverter:
 
     def visit_model(self, model: ir.Model) -> None:
         self._default_onnx_opset = _get_onnx_opset_version(model)
-        self.visit_graph(model.graph)
+        self.visit_graph_or_function(model.graph)
         for function in model.functions.values():
-            self.visit_function(function)
+            self.visit_graph_or_function(function)
         _set_onnx_opset_version(model, self._target_version)
 
 

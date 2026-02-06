@@ -38,7 +38,7 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         self.target_version = target_version
         self.fallback = fallback
         self.convert_pass = ir.passes.Sequential(
-            _ConvertVersionPassRequiresInline(
+            _ConvertVersionPass(
                 target_version=target_version,
                 fallback=fallback,
             ),
@@ -51,7 +51,7 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         return self.convert_pass(model)
 
 
-class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
+class _ConvertVersionPass(ir.passes.InPlacePass):
     """Convert the model to the specified ONNX opset version.
 
     This pass leverages the onnxscript version converter to convert the model. If
