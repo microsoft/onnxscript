@@ -77,7 +77,7 @@ class FuseReduceArgToTopKTestBase(unittest.TestCase):
 
         # Check that the error message is the expected one
         tracer_match = tracer.best_matches_map[rule][0]
-        self.assertEqual(tracer_match.status.value, MatchStatus.CONDITION_FAILED)
+        self.assertEqual(tracer_match.status, MatchStatus.CONDITION_FAILED)
         self.assertRegex(tracer_match.match_result.reason, expected_message)
 
 
@@ -162,6 +162,45 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
         """)
 
         expected_op_types = ["Constant", "TopK"]
+        self.run_test(base_model, expected_op_types)
+
+    @parameterized.expand(
+        [
+            ("keepdims_1_axis_2", 1, 2),
+            ("keepdims_0_axis_2", 0, 2),
+        ]
+    )
+    def test_fuse_reduce_argmax_axes_from_constant_node(self, _, keepdims, axis):
+        """Test fusion when axes come from a Constant node (opset 18+)."""
+        if keepdims == 0:
+            output_shape_str = "[N, ?, ?]"
+        else:
+            output_shape_str = "[N, ?, ?, ?]"
+
+        base_model = ir.from_onnx_text(f"""
+            < ir_version: 10, opset_import: ["" : 18] >
+            test_model (float[N, 32, 14, 17] X) => (float{output_shape_str} max_val, int64{output_shape_str} max_idx)
+            {{
+                axes = Constant<value=int64[1] {{{axis}}}>()
+                max_val = ReduceMax<keepdims={keepdims}>(X, axes)
+                max_idx = ArgMax<axis={axis}, keepdims={keepdims}>(X)
+            }}
+        """)
+
+        # Expected: Constant for axes, Constant for K, TopK,
+        # possibly (Constant + Squeeze) x2 for keepdims=0
+        if keepdims == 0:
+            expected_op_types = [
+                "Constant",
+                "Constant",
+                "TopK",
+                "Constant",
+                "Squeeze",
+                "Squeeze",
+            ]
+        else:
+            expected_op_types = ["Constant", "Constant", "TopK"]
+
         self.run_test(base_model, expected_op_types)
 
     def test_successful_fuse_reduce_argmax_mixed_negative_positive_axes(self):
@@ -392,6 +431,45 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
         """)
 
         expected_op_types = ["Constant", "TopK"]
+        self.run_test(base_model, expected_op_types)
+
+    @parameterized.expand(
+        [
+            ("keepdims_1_axis_2", 1, 2),
+            ("keepdims_0_axis_2", 0, 2),
+        ]
+    )
+    def test_fuse_reduce_argmin_axes_from_constant_node(self, _, keepdims, axis):
+        """Test fusion when axes come from a Constant node for Min operations (opset 18+)."""
+        if keepdims == 0:
+            output_shape_str = "[N, ?, ?]"
+        else:
+            output_shape_str = "[N, ?, ?, ?]"
+
+        base_model = ir.from_onnx_text(f"""
+            < ir_version: 10, opset_import: ["" : 18] >
+            test_model (float[N, 32, 14, 17] X) => (float{output_shape_str} min_val, int64{output_shape_str} min_idx)
+            {{
+                axes = Constant<value=int64[1] {{{axis}}}>()
+                min_val = ReduceMin<keepdims={keepdims}>(X, axes)
+                min_idx = ArgMin<axis={axis}, keepdims={keepdims}>(X)
+            }}
+        """)
+
+        # Expected: Constant for axes, Constant for K, TopK,
+        # possibly (Constant + Squeeze) x2 for keepdims=0
+        if keepdims == 0:
+            expected_op_types = [
+                "Constant",
+                "Constant",
+                "TopK",
+                "Constant",
+                "Squeeze",
+                "Squeeze",
+            ]
+        else:
+            expected_op_types = ["Constant", "Constant", "TopK"]
+
         self.run_test(base_model, expected_op_types)
 
     def test_successful_fuse_reduce_argmin_mixed_axes(self):

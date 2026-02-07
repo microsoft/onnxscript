@@ -114,13 +114,13 @@ class _FuseReduceArgToTopKBase(RewriteRuleClassBase):
         elif len(reduce_node.inputs) >= 2 and reduce_node.inputs[1] is not None:
             # Opset 18+: axes is the second input
             axes_input = reduce_node.inputs[1]
-            axes_const_value = axes_input.const_value
-            if axes_const_value is None:
+            axes_tensor = ir.convenience.get_const_tensor(axes_input)
+            if axes_tensor is None:
                 return check_result.fail(
                     f"{reduce_node.op_type} axes input is not a constant."
                 )
             try:
-                axes_array = axes_const_value.numpy()
+                axes_array = axes_tensor.numpy()
                 axes_list = axes_array.tolist() if axes_array.ndim > 0 else [int(axes_array)]
             except Exception:
                 return check_result.fail(f"Cannot parse {reduce_node.op_type} axes input.")
