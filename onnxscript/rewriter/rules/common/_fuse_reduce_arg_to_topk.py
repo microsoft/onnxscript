@@ -29,7 +29,7 @@ from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
 
-class FuseReduceArgToTopKBase(RewriteRuleClassBase):
+class _FuseReduceArgToTopKBase(RewriteRuleClassBase):
     """Base class for fusing Reduce{Max,Min} + Arg{Max,Min} into TopK.
 
     This base class contains the common logic for checking and rewriting patterns where
@@ -38,28 +38,28 @@ class FuseReduceArgToTopKBase(RewriteRuleClassBase):
 
     Subclasses must implement:
         - pattern(): Define the specific Reduce and Arg operations to match
-        - reduce_op_type: Property returning the name of the Reduce op (e.g., "ReduceMax")
-        - arg_op_type: Property returning the name of the Arg op (e.g., "ArgMax")
         - largest: Property returning 1 for Max operations, 0 for Min operations
     """
 
     @property
     @abstractmethod
-    def reduce_op_type(self) -> str:
-        """Return the name of the Reduce operation"""
-        ...
-
-    @property
-    @abstractmethod
-    def arg_op_type(self) -> str:
-        """Return the name of the Arg operation"""
-        ...
-
-    @property
-    @abstractmethod
     def largest(self) -> int:
         """Return 1 for Max operations (largest elements), 0 for Min operations (smallest elements)."""
-        ...
+
+    @staticmethod
+    def _normalize_axis(axis: int, rank: int | None) -> int:
+        """Normalize a potentially negative axis to a positive axis index.
+
+        Args:
+            axis: The axis to normalize (can be negative).
+            rank: The rank of the tensor, or None if unknown.
+
+        Returns:
+            The normalized axis (non-negative if rank is known and axis was negative).
+        """
+        if rank is not None and axis < 0:
+            return axis + rank
+        return axis
 
     def check(self, context, reduce_val, arg_idx, **_) -> MatchResult:
         """Check if Reduce and Arg operations can be safely fused into TopK.
@@ -84,9 +84,6 @@ class FuseReduceArgToTopKBase(RewriteRuleClassBase):
         reduce_node = reduce_val.producer()
         arg_node = arg_idx.producer()
 
-        if reduce_node is None or arg_node is None:
-            return check_result.fail("Cannot find producer nodes.")
-
         # Step 1: Get keepdims attribute from both nodes
         reduce_keepdims_attr = reduce_node.attributes.get("keepdims")
         arg_keepdims_attr = arg_node.attributes.get("keepdims")
@@ -100,8 +97,8 @@ class FuseReduceArgToTopKBase(RewriteRuleClassBase):
         # Step 2: Check if keepdims match
         if reduce_keepdims != arg_keepdims:
             return check_result.fail(
-                f"keepdims mismatch: {self.reduce_op_type} has {reduce_keepdims}, "
-                f"{self.arg_op_type} has {arg_keepdims}."
+                f"keepdims mismatch: {reduce_node.op_type} has {reduce_keepdims}, "
+                f"{arg_node.op_type} has {arg_keepdims}."
             )
 
         # Step 3: Get axes from Reduce operation
@@ -113,29 +110,29 @@ class FuseReduceArgToTopKBase(RewriteRuleClassBase):
             try:
                 axes_list = list(reduce_axes_attr.as_ints())
             except Exception:
-                return check_result.fail(f"Cannot parse {self.reduce_op_type} axes attribute.")
+                return check_result.fail(f"Cannot parse {reduce_node.op_type} axes attribute.")
         elif len(reduce_node.inputs) >= 2 and reduce_node.inputs[1] is not None:
             # Opset 18+: axes is the second input
             axes_input = reduce_node.inputs[1]
             axes_const_value = axes_input.const_value
             if axes_const_value is None:
                 return check_result.fail(
-                    f"{self.reduce_op_type} axes input is not a constant."
+                    f"{reduce_node.op_type} axes input is not a constant."
                 )
             try:
                 axes_array = axes_const_value.numpy()
                 axes_list = axes_array.tolist() if axes_array.ndim > 0 else [int(axes_array)]
             except Exception:
-                return check_result.fail(f"Cannot parse {self.reduce_op_type} axes input.")
+                return check_result.fail(f"Cannot parse {reduce_node.op_type} axes input.")
         else:
             return check_result.fail(
-                f"{self.reduce_op_type} axes not found (neither attribute nor input)."
+                f"{reduce_node.op_type} axes not found (neither attribute nor input)."
             )
 
         # Step 4: Check that Reduce operates on exactly one axis
         if len(axes_list) != 1:
             return check_result.fail(
-                f"{self.reduce_op_type} must operate on a single axis, got {len(axes_list)} axes."
+                f"{reduce_node.op_type} must operate on a single axis, got {len(axes_list)} axes."
             )
 
         reduce_axis = axes_list[0]
@@ -150,22 +147,17 @@ class FuseReduceArgToTopKBase(RewriteRuleClassBase):
         select_last_index_attr = arg_node.attributes.get("select_last_index")
         if select_last_index_attr is not None and select_last_index_attr.as_int() != 0:
             return check_result.fail(
-                f"{self.arg_op_type} has select_last_index=1, which is not supported by TopK."
+                f"{arg_node.op_type} has select_last_index=1, which is not supported by TopK."
             )
 
         # Step 7: Normalize axes if rank is known (handle negative indices)
         input_x = reduce_node.inputs[0]
         rank = len(input_x.shape) if input_x.shape is not None else None
 
-        def normalize_axis(axis: int, rank: int | None) -> int:
-            if rank is not None and axis < 0:
-                return axis + rank
-            return axis
-
-        if normalize_axis(reduce_axis, rank) != normalize_axis(arg_axis, rank):
+        if self._normalize_axis(reduce_axis, rank) != self._normalize_axis(arg_axis, rank):
             return check_result.fail(
-                f"Axis mismatch: {self.reduce_op_type} operates on axis {reduce_axis}, "
-                f"{self.arg_op_type} operates on axis {arg_axis}."
+                f"Axis mismatch: {reduce_node.op_type} operates on axis {reduce_axis}, "
+                f"{arg_node.op_type} operates on axis {arg_axis}."
             )
 
         return check_result
@@ -224,7 +216,7 @@ class FuseReduceArgToTopKBase(RewriteRuleClassBase):
         return new_values, new_indices
 
 
-class FuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKBase):
+class FuseReduceMaxArgMaxToTopK(_FuseReduceArgToTopKBase):
     """Replaces ReduceMax + ArgMax with TopK(largest=1).
 
     Transformation:
@@ -233,14 +225,6 @@ class FuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKBase):
 
     When keepdims=0, the output of TopK is squeezed to match the original output shapes.
     """
-
-    @property
-    def reduce_op_type(self) -> str:
-        return "ReduceMax"
-
-    @property
-    def arg_op_type(self) -> str:
-        return "ArgMax"
 
     @property
     def largest(self) -> int:
@@ -257,7 +241,7 @@ class FuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKBase):
         return reduce_val, arg_idx
 
 
-class FuseReduceMinArgMinToTopK(FuseReduceArgToTopKBase):
+class FuseReduceMinArgMinToTopK(_FuseReduceArgToTopKBase):
     """Replaces ReduceMin + ArgMin with TopK(largest=0).
 
     Transformation:
@@ -266,14 +250,6 @@ class FuseReduceMinArgMinToTopK(FuseReduceArgToTopKBase):
 
     When keepdims=0, the output of TopK is squeezed to match the original output shapes.
     """
-
-    @property
-    def reduce_op_type(self) -> str:
-        return "ReduceMin"
-
-    @property
-    def arg_op_type(self) -> str:
-        return "ArgMin"
 
     @property
     def largest(self) -> int:
