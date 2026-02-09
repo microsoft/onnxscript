@@ -212,6 +212,11 @@ def op_signature_from_function(
             )
             type_constraint = ir.schemas.TypeConstraintParam.any_value(f"T_{param.name}")
             type_constraints[param.name] = type_constraint
+            default_kwargs = (
+                {"default": param.default}
+                if param.default is not inspect.Parameter.empty
+                else {}
+            )
             params.append(
                 ir.schemas.Parameter(
                     name=param.name,
@@ -220,9 +225,7 @@ def op_signature_from_function(
                     # TODO: Handle variadic
                     variadic=False,
                     homogeneous=True,
-                    default=param.default
-                    if param.default is not inspect.Parameter.empty
-                    else ir.schemas._EMPTY_DEFAULT,
+                    **default_kwargs,
                 )
             )
         else:
@@ -263,6 +266,11 @@ def op_signature_from_function(
                     )
                     type_constraints[type_constraint_name] = type_constraint
                 # 4. Create Parameter
+                default_kwargs = (
+                    {"default": param.default}
+                    if param.default is not inspect.Parameter.empty
+                    else {}
+                )
                 params.append(
                     ir.schemas.Parameter(
                         name=param.name,
@@ -271,9 +279,7 @@ def op_signature_from_function(
                         # TODO: Handle variadic
                         variadic=False,
                         homogeneous=True,
-                        default=param.default
-                        if param.default is not inspect.Parameter.empty
-                        else ir.schemas._EMPTY_DEFAULT,
+                        **default_kwargs,
                     )
                 )
 
@@ -309,7 +315,6 @@ def op_signature_from_function(
                     required=True,
                     variadic=False,
                     homogeneous=True,
-                    default=ir.schemas._EMPTY_DEFAULT,
                 )
             )
 
