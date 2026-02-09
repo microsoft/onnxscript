@@ -4608,12 +4608,44 @@ def aten_hinge_embedding_loss(
     raise NotImplementedError()
 
 
+@torch_op("aten::histc", trace_only=True)
 def aten_histc(
     self: TensorType, bins: int = 100, min: float = 0.0, max: float = 0.0
 ) -> TensorType:
     """histc(Tensor self, int bins=100, Scalar min=0, Scalar max=0) -> Tensor"""
+    delta = (max - min) / (bins * 1.0)
+    values = [min + delta * i for i in range(bins + 1)]
 
-    raise NotImplementedError()
+    flat_self = op.Reshape(self, [-1])
+    computation_type = self.type.dtype
+
+    cond = op.And(
+        op.GreaterOrEqual(flat_self, op.CastLike([min], self)),
+        op.LessOrEqual(flat_self, op.CastLike([max], self)),
+    )
+    if self.type.dtype in {ir.DataType.INT32, ir.DataType.INT64}:
+        # max is included.
+        values[-1] += 1
+    else:
+        cond = op.And(cond, op.Not(op.IsNaN(flat_self)))
+        # max is included.
+        dtype = self.type.dtype.numpy()
+        values[-1] = np.nextafter(values[-1], np.array(np.inf, dtype=dtype), dtype=dtype)
+    typed_values = op.Constant(value=ir.tensor(values, dtype=self.type.dtype))
+
+    clipped = op.Where(cond, flat_self, op.CastLike([min - 1], self))
+    bins = op.Unsqueeze(typed_values, [1])
+
+    less = op.Cast(
+        op.Less(op.Unsqueeze(clipped, [0]), bins),
+        to=computation_type,
+    )
+    sums = op.ReduceSum(less, [1], keepdims=0)
+    res = op.Sub(
+        op.Slice(sums, [1], op.Shape(sums), [0]),
+        op.Slice(sums, [0], [-1], [0]),
+    )
+    return res
 
 
 def aten_histogramdd(
