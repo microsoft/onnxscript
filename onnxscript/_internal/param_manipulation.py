@@ -116,7 +116,9 @@ def tag_arguments_with_signature(
         raise TypeError(f"Unexpected keyword arguments '{extra_kwargs}'")
 
     tagged_args: list[tuple[Any, ir.schemas.Parameter | ir.schemas.AttributeParameter]] = []
-    tagged_kwargs: dict[str, tuple[Any, ir.schemas.Parameter | ir.schemas.AttributeParameter]] = {}
+    tagged_kwargs: dict[
+        str, tuple[Any, ir.schemas.Parameter | ir.schemas.AttributeParameter]
+    ] = {}
 
     for i, param in enumerate(op_signature.params):
         is_variadic = isinstance(param, ir.schemas.Parameter) and param.variadic

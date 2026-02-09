@@ -177,9 +177,9 @@ def _get_allowed_types_from_type_annotation(
 
     if isinstance(origin_type, type) and issubclass(origin_type, Sequence):
         subtypes = typing.get_args(type_)
-        return frozenset({
-            ir.SequenceType(t) for t in _get_allowed_types_from_type_annotation(subtypes[0])
-        })
+        return frozenset(
+            {ir.SequenceType(t) for t in _get_allowed_types_from_type_annotation(subtypes[0])}
+        )
 
     # Allow everything by default
     return _ALL_VALUE_TYPES

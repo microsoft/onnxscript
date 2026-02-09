@@ -23,6 +23,7 @@ import onnx.defs
 import onnx.reference
 import onnx_ir as ir
 from typing_extensions import TypeAlias
+
 from onnxscript import onnx_opset, tensor
 from onnxscript._internal import autocast, param_manipulation, utils, values
 
