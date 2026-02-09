@@ -9,15 +9,9 @@ import types
 import typing
 from typing import Any, Optional, Sequence, TypeVar, Union
 
+import onnx_ir as ir
+
 import onnxscript
-from onnxscript import ir
-from onnx_ir.schemas import (
-    AttributeParameter,
-    OpSignature,
-    Parameter,
-    TypeConstraintParam,
-    _EMPTY_DEFAULT,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +191,7 @@ def op_signature_from_function(
     name: str | None = None,
     overload: str = "",
     since_version: int = 1,
-) -> OpSignature:
+) -> ir.schemas.OpSignature:
     """Produce an OpSignature from a function using type annotation."""
 
     py_signature = inspect.signature(func)
@@ -205,9 +199,9 @@ def op_signature_from_function(
     # https://github.com/python/cpython/issues/102405
     type_hints = typing.get_type_hints(func)
 
-    params: list[Parameter | AttributeParameter] = []
+    params: list[ir.schemas.Parameter | ir.schemas.AttributeParameter] = []
     # Create a mapping from type to a unique name
-    type_constraints: dict[str, TypeConstraintParam] = {}
+    type_constraints: dict[str, ir.schemas.TypeConstraintParam] = {}
 
     for param in py_signature.parameters.values():
         if param.name not in type_hints:
@@ -216,10 +210,10 @@ def op_signature_from_function(
                 param.name,
                 py_signature,
             )
-            type_constraint = TypeConstraintParam.any_value(f"T_{param.name}")
+            type_constraint = ir.schemas.TypeConstraintParam.any_value(f"T_{param.name}")
             type_constraints[param.name] = type_constraint
             params.append(
-                Parameter(
+                ir.schemas.Parameter(
                     name=param.name,
                     type_constraint=type_constraint,
                     required=param.default is inspect.Parameter.empty,
@@ -228,7 +222,7 @@ def op_signature_from_function(
                     homogeneous=True,
                     default=param.default
                     if param.default is not inspect.Parameter.empty
-                    else _EMPTY_DEFAULT,
+                    else ir.schemas._EMPTY_DEFAULT,
                 )
             )
         else:
@@ -241,7 +235,7 @@ def op_signature_from_function(
                 else:
                     default = None
                 params.append(
-                    AttributeParameter(
+                    ir.schemas.AttributeParameter(
                         name=param.name,
                         type=attr_type,
                         required=param.default is inspect.Parameter.empty,
@@ -263,14 +257,14 @@ def op_signature_from_function(
                     type_constraint = type_constraints[type_constraint_name]
                 else:
                     # 3. Otherwise, create a new TypeConstraintParam
-                    type_constraint = TypeConstraintParam(
+                    type_constraint = ir.schemas.TypeConstraintParam(
                         name=type_constraint_name,
                         allowed_types=_get_allowed_types_from_type_annotation(type_),
                     )
                     type_constraints[type_constraint_name] = type_constraint
                 # 4. Create Parameter
                 params.append(
-                    Parameter(
+                    ir.schemas.Parameter(
                         name=param.name,
                         type_constraint=type_constraint,
                         required=param.default is inspect.Parameter.empty,
@@ -279,7 +273,7 @@ def op_signature_from_function(
                         homogeneous=True,
                         default=param.default
                         if param.default is not inspect.Parameter.empty
-                        else _EMPTY_DEFAULT,
+                        else ir.schemas._EMPTY_DEFAULT,
                     )
                 )
 
@@ -303,23 +297,23 @@ def op_signature_from_function(
                 type_constraint = type_constraints[return_param_name]
             else:
                 return_param_name = f"TReturn{i}"
-                type_constraint = TypeConstraintParam(
+                type_constraint = ir.schemas.TypeConstraintParam(
                     name=return_param_name,
                     allowed_types=_get_allowed_types_from_type_annotation(return_type_i),
                 )
                 type_constraints[return_param_name] = type_constraint
             outputs.append(
-                Parameter(
+                ir.schemas.Parameter(
                     name=return_param_name,
                     type_constraint=type_constraint,
                     required=True,
                     variadic=False,
                     homogeneous=True,
-                    default=_EMPTY_DEFAULT,
+                    default=ir.schemas._EMPTY_DEFAULT,
                 )
             )
 
-    return OpSignature(
+    return ir.schemas.OpSignature(
         domain=domain,
         name=name or func.__name__,
         overload=overload,
