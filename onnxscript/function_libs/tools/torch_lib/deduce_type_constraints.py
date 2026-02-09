@@ -381,8 +381,7 @@ class TypeConstraintDeducer:
             )
 
         # Binding new type constraints to input values.
-        input_params = [p for p in op_signature.params if isinstance(p, ir.schemas.Parameter)]
-        self._bind_signature(node, node.input, input_params, op_type_constraints)
+        self._bind_signature(node, node.input, op_signature.inputs, op_type_constraints)
         # Creating new values for outputs, and bind with type constraints.
         self._bind_signature(
             node,

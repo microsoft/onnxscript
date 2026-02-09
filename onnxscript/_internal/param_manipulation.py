@@ -48,8 +48,8 @@ def separate_input_attributes_from_arguments(
     onnx_attributes = collections.OrderedDict()
 
     for i, param in enumerate(op_signature.params):
-        is_input = isinstance(param, ir.schemas.Parameter)
-        is_variadic = isinstance(param, ir.schemas.Parameter) and param.variadic
+        is_input = param.is_param()
+        is_variadic = is_input and param.variadic
 
         if is_variadic:
             # Exhaust all remaining args
@@ -121,7 +121,7 @@ def tag_arguments_with_signature(
     ] = {}
 
     for i, param in enumerate(op_signature.params):
-        is_variadic = isinstance(param, ir.schemas.Parameter) and param.variadic
+        is_variadic = param.is_param() and param.variadic
 
         if is_variadic:
             # Exhaust all remaining args
@@ -137,7 +137,7 @@ def tag_arguments_with_signature(
             if fill_defaults:
                 default_value = param.default
                 # Extract value from Attr object if it's an AttributeParameter
-                if isinstance(param, ir.schemas.AttributeParameter):
+                if param.is_attribute():
                     default_value = param.default.value
                 tagged_kwargs[param.name] = (default_value, param)
         elif param.required:
