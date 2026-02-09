@@ -41,7 +41,7 @@ _LIST_TYPE_TO_ATTR_TYPE = {
     ir.GraphProtocol: ir.AttributeType.GRAPHS,
 }
 
-_ALL_VALUE_TYPES = (
+_ALL_VALUE_TYPES = frozenset(
     {ir.TensorType(dtype) for dtype in ir.DataType}
     | {ir.SequenceType(ir.TensorType(dtype)) for dtype in ir.DataType}
     | {ir.OptionalType(ir.TensorType(dtype)) for dtype in ir.DataType}
@@ -131,11 +131,11 @@ def _get_type_constraint_name(type_: TypeAnnotationValue) -> str | None:
 
 def _get_allowed_types_from_type_annotation(
     type_: TypeAnnotationValue,
-) -> set[ir.TypeProtocol]:
+) -> frozenset[ir.TypeProtocol]:
     """Obtain the allowed types from a type annotation."""
     if type_ is onnxscript.onnx_types.TensorType:
         # Any tensor type
-        return {ir.TensorType(dtype) for dtype in ir.DataType}
+        return frozenset(ir.TensorType(dtype) for dtype in ir.DataType)
 
     allowed_types: set[ir.TypeProtocol]
 
@@ -147,13 +147,13 @@ def _get_allowed_types_from_type_annotation(
         else:
             bound = type_.__bound__
             if bound is None:
-                allowed_types = _ALL_VALUE_TYPES  # type: ignore[assignment]
+                allowed_types.update(_ALL_VALUE_TYPES)
             else:
                 allowed_types.update(_get_allowed_types_from_type_annotation(bound))
-        return allowed_types
+        return frozenset(allowed_types)
     if hasattr(type_, "dtype"):
         # A single tensor type like INT64, FLOAT, etc.
-        return {ir.TensorType(ir.DataType(type_.dtype))}
+        return frozenset({ir.TensorType(ir.DataType(type_.dtype))})
     if _is_optional(type_):
         allowed_types = set()
         subtypes = typing.get_args(type_)
@@ -162,7 +162,7 @@ def _get_allowed_types_from_type_annotation(
                 continue
             allowed_types.update(_get_allowed_types_from_type_annotation(subtype))
         # NOTE: We do not consider dynamic optional types like optional(float) because they are not very useful.
-        return allowed_types
+        return frozenset(allowed_types)
 
     origin_type = typing.get_origin(type_)
     if origin_type is Union:
@@ -173,16 +173,16 @@ def _get_allowed_types_from_type_annotation(
                 "Union should not contain None type because it is handled by _is_optional."
             )
             allowed_types.update(_get_allowed_types_from_type_annotation(subtype))
-        return allowed_types
+        return frozenset(allowed_types)
 
     if isinstance(origin_type, type) and issubclass(origin_type, Sequence):
         subtypes = typing.get_args(type_)
-        return {
+        return frozenset({
             ir.SequenceType(t) for t in _get_allowed_types_from_type_annotation(subtypes[0])
-        }
+        })
 
     # Allow everything by default
-    return _ALL_VALUE_TYPES  # type: ignore[return-value]
+    return _ALL_VALUE_TYPES
 
 
 def op_signature_from_function(
