@@ -11,7 +11,7 @@ import onnx
 import onnx.defs
 
 import onnxscript
-from onnxscript.ir import _schemas
+from onnxscript import ir
 
 logger = logging.getLogger(__name__)
 
@@ -239,7 +239,7 @@ class TypeConstraintDeducer:
         op_signature = self.onnx_function.op_signature
         if op_signature is not None:
             for param in op_signature.params:
-                if isinstance(param, _schemas.Parameter):
+                if isinstance(param, ir.schemas.Parameter):
                     self.values[param.name] = Value(param.name)
 
         for node in self.function_proto.node:
@@ -251,7 +251,7 @@ class TypeConstraintDeducer:
         self,
         node: onnx.NodeProto,
         param_names: Sequence[str],
-        params: Sequence[_schemas.Parameter],
+        params: Sequence[ir.schemas.Parameter],
         op_type_constraints: Dict[str, TypeConstraint],
         is_output: bool = False,
     ):
@@ -363,7 +363,7 @@ class TypeConstraintDeducer:
         op_schema = onnx.defs.get_schema(
             node.op_type, max_inclusive_version=self.opset_version, domain=node.domain
         )
-        op_signature = _schemas.OpSignature.from_op_schema(op_schema)
+        op_signature = ir.schemas.OpSignature.from_op_schema(op_schema)
 
         op_type_constraints = {
             param.type_constraint.name: TypeConstraint(
@@ -371,7 +371,7 @@ class TypeConstraintDeducer:
                 type_strs={str(t) for t in param.type_constraint.allowed_types},
             )
             for param in op_signature.params
-            if isinstance(param, _schemas.Parameter)
+            if isinstance(param, ir.schemas.Parameter)
         }
         # Add output type constraints
         for output_param in op_signature.outputs:
@@ -381,7 +381,7 @@ class TypeConstraintDeducer:
             )
 
         # Binding new type constraints to input values.
-        input_params = [p for p in op_signature.params if isinstance(p, _schemas.Parameter)]
+        input_params = [p for p in op_signature.params if isinstance(p, ir.schemas.Parameter)]
         self._bind_signature(node, node.input, input_params, op_type_constraints)
         # Creating new values for outputs, and bind with type constraints.
         self._bind_signature(
