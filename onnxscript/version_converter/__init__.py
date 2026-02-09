@@ -38,8 +38,7 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         self.target_version = target_version
         self.fallback = fallback
         self.convert_pass = ir.passes.Sequential(
-            common_passes.InlinePass(),
-            _ConvertVersionPassRequiresInline(
+            _ConvertVersionPass(
                 target_version=target_version,
                 fallback=fallback,
             ),
@@ -52,7 +51,7 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         return self.convert_pass(model)
 
 
-class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
+class _ConvertVersionPass(ir.passes.InPlacePass):
     """Convert the model to the specified ONNX opset version.
 
     This pass leverages the onnxscript version converter to convert the model. If
@@ -73,12 +72,6 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         self.fallback = fallback
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        if model.functions:
-            raise ValueError(
-                "The model contains functions. The version conversion pass does not support "
-                "functions. Please use `common_passes.InlinePass` to inline the "
-                f"functions before applying this pass ({self.__class__.__name__})."
-            )
         if "" in model.graph.opset_imports:
             onnx_opset_version = model.graph.opset_imports[""]
             if onnx_opset_version == self.target_version:
