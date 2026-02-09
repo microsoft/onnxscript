@@ -921,7 +921,6 @@ class TorchLibe2eTest(unittest.TestCase):
 
         inputs = ((torch.arange(20) / 10).to(torch.float32),)
         model = Model()
-        expected = model(*inputs)
         onnx_program = torch.onnx.export(
             Model(), (torch.rand(10, 10, 10),), dynamo=True, verbose=False, dynamic_shapes=({0: "batch"},)
         )
