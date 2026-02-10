@@ -748,10 +748,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ge", core_ops.aten_ge),
     TorchLibOpInfo("gt", core_ops.aten_gt),
     TorchLibOpInfo("histc", core_ops.aten_histc).skip(
-        matcher=lambda sample: (
-            sample.kwargs.get("min") == sample.kwargs.get("max")
-            or sample.dtype == torch.float16
-        ),
+        dtypes=(torch.float16,),
+        matcher=lambda sample: sample.kwargs.get("min") == sample.kwargs.get("max"),
         reason="then min=sample.min(), max=sample.max(), torch.histc does not"
         "define what happens when both are equal (1 sample with one element "
         "for example). torch does something, maybe "
