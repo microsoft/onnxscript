@@ -9,7 +9,6 @@ import numpy as np
 import onnx
 
 from onnxscript import ir, tensor
-from onnxscript.ir import _schemas
 
 if TYPE_CHECKING:
     from onnxscript._internal import converter
@@ -112,7 +111,7 @@ def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
 def cast_inputs(
     get_type_info: Callable[[Any], Any],
     cast: Callable[[Any, Any], Any],
-    op_signature: _schemas.OpSignature | None,
+    op_signature: ir.schemas.OpSignature | None,
     args,
 ) -> tuple[Any, ...]:
     """Uses schema specification to support a limited form of auto-casting.
@@ -164,7 +163,7 @@ def cast_inputs(
     return tuple(cast_args)
 
 
-def dynamic_cast_inputs(op_signature: _schemas.OpSignature, args):
+def dynamic_cast_inputs(op_signature: ir.schemas.OpSignature, args):
     """Used for autocast during eager-mode execution."""
 
     def get_type_info(x):
@@ -175,7 +174,7 @@ def dynamic_cast_inputs(op_signature: _schemas.OpSignature, args):
 
 def static_cast_inputs(
     converter_: converter.Converter,
-    op_signature: Optional[_schemas.OpSignature],
+    op_signature: Optional[ir.schemas.OpSignature],
     args: Sequence[Optional[ir.Value]],
 ) -> tuple[str, ...]:
     """Used for autocast during script-translation.
