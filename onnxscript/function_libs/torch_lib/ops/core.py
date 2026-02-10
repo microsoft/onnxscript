@@ -4630,6 +4630,7 @@ def aten_histc(
         cond = op.And(cond, op.Not(op.IsNaN(flat_self)))
         # max is included.
         dtype = self.type.dtype.numpy()
+        values = np.array(values, dtype=dtype)
         values[-1] = np.nextafter(values[-1], np.array(np.inf, dtype=dtype), dtype=dtype)
     typed_values = op.Constant(value=ir.tensor(values, dtype=self.type.dtype))
 
