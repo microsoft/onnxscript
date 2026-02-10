@@ -331,12 +331,10 @@ class _VersionConverter:
 
     def visit_model(self, model: ir.Model) -> None:
         self._default_onnx_opset = _get_onnx_opset_version(model)
-        self.visit_graph_or_function_or_function(model.graph)
+        self.visit_graph_or_function(model.graph)
         for function in model.functions.values():
             self.visit_graph_or_function(function)
             _set_onnx_opset_version(function, self._target_version)
-        for function in model.functions.values():
-            self.visit_graph_or_function(function)
         _set_onnx_opset_version(model, self._target_version)
 
 
