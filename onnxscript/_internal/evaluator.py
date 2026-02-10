@@ -26,7 +26,6 @@ from typing_extensions import TypeAlias
 
 from onnxscript import onnx_opset, tensor
 from onnxscript._internal import autocast, param_manipulation, utils, values
-from onnxscript.ir import _schemas
 
 UserModeValue: TypeAlias = Union[Optional[np.ndarray], Sequence["UserModeValue"]]
 
@@ -181,7 +180,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
         self._ignore_unknown_function_kwargs = ignore_unknown_function_kwargs
 
     def _adapt_inputs(
-        self, op_signature: _schemas.OpSignature, inputs: Sequence[ExtendedModeValue]
+        self, op_signature: ir.schemas.OpSignature, inputs: Sequence[ExtendedModeValue]
     ):
         """Transform inputs to the expected format for the evaluator.
 
@@ -225,7 +224,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
         """
         return outputs[0] if len(outputs) == 1 else outputs
 
-    def use_graph_attribute(self, op_signature: _schemas.OpSignature) -> bool:
+    def use_graph_attribute(self, op_signature: ir.schemas.OpSignature) -> bool:
         del op_signature  # unused
         return True
 
@@ -292,7 +291,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
         adapted_kwargs: dict[str, ExtendedModeValue] = {}
         has_array = False
         for arg, param in tagged_args:
-            if isinstance(param, _schemas.Parameter):
+            if isinstance(param, ir.schemas.Parameter):
                 adapted_arg, has_array_ = _adapt_to_eager_mode(arg)
                 has_array = has_array or has_array_
                 adapted_args.append(adapted_arg)
@@ -300,7 +299,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
                 adapted_args.append(arg)
 
         for key, (arg, param) in tagged_kwargs.items():
-            if isinstance(param, _schemas.Parameter):
+            if isinstance(param, ir.schemas.Parameter):
                 adapted_arg, has_array_ = _adapt_to_eager_mode(arg)
                 has_array = has_array or has_array_
                 adapted_kwargs[key] = adapted_arg
@@ -511,7 +510,7 @@ def _call_ort(
 
 
 def _op_identifier(
-    op_schema_or_signature: onnx.defs.OpSchema | _schemas.OpSignature,
+    op_schema_or_signature: onnx.defs.OpSchema | ir.schemas.OpSignature,
 ) -> tuple[str, str, int]:
     return (
         op_schema_or_signature.name,
@@ -564,7 +563,7 @@ class ORTMixedEvaluator(ORTEvaluator):
         super().__init__()
         self._python_ops: dict[tuple[str, str, int], Any] = {}
 
-    def use_graph_attribute(self, op_signature: _schemas.OpSignature) -> bool:
+    def use_graph_attribute(self, op_signature: ir.schemas.OpSignature) -> bool:
         return _op_identifier(op_signature) not in self._python_ops
 
     def _eval(self, schema, inputs, attributes, closure):

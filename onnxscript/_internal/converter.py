@@ -507,7 +507,7 @@ class Converter:
         self,
         attr_name: str,
         expr: ast.AST,
-        attr_meta: _schemas.AttributeParameter | None = None,
+        attr_meta: ir.schemas.AttributeParameter | None = None,
     ) -> ir.Attr | None:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:

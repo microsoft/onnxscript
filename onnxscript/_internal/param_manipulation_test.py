@@ -7,8 +7,8 @@ import unittest
 
 import parameterized
 
+from onnxscript import ir
 from onnxscript._internal import param_manipulation
-from onnxscript.ir import _schemas
 
 TEST_INPUT = "TEST_INPUT"
 
@@ -64,23 +64,23 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
     )
     def test_it_is_correct_on(self, _, args, kwargs, expected_c):
         # Create OpSignature with one input and two attributes
-        type_constraint = _schemas.TypeConstraintParam.any_tensor("T")
-        op_signature = _schemas.OpSignature(
+        type_constraint = ir.schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = ir.schemas.OpSignature(
             domain="",
             name="TestOp",
             overload="",
             params=[
-                _schemas.Parameter(
+                ir.schemas.Parameter(
                     name="a", type_constraint=type_constraint, required=True, variadic=False
                 ),
-                _schemas.AttributeParameter(
-                    name="b", type=_schemas.ir.AttributeType.INT, required=True, default=None
+                ir.schemas.AttributeParameter(
+                    name="b", type=ir.AttributeType.INT, required=True, default=None
                 ),
-                _schemas.AttributeParameter(
+                ir.schemas.AttributeParameter(
                     name="c",
-                    type=_schemas.ir.AttributeType.FLOAT,
+                    type=ir.AttributeType.FLOAT,
                     required=False,
-                    default=_schemas.ir.Attr("c", _schemas.ir.AttributeType.FLOAT, 100.0),
+                    default=ir.Attr("c", ir.AttributeType.FLOAT, 100.0),
                 ),
             ],
             outputs=[],
@@ -113,23 +113,23 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
         ]
     )
     def test_it_raises_on_extra_args(self, _, args, kwargs):
-        type_constraint = _schemas.TypeConstraintParam.any_tensor("T")
-        op_signature = _schemas.OpSignature(
+        type_constraint = ir.schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = ir.schemas.OpSignature(
             domain="",
             name="TestOp",
             overload="",
             params=[
-                _schemas.Parameter(
+                ir.schemas.Parameter(
                     name="a", type_constraint=type_constraint, required=True, variadic=False
                 ),
-                _schemas.AttributeParameter(
-                    name="b", type=_schemas.ir.AttributeType.INT, required=True, default=None
+                ir.schemas.AttributeParameter(
+                    name="b", type=ir.AttributeType.INT, required=True, default=None
                 ),
-                _schemas.AttributeParameter(
+                ir.schemas.AttributeParameter(
                     name="c",
-                    type=_schemas.ir.AttributeType.FLOAT,
+                    type=ir.AttributeType.FLOAT,
                     required=False,
-                    default=_schemas.ir.Attr("c", _schemas.ir.AttributeType.FLOAT, 100.0),
+                    default=ir.Attr("c", ir.AttributeType.FLOAT, 100.0),
                 ),
             ],
             outputs=[],
@@ -150,23 +150,23 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
         self,
         fill_defaults: bool,
     ):
-        type_constraint = _schemas.TypeConstraintParam.any_tensor("T")
-        op_signature = _schemas.OpSignature(
+        type_constraint = ir.schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = ir.schemas.OpSignature(
             domain="",
             name="TestOp",
             overload="",
             params=[
-                _schemas.Parameter(
+                ir.schemas.Parameter(
                     name="a", type_constraint=type_constraint, required=True, variadic=False
                 ),
-                _schemas.AttributeParameter(
-                    name="b", type=_schemas.ir.AttributeType.INT, required=True, default=None
+                ir.schemas.AttributeParameter(
+                    name="b", type=ir.AttributeType.INT, required=True, default=None
                 ),
-                _schemas.AttributeParameter(
+                ir.schemas.AttributeParameter(
                     name="c",
-                    type=_schemas.ir.AttributeType.FLOAT,
+                    type=ir.AttributeType.FLOAT,
                     required=False,
-                    default=_schemas.ir.Attr("c", _schemas.ir.AttributeType.FLOAT, 100.0),
+                    default=ir.Attr("c", ir.AttributeType.FLOAT, 100.0),
                 ),
             ],
             outputs=[],
@@ -190,23 +190,23 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
     def test_it_does_not_fill_default_when_fill_defaults_is_false(
         self, allow_extra_kwargs: bool
     ):
-        type_constraint = _schemas.TypeConstraintParam.any_tensor("T")
-        op_signature = _schemas.OpSignature(
+        type_constraint = ir.schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = ir.schemas.OpSignature(
             domain="",
             name="TestOp",
             overload="",
             params=[
-                _schemas.Parameter(
+                ir.schemas.Parameter(
                     name="a", type_constraint=type_constraint, required=True, variadic=False
                 ),
-                _schemas.AttributeParameter(
-                    name="b", type=_schemas.ir.AttributeType.INT, required=True, default=None
+                ir.schemas.AttributeParameter(
+                    name="b", type=ir.AttributeType.INT, required=True, default=None
                 ),
-                _schemas.AttributeParameter(
+                ir.schemas.AttributeParameter(
                     name="c",
-                    type=_schemas.ir.AttributeType.FLOAT,
+                    type=ir.AttributeType.FLOAT,
                     required=False,
-                    default=_schemas.ir.Attr("c", _schemas.ir.AttributeType.FLOAT, 100.0),
+                    default=ir.Attr("c", ir.AttributeType.FLOAT, 100.0),
                 ),
             ],
             outputs=[],
@@ -234,23 +234,23 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
     def test_it_raises_on_insufficient_args(
         self, fill_defaults: bool, allow_extra_kwargs: bool
     ):
-        type_constraint = _schemas.TypeConstraintParam.any_tensor("T")
-        op_signature = _schemas.OpSignature(
+        type_constraint = ir.schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = ir.schemas.OpSignature(
             domain="",
             name="TestOp",
             overload="",
             params=[
-                _schemas.Parameter(
+                ir.schemas.Parameter(
                     name="a", type_constraint=type_constraint, required=True, variadic=False
                 ),
-                _schemas.AttributeParameter(
-                    name="b", type=_schemas.ir.AttributeType.INT, required=True, default=None
+                ir.schemas.AttributeParameter(
+                    name="b", type=ir.AttributeType.INT, required=True, default=None
                 ),
-                _schemas.AttributeParameter(
+                ir.schemas.AttributeParameter(
                     name="c",
-                    type=_schemas.ir.AttributeType.FLOAT,
+                    type=ir.AttributeType.FLOAT,
                     required=False,
-                    default=_schemas.ir.Attr("c", _schemas.ir.AttributeType.FLOAT, 100.0),
+                    default=ir.Attr("c", ir.AttributeType.FLOAT, 100.0),
                 ),
             ],
             outputs=[],
