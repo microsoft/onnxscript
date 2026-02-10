@@ -181,7 +181,7 @@ class SlicesSplit(RewriteRuleClassBase):
         if x.shape:
             rk = len(x.shape)
         else:
-            rk = x.rank
+            return check_result.fail("Input rank is not known.")
         if axes[0] != -1 and axes[0] != rk - 1:
             return check_result.fail("Axes is not -1 or last dimension.")
         if (
