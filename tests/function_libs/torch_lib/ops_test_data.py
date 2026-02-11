@@ -747,7 +747,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("ge", core_ops.aten_ge),
     TorchLibOpInfo("gt", core_ops.aten_gt),
-    TorchLibOpInfo("histc", core_ops.aten_histc).skip(
+    TorchLibOpInfo("histc", core_ops.aten_histc)
+    .skip(
         matcher=lambda sample: sample.kwargs.get("min") == sample.kwargs.get("max"),
         reason="then min=sample.min(), max=sample.max(), torch.histc does not"
         "define what happens when both are equal (1 sample with one element "
@@ -755,8 +756,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "something like zeros(bins)[bins // 2 + 1] = 1.",
     ).skip(
         dtypes=(torch.float16,),
-        reason="we skip float16 because of "
-        "https://github.com/pytorch/pytorch/issues/174668",
+        reason="we skip float16 because of https://github.com/pytorch/pytorch/issues/174668",
     ),
     # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
