@@ -480,8 +480,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax),
     TorchLibOpInfo("all_dim", core_ops.aten_all_dim).skip(
-        matcher=lambda sample: not (len(sample.kwargs) > 0)
-        or isinstance(sample.kwargs.get("dim"), tuple),
+        matcher=lambda sample: (
+            not (len(sample.kwargs) > 0) or isinstance(sample.kwargs.get("dim"), tuple)
+        ),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design. dim must be an integer",
     ),
     TorchLibOpInfo("all_dims", core_ops.aten_all_dims).skip(
@@ -518,9 +519,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         "decomposed",
-        matcher=lambda sample: torch.numel(sample.input) == 0
-        or torch.numel(sample.args[0]) == 0
-        or torch.numel(sample.args[1]) == 0,
+        matcher=lambda sample: (
+            torch.numel(sample.input) == 0
+            or torch.numel(sample.args[0]) == 0
+            or torch.numel(sample.args[1]) == 0
+        ),
         reason="zero sized inputs cannot be compared",
     ),
     TorchLibOpInfo("addmv", core_ops.aten_addmv, tolerance={torch.float16: (2e-3, 2e-2)}),
@@ -534,8 +537,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support one tensor as input by design",
     ),
     TorchLibOpInfo("any_dim", core_ops.aten_any_dim).skip(
-        matcher=lambda sample: not (len(sample.kwargs) > 0)
-        or isinstance(sample.kwargs.get("dim"), tuple),
+        matcher=lambda sample: (
+            not (len(sample.kwargs) > 0) or isinstance(sample.kwargs.get("dim"), tuple)
+        ),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design. dim must be an integer",
     ),
     TorchLibOpInfo("any_dims", core_ops.aten_any_dims).skip(
@@ -750,7 +754,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("histc", core_ops.aten_histc)
     .skip(
         matcher=lambda sample: sample.kwargs.get("min") == sample.kwargs.get("max"),
-        reason="then min=sample.min(), max=sample.max(), torch.histc does not"
+        reason="then min=sample.min(), max=sample.max(), torch.histc does not "
         "define what happens when both are equal (1 sample with one element "
         "for example). torch does something, maybe "
         "something like zeros(bins)[bins // 2 + 1] = 1.",
@@ -883,8 +887,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("mH", core_ops.aten_mH),
     TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True),
     TorchLibOpInfo("min_dim", core_ops.aten_min_dim).xfail(
-        matcher=lambda sample: len(sample.args) == 0
-        or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
+        matcher=lambda sample: (
+            len(sample.args) == 0
+            or (len(sample.args) > 0 and not isinstance(sample.args[0], int))
+        ),
         reason="this ATen overload only support one tensor as input and another int as args",
     ),
     TorchLibOpInfo("min", core_ops.aten_min).skip(
@@ -921,8 +927,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float16: (1e-2, 1e-2)},
         input_wrangler=_cross_entropy_input_wrangler,
     ).xfail(
-        matcher=lambda sample: len(sample.args) < 1
-        or (isinstance(sample.args[0], torch.Tensor) and sample.args[0].dtype != torch.int64),
+        matcher=lambda sample: (
+            len(sample.args) < 1
+            or (
+                isinstance(sample.args[0], torch.Tensor)
+                and sample.args[0].dtype != torch.int64
+            )
+        ),
         reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[target] as int type",
     ),
     TorchLibOpInfo(
@@ -1029,10 +1040,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_replication_pad3d,
         input_wrangler=_replication_pad3d_input_wrangler,
     ).skip(
-        matcher=lambda sample: not (
-            len(sample.args) > 1
-            and sample.args[1] == "replicate"
-            and len(sample.input.shape) == 5
+        matcher=lambda sample: (
+            not (
+                len(sample.args) > 1
+                and sample.args[1] == "replicate"
+                and len(sample.input.shape) == 5
+            )
         ),
         reason="this Aten overload need args[1] == 'replicate' for pad mode, and 3D tensor",
     ),
@@ -1080,16 +1093,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     TorchLibOpInfo("prod", core_ops.aten_prod).skip(
-        matcher=lambda sample: sample.kwargs.get("dim") is not None
-        or sample.kwargs.get("keepdim") is not None
-        or len(sample.args) > 0,
+        matcher=lambda sample: (
+            sample.kwargs.get("dim") is not None
+            or sample.kwargs.get("keepdim") is not None
+            or len(sample.args) > 0
+        ),
         reason="this Aten overload only accept 1 inputs: self",
     ),
     TorchLibOpInfo("prod_dim_int", core_ops.aten_prod_dim_int).skip(
         matcher=lambda sample: (
-            sample.kwargs.get("dim") is None and sample.kwargs.get("keepdim") is None
-        )
-        or sample.kwargs.get("dtype") != -1,
+            (sample.kwargs.get("dim") is None and sample.kwargs.get("keepdim") is None)
+            or sample.kwargs.get("dtype") != -1
+        ),
         reason="this Aten overload can accept 3 inputs:(self, dim, keepdim)",
     ),
     TorchLibOpInfo("nn.functional.prelu", core_ops.aten_prelu),
@@ -1222,8 +1237,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support one tensor as input and one int as args by design",
     )
     .skip(
-        matcher=lambda sample: len(sample.input.shape) != 0
-        and sample.input.shape[sample.args[0]] != 1,
+        matcher=lambda sample: (
+            len(sample.input.shape) != 0 and sample.input.shape[sample.args[0]] != 1
+        ),
         reason="this Aten overload only support squeeze dim with size 1",
     ),
     TorchLibOpInfo("squeeze_dim", core_ops.aten_squeeze_dim_complex, complex=True)
@@ -1232,8 +1248,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support one tensor as input and one int as args by design",
     )
     .skip(
-        matcher=lambda sample: len(sample.input.shape) != 0
-        and sample.input.shape[sample.args[0]] != 1,
+        matcher=lambda sample: (
+            len(sample.input.shape) != 0 and sample.input.shape[sample.args[0]] != 1
+        ),
         reason="this Aten overload only support squeeze dim with size 1",
     ),
     TorchLibOpInfo("squeeze", core_ops.aten_squeeze).skip(
@@ -1253,8 +1270,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("tan", core_ops.aten_tan),
     TorchLibOpInfo("tanh", core_ops.aten_tanh),
     TorchLibOpInfo("tile", core_ops.aten_tile).skip(
-        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
-        or not sample.input.shape,
+        matcher=lambda sample: (
+            any(dim == 0 for dim in sample.input.shape) or not sample.input.shape
+        ),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
     TorchLibOpInfo("topk", core_ops.aten_topk)
@@ -1391,8 +1409,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float16: (8e-2, 2e-3)},
     ).skip(
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
-        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
-        or len(sample.args[0].shape) != 4,
+        matcher=lambda sample: (
+            sample.kwargs.get("mode") == "bicubic" or len(sample.args[0].shape) != 4
+        ),
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
     ),
     TorchLibOpInfo(
@@ -1425,8 +1444,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         enabled_if=not _flags.EXPERIMENTAL_PREFER_TRACING,
     )
     .xfail(
-        matcher=lambda sample: len(sample.args) == 0
-        or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
+        matcher=lambda sample: (
+            len(sample.args) == 0
+            or (len(sample.args) > 0 and not isinstance(sample.args[0], int))
+        ),
         reason="this ATen overload only support one tensor as input and another int as args",
     ),
     TorchLibOpInfo("max", core_ops.aten_max).skip(
@@ -1467,8 +1488,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="native_batch_norm outputs different dtypes on CPU and CUDA. Our implematation is based on that for CUDA",
     )
     .skip(
-        matcher=lambda sample: sample.kwargs.get("training") is True
-        or sample.args[-3] is True,
+        matcher=lambda sample: (
+            sample.kwargs.get("training") is True or sample.args[-3] is True
+        ),
         reason="fixme: ORT only supports BatchNorm less than opset14",
     ),
     TorchLibOpInfo(
@@ -1482,8 +1504,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="native_batch_norm outputs different shapes on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     )
     .skip(
-        matcher=lambda sample: sample.kwargs.get("training") is True
-        or sample.args[-3] is True,
+        matcher=lambda sample: (
+            sample.kwargs.get("training") is True or sample.args[-3] is True
+        ),
         reason="fixme: ORT only supports BatchNorm less than opset14",
     ),
     TorchLibOpInfo(
@@ -1500,8 +1523,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="native_batch_norm outputs different results on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     )
     .skip(
-        matcher=lambda sample: sample.kwargs.get("training") is True
-        or sample.args[-3] is True,
+        matcher=lambda sample: (
+            sample.kwargs.get("training") is True or sample.args[-3] is True
+        ),
         reason="fixme: ORT only supports BatchNorm less than opset14",
     ),
     TorchLibOpInfo(
@@ -1531,17 +1555,21 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_avg_pool_input_wrangler,
     )
     .xfail(
-        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
-        or (sample.kwargs.get("divisor_override") is not None),
+        matcher=lambda sample: (
+            (len(sample.args) > 5 and sample.args[5] is not None)
+            or (sample.kwargs.get("divisor_override") is not None)
+        ),
         reason="ONNX doesn't support divisor_override argument",
     )
     .xfail(
-        matcher=lambda sample: (sample.kwargs.get("ceil_mode") is True)
-        and (
-            sample.kwargs.get("count_include_pad") is True
-            or sample.input.shape[2]
-            % (sample.args[0][0] if isinstance(sample.args[0], tuple) else sample.args[0])
-            != 0
+        matcher=lambda sample: (
+            (sample.kwargs.get("ceil_mode") is True)
+            and (
+                sample.kwargs.get("count_include_pad") is True
+                or sample.input.shape[2]
+                % (sample.args[0][0] if isinstance(sample.args[0], tuple) else sample.args[0])
+                != 0
+            )
         ),
         reason="fixme: ORT doesn't match PyTorch when ceil_mode=True until opset 19",
     ),
@@ -1550,8 +1578,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_avg_pool2d,
         input_wrangler=_avg_pool_input_wrangler,
     ).xfail(
-        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
-        or (sample.kwargs.get("divisor_override") is not None),
+        matcher=lambda sample: (
+            (len(sample.args) > 5 and sample.args[5] is not None)
+            or (sample.kwargs.get("divisor_override") is not None)
+        ),
         reason="ONNX doesn't support divisor_override argument",
     ),
     TorchLibOpInfo(
@@ -1560,8 +1590,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_avg_pool_input_wrangler,
     )
     .xfail(
-        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
-        or (sample.kwargs.get("divisor_override") is not None),
+        matcher=lambda sample: (
+            (len(sample.args) > 5 and sample.args[5] is not None)
+            or (sample.kwargs.get("divisor_override") is not None)
+        ),
         reason="ONNX doesn't support divisor_override argument",
     )
     .xfail(
@@ -1625,8 +1657,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_im2col,
         input_wrangler=_im2col_input_wrangler,
     ).xfail(
-        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
-        or not sample.input.shape,
+        matcher=lambda sample: (
+            any(dim == 0 for dim in sample.input.shape) or not sample.input.shape
+        ),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
     TorchLibOpInfo(
@@ -1667,8 +1700,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_max_pool_input_wrangler,
     )
     .skip(
-        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
-        and sample.kwargs.get("padding") == 1,
+        matcher=lambda sample: (
+            sample.kwargs.get("ceil_mode") is True and sample.kwargs.get("padding") == 1
+        ),
         reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     )
     .skip(
@@ -1681,8 +1715,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_max_pool_input_wrangler,
     )
     .skip(
-        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
-        and sample.kwargs.get("padding") == 1,
+        matcher=lambda sample: (
+            sample.kwargs.get("ceil_mode") is True and sample.kwargs.get("padding") == 1
+        ),
         reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     )
     .skip(
@@ -1704,9 +1739,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         test_class_name="TestOutputConsistencyFullGraph",
     )
     .xfail(
-        matcher=lambda sample: len(sample.input.shape) != 4
-        or len(sample.args[0].shape) != 4
-        or len(sample.args[1].shape) != 4,
+        matcher=lambda sample: (
+            len(sample.input.shape) != 4
+            or len(sample.args[0].shape) != 4
+            or len(sample.args[1].shape) != 4
+        ),
         reason="torch sdpa is expected to pass in 4d q, k, and v.",
     ),
     TorchLibOpInfo(
@@ -1732,8 +1769,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.upsample_bilinear2d.default",
         nn_ops.aten_upsample_bilinear2d,
     ).xfail(
-        matcher=lambda sample: sample.args[1] is False
-        and sample.kwargs.get("scales_h") is not None,
+        matcher=lambda sample: (
+            sample.args[1] is False and sample.kwargs.get("scales_h") is not None
+        ),
         reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo(
@@ -1752,8 +1790,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.upsample_bicubic2d.default",
         nn_ops.aten_upsample_bicubic2d,
     ).xfail(
-        matcher=lambda sample: sample.args[1] is False
-        and sample.kwargs.get("scales_h") is not None,
+        matcher=lambda sample: (
+            sample.args[1] is False and sample.kwargs.get("scales_h") is not None
+        ),
         reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo(
@@ -1772,8 +1811,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.upsample_linear1d",
         nn_ops.aten_upsample_linear1d,
     ).xfail(
-        matcher=lambda sample: sample.args[1] is False
-        and sample.kwargs.get("scales") is not None,
+        matcher=lambda sample: (
+            sample.args[1] is False and sample.kwargs.get("scales") is not None
+        ),
         reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo("ops.aten.upsample_nearest1d", nn_ops.aten_upsample_nearest1d),

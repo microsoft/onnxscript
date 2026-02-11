@@ -4630,15 +4630,16 @@ def aten_histc(
         op.GreaterOrEqual(flat_self, op.CastLike([min], self)),
         op.LessOrEqual(flat_self, op.CastLike([max], self)),
     )
-    if self.type.dtype in {ir.DataType.INT32, ir.DataType.INT64}:
-        # max is included.
-        values[-1] += 1
-    else:
-        cond = op.And(cond, op.Not(op.IsNaN(flat_self)))
-        # max is included.
-        dtype = self.type.dtype.numpy()
-        values = np.array(values, dtype=dtype)
-        values[-1] = np.nextafter(values[-1], np.array(np.inf, dtype=dtype), dtype=dtype)
+
+    assert self.type.dtype not in {ir.DataType.INT32, ir.DataType.INT64}, (
+        f"torch.histc only works on float but {self.type.dtype=}"
+    )
+
+    cond = op.And(cond, op.Not(op.IsNaN(flat_self)))
+    # max is included.
+    dtype = self.type.dtype.numpy()
+    values = np.array(values, dtype=dtype)
+    values[-1] = np.nextafter(values[-1], np.array(np.inf, dtype=dtype), dtype=dtype)
     typed_values = op.Constant(value=ir.tensor(values, dtype=self.type.dtype))
 
     clipped = op.Where(cond, flat_self, op.CastLike([min - 1], self))
