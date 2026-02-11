@@ -921,7 +921,11 @@ class TorchLibe2eTest(unittest.TestCase):
 
         model = Model()
         onnx_program = torch.onnx.export(
-            Model(), (torch.rand(10, 10, 10),), dynamo=True, verbose=False, dynamic_shapes=({0: "batch"},)
+            Model(),
+            (torch.rand(10, 10, 10),),
+            dynamo=True,
+            verbose=False,
+            dynamic_shapes=({0: "batch"},),
         )
         _testing.assert_onnx_program(onnx_program)
 
