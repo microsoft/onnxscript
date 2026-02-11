@@ -754,7 +754,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "define what happens when both are equal (1 sample with one element "
         "for example). torch does something, maybe "
         "something like zeros(bins)[bins // 2 + 1] = 1.",
-    ).skip(
+    )
+    .skip(
         dtypes=(torch.float16,),
         reason="we skip float16 because of https://github.com/pytorch/pytorch/issues/174668",
     ),
