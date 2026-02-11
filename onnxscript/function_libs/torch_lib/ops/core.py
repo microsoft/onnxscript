@@ -4613,6 +4613,13 @@ def aten_histc(
     self: TensorType, bins: int = 100, min: float = 0.0, max: float = 0.0
 ) -> TensorType:
     """histc(Tensor self, int bins=100, Scalar min=0, Scalar max=0) -> Tensor"""
+    if min == max:
+        # This ONNXScript implementation precomputes static bin edges and cannot
+        # faithfully reproduce torch.histc's dynamic behavior when min == max
+        # (including the default min=0, max=0, which infers the range from data).
+        raise NotImplementedError(
+            f"aten_histc with min == max ({min}) is not supported in this export path."
+        )
     delta = (max - min) / (bins * 1.0)
     values = [min + delta * i for i in range(bins + 1)]
 
