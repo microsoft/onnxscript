@@ -4617,7 +4617,7 @@ def aten_histc(
     values = [min + delta * i for i in range(bins + 1)]
 
     flat_self = op.Reshape(self, [-1])
-    computation_type = self.type.dtype
+    computation_type = self.dtype
 
     cond = op.And(
         op.GreaterOrEqual(flat_self, op.CastLike([min], self)),
