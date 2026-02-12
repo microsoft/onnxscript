@@ -501,7 +501,7 @@ class VersionConverterMetadataMergeTest(unittest.TestCase):
         target_version = 20
         with self.assertRaises(
             (
-                version_converter._version_converter.VersionConverterError,  # pylint: disable=protected-access`
+                version_converter._version_converter.VersionConverterError,  # pylint: disable=protected-access
                 ir.passes.PassError,
             )
         ) as ctx:
