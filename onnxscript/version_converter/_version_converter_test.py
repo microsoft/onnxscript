@@ -448,6 +448,73 @@ class VersionConverterMetadataMergeTest(unittest.TestCase):
                     f"Node {i} ({node.op_type}) should have metadata copied",
                 )
 
+    def test_version_convert_raises_on_function_node_with_ref_attribute(self):
+        """Test that version conversion raises when a function contains a node with a ref attribute."""
+        # Build a function with a LeakyRelu node that uses a RefAttr for 'alpha'
+        func_input = ir.Value(name="x")
+        ref_attr = ir.RefAttr("alpha", "alpha", ir.AttributeType.FLOAT)
+        func_output = ir.Value(name="result")
+        leaky_relu_node = ir.Node(
+            domain="",
+            op_type="LeakyRelu",
+            inputs=[func_input],
+            outputs=[func_output],
+            attributes=[ref_attr],
+            version=18,
+        )
+        func_graph = ir.Graph(
+            inputs=[func_input],
+            outputs=[func_output],
+            nodes=[leaky_relu_node],
+            opset_imports={"": 18},
+        )
+        func_attr_param = ir.Attr("alpha", ir.AttributeType.FLOAT, 0.01)
+        function = ir.Function(
+            domain="pkg.custom",
+            name="leaky_relu_func",
+            graph=func_graph,
+            attributes=[func_attr_param],
+        )
+
+        # Build a main graph that calls the function
+        main_input = ir.Value(name="input_x")
+        main_output = ir.Value(name="output")
+        call_node = ir.Node(
+            domain="pkg.custom",
+            op_type="leaky_relu_func",
+            inputs=[main_input],
+            outputs=[main_output],
+            version=18,
+        )
+        main_graph = ir.Graph(
+            inputs=[main_input],
+            outputs=[main_output],
+            nodes=[call_node],
+            opset_imports={"": 18, "pkg.custom": 1},
+        )
+        model = ir.Model(
+            main_graph,
+            ir_version=8,
+            functions=[function],
+        )
+
+        target_version = 20
+        with self.assertRaises(
+            (
+                version_converter._version_converter.VersionConverterError,  # pylint: disable=protected-access`
+                ir.passes.PassError,
+            )
+        ) as ctx:
+            version_converter.convert_version(model, target_version=target_version)
+        # Check the error message, unwrapping PassError if needed
+        error = ctx.exception
+        if isinstance(error, ir.passes.PassError) and error.__cause__ is not None:
+            error = error.__cause__
+        self.assertIn(
+            "has ref attribute, which is not supported by version converter",
+            str(error),
+        )
+
 
 class VersionConverter25to26Test(unittest.TestCase):
     @pytest.mark.xfail(strict=True, reason="Version upgrade beyond 25 not yet supported.")
