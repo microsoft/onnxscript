@@ -313,7 +313,7 @@ class _VersionConverter:
             # RefAttr is not supported by adapters for now.
             if any(attr.is_ref() for attr in node.attributes.values()):
                 raise VersionConverterError(
-                    f"Node {node} has ref attribute, which is not supported by version converter."
+                    f"Node '{node!r}' has ref attribute, which is not supported by version converter."
                 )
             # Iterate each node from current node version -> target version
             # and updating node based on the correct adapter
