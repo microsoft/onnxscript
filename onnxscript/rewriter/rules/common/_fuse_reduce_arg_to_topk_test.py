@@ -100,38 +100,6 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
         else:
             output_shape_str = "[N, ?, ?, ?]"
 
-        # Test with opset 13 (axes as attribute)
-        base_model = ir.from_onnx_text(f"""
-            < ir_version: 10, opset_import: ["" : 13] >
-            test_model (float[N, 32, 14, 17] X) => (float{output_shape_str} max_val, int64{output_shape_str} max_idx)
-            {{
-                max_val = ReduceMax<axes=[{axis}], keepdims={keepdims}>(X)
-                max_idx = ArgMax<axis={axis}, keepdims={keepdims}>(X)
-            }}
-        """)
-
-        # Expected: Constant for K, TopK, possibly (Constant + Squeeze) x2 for keepdims=0
-        if keepdims == 0:
-            expected_op_types = ["Constant", "TopK", "Constant", "Squeeze", "Squeeze"]
-        else:
-            expected_op_types = ["Constant", "TopK"]
-
-        self.run_test(base_model, expected_op_types)
-
-    @parameterized.expand(
-        [
-            ("keepdims_1_axis_1", 1, 1),
-            ("keepdims_0_axis_2", 0, 2),
-        ]
-    )
-    def test_successful_fuse_reduce_argmax_to_topk_opset18(self, _, keepdims, axis):
-        """Test fusion with opset 18+ (axes as input)."""
-        if keepdims == 0:
-            output_shape_str = "[N, ?, ?]"
-        else:
-            output_shape_str = "[N, ?, ?, ?]"
-
-        # In opset 18+, axes must be passed as the second input to ReduceMax
         base_model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float{output_shape_str} max_val, int64{output_shape_str} max_idx)
@@ -153,10 +121,11 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
     def test_fuse_reduce_argmax_explicit_axis_0(self):
         """Test fusion with explicit axis=0."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 14, 17] X) => (float[1, 14, 17] max_val, int64[1, 14, 17] max_idx)
+            <int64[1] axes = {0}>
             {
-                max_val = ReduceMax<axes=[0], keepdims=1>(X)
+                max_val = ReduceMax<keepdims=1>(X, axes)
                 max_idx = ArgMax<axis=0, keepdims=1>(X)
             }
         """)
@@ -210,10 +179,11 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
         The rule should normalize both axes before comparison.
         """
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, 32, 14, 1] max_val, int64[N, 32, 14, 1] max_idx)
+            <int64[1] axes = {-1}>
             {
-                max_val = ReduceMax<axes=[-1], keepdims=1>(X)
+                max_val = ReduceMax<keepdims=1>(X, axes)
                 max_idx = ArgMax<axis=3, keepdims=1>(X)
             }
         """)
@@ -223,10 +193,11 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
     def test_fail_keepdims_mismatch(self):
         """Test that fusion fails when keepdims values don't match."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, ?, ?, ?] max_val, int64[N, ?, ?] max_idx)
+            <int64[1] axes = {1}>
             {
-                max_val = ReduceMax<axes=[1], keepdims=1>(X)
+                max_val = ReduceMax<keepdims=1>(X, axes)
                 max_idx = ArgMax<axis=1, keepdims=0>(X)
             }
         """)
@@ -238,10 +209,11 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
     def test_fail_axis_mismatch(self):
         """Test that fusion fails when axes don't match."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, ?, ?, ?] max_val, int64[N, ?, ?, ?] max_idx)
+            <int64[1] axes = {1}>
             {
-                max_val = ReduceMax<axes=[1], keepdims=1>(X)
+                max_val = ReduceMax<keepdims=1>(X, axes)
                 max_idx = ArgMax<axis=2, keepdims=1>(X)
             }
         """)
@@ -253,10 +225,11 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
     def test_fail_multiple_axes_reduce_max(self):
         """Test that fusion fails when ReduceMax operates on multiple axes."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, ?, ?, ?] max_val, int64[N, ?, ?, ?] max_idx)
+            <int64[2] axes = {1, 2}>
             {
-                max_val = ReduceMax<axes=[1, 2], keepdims=1>(X)
+                max_val = ReduceMax<keepdims=1>(X, axes)
                 max_idx = ArgMax<axis=1, keepdims=1>(X)
             }
         """)
@@ -270,10 +243,11 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
     def test_fail_select_last_index_argmax(self):
         """Test that fusion fails when ArgMax has select_last_index=1."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, ?, ?, ?] max_val, int64[N, ?, ?, ?] max_idx)
+            <int64[1] axes = {1}>
             {
-                max_val = ReduceMax<axes=[1], keepdims=1>(X)
+                max_val = ReduceMax<keepdims=1>(X, axes)
                 max_idx = ArgMax<axis=1, keepdims=1, select_last_index=1>(X)
             }
         """)
@@ -287,10 +261,11 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
     def test_successful_fuse_with_default_keepdims(self):
         """Test fusion with default keepdims (should be 1)."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, ?, ?, ?] max_val, int64[N, ?, ?, ?] max_idx)
+            <int64[1] axes = {1}>
             {
-                max_val = ReduceMax<axes=[1]>(X)
+                max_val = ReduceMax(X, axes)
                 max_idx = ArgMax<axis=1>(X)
             }
         """)
@@ -302,10 +277,11 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
     def test_successful_fuse_with_default_axis(self):
         """Test fusion with default axis (should be 0)."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 14, 17] X) => (float[1, 14, 17] max_val, int64[1, 14, 17] max_idx)
+            <int64[1] axes = {0}>
             {
-                max_val = ReduceMax<axes=[0], keepdims=1>(X)
+                max_val = ReduceMax<keepdims=1>(X, axes)
                 max_idx = ArgMax<keepdims=1>(X)
             }
         """)
@@ -317,10 +293,11 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
     def test_successful_fuse_with_all_defaults(self):
         """Test fusion with all default values (keepdims=1, axis=0)."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 14, 17] X) => (float[1, 14, 17] max_val, int64[1, 14, 17] max_idx)
+            <int64[1] axes = {0}>
             {
-                max_val = ReduceMax<axes=[0]>(X)
+                max_val = ReduceMax(X, axes)
                 max_idx = ArgMax(X)
             }
         """)
@@ -332,10 +309,11 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
     def test_no_fusion_different_inputs(self):
         """Test that fusion doesn't happen when nodes have different inputs."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X, float[N, 32, 14, 17] Y) => (float[N, ?, ?, ?] max_val, int64[N, ?, ?, ?] max_idx)
+            <int64[1] axes = {1}>
             {
-                max_val = ReduceMax<axes=[1], keepdims=1>(X)
+                max_val = ReduceMax<keepdims=1>(X, axes)
                 max_idx = ArgMax<axis=1, keepdims=1>(Y)
             }
         """)
@@ -373,36 +351,6 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
             output_shape_str = "[N, ?, ?, ?]"
 
         base_model = ir.from_onnx_text(f"""
-            < ir_version: 10, opset_import: ["" : 13] >
-            test_model (float[N, 32, 14, 17] X) => (float{output_shape_str} min_val, int64{output_shape_str} min_idx)
-            {{
-                min_val = ReduceMin<axes=[{axis}], keepdims={keepdims}>(X)
-                min_idx = ArgMin<axis={axis}, keepdims={keepdims}>(X)
-            }}
-        """)
-
-        # Expected: Constant for K, TopK, possibly (Constant + Squeeze) x2 for keepdims=0
-        if keepdims == 0:
-            expected_op_types = ["Constant", "TopK", "Constant", "Squeeze", "Squeeze"]
-        else:
-            expected_op_types = ["Constant", "TopK"]
-
-        self.run_test(base_model, expected_op_types)
-
-    @parameterized.expand(
-        [
-            ("keepdims_1_axis_1", 1, 1),
-            ("keepdims_0_axis_2", 0, 2),
-        ]
-    )
-    def test_successful_fuse_reduce_argmin_to_topk_opset18(self, _, keepdims, axis):
-        """Test fusion with opset 18+ (axes as input) for Min operations."""
-        if keepdims == 0:
-            output_shape_str = "[N, ?, ?]"
-        else:
-            output_shape_str = "[N, ?, ?, ?]"
-
-        base_model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float{output_shape_str} min_val, int64{output_shape_str} min_idx)
             <int64[1] axes = {{{axis}}}>
@@ -422,10 +370,11 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
     def test_fuse_reduce_argmin_explicit_axis_0(self):
         """Test fusion with explicit axis=0."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 14, 17] X) => (float[1, 14, 17] min_val, int64[1, 14, 17] min_idx)
+            <int64[1] axes = {0}>
             {
-                min_val = ReduceMin<axes=[0], keepdims=1>(X)
+                min_val = ReduceMin<keepdims=1>(X, axes)
                 min_idx = ArgMin<axis=0, keepdims=1>(X)
             }
         """)
@@ -478,10 +427,11 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
         Axis -2 is equivalent to axis 2 for rank-4 tensors.
         """
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, 32, 1, 17] min_val, int64[N, 32, 1, 17] min_idx)
+            <int64[1] axes = {-2}>
             {
-                min_val = ReduceMin<axes=[-2], keepdims=1>(X)
+                min_val = ReduceMin<keepdims=1>(X, axes)
                 min_idx = ArgMin<axis=2, keepdims=1>(X)
             }
         """)
@@ -491,10 +441,11 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
     def test_fail_axis_mismatch(self):
         """Test that fusion fails when axes don't match for Min operations."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, ?, ?, ?] min_val, int64[N, ?, ?, ?] min_idx)
+            <int64[1] axes = {1}>
             {
-                min_val = ReduceMin<axes=[1], keepdims=1>(X)
+                min_val = ReduceMin<keepdims=1>(X, axes)
                 min_idx = ArgMin<axis=2, keepdims=1>(X)
             }
         """)
@@ -505,10 +456,11 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
     def test_fail_keepdims_mismatch(self):
         """Test that fusion fails when keepdims values don't match for Min operations."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, ?, ?, ?] min_val, int64[N, ?, ?] min_idx)
+            <int64[1] axes = {1}>
             {
-                min_val = ReduceMin<axes=[1], keepdims=1>(X)
+                min_val = ReduceMin<keepdims=1>(X, axes)
                 min_idx = ArgMin<axis=1, keepdims=0>(X)
             }
         """)
@@ -519,10 +471,11 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
     def test_fail_multiple_axes_reduce_min(self):
         """Test that fusion fails when ReduceMin operates on multiple axes."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, ?, ?, ?] min_val, int64[N, ?, ?, ?] min_idx)
+            <int64[2] axes = {1, 2}>
             {
-                min_val = ReduceMin<axes=[1, 2], keepdims=1>(X)
+                min_val = ReduceMin<keepdims=1>(X, axes)
                 min_idx = ArgMin<axis=1, keepdims=1>(X)
             }
         """)
@@ -536,10 +489,11 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
     def test_fail_select_last_index_argmin(self):
         """Test that fusion fails when ArgMin has select_last_index=1."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, ?, ?, ?] min_val, int64[N, ?, ?, ?] min_idx)
+            <int64[1] axes = {1}>
             {
-                min_val = ReduceMin<axes=[1], keepdims=1>(X)
+                min_val = ReduceMin<keepdims=1>(X, axes)
                 min_idx = ArgMin<axis=1, keepdims=1, select_last_index=1>(X)
             }
         """)
@@ -552,10 +506,11 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
     def test_successful_fuse_with_default_keepdims(self):
         """Test fusion with default keepdims (should be 1)."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X) => (float[N, ?, ?, ?] min_val, int64[N, ?, ?, ?] min_idx)
+            <int64[1] axes = {1}>
             {
-                min_val = ReduceMin<axes=[1]>(X)
+                min_val = ReduceMin(X, axes)
                 min_idx = ArgMin<axis=1>(X)
             }
         """)
@@ -567,10 +522,11 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
     def test_successful_fuse_with_default_axis(self):
         """Test fusion with default axis (should be 0)."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 14, 17] X) => (float[1, 14, 17] min_val, int64[1, 14, 17] min_idx)
+            <int64[1] axes = {0}>
             {
-                min_val = ReduceMin<axes=[0], keepdims=1>(X)
+                min_val = ReduceMin<keepdims=1>(X, axes)
                 min_idx = ArgMin<keepdims=1>(X)
             }
         """)
@@ -582,10 +538,11 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
     def test_successful_fuse_with_all_defaults(self):
         """Test fusion with all default values (keepdims=1, axis=0)."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 14, 17] X) => (float[1, 14, 17] min_val, int64[1, 14, 17] min_idx)
+            <int64[1] axes = {0}>
             {
-                min_val = ReduceMin<axes=[0]>(X)
+                min_val = ReduceMin(X, axes)
                 min_idx = ArgMin(X)
             }
         """)
@@ -597,10 +554,11 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
     def test_no_fusion_different_inputs(self):
         """Test that fusion doesn't happen when nodes have different inputs."""
         base_model = ir.from_onnx_text("""
-            < ir_version: 10, opset_import: ["" : 13] >
+            < ir_version: 10, opset_import: ["" : 18] >
             test_model (float[N, 32, 14, 17] X, float[N, 32, 14, 17] Y) => (float[N, ?, ?, ?] min_val, int64[N, ?, ?, ?] min_idx)
+            <int64[1] axes = {1}>
             {
-                min_val = ReduceMin<axes=[1], keepdims=1>(X)
+                min_val = ReduceMin<keepdims=1>(X, axes)
                 min_idx = ArgMin<axis=1, keepdims=1>(Y)
             }
         """)

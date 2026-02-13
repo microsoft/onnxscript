@@ -6,16 +6,11 @@ Supported transformations:
 - ReduceMax(X, axes=[axis], keepdims=k) + ArgMax(X, axis=axis, keepdims=k) → TopK(X, k=1, axis=axis, largest=1) [+ Squeeze if k=0]
 - ReduceMin(X, axes=[axis], keepdims=k) + ArgMin(X, axis=axis, keepdims=k) → TopK(X, k=1, axis=axis, largest=0) [+ Squeeze if k=0]
 
-Supports both ONNX opset versions:
-    - Opset 13-17: Reduce{Max,Min} with axes as an attribute
-    - Opset 18+: Reduce{Max,Min} with axes as a second input
-
 Constraints:
     - Both nodes must operate on the same input X.
     - Both nodes must target the same axis.
     - Both nodes must have the same keepdims attribute value.
     - The Reduce node must operate on a single axis (len(axes) == 1).
-    - For opset 18+, the Reduce node's axes input must be a constant.
 """
 
 from __future__ import annotations
@@ -85,14 +80,8 @@ class _FuseReduceArgToTopKBase(RewriteRuleClassBase):
         arg_node = arg_idx.producer()
 
         # Step 1: Get keepdims attribute from both nodes
-        reduce_keepdims_attr = reduce_node.attributes.get("keepdims")
-        arg_keepdims_attr = arg_node.attributes.get("keepdims")
-
-        # ONNX default: keepdims = 1 for both Reduce and Arg operations
-        reduce_keepdims = (
-            reduce_keepdims_attr.as_int() if reduce_keepdims_attr is not None else 1
-        )
-        arg_keepdims = arg_keepdims_attr.as_int() if arg_keepdims_attr is not None else 1
+        reduce_keepdims = reduce_node.attributes.get_int("keepdims", 1)
+        arg_keepdims = arg_node.attributes.get_int("keepdims", 1)
 
         # Step 2: Check if keepdims match
         if reduce_keepdims != arg_keepdims:
@@ -101,18 +90,8 @@ class _FuseReduceArgToTopKBase(RewriteRuleClassBase):
                 f"{arg_node.op_type} has {arg_keepdims}."
             )
 
-        # Step 3: Get axes from Reduce operation
-        # In opset 18+, axes is an input; in opset 13-17, it's an attribute
-        reduce_axes_attr = reduce_node.attributes.get("axes")
-
-        if reduce_axes_attr is not None:
-            # Opset 13-17: axes is an attribute
-            try:
-                axes_list = list(reduce_axes_attr.as_ints())
-            except Exception:
-                return check_result.fail(f"Cannot parse {reduce_node.op_type} axes attribute.")
-        elif len(reduce_node.inputs) >= 2 and reduce_node.inputs[1] is not None:
-            # Opset 18+: axes is the second input
+        # Step 3: Get axes from Reduce ops's inputs
+        if len(reduce_node.inputs) >= 2 and reduce_node.inputs[1] is not None:
             axes_input = reduce_node.inputs[1]
             axes_tensor = ir.convenience.get_const_tensor(axes_input)
             if axes_tensor is None:
@@ -125,9 +104,7 @@ class _FuseReduceArgToTopKBase(RewriteRuleClassBase):
             except Exception:
                 return check_result.fail(f"Cannot parse {reduce_node.op_type} axes input.")
         else:
-            return check_result.fail(
-                f"{reduce_node.op_type} axes not found (neither attribute nor input)."
-            )
+            return check_result.fail(f"{reduce_node.op_type} axes not found in inputs.")
 
         # Step 4: Check that Reduce operates on exactly one axis
         if len(axes_list) != 1:
@@ -139,13 +116,12 @@ class _FuseReduceArgToTopKBase(RewriteRuleClassBase):
 
         # Step 5: Get axis from Arg operation
         # ONNX default: axis = 0 for ArgMax/ArgMin
-        arg_axis_attr = arg_node.attributes.get("axis")
-        arg_axis = arg_axis_attr.as_int() if arg_axis_attr is not None else 0
+        arg_axis = arg_node.attributes.get_int("axis", 0)
 
         # Step 6: Check select_last_index attribute (if present)
         # TopK always returns the first occurrence in case of ties
-        select_last_index_attr = arg_node.attributes.get("select_last_index")
-        if select_last_index_attr is not None and select_last_index_attr.as_int() != 0:
+        select_last_index_attr = arg_node.attributes.get_int("select_last_index", 0)
+        if select_last_index_attr != 0:
             return check_result.fail(
                 f"{arg_node.op_type} has select_last_index=1, which is not supported by TopK."
             )
@@ -178,11 +154,8 @@ class _FuseReduceArgToTopKBase(RewriteRuleClassBase):
         arg_node = arg_idx.producer()
 
         # Step 2: Extract necessary attributes with ONNX default values
-        axis_attr = arg_node.attributes.get("axis")
-        keepdims_attr = arg_node.attributes.get("keepdims")
-
-        axis = axis_attr.as_int() if axis_attr is not None else 0
-        keepdims = keepdims_attr.as_int() if keepdims_attr is not None else 1
+        axis = arg_node.attributes.get_int("axis", 0)
+        keepdims = arg_node.attributes.get_int("keepdims", 1)
 
         # Step 2b: Normalize axis (convert negative to positive) if rank is known
         if axis < 0 and x.shape is not None:
