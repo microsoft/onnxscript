@@ -102,14 +102,14 @@ from onnxscript.rewriter.rules.common._fuse_relus_clips import (
     successive_relu_rule,
 )
 from onnxscript.rewriter.rules.common._gemm_to_matmul_add import gemm_to_matmul_add_rule
+from onnxscript.rewriter.rules.common._materialize_reshape_shape import (
+    materialize_reshape_shape_rule,
+)
 from onnxscript.rewriter.rules.common._matmul_add_to_gemm import (
     matmul_add_to_gemm_rule,
     transpose_a_matmul_add_to_gemm_rule,
     transpose_ab_matmul_add_to_gemm_rule,
     transpose_b_matmul_add_to_gemm_rule,
-)
-from onnxscript.rewriter.rules.common._materialize_reshape_shape import (
-    materialize_reshape_shape_rule,
 )
 from onnxscript.rewriter.rules.common._min_max_to_clip import (
     max_max_rule,
