@@ -614,6 +614,22 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
 
+    def test_reshape_identity_int32_shape(self):
+        """Reshape with a constant INT32 shape input should be recognized as identity."""
+        model_ir = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[3, 4] x) => (float[3, 4] z)
+            {
+                shape_i64 = Constant <value_ints=[3, 4]> ()
+                shape = Cast <to=6> (shape_i64)
+                z = Reshape (x, shape)
+            }
+        """
+        )
+        optimized = self._fold(model_ir)
+        self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
+
     def test_input_size_limit(self):
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>

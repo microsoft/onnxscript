@@ -48,16 +48,18 @@ class MaterializeReshapeShape(RewriteRuleClassBase):
             return check_result.fail(
                 f"Output shape has {sym_count} symbolic dims, cannot materialize."
             )
+
+        # Preserve allowzero attribute from original node
+        self._allowzero = context.nodes[0].attributes.get_int("allowzero", 0)
         return check_result
 
     def rewrite(self, op, data: ir.Value, shape: ir.Value):
         new_shape = op.Constant(
             value=ir.tensor(self._new_dims, dtype=ir.DataType.INT64),
         )
-        return op.Reshape(data, new_shape)
+        return op.Reshape(data, new_shape, allowzero=self._allowzero or None)
 
 
 materialize_reshape_shape_rule = MaterializeReshapeShape.rule()
 
 rules = RewriteRuleSet([materialize_reshape_shape_rule])
-
