@@ -196,6 +196,10 @@ class OptimizerState:
 
     def get_shape_value(self, value: ir.Value | None) -> ir.Shape | None:
         const_value = _get_numpy_value(value, ir.DataType.INT64, size_limit=10)
+        if const_value is None:
+            # Reshape accepts shape input of INT32 type as well, so we also check for INT32 here
+            # This is common for tflite models
+            const_value = _get_numpy_value(value, ir.DataType.INT32, size_limit=10)
         if const_value is not None:
             if const_value.ndim == 1:
                 return ir.Shape(const_value.tolist())
