@@ -85,7 +85,7 @@ def _same_shape(op, data: ir.Value, slice_output: ir.Value, steps: ir.Value, **_
     # All steps must be 1
     steps_np = _ir_utils.get_numpy_value(steps)
     if steps_np is not None:
-        if not all(s == 1 for s in steps_np.flatten()):
+        if not all(s == 1 for s in steps_np.flat):
             return False
     elif not _ir_utils.is_singleton_value(steps, 1):
         return False
