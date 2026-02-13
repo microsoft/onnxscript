@@ -506,14 +506,11 @@ class VersionConverterMetadataMergeTest(unittest.TestCase):
         )
 
         target_version = 20
-        with self.assertRaises(
+        with self.assertRaisesRegex(
             version_converter._version_converter.VersionConverterError,  # pylint: disable=protected-access
-        ) as ctx:
-            version_converter.convert_version(model, target_version=target_version)
-        self.assertRegex(
-            str(ctx.exception),
             "has ref attribute, which is not supported by version converter",
-        )
+        ):
+            version_converter.convert_version(model, target_version=target_version)
 
 
 class VersionConverter25to26Test(unittest.TestCase):
