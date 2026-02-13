@@ -37,18 +37,26 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         super().__init__()
         self.target_version = target_version
         self.fallback = fallback
-        self.convert_pass = ir.passes.Sequential(
-            _ConvertVersionPass(
-                target_version=target_version,
-                fallback=fallback,
-            ),
+        self._convert_pass = _ConvertVersionPass(
+            target_version=target_version,
+            fallback=fallback,
+        )
+        self._cleanup_passes = ir.passes.Sequential(
             common_passes.RemoveUnusedNodesPass(),
             common_passes.RemoveUnusedFunctionsPass(),
             common_passes.RemoveUnusedOpsetsPass(),
         )
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        return self.convert_pass(model)
+        # Run the conversion pass outside of Sequential so that errors
+        # (e.g. VersionConverterError) propagate directly without being
+        # wrapped in PassError.
+        result = self._convert_pass(model)
+        cleanup_result = self._cleanup_passes(result)
+        return ir.passes.PassResult(
+            cleanup_result.model,
+            result.modified or cleanup_result.modified,
+        )
 
 
 class _ConvertVersionPass(ir.passes.InPlacePass):
