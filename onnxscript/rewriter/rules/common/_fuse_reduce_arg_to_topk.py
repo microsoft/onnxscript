@@ -128,7 +128,7 @@ class _FuseReduceArgToTopKBase(RewriteRuleClassBase):
 
         # Step 7: Normalize axes if rank is known (handle negative indices)
         input_x = reduce_node.inputs[0]
-        rank = len(input_x.shape) if input_x.shape is not None else None
+        rank = input_x.shape.rank() if input_x.shape is not None else None
 
         if self._normalize_axis(reduce_axis, rank) != self._normalize_axis(arg_axis, rank):
             return check_result.fail(
@@ -159,7 +159,7 @@ class _FuseReduceArgToTopKBase(RewriteRuleClassBase):
 
         # Step 2b: Normalize axis (convert negative to positive) if rank is known
         if axis < 0 and x.shape is not None:
-            axis = len(x.shape) + axis
+            axis = x.shape.rank() + axis
 
         # Step 3: Create K constant
         k_constant = op.Constant(value=ir.tensor(np.array([1], dtype=np.int64)))
