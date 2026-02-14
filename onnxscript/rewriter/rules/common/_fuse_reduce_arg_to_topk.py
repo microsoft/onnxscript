@@ -7,6 +7,7 @@ Supported transformations:
 - ReduceMin(X, axes=[axis], keepdims=k) + ArgMin(X, axis=axis, keepdims=k) → TopK(X, k=1, axis=axis, largest=0) [+ Squeeze if k=0]
 
 Constraints:
+    - This rule only works for opset 18+.
     - Both nodes must operate on the same input X.
     - Both nodes must target the same axis.
     - Both nodes must have the same keepdims attribute value.
