@@ -12,12 +12,13 @@ from typing import Callable, Sequence, Union
 import onnx_ir.convenience as ir_convenience
 
 import onnxscript.ir._tape as _tape
+import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)
 
 
-SUPPORTED_MAX_ONNX_OPSET = 23
+SUPPORTED_MAX_ONNX_OPSET = 25
 SUPPORTED_MIN_ONNX_OPSET = 18
 
 
@@ -33,11 +34,11 @@ def _get_onnx_opset_version(model: ir.Model) -> int | None:
     return model_version1 or model_version2
 
 
-def _set_onnx_opset_version(model: ir.Model, version: int) -> None:
-    """Set the ONNX opset version imported by the model."""
-    if "ai.onnx" in model.opset_imports:
-        del model.opset_imports["ai.onnx"]
-    model.opset_imports[""] = version
+def _set_onnx_opset_version(model_or_function: ir.Model | ir.Function, version: int) -> None:
+    """Set the ONNX opset version imported by the model or function."""
+    if "ai.onnx" in model_or_function.opset_imports:
+        del model_or_function.opset_imports["ai.onnx"]
+    model_or_function.opset_imports[""] = version
 
 
 class VersionConverterError(RuntimeError):
@@ -238,6 +239,12 @@ def groupnormalization_20_21(node: ir.Node, op):
 class _VersionConverter:
     def __init__(self, target_version: int):
         self._target_version = target_version
+        # Default metadata merger: no merging should be needed; keep the first value.
+        self._default_metadata_merger: metadata_merger.MetadataMerger = (
+            metadata_merger.MetadataMerger(
+                dict(),
+            )
+        )
 
     def process_node(
         self, node: ir.Node, from_version: int, up_conversion: bool = True
@@ -267,10 +274,10 @@ class _VersionConverter:
         if attr.is_ref():
             return
         if attr.type == ir.AttributeType.GRAPH:
-            self.visit_graph(attr.as_graph())
+            self.visit_graph_or_function(attr.as_graph())
         elif attr.type == ir.AttributeType.GRAPHS:
             for graph in attr.as_graphs():
-                self.visit_graph(graph)
+                self.visit_graph_or_function(graph)
 
     def visit_node(
         self,
@@ -293,15 +300,21 @@ class _VersionConverter:
             for new_node in replacement.new_nodes:
                 # TODO: control-flow
                 new_node.version = to_version
+            self._default_metadata_merger.copy_merged_metadata([node], replacement.new_nodes)
             self.replace_node(node, replacement, root)
 
-    def visit_graph(self, graph: ir.Graph) -> None:
-        for node in graph:
+    def visit_graph_or_function(self, graph_or_function: ir.Graph | ir.Function) -> None:
+        for node in graph_or_function:
             if node.domain != "":
                 continue
             node_version = node.version or self._default_onnx_opset
             if node_version is None:
                 raise VersionConverterError(f"Node {node} has no version.")
+            # RefAttr is not supported by adapters for now.
+            if any(attr.is_ref() for attr in node.attributes.values()):
+                raise VersionConverterError(
+                    f"Node '{node!r}' has ref attribute, which is not supported by version converter."
+                )
             # Iterate each node from current node version -> target version
             # and updating node based on the correct adapter
             # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
@@ -313,7 +326,7 @@ class _VersionConverter:
                 )
             for from_version in range(node_version, self._target_version):
                 try:
-                    self.visit_node(node, graph, from_version, up_conversion=True)
+                    self.visit_node(node, graph_or_function, from_version, up_conversion=True)
                 except VersionConverterError as e:
                     logger.warning(
                         "Skipping version conversion for node %s due to exception: %s",
@@ -323,7 +336,10 @@ class _VersionConverter:
 
     def visit_model(self, model: ir.Model) -> None:
         self._default_onnx_opset = _get_onnx_opset_version(model)
-        self.visit_graph(model.graph)
+        self.visit_graph_or_function(model.graph)
+        for function in model.functions.values():
+            self.visit_graph_or_function(function)
+            _set_onnx_opset_version(function, self._target_version)
         _set_onnx_opset_version(model, self._target_version)
 
 

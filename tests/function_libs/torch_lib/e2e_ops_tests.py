@@ -914,6 +914,51 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_aten_histc_float(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.histc(x, 3, 0, 2)
+
+        model = Model()
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.rand(10, 10, 10),),
+            dynamo=True,
+            verbose=False,
+            dynamic_shapes=({0: "batch"},),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        for k in range(101):
+            with self.subTest(k=k):
+                inputs = (torch.tensor([(k - 1) / 49.0], dtype=torch.float32),)
+                expected = model(*inputs)
+                got = onnx_program.call_reference({"x": inputs[0]})
+                torch.testing.assert_close(expected, got[0])
+
+    @unittest.skip("see https://github.com/pytorch/pytorch/issues/174668")
+    def test_aten_histc_float16(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.histc(x, 60, -10, 10)
+
+        model = Model()
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.rand((10, 10, 10), dtype=torch.float16),),
+            dynamo=True,
+            verbose=False,
+            dynamic_shapes=({0: "batch"},),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        for k in range(101):
+            with self.subTest(k=k):
+                inputs = (torch.tensor([(k - 1) / 49.0], dtype=torch.float16),)
+                expected = model(*inputs)
+                got = onnx_program.call_reference({"x": inputs[0]})
+                torch.testing.assert_close(expected, got[0])
+
 
 if __name__ == "__main__":
     unittest.main()

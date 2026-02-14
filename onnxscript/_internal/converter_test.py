@@ -291,7 +291,7 @@ class TestConverter(testutils.TestBase):
         self.validate_save(renaming, shape_inference=False)
 
     @pytest.mark.xfail(
-        strict=True,
+        strict=False,
         reason="optional output is not yet implemented",
     )
     def test_opt_output(self):

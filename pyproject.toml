@@ -28,7 +28,7 @@ classifiers = [
 dependencies = [
   "ml_dtypes",
   "numpy",
-  "onnx_ir>=0.1.13,<2",  # Expect onnx_ir to have a breaking change in 2.0. If not, extend this range.
+  "onnx_ir>=0.1.16,<2",  # Expect onnx_ir to have a breaking change in 2.0. If not, extend this range.
   "onnx>=1.17",
   "packaging",
   "typing_extensions>=4.10",
@@ -161,6 +161,8 @@ ignore = [
     "RUF022", # We don't need to sort __all__ for elements to be grouped
     "RUF031", # Parentheses for tuple in subscripts is more readable
     "RUF052", # Variables with `_` prefix may not be dummy variables in all cases
+    "RUF067", # "__init__" can have implementation code and is not always just for imports
+    "RUF069", # Floating point comparison is ok in some cases
     "SIM102", # Collapible if statements are not always more readable
     "SIM108", # We don't always encourage ternary operators
     "SIM114", # Don't always combine if branches for debugability

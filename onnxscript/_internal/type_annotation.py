@@ -22,22 +22,8 @@ from onnxscript import onnx_types
 # - Above types with annotation attached
 TypeAnnotationValue = typing.Any
 
-# Map from python type to corresponding ONNX AttributeProto type
-_PYTYPE_TO_ATTRTYPE_MAP = {
-    float: onnx.AttributeProto.FLOAT,
-    int: onnx.AttributeProto.INT,
-    str: onnx.AttributeProto.STRING,
-    bool: onnx.AttributeProto.INT,  # experimental
-}
 
-# Map from python type to corresponding ONNX AttributeProto type,
-# for repeated (i.e., list of) values
-_LISTTYPE_TO_ATTRTYPE_MAP = {
-    float: onnx.AttributeProto.FLOATS,
-    int: onnx.AttributeProto.INTS,
-    str: onnx.AttributeProto.STRINGS,
-    bool: onnx.AttributeProto.INTS,  # experimental
-}
+_PRIMITIVE_ATTR_TYPE = frozenset((float, int, str, bool))
 
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
@@ -92,33 +78,13 @@ def _remove_annotation(typeinfo: TypeAnnotationValue) -> TypeAnnotationValue:
 
 
 def _is_primitive_attr_type(typeinfo: TypeAnnotationValue) -> bool:
-    return typeinfo in _PYTYPE_TO_ATTRTYPE_MAP
-
-
-def pytype_to_attrtype(
-    pytype: TypeAnnotationValue,
-) -> Optional[onnx.AttributeProto.AttributeType]:
-    pytype = _remove_annotation(pytype)
-    if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
-        return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
-    type_constructor = typing.get_origin(pytype)
-    # Remove Optional wrapper if present, which is represented as an Union[..., type(None)]
-    if type_constructor is typing.Union:
-        # Filter out type(None), since typing.Optional[X] evaluates to Union[X, type(None)]
-        args = [x for x in typing.get_args(pytype) if x is not type(None)]
-        if len(args) == 1:
-            return pytype_to_attrtype(args[0])
-    if type_constructor in _LIST_CONSTRUCTORS:
-        elt_type = typing.get_args(pytype)[0]
-        if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
-            return _LISTTYPE_TO_ATTRTYPE_MAP[elt_type]
-    return None
+    return typeinfo in _PRIMITIVE_ATTR_TYPE
 
 
 def base_type_is_bool(pytype: TypeAnnotationValue) -> bool:
     """Returns True if base type of pytype is bool, False otherwise."""
     pytype = _remove_annotation(pytype)
-    if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
+    if pytype in _PRIMITIVE_ATTR_TYPE:
         return pytype is bool
     type_constructor = typing.get_origin(pytype)
     if type_constructor in _LIST_CONSTRUCTORS:
@@ -215,82 +181,3 @@ def get_return_types(typeinfo: type | Sequence[type]) -> Sequence[type]:
     if typing.get_origin(typeinfo) is tuple:
         return typing.get_args(typeinfo)
     return (typeinfo,)
-
-
-def pytype_to_type_strings(pytype: TypeAnnotationValue) -> list[str]:
-    """Returns a list of type-strings corresponding to a given type annotation.
-
-    Args:
-        pytype: A type annotation.
-
-    Returns:
-        A list of all supported input types for the given type annotation.
-        Ensures that the list is sorted in the same order as ALL_TYPE_STRINGS.
-    """
-    if pytype is None:
-        return list(ALL_TENSOR_TYPE_STRINGS)
-    if pytype is onnx_types.TensorType:
-        return list(ALL_TENSOR_TYPE_STRINGS)
-    if isinstance(pytype, type) and issubclass(pytype, onnx_types.TensorType):
-        return [pytype.to_string()]
-    if isinstance(pytype, onnx_types.TensorType):
-        return [pytype.to_string()]
-    if isinstance(pytype, typing.TypeVar):
-        constraints = pytype.__constraints__
-        if constraints:
-            return pytype_to_type_strings(Union.__getitem__(constraints))  # pylint: disable=unnecessary-dunder-call
-        bound = pytype.__bound__
-        if bound is None:
-            return list(ALL_TENSOR_TYPE_STRINGS)
-        return pytype_to_type_strings(bound)
-    if typing.get_origin(pytype) is Union:
-        options = []
-        subtypes = typing.get_args(pytype)
-        # A None type in a Union is equivalent to an optional type
-        optional = is_optional(pytype)
-        for subtype in subtypes:
-            if subtype is type(None):
-                # Skip None type because we are handling it with is_optional
-                continue
-            if optional:
-                options += [
-                    *pytype_to_type_strings(subtype),
-                    *[f"optional({s})" for s in pytype_to_type_strings(subtype)],
-                ]
-            else:
-                options += pytype_to_type_strings(subtype)
-        # Remove duplicates
-        return sorted(set(options))
-    if typing.get_origin(pytype) in _LIST_CONSTRUCTORS:
-        subtypes = typing.get_args(pytype)
-        return [f"seq({s})" for s in pytype_to_type_strings(subtypes[0])]
-
-    raise ValueError(f"Unsupported type: {pytype}")
-
-
-def get_type_constraint_name(pytype: TypeAnnotationValue) -> Optional[str]:
-    """Returns the name of the type constraint for a given type annotation.
-
-    Args:
-        pytype: A type annotation.
-
-    Returns:
-        The name of the type constraint if it is a TypeVar.
-        - Prefixes the name with "Optional_" if the type annotation is Optional[TypeVar].
-        - Prefixes the name with "Sequence_" if the type annotation is a Sequence[].
-        - Returns None if the type annotation does not have a type constraint.
-    """
-    if isinstance(pytype, typing.TypeVar):
-        return pytype.__name__
-    if is_optional(pytype):
-        subtypes = typing.get_args(pytype)
-        for subtype in subtypes:
-            if subtype is type(None):
-                continue
-            type_param_name = get_type_constraint_name(subtype)
-            return f"Optional_{type_param_name}" if type_param_name else None
-    if typing.get_origin(pytype) in _LIST_CONSTRUCTORS:
-        subtypes = typing.get_args(pytype)
-        type_param_name = get_type_constraint_name(subtypes[0])
-        return f"Sequence_{type_param_name}" if type_param_name else None
-    return None

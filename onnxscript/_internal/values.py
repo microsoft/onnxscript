@@ -11,7 +11,7 @@ import inspect
 import logging
 import types
 import typing
-from typing import (  # type: ignore[attr-defined]
+from typing import (
     Any,
     Callable,
     ClassVar,
@@ -27,7 +27,7 @@ import onnx.defs
 import onnx_ir as ir
 from typing_extensions import ParamSpec
 
-from onnxscript._internal import ast_utils, deprecation, irbuilder, sourceinfo, type_annotation
+from onnxscript._internal import ast_utils, irbuilder, sourceinfo
 from onnxscript._internal import converter as converter_module
 from onnxscript.ir import _schemas
 from onnxscript.onnx_types import ONNXType
@@ -107,7 +107,8 @@ class Opset:
 
     def __getitem__(self, opname):
         try:
-            return onnx.defs.get_schema(opname, self.version, self.domain)
+            schema = onnx.defs.get_schema(opname, self.version, self.domain)
+            return Op(self, opname, schema)
         except Exception:  # pylint: disable=broad-except # TODO: more specific exception
             return None
 
@@ -122,11 +123,11 @@ class Opset:
     def __str__(self) -> str:
         return self.domain
 
-    def __getattr__(self, attr: str):
+    def __getattr__(self, attr: str) -> Op:
         try:
             schema = onnx.defs.get_schema(attr, self.version, self.domain)
             return Op(self, attr, schema)
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             raise AttributeError(f"Attribute {attr} not found.") from exc
 
     def add_function_def(self, fun):
@@ -169,10 +170,7 @@ class OpLike(Protocol):
     def opset(self) -> Opset: ...
 
     @property
-    def op_schema(self) -> Optional[onnx.defs.OpSchema]: ...
-
-    @property
-    def op_signature(self) -> Optional[_schemas.OpSignature]: ...
+    def op_signature(self) -> Optional[ir.schemas.OpSignature]: ...
 
 
 class Op(OpLike):
@@ -191,8 +189,14 @@ class Op(OpLike):
     ) -> None:
         self._opset = opset
         self._name = name
-        self._op_schema = op_schema or opset[name]
-        self._signature: Optional[_schemas.OpSignature] = None
+        self._op_schema: onnx.defs.OpSchema | None
+        if op_schema is not None:
+            self._op_schema = op_schema
+        elif (op := opset[name]) is not None:
+            self._op_schema = op.op_schema
+        else:
+            self._op_schema = None
+        self._signature: Optional[ir.schemas.OpSignature] = None
 
         if self._op_schema is None:
             logger.debug(
@@ -203,15 +207,16 @@ class Op(OpLike):
             )
 
     def __call__(self, *args, **kwargs):
-        # FIXME(after #225): Move import to the top of the file.
         from onnxscript._internal import evaluator  # pylint: disable=import-outside-toplevel
 
-        schema = self.op_schema
-        if schema is None:
-            raise RuntimeError(
-                f"Op '{self.name}' does not have an OpSchema and cannot be evaluated."
-            )
-        return evaluator.default().eval(schema, args, kwargs)
+        default_evaluator = evaluator.default()
+        if hasattr(default_evaluator, "eval"):
+            # Interface prior to onnxscript 0.6, used by PyTorch 2.10 and older
+            if self.op_schema is None:
+                raise ValueError(f"OpSchema not found for op '{self.name}'.")
+            return default_evaluator.eval(self.op_schema, args, kwargs)
+        # Use the new interface
+        return evaluator.default().eval_op(self, args, kwargs)
 
     @property
     def name(self) -> str:
@@ -225,12 +230,8 @@ class Op(OpLike):
     def op_schema(self) -> Optional[onnx.defs.OpSchema]:
         return self._op_schema
 
-    def has_schema(self) -> bool:
-        """Returns True if this op has an OpSchema."""
-        return self.op_schema is not None
-
     @property
-    def op_signature(self) -> Optional[_schemas.OpSignature]:
+    def op_signature(self) -> Optional[ir.schemas.OpSignature]:
         """Returns the signature of this op."""
         if self._signature is not None:
             return self._signature
@@ -238,11 +239,11 @@ class Op(OpLike):
         if self.op_schema is None:
             return None
 
-        self._signature = _schemas.OpSignature.from_op_schema(self.op_schema)
+        self._signature = ir.schemas.OpSignature.from_op_schema(self.op_schema)
         return self._signature
 
     @op_signature.setter
-    def op_signature(self, value: _schemas.OpSignature):
+    def op_signature(self, value: ir.schemas.OpSignature):
         self._signature = value
 
 
@@ -259,99 +260,6 @@ class OnnxClosure:
     frame: types.FrameType
 
     function: Any
-
-
-@dataclasses.dataclass
-class TypeConstraint:
-    """Represents a type constraint for an ONNX op.
-
-    Attributes:
-        name: The name of the type constraint.
-        allowed_types: The allowed types for the type constraint.
-    """
-
-    name: str
-    allowed_types: list[str]
-    description: str = ""
-
-    def as_tuple(self) -> tuple[str, list[str], str]:
-        """Returns the type constraint as a tuple."""
-        return (self.name, self.allowed_types, self.description)
-
-
-def _op_schema_from_function_ir(
-    function_ir: irbuilder.IRFunction, opset: Opset
-) -> onnx.defs.OpSchema:
-    """Construct an ONNX OpSchema from an IRFunction."""
-
-    # Find all distinct types in the inputs and outputs
-    distinct_types = {_typeinfo(arg) for arg in function_ir.inputs}.union(
-        {_typeinfo(arg) for arg in function_ir.outputs}
-    )
-    # Create a mapping from type to a unique name
-    type_to_constraint = {}
-    for i, type_ in enumerate(distinct_types):
-        name = f"T{i}"
-        type_to_constraint[type_] = TypeConstraint(
-            name=type_annotation.get_type_constraint_name(type_) or name,
-            allowed_types=type_annotation.pytype_to_type_strings(type_),
-        )
-
-    formal_inputs = [
-        onnx.defs.OpSchema.FormalParameter(
-            arg.name,
-            type_to_constraint[_typeinfo(arg)].name,
-            param_option=(
-                onnx.defs.OpSchema.FormalParameterOption.Optional
-                if type_annotation.is_optional(_typeinfo(arg))
-                else onnx.defs.OpSchema.FormalParameterOption.Single
-            ),
-            # TODO(justinchu): Check this is_homogeneous thing
-            is_homogeneous=True,
-        )
-        for arg in function_ir.inputs
-    ]
-    formal_outputs = [
-        onnx.defs.OpSchema.FormalParameter(
-            arg.name,
-            type_to_constraint[_typeinfo(arg)].name,
-            param_option=(
-                onnx.defs.OpSchema.FormalParameterOption.Optional
-                if type_annotation.is_optional(_typeinfo(arg))
-                else onnx.defs.OpSchema.FormalParameterOption.Single
-            ),
-            # TODO(justinchu): Check this is_homogeneous thing
-            is_homogeneous=True,
-        )
-        for arg in function_ir.outputs
-    ]
-    return onnx.defs.OpSchema(
-        function_ir.name,
-        opset.domain,
-        since_version=opset.version,
-        doc=function_ir.doc_string or "",
-        inputs=formal_inputs,
-        outputs=formal_outputs,
-        type_constraints=[constraint.as_tuple() for constraint in type_to_constraint.values()],
-        attributes=[
-            *[
-                onnx.defs.OpSchema.Attribute(
-                    attr.name,
-                    type=onnx.defs.OpSchema.AttrType(attr.type),  # type: ignore[call-arg]
-                )
-                for attr in function_ir.attrs
-                if attr.value is None
-            ],
-            *[
-                onnx.defs.OpSchema.Attribute(
-                    attr.name,
-                    default_value=ir.to_proto(attr),
-                )
-                for attr in function_ir.attrs
-                if attr.value is not None
-            ],
-        ],
-    )
 
 
 class OnnxFunction(Op, Generic[_P, _R]):
@@ -389,9 +297,13 @@ class OnnxFunction(Op, Generic[_P, _R]):
         super().__init__(opset, irfun.name)
         self.function = pyfun
         self.function_ir = irfun
+        # Record the function domain's opset version in the function metadata
+        self.function_ir.meta["opset_version"] = opset.version
         self.source = source
         self.kwargs = kwargs
-        self._op_schema: Optional[onnx.defs.OpSchema] = None
+        self._signature = _schemas.op_signature_from_function(
+            self.function, domain=self.function_ir.domain, name=self.name
+        )
 
         # Allow the object to be inspected as a function
         functools.update_wrapper(self, pyfun)
@@ -400,66 +312,16 @@ class OnnxFunction(Op, Generic[_P, _R]):
         self.traceable = False
 
     @property
-    @deprecation.deprecated(
-        since="0.1",
-        removed_in="the future",
-        instructions="use '.name' instead",
-    )
-    def opname(self) -> str:
-        # NOTE: This is a temporary alias for backward compatibility with PyTorch 2.0.
-        # TODO: Remove this in onnxscript 0.3.
-        return self.name
-
-    @property
-    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
-        """Construct an OpSchema from function_ir."""
-        if self._op_schema is not None:
-            return self._op_schema
-
-        self._op_schema = _op_schema_from_function_ir(self.function_ir, self.opset)
-
-        return self._op_schema
-
-    @property
-    def op_signature(self) -> Optional[_schemas.OpSignature]:
+    def op_signature(self) -> Optional[ir.schemas.OpSignature]:
         """Returns the signature of this op."""
-        if self._signature is not None:
-            return self._signature
-
-        if self.op_schema is None:
-            return None
-
-        self._signature = _schemas.OpSignature.from_function(
-            self.function, domain=self.function_ir.domain, name=self.name
-        )
         return self._signature
 
     @op_signature.setter
-    def op_signature(self, value: _schemas.OpSignature):
+    def op_signature(self, value: ir.schemas.OpSignature):
         self._signature = value
-
-    def __getitem__(self, instance):
-        """Returns a lambda to evaluate function using given evaluator instance.
-
-        Usage:
-            script_fun(X) executes the function using the default evaluator instance.
-            script_fun[instance](X) executes the function using the given evaluator instance.
-        """
-
-        def fun(*args, **kwargs):
-            # FIXME(after #225): Move import to the top of the file.
-            from onnxscript._internal import (  # pylint: disable=import-outside-toplevel
-                evaluator,
-            )
-
-            with evaluator.default_as(instance):
-                return self.__call__(*args, **kwargs)
-
-        return fun
 
     def __call__(self, *args: _P.args, **kwargs: _P.kwargs) -> _R:
         """Implements an eager-mode execution of an onnxscript function."""
-        # FIXME(after #225): Move import to the top of the file.
         from onnxscript._internal import evaluator  # pylint: disable=import-outside-toplevel
 
         return evaluator.default().eval_function(self, args, kwargs)  # type: ignore[arg-type, return-value]
@@ -490,7 +352,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
 
     def _to_model_proto(
         self,
-        functions=None,
         io_types: Optional[ONNXType] = None,
         input_types: Optional[Sequence[ONNXType]] = None,
         output_types: Optional[Sequence[ONNXType]] = None,
@@ -501,8 +362,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
         """Converts this instance into a `onnx.ModelProto`.
 
         Args:
-            functions: A list of functions to include in the model.
-                By default, all functions called at least once are included.
             io_types: When specified, all the inputs/outputs of the model
                 are set to be of this type.
             input_types: When specified, all the inputs of the model
@@ -519,35 +378,26 @@ class OnnxFunction(Op, Generic[_P, _R]):
             An instance of :class:`onnx.ModelProto`.
         """
         # Identify functions to include in the model
-        if functions is None:
-            sub_functions = self.function_ir.get_called_functions()
-            functions = sub_functions.values()
-        else:
+        sub_functions = self.function_ir.get_called_functions()
+        ir_functions: list[ir.Function] = [func.function_ir for func in sub_functions.values()]
 
-            def to_proto(f):
-                if isinstance(f, onnx.FunctionProto):
-                    return f
-                if isinstance(f, OnnxFunction):
-                    return f.to_function_proto()
-                raise TypeError("Expected a value of type FunctionProto of OnnxFunction")
-
-            functions = [to_proto(f) for f in functions]
-
+        # Duplicate the graph to create the model
+        main_graph = self.function_ir.graph.clone()
         # Determine opset imports
-        opsets = self.function_ir.graph.opset_imports
+        opset_imports = main_graph.opset_imports.copy()
 
-        for proto in functions:
-            if proto.domain not in opsets:
-                opsets[proto.domain] = 1
-            # TODO(rama): Handle conflicts with appropriate error/warning message.
-            for opset in proto.opset_import:
-                if opset.domain not in opsets:
-                    opsets[opset.domain] = opset.version
+        for func in ir_functions:
+            domain = func.domain
+            if domain is not None and domain not in opset_imports:
+                opset_imports[domain] = func.meta.get("opset_version", 1)
 
-        if "" not in opsets:
+            if "" not in opset_imports and "" in func.opset_imports:
+                opset_imports[""] = func.opset_imports[""]
+
+        if "" not in opset_imports:
             # No operator is using the standard opset.
             # Use the specified version if provided or the default value.
-            opsets[""] = (
+            opset_imports[""] = (
                 opset_version if opset_version is not None else onnx.defs.onnx_opset_version()
             )
 
@@ -555,12 +405,23 @@ class OnnxFunction(Op, Generic[_P, _R]):
         if "ir_version" in kwargs:
             ir_version = kwargs.pop("ir_version")
         else:
-            ir_version = select_ir_version(opsets[""])
+            ir_version = select_ir_version(opset_imports[""])
 
         # Create the model
-        model = ir.Model(self.function_ir.graph, ir_version=ir_version)
+        model = ir.Model(main_graph, ir_version=ir_version)
+        for func in ir_functions:
+            model.functions[func.identifier()] = func
+
         model_proto = ir.to_proto(model)
-        model_proto.functions.extend(functions)
+
+        # Update opset imports
+        del model_proto.opset_import[:]
+        model_proto.opset_import.extend(
+            [
+                onnx.OperatorSetIdProto(domain=domain, version=version)
+                for domain, version in opset_imports.items()
+            ]
+        )
 
         # Set additional type information if provided
         graph = model_proto.graph
@@ -604,6 +465,9 @@ class TracedOnnxFunction(Op):
     def __init__(self, opset: Opset, func: Callable):
         super().__init__(opset, func.__name__)
         self.func = func
+        self._signature = _schemas.op_signature_from_function(
+            self.func, domain="_traced", name=self.name
+        )
 
         # Allow the object to be inspected as a function
         functools.update_wrapper(self, func)
@@ -634,33 +498,12 @@ class TracedOnnxFunction(Op):
         return converter.translate_function_signature(func_ast)
 
     @property
-    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
-        """Return the OpSchema."""
-
-        if self._op_schema is not None:
-            return self._op_schema
-
-        # FIXME(justinchuby): outputs are empty. Need to fix.
-        self._op_schema = _op_schema_from_function_ir(self.function_ir, self._opset)
-
-        return self._op_schema
-
-    @property
-    def op_signature(self) -> Optional[_schemas.OpSignature]:
+    def op_signature(self) -> Optional[ir.schemas.OpSignature]:
         """Returns the signature of this op."""
-        if self._signature is not None:
-            return self._signature
-
-        if self.op_schema is None:
-            return None
-
-        self._signature = _schemas.OpSignature.from_function(
-            self.func, domain="_traced", name=self.name
-        )
         return self._signature
 
     @op_signature.setter
-    def op_signature(self, value: _schemas.OpSignature):
+    def op_signature(self, value: ir.schemas.OpSignature):
         self._signature = value
 
 
