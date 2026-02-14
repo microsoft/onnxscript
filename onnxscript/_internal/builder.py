@@ -123,15 +123,19 @@ class GraphBuilder:
             return self.initializer(value)
 
 
-    def _adapt_outputs(self, outputs: int | Sequence[str | ir.Value]) -> Sequence[ir.Value]:
+    def _adapt_outputs(self, outputs: int | Sequence[str | ir.Value], op_type: str = "") -> Sequence[ir.Value]:
         prefix = self.context_name()
         if isinstance(outputs, int):
-            count = self.graph.num_nodes()
-            name = f"{prefix}.val_{count}" if prefix else f"val_{count}"
             if outputs == 1:
+                name = f"{op_type}_output" if op_type else "output"
+                if prefix:
+                    name = f"{prefix}.{name}"
                 return [ir.Value(name=name)]
             else:
-                return [ir.Value(name=f"{name}.{i}") for i in range(outputs)]
+                names = [f"{op_type}_output{i}" if op_type else f"output{i}" for i in range(outputs)]
+                if prefix:
+                    names = [f"{prefix}.{n}" for n in names]
+                return [ir.Value(name=n) for n in names]
         adapted_outputs = []
         for output in outputs:
             if isinstance(output, ir.Value):
@@ -230,10 +234,13 @@ class GraphBuilder:
         version = kwargs.pop("_version", None)
         outputs = kwargs.pop("_outputs", 1)
 
-        count = self.graph.num_nodes
-        node_name = f"node_{count}"
+        count = self.graph.num_nodes()
+        prefix = self.context_name()
+        node_name = f"{op_type}_node_{count}"
+        if prefix:
+            node_name = f"{prefix}.{node_name}"
 
-        output_values = self._adapt_outputs(outputs)
+        output_values = self._adapt_outputs(outputs, op_type)
 
         schema = self._get_schema(op_type, domain, version)
         inputs, attributes = self._partition_inputs_attributes(schema, inputs, kwargs)
@@ -269,8 +276,8 @@ class GraphBuilder:
     
     def push_module(self, module: str) -> None:
         current = self.context_name()
-        if module.name:
-            new_context = f"{current}.{module.name}" if current else module.name
+        if module:
+            new_context = f"{current}.{module}" if current else module
         else:
             new_context = current
         self._context_stack.append(new_context)
