@@ -1,59 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
- 
+
 from __future__ import annotations
 
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Sequence
 
 import onnx
-import onnxscript.values
 import onnx_ir as ir
 
+import onnxscript._internal._inference as inference
+import onnxscript.optimizer
 
-def _make_node(
-    op_type: str,
-    inputs: Sequence[ir.Value | None],
-    attributes: Mapping[str, ir._convenience.SupportedAttrTypes] | None = None,
-    *,
-    num_outputs: int | None = None,
-    outputs: Sequence[ir.Value] | None = None,
-    domain: str = "",
-    overload: str = "",
-    version: int | None = None,
-    graph: ir.Graph | None = None,
-    name: str | None = None,
-    doc_string: str | None = None,
-    metadata_props: dict[str, str] | None = None,
-) -> ir.Node:
-    if num_outputs is None and outputs is None:
-        raise ValueError("Either num_outputs or outputs must be provided.")
-    if num_outputs is not None and outputs is not None:
-        raise ValueError("Both num_outputs and outputs cannot be provided simultaneously.")
-    output_kwargs: dict[str, Any]
-    if outputs is None:
-        output_kwargs = dict(num_outputs=num_outputs)
-    else:
-        output_kwargs = dict(outputs=outputs)
-    if attributes is None:
-        attrs: Sequence[ir.Attr] = ()
-    else:
-        attrs = ir._convenience.convert_attributes(attributes)
-    node = ir.Node(
-        domain,
-        op_type,
-        inputs,
-        attributes=attrs,
-        **output_kwargs,
-        overload=overload,
-        version=version,
-        graph=graph,
-        name=name,
-        doc_string=doc_string,
-        metadata_props=metadata_props,
-    )
-    return node
 
-  
 class GraphBuilder:
     def __init__(self, graph: ir.Graph, is_function: bool) -> None:
         self._graph = graph
@@ -63,7 +21,6 @@ class GraphBuilder:
         # The current context is used as a prefix for naming values and nodes.
         # This allows us to generate names like "layer1.attention.query"
         self._context_stack: list[str] = [""]
-
 
     def opset(self, domain: str = "", version: int | None = None) -> OpBuilder:
         return OpBuilder(self, domain, version)
@@ -90,7 +47,9 @@ class GraphBuilder:
         self._graph.register_initializer(value)
         return value
 
-    def _input_to_ir_value(self, value: ir.Value | ir.TensorProtocol, like_type: ir.Value | None = None) -> ir.Value:
+    def _input_to_ir_value(
+        self, value: ir.Value | ir.TensorProtocol, like_type: ir.Value | None = None
+    ) -> ir.Value:
         if isinstance(value, ir.Value):
             return value
         elif isinstance(value, (int, float, bool, str)):
@@ -122,8 +81,9 @@ class GraphBuilder:
             # to be useful in practice, as shared use of a stateful module is rare.
             return self.initializer(value)
 
-
-    def _adapt_outputs(self, outputs: int | Sequence[str | ir.Value], op_type: str = "") -> Sequence[ir.Value]:
+    def _adapt_outputs(
+        self, outputs: int | Sequence[str | ir.Value], op_type: str = ""
+    ) -> Sequence[ir.Value]:
         prefix = self.context_name()
         if isinstance(outputs, int):
             if outputs == 1:
@@ -132,21 +92,28 @@ class GraphBuilder:
                     name = f"{prefix}.{name}"
                 return [ir.Value(name=name)]
             else:
-                names = [f"{op_type}_output{i}" if op_type else f"output{i}" for i in range(outputs)]
+                names = [
+                    f"{op_type}_output{i}" if op_type else f"output{i}" for i in range(outputs)
+                ]
                 if prefix:
                     names = [f"{prefix}.{n}" for n in names]
                 return [ir.Value(name=n) for n in names]
         adapted_outputs = []
         for output in outputs:
             if isinstance(output, ir.Value):
+                if prefix and output.name:
+                    output.name = f"{prefix}.{output.name}"
                 adapted_outputs.append(output)
             elif isinstance(output, str):
-                adapted_outputs.append(ir.Value(name=output))
+                name = f"{prefix}.{output}" if prefix else output
+                adapted_outputs.append(ir.Value(name=name))
             else:
-                raise TypeError(f"Output type not supported.")
+                raise TypeError("Output type not supported.")
         return adapted_outputs
 
-    def _get_schema(self, op_type: str, domain: str, version: int | None) -> onnx.defs.OpSchema | None:
+    def _get_schema(
+        self, op_type: str, domain: str, version: int | None
+    ) -> onnx.defs.OpSchema | None:
         if version is not None:
             try:
                 return onnx.defs.get_schema(op_type, version, domain)
@@ -166,7 +133,7 @@ class GraphBuilder:
     def _cast_inputs(
         self,
         schema: onnx.defs.OpSchema | None,
-        inputs: Sequence[ir.Value | ir.TensorProtocol], 
+        inputs: Sequence[ir.Value | ir.TensorProtocol],
     ) -> Sequence[ir.Value]:
         """Uses schema specification to support a limited form of auto-casting.
 
@@ -193,7 +160,9 @@ class GraphBuilder:
         for i, x in enumerate(inputs):
             if i < len(expected_inputs):
                 expected = expected_inputs[i]
-            elif expected_inputs[-1].option == onnx.defs.OpSchema.FormalParameterOption.Variadic:
+            elif (
+                expected_inputs[-1].option == onnx.defs.OpSchema.FormalParameterOption.Variadic
+            ):
                 expected = expected_inputs[-1]
                 if not expected.is_homogeneous:
                     args_typevars.append((x, None))
@@ -209,27 +178,39 @@ class GraphBuilder:
                 if isinstance(x, ir.Value):
                     type_bindings[typevar] = x
             args_typevars.append((x, typevar))
-        def adapt (x, typevar: str | None) -> ir.Value | None:
-            if x is None: return None
+
+        def adapt(x, typevar: str | None) -> ir.Value | None:
+            if x is None:
+                return None
             if typevar is None:
                 return self._input_to_ir_value(x)
             type_like = type_bindings.get(typevar) if typevar is not None else None
             return self._input_to_ir_value(x, type_like)
+
         return [adapt(x, typevar) for x, typevar in args_typevars]
 
     def _cast_attributes(
         self,
         schema: onnx.defs.OpSchema | None,
         attributes: dict[str, Any],
-    ) -> dict[str, Any]:
-        return attributes
+    ) -> Sequence[ir.Attr]:
+        if attributes is None:
+            attrs: Sequence[ir.Attr] = ()
+        else:
+            attrs = ir._convenience.convert_attributes(attributes)
+        return attrs
 
     def add_node(self, node: ir.Node) -> None:
         self.graph.append(node)
         onnxscript.optimizer.basic_constant_propagation([node])
-        # TODO: inference.infer_outputs(node, 23)
-                
-    def call_op(self, op_type: str, inputs: Sequence[ir.Value | ir.TensorProtocol], kwargs: dict[str, Any]):
+        inference.infer_outputs(node, 23)
+
+    def call_op(
+        self,
+        op_type: str,
+        inputs: Sequence[ir.Value | ir.TensorProtocol],
+        kwargs: dict[str, Any],
+    ):
         domain = kwargs.pop("_domain", "")
         version = kwargs.pop("_version", None)
         outputs = kwargs.pop("_outputs", 1)
@@ -245,35 +226,21 @@ class GraphBuilder:
         schema = self._get_schema(op_type, domain, version)
         inputs, attributes = self._partition_inputs_attributes(schema, inputs, kwargs)
         inputs = self._cast_inputs(schema, inputs)
-        attributes = self._cast_attributes(schema, attributes)
+        attr_sequence = self._cast_attributes(schema, attributes)
 
-        node = _make_node(
-                op_type,
-                inputs=inputs,
-                attributes=attributes,
-                domain=domain,
-                version=version,
-                outputs=output_values,
-                graph=self.graph,
-                name=node_name
-            )
+        node = ir.Node(
+            domain,
+            op_type,
+            inputs,
+            attr_sequence,
+            outputs=output_values,
+            version=version,
+            name=node_name,
+        )
         self.add_node(node)
 
         return node.outputs if len(node.outputs) > 1 else node.outputs[0]
 
-    def call(self, function, *args, **kwargs):
-        if isinstance(function, ir.Function):
-            function_ir = function
-        elif isinstance(function, onnxscript.values.OnnxFunction):
-            function_proto = function.to_function_proto()
-            function_ir = ir.serde.deserialize_function(function_proto)
-        else:
-            raise TypeError("Function must be an ir.Function or onnxscript.ONNXFunction")
-        nodes, outputs = inliner.instantiate(function_ir, args, kwargs)
-        for node in nodes:
-            self.add_node(node)
-        return outputs if len(outputs) > 1 else outputs[0]
-    
     def push_module(self, module: str) -> None:
         current = self.context_name()
         if module:
@@ -288,8 +255,11 @@ class GraphBuilder:
     def context_name(self) -> str:
         return self._context_stack[-1] if self._context_stack else ""
 
+
 class OpBuilder:
-    def __init__(self, builder: GraphBuilder, domain: str = "", version: int | None = None) -> None:
+    def __init__(
+        self, builder: GraphBuilder, domain: str = "", version: int | None = None
+    ) -> None:
         self._builder = builder
         self._domain = domain
         self._version = version
@@ -313,5 +283,3 @@ class OpBuilder:
 
     def call(self, function, *args, **kwargs):
         return self._builder.call(function, *args, **kwargs)
-
-

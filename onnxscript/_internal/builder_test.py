@@ -7,11 +7,15 @@ import unittest
 from typing import Sequence
 
 import onnx_ir as ir
+
 import onnxscript._internal.builder as builder
 
 
-def _build(trace_function, input_types: Sequence[ir.TypeAndShape], output_types: Sequence[ir.TypeAndShape]) -> ir.Model:
-
+def _build(
+    trace_function,
+    input_types: Sequence[ir.TypeAndShape],
+    output_types: Sequence[ir.TypeAndShape],
+) -> ir.Model:
     graph = ir.Graph(
         name="test_model",
         inputs=[],
@@ -39,6 +43,35 @@ def _build(trace_function, input_types: Sequence[ir.TypeAndShape], output_types:
     graph.outputs.extend(outputs)
 
     return onnx_model
+
+
+def _create_builder_with_inputs() -> tuple[builder.OpBuilder, ir.Value, ir.Value]:
+    """Create a graph builder with two float tensor inputs (shape [2, 3, 4]).
+
+    Returns:
+        A tuple of (op_builder, input_x, input_y).
+    """
+    graph = ir.Graph(
+        name="test_model",
+        inputs=[],
+        outputs=[],
+        nodes=[],
+        opset_imports={"": 23},
+    )
+
+    for i in range(2):
+        input_name = f"input_{i}"
+        graph.inputs.append(
+            ir.Value(
+                name=input_name,
+                type=ir.TensorType(ir.DataType.FLOAT),
+                shape=ir.Shape([2, 3, 4]),
+            )
+        )
+
+    graph_builder = builder.GraphBuilder(graph, is_function=False)
+    x, y = graph.inputs
+    return graph_builder.op, x, y
 
 
 class GraphBuilderTest(unittest.TestCase):
@@ -71,7 +104,10 @@ class GraphBuilderTest(unittest.TestCase):
 
     def test_value_naming(self):
         """Test that output names can be specified via the _outputs option."""
-        def _add_with_custom_names(op: builder.OpBuilder, x: ir.Value, y: ir.Value) -> ir.Value:
+
+        def _add_with_custom_names(
+            op: builder.OpBuilder, x: ir.Value, y: ir.Value
+        ) -> ir.Value:
             # Specify custom names for output values
             t1 = op.Add(x, y, _outputs=["add_result"])
             t2 = op.Mul(x, y, _outputs=["mul_result"])
@@ -85,23 +121,79 @@ class GraphBuilderTest(unittest.TestCase):
             output_types=[float_2d],
         )
         graph = model.graph
-        
+
         # Verify that the nodes have outputs with the specified names
         nodes = list(graph)
         self.assertEqual(len(nodes), 3)
-        
+
         # Check output names
         self.assertEqual(nodes[0].outputs[0].name, "add_result")
         self.assertEqual(nodes[1].outputs[0].name, "mul_result")
         self.assertEqual(nodes[2].outputs[0].name, "final_add")
-        
+
         # Verify the final output has the correct name
         self.assertEqual(len(graph.outputs), 1)
         self.assertEqual(graph.outputs[0].name, "final_add")
 
-    def test_output_naming_strategy(self):
+    def test_value_naming_with_hierarchy(self):
+        """Test that hierarchical naming works with user-specified output names."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Test custom names at root level
+        t1 = op.Add(x, y, _outputs=["my_add"])
+        self.assertEqual(t1.name, "my_add")
+
+        # Test custom names with hierarchical context
+        op.builder.push_module("layer1")
+        t2 = op.Mul(t1, y, _outputs=["my_mul"])
+        self.assertEqual(t2.name, "layer1.my_mul")
+
+        # Test nested hierarchical context with custom names
+        op.builder.push_module("attention")
+        t3 = op.Add(t2, x, _outputs=["my_nested_add"])
+        self.assertEqual(t3.name, "layer1.attention.my_nested_add")
+
+        # Pop back and verify prefix is applied correctly
+        op.builder.pop_module()
+        t4 = op.Mul(t3, y, _outputs=["another_mul"])
+        self.assertEqual(t4.name, "layer1.another_mul")
+
+        op.builder.pop_module()
+        t5 = op.Add(t4, x, _outputs=["final_result"])
+        self.assertEqual(t5.name, "final_result")
+
+    def test_value_naming_with_ir_value_objects(self):
+        """Test that hierarchical naming works when passing ir.Value objects as _outputs."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create pre-named ir.Value objects
+        out1 = ir.Value(name="my_output")
+        out2 = ir.Value(name="layer_output")
+        out3 = ir.Value(name="nested_output")
+
+        # Test at root level
+        t1 = op.Add(x, y, _outputs=[out1])
+        self.assertEqual(t1.name, "my_output")
+        self.assertIs(t1, out1)
+
+        # Test with hierarchical context
+        op.builder.push_module("layer1")
+        t2 = op.Mul(t1, y, _outputs=[out2])
+        self.assertEqual(t2.name, "layer1.layer_output")
+        self.assertIs(t2, out2)
+
+        # Test nested hierarchical context
+        op.builder.push_module("attention")
+        t3 = op.Add(t2, x, _outputs=[out3])
+        self.assertEqual(t3.name, "layer1.attention.nested_output")
+        self.assertIs(t3, out3)
+
+    def test_default_output_naming_strategy(self):
         """Test the default naming strategy for generated output values using op_type_output format."""
-        def _ops_with_default_names(op: builder.OpBuilder, x: ir.Value, y: ir.Value) -> ir.Value:
+
+        def _ops_with_default_names(
+            op: builder.OpBuilder, x: ir.Value, y: ir.Value
+        ) -> ir.Value:
             # Single output operations should be named {op_type}_output
             t1 = op.Add(x, y)
             t2 = op.Mul(x, y)
@@ -115,71 +207,71 @@ class GraphBuilderTest(unittest.TestCase):
             output_types=[float_2d],
         )
         graph = model.graph
-        
+
         # Verify the nodes use the new naming strategy
         nodes = list(graph)
         self.assertEqual(len(nodes), 3)
-        
+
         # Check output names follow the {op_type}_output pattern for single outputs
         self.assertEqual(nodes[0].outputs[0].name, "Add_output")
         self.assertEqual(nodes[1].outputs[0].name, "Mul_output")
         self.assertEqual(nodes[2].outputs[0].name, "Add_output")
-        
+
         # Verify the final output has the correct name
         self.assertEqual(len(graph.outputs), 1)
         self.assertEqual(graph.outputs[0].name, "Add_output")
 
-    def test_node_naming_strategy(self):
-        """Test the node naming strategy using op_type_node_count format with hierarchical naming."""
-        float_2d = ir.TypeAndShape(ir.TensorType(ir.DataType.FLOAT), ir.Shape([3, 4]))
-
-        graph = ir.Graph(
-            name="test_model",
-            inputs=[],
-            outputs=[],
-            nodes=[],
-            opset_imports={"": 23},
-        )
-
-        for i in range(2):
-            input_name = f"input_{i}"
-            graph.inputs.append(ir.Value(name=input_name, type=float_2d))
-
-        graph_builder = builder.GraphBuilder(graph, is_function=False)
-        x, y = graph.inputs
+    def test_hierarchical_naming(self):
+        """Test the hierarchical naming strategy (for value and node names)."""
+        op, x, y = _create_builder_with_inputs()
 
         # Test node and value naming at root level
-        t1 = graph_builder.op.Add(x, y)
+        t1 = op.Add(x, y)
         self.assertEqual(t1.name, "Add_output")
         self.assertEqual(t1.producer().name, "Add_node_0")
 
-        t2 = graph_builder.op.Mul(t1, y)
+        t2 = op.Mul(t1, y)
         self.assertEqual(t2.name, "Mul_output")
         self.assertEqual(t2.producer().name, "Mul_node_1")
 
         # Test node and value naming with hierarchical context prefix
-        graph_builder.push_module("layer1")
-        t3 = graph_builder.op.Add(t2, x)
+        op.builder.push_module("layer1")
+        t3 = op.Add(t2, x)
         self.assertEqual(t3.name, "layer1.Add_output")
         self.assertEqual(t3.producer().name, "layer1.Add_node_2")
 
         # Test nested hierarchical context
-        graph_builder.push_module("attention")
-        t4 = graph_builder.op.Mul(t3, y)
+        op.builder.push_module("attention")
+        t4 = op.Mul(t3, y)
         self.assertEqual(t4.name, "layer1.attention.Mul_output")
         self.assertEqual(t4.producer().name, "layer1.attention.Mul_node_3")
 
         # Pop back to layer1 and verify naming continues correctly
-        graph_builder.pop_module()
-        t5 = graph_builder.op.Add(t4, x)
+        op.builder.pop_module()
+        t5 = op.Add(t4, x)
         self.assertEqual(t5.name, "layer1.Add_output")
         self.assertEqual(t5.producer().name, "layer1.Add_node_4")
 
         # Pop back to root context
-        graph_builder.pop_module()
-        t6 = graph_builder.op.Mul(t5, y)
+        op.builder.pop_module()
+        t6 = op.Mul(t5, y)
         self.assertEqual(t6.name, "Mul_output")
         self.assertEqual(t6.producer().name, "Mul_node_5")
+
+    def test_shape_inference_add(self):
+        """Test that shape inference works correctly for Add operation."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create Add node without explicitly setting output type/shape
+        result = op.Add(x, y)
+
+        # Verify output type is inferred correctly
+        self.assertIsNotNone(result.type)
+        self.assertEqual(result.type.dtype, ir.DataType.FLOAT)
+
+        # Verify output shape is inferred correctly
+        self.assertIsNotNone(result.shape)
+        self.assertEqual(list(result.shape), [2, 3, 4])
 
 
 if __name__ == "__main__":
