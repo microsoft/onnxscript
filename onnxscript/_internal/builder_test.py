@@ -10,6 +10,8 @@ import onnx_ir as ir
 
 import onnxscript._internal.builder as builder
 
+_default_opset_version = 23
+
 
 def _build(
     trace_function,
@@ -21,7 +23,7 @@ def _build(
         inputs=[],
         outputs=[],
         nodes=[],
-        opset_imports={"": 23},
+        opset_imports={"": _default_opset_version},
     )
 
     onnx_model = ir.Model(graph=graph, ir_version=10)
@@ -272,6 +274,123 @@ class GraphBuilderTest(unittest.TestCase):
         # Verify output shape is inferred correctly
         self.assertIsNotNone(result.shape)
         self.assertEqual(list(result.shape), [2, 3, 4])
+
+    def test_custom_domain_explicit(self):
+        """Test using operations from custom domains with explicit _domain parameter."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create a custom domain operation with explicit _domain parameter
+        # Using "com.microsoft" as an example domain
+        result = op.CustomOp(x, y, _domain="com.microsoft")
+
+        # Verify the node was created with the correct domain
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        node = nodes[0]
+        self.assertEqual(node.domain, "com.microsoft")
+        self.assertEqual(node.op_type, "CustomOp")
+
+        # Verify inputs and outputs are connected correctly
+        self.assertEqual(list(node.inputs), [x, y])
+        self.assertEqual(node.outputs[0], result)
+
+    def test_custom_domain_with_version(self):
+        """Test using operations from custom domains with explicit _domain and _version parameters."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create a custom domain operation with explicit _domain and _version parameters
+        result = op.MicrosoftOp(x, y, _domain="com.microsoft", _version=10)
+
+        # Verify the node was created with the correct domain and version
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        node = nodes[0]
+        self.assertEqual(node.domain, "com.microsoft")
+        self.assertEqual(node.op_type, "MicrosoftOp")
+        self.assertEqual(node.version, 10)
+
+        # Verify output value is created
+        self.assertIsNotNone(result)
+        self.assertEqual(result.name, "MicrosoftOp_output")
+
+    def test_multiple_custom_domain_operations(self):
+        """Test mixing operations from multiple domains."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create standard domain operation
+        t1 = op.Add(x, y)
+
+        # Create custom domain operation
+        t2 = op.CustomOp(t1, y, _domain="com.microsoft")
+
+        # Create another custom domain operation with different domain
+        t3 = op.AnotherOp(t2, x, _domain="com.custom")
+
+        # Verify all nodes were created with correct domains
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 3)
+
+        self.assertEqual(nodes[0].domain, "")
+        self.assertEqual(nodes[0].op_type, "Add")
+
+        self.assertEqual(nodes[1].domain, "com.microsoft")
+        self.assertEqual(nodes[1].op_type, "CustomOp")
+
+        self.assertEqual(nodes[2].domain, "com.custom")
+        self.assertEqual(nodes[2].op_type, "AnotherOp")
+
+    def test_opset_builder_for_custom_domain(self):
+        """Test creating and using an opset builder for a custom domain."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create an OpBuilder for the "com.microsoft" domain with version 1
+        ms_op = op.builder.opset("com.microsoft", 1)
+
+        # Use operations through the custom domain opset builder
+        t1 = ms_op.CustomOp(x, y)
+        t2 = ms_op.AnotherOp(t1, x)
+
+        # Verify all nodes were created with the correct domain
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 2)
+
+        # Verify first operation
+        self.assertEqual(nodes[0].domain, "com.microsoft")
+        self.assertEqual(nodes[0].op_type, "CustomOp")
+        self.assertEqual(nodes[0].version, 1)
+        self.assertEqual(list(nodes[0].inputs), [x, y])
+
+        # Verify second operation
+        self.assertEqual(nodes[1].domain, "com.microsoft")
+        self.assertEqual(nodes[1].op_type, "AnotherOp")
+        self.assertEqual(nodes[1].version, 1)
+        self.assertEqual(list(nodes[1].inputs), [t1, x])
+
+    def test_mixed_domain_opsets(self):
+        """Test using both standard domain and custom domain opset builders together."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create custom domain opset builder
+        ms_op = op.builder.opset("com.microsoft", 2)
+
+        # Mix operations from different domains
+        t1 = op.Add(x, y)  # Standard domain operation
+        t2 = ms_op.MsAdd(t1, y)  # Custom domain operation
+        t3 = op.Mul(t2, x)  # Back to standard domain
+
+        # Verify nodes were created with correct domains
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 3)
+
+        self.assertEqual(nodes[0].domain, "")
+        self.assertEqual(nodes[0].op_type, "Add")
+
+        self.assertEqual(nodes[1].domain, "com.microsoft")
+        self.assertEqual(nodes[1].op_type, "MsAdd")
+        self.assertEqual(nodes[1].version, 2)
+
+        self.assertEqual(nodes[2].domain, "")
+        self.assertEqual(nodes[2].op_type, "Mul")
 
 
 if __name__ == "__main__":

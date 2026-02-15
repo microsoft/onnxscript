@@ -3,11 +3,10 @@
 
 from __future__ import annotations
 
-from typing import Callable
-
 import numpy as np
 import onnx
 import onnx_ir as ir
+
 
 def _get_numpy_value(
     val: ir.Value | None, dtype: ir.DataType | None = None, size_limit: int | None = None
@@ -51,7 +50,8 @@ def _get_numpy_value(
         return array
     return None
 
-def _do_onnx_inference(node: ir.Node, opset_version: int) -> None:
+
+def _do_onnx_inference(node: ir.Node) -> None:
     output_types = {}
 
     def get_constant_value(x: ir.Value) -> onnx.TensorProto | None:
@@ -63,7 +63,9 @@ def _do_onnx_inference(node: ir.Node, opset_version: int) -> None:
 
     def get_type(index: int, value: ir.Value) -> onnx.TypeProto:
         if value.type is None:
-            raise ValueError(f"Type of input {index} value {value.name} of node {node.name} not known")
+            raise ValueError(
+                f"Type of input {index} value {value.name} of node {node.name} not known"
+            )
         type_proto = ir.serde.serialize_type(value.type)
         if value.shape is not None:
             ir.serde.serialize_shape_into(type_proto, value.shape)
@@ -74,9 +76,7 @@ def _do_onnx_inference(node: ir.Node, opset_version: int) -> None:
     input_data = {k: v for k, v in input_data.items() if v is not None}
 
     # TODO: pass in constant values, ir_version
-    schema = onnx.defs.get_schema(
-        node.op_type, opset_version, node.domain
-    )
+    schema = onnx.defs.get_schema(node.op_type, node.version, node.domain)
     output_types = onnx.shape_inference.infer_node_outputs(
         schema,
         ir.serde.serialize_node(node),
@@ -87,17 +87,15 @@ def _do_onnx_inference(node: ir.Node, opset_version: int) -> None:
         if output.name in output_types:
             inferred_type = output_types[output.name]
             # TODO: merge types, check for conflicts
-            inferred_shape = ir.serde.deserialize_type_proto_for_shape(
-                inferred_type
-            )
+            inferred_shape = ir.serde.deserialize_type_proto_for_shape(inferred_type)
             # NOTE: forward shape inference
             output.merge_shapes(inferred_shape)
             output.type = ir.serde.deserialize_type_proto_for_type(inferred_type)
 
 
-def infer_outputs(node: ir.Node, opset_version: int) -> None:
+def infer_outputs(node: ir.Node) -> None:
     try:
-        _do_onnx_inference(node, opset_version)
+        _do_onnx_inference(node)
     except Exception as e:
         # TODO: compose with any existing error
         node.metadata_props["inference_error"] = str(e)

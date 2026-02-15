@@ -15,14 +15,20 @@ import onnxscript.optimizer
 class GraphBuilder:
     def __init__(self, graph: ir.Graph, is_function: bool) -> None:
         self._graph = graph
-        self._op_builder = self.opset("", None)
+
+        # Get the opset version for "" (default domain) from the graph
+        if "" not in graph.opset_imports:
+            raise ValueError('Input graph does not have an import for domain ""')
+        opset_version = graph.opset_imports[""]
+
+        self._op_builder = self.opset("", opset_version)
 
         # Context stack to manage hierarchical naming. Each module/layer can push a new context, and pop it when done.
         # The current context is used as a prefix for naming values and nodes.
         # This allows us to generate names like "layer1.attention.query"
         self._context_stack: list[str] = [""]
 
-    def opset(self, domain: str = "", version: int | None = None) -> OpBuilder:
+    def opset(self, domain: str = "", version: int = 1) -> OpBuilder:
         return OpBuilder(self, domain, version)
 
     @property
@@ -203,7 +209,7 @@ class GraphBuilder:
     def add_node(self, node: ir.Node) -> None:
         self.graph.append(node)
         onnxscript.optimizer.basic_constant_propagation([node])
-        inference.infer_outputs(node, 23)
+        inference.infer_outputs(node)
 
     def call_op(
         self,
