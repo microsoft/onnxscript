@@ -32,7 +32,7 @@ def _build(
         input_name = f"input_{i}"
         graph.inputs.append(ir.Value(name=input_name, type=input_type))
 
-    graph_builder = builder.GraphBuilder(graph, is_function=False)
+    graph_builder = builder.GraphBuilder(graph)
     outputs = trace_function(graph_builder.op, *graph.inputs)
     if not isinstance(outputs, Sequence):
         outputs = [outputs]
@@ -71,7 +71,7 @@ def _create_builder_with_inputs() -> tuple[builder.OpBuilder, ir.Value, ir.Value
             )
         )
 
-    graph_builder = builder.GraphBuilder(graph, is_function=False)
+    graph_builder = builder.GraphBuilder(graph)
     x, y = graph.inputs
     return graph_builder.op, x, y
 
@@ -391,6 +391,119 @@ class GraphBuilderTest(unittest.TestCase):
 
         self.assertEqual(nodes[2].domain, "")
         self.assertEqual(nodes[2].op_type, "Mul")
+
+    def test_scalar_constant_initializers_are_cached(self):
+        """Test that scalar constants produce named initializers and are shared across nodes."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        # Create one int64 input and one float32 input
+        x = ir.Value(name="x", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([3]))
+        y = ir.Value(name="y", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([3]))
+        graph.inputs.extend([x, y])
+
+        graph_builder = builder.GraphBuilder(graph)
+        op = graph_builder.op
+
+        # Two Adds that both use the integer constant 1
+        r1 = op.Add(x, 1)
+        r2 = op.Add(x, 1)
+        # Two Adds that both use the float constant 1.0
+        r3 = op.Add(y, 1.0)
+        r4 = op.Add(y, 1.0)
+
+        # The two int Add nodes should share the same constant initializer (same ir.Value)
+        int_const_1 = r1.producer().inputs[1]
+        int_const_2 = r2.producer().inputs[1]
+        self.assertIs(int_const_1, int_const_2)
+        self.assertEqual(int_const_1.name, "const_1_i64")
+
+        # The two float Add nodes should share the same constant initializer
+        float_const_1 = r3.producer().inputs[1]
+        float_const_2 = r4.producer().inputs[1]
+        self.assertIs(float_const_1, float_const_2)
+        self.assertEqual(float_const_1.name, "const_1.0_f32")
+
+        # The int and float constants should be different ir.Values
+        self.assertIsNot(int_const_1, float_const_1)
+
+    def test_int_constant_cast_to_float_via_like_type(self):
+        """Test that op.Add(float_x, 1) converts the int 1 to a float tensor.
+
+        When the schema binds the int constant to the same type variable as a float
+        input, the constant should be created with dtype FLOAT and named accordingly.
+        """
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        x = ir.Value(name="x", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([3]))
+        graph.inputs.append(x)
+
+        graph_builder = builder.GraphBuilder(graph)
+        op = graph_builder.op
+
+        _ = op.Add(x, 1)
+
+        nodes = list(graph)
+        self.assertEqual(len(nodes), 1)
+
+        # The int constant 1 should have been cast to float and named with f32 suffix
+        const_input = nodes[0].inputs[1]
+        self.assertEqual(const_input.name, "const_1_f32")
+        # The constant's type should be FLOAT, not INT64
+        self.assertEqual(const_input.const_value.dtype, ir.DataType.FLOAT)
+
+    def test_int_constant_with_unknown_type_uses_cast_like(self):
+        """Test that op.Add(unknown_x, 1) produces an int tensor + CastLike.
+
+        When the input type is unknown, the constant is created with its natural
+        Python type (int -> i64), and a CastLike node is inserted to dynamically
+        cast it at runtime.
+        """
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        # Input with no type information
+        x = ir.Value(name="x", shape=ir.Shape([3]))
+        graph.inputs.append(x)
+
+        graph_builder = builder.GraphBuilder(graph)
+        op = graph_builder.op
+
+        _ = op.Add(x, 1)
+
+        nodes = list(graph)
+        # Expect 2 nodes: CastLike (to cast the int constant to x's type) + Add
+        self.assertEqual(len(nodes), 2)
+
+        cast_like_node = nodes[0]
+        add_node = nodes[1]
+
+        self.assertEqual(cast_like_node.op_type, "CastLike")
+        self.assertEqual(add_node.op_type, "Add")
+
+        # The original constant should be int64-typed
+        const_initializer = cast_like_node.inputs[0]
+        self.assertEqual(const_initializer.name, "const_1_i64")
+        self.assertEqual(const_initializer.const_value.dtype, ir.DataType.INT64)
+
+        # CastLike's second input should be x (the like_type reference)
+        self.assertIs(cast_like_node.inputs[1], x)
+
+        # Add should use the CastLike output, not the raw constant
+        self.assertIs(add_node.inputs[1], cast_like_node.outputs[0])
 
 
 if __name__ == "__main__":
