@@ -265,6 +265,7 @@ class GraphBuilder:
         schema: onnx.defs.OpSchema | None,
         attributes: dict[str, Any],
     ) -> Sequence[ir.Attr]:
+        del schema  # Not implemented yet
         if attributes is None:
             attrs: Sequence[ir.Attr] = ()
         else:
