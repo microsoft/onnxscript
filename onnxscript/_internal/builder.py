@@ -11,6 +11,23 @@ import onnx_ir as ir
 import onnxscript._internal._inference as inference
 import onnxscript.optimizer
 
+_DTYPE_SUFFIX_MAP: dict[ir.DataType, str] = {
+    ir.DataType.FLOAT: "f32",
+    ir.DataType.DOUBLE: "f64",
+    ir.DataType.FLOAT16: "f16",
+    ir.DataType.BFLOAT16: "bf16",
+    ir.DataType.INT8: "i8",
+    ir.DataType.INT16: "i16",
+    ir.DataType.INT32: "i32",
+    ir.DataType.INT64: "i64",
+    ir.DataType.UINT8: "u8",
+    ir.DataType.UINT16: "u16",
+    ir.DataType.UINT32: "u32",
+    ir.DataType.UINT64: "u64",
+    ir.DataType.BOOL: "bool",
+    ir.DataType.STRING: "str",
+}
+
 
 class GraphBuilder:
     def __init__(self, graph: ir.Graph) -> None:
@@ -60,23 +77,6 @@ class GraphBuilder:
         self._graph.register_initializer(value)
         return value
 
-    _DTYPE_SUFFIX_MAP: dict[ir.DataType, str] = {
-        ir.DataType.FLOAT: "f32",
-        ir.DataType.DOUBLE: "f64",
-        ir.DataType.FLOAT16: "f16",
-        ir.DataType.BFLOAT16: "bf16",
-        ir.DataType.INT8: "i8",
-        ir.DataType.INT16: "i16",
-        ir.DataType.INT32: "i32",
-        ir.DataType.INT64: "i64",
-        ir.DataType.UINT8: "u8",
-        ir.DataType.UINT16: "u16",
-        ir.DataType.UINT32: "u32",
-        ir.DataType.UINT64: "u64",
-        ir.DataType.BOOL: "bool",
-        ir.DataType.STRING: "str",
-    }
-
     @staticmethod
     def _type_suffix(element_type: type) -> str:
         """Return a short type suffix for naming constants based on Python type."""
@@ -89,7 +89,7 @@ class GraphBuilder:
     @staticmethod
     def _dtype_suffix(dtype: ir.DataType) -> str:
         """Return a short type suffix for naming constants based on ir.DataType."""
-        return GraphBuilder._DTYPE_SUFFIX_MAP.get(dtype, dtype.name.lower())
+        return _DTYPE_SUFFIX_MAP.get(dtype, dtype.name.lower())
 
     @staticmethod
     def _constant_name(value: int | float | bool | str | Sequence, type_suffix: str) -> str:

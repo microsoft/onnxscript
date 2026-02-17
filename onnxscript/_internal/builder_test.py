@@ -324,7 +324,7 @@ class GraphBuilderTest(unittest.TestCase):
         t2 = op.CustomOp(t1, y, _domain="com.microsoft")
 
         # Create another custom domain operation with different domain
-        t3 = op.AnotherOp(t2, x, _domain="com.custom")
+        _ = op.AnotherOp(t2, x, _domain="com.custom")
 
         # Verify all nodes were created with correct domains
         nodes = list(op.builder.graph)
@@ -348,7 +348,7 @@ class GraphBuilderTest(unittest.TestCase):
 
         # Use operations through the custom domain opset builder
         t1 = ms_op.CustomOp(x, y)
-        t2 = ms_op.AnotherOp(t1, x)
+        _ = ms_op.AnotherOp(t1, x)
 
         # Verify all nodes were created with the correct domain
         nodes = list(op.builder.graph)
@@ -376,7 +376,7 @@ class GraphBuilderTest(unittest.TestCase):
         # Mix operations from different domains
         t1 = op.Add(x, y)  # Standard domain operation
         t2 = ms_op.MsAdd(t1, y)  # Custom domain operation
-        t3 = op.Mul(t2, x)  # Back to standard domain
+        _ = op.Mul(t2, x)  # Back to standard domain
 
         # Verify nodes were created with correct domains
         nodes = list(op.builder.graph)
