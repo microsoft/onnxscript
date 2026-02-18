@@ -313,6 +313,8 @@ class GraphBuilder:
         self._context_stack.append(new_context)
 
     def pop_module(self) -> None:
+        if len(self._context_stack) <= 1:
+            raise RuntimeError("Cannot pop_module: no module context has been pushed.")
         self._context_stack.pop()
 
     def context_name(self) -> str:

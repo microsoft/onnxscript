@@ -505,6 +505,20 @@ class GraphBuilderTest(unittest.TestCase):
         # Add should use the CastLike output, not the raw constant
         self.assertIs(add_node.inputs[1], cast_like_node.outputs[0])
 
+    def test_pop_module_raises_on_empty_stack(self):
+        """Test that pop_module raises RuntimeError when no module has been pushed."""
+        op, _, _ = _create_builder_with_inputs()
+
+        # Popping without any push should raise
+        with self.assertRaises(RuntimeError):
+            op.builder.pop_module()
+
+        # Push then pop is fine; a second pop should raise
+        op.builder.push_module("layer1")
+        op.builder.pop_module()
+        with self.assertRaises(RuntimeError):
+            op.builder.pop_module()
+
     def test_attributes_are_created_properly(self):
         """Test that int, float, str, and list attributes are set correctly on a node."""
         op, x, y = _create_builder_with_inputs()
