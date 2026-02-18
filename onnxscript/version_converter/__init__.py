@@ -49,7 +49,7 @@ class ConvertVersionPass(ir.passes.InPlacePass):
             target_version=target_version,
             fallback=fallback,
         )
-        self._cleanup_passes_after = ir.passes.Sequential(
+        self._cleanup_passes = ir.passes.Sequential(
             common_passes.RemoveUnusedNodesPass(),
             common_passes.RemoveUnusedFunctionsPass(),
             common_passes.RemoveUnusedOpsetsPass(),
