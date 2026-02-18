@@ -250,6 +250,58 @@ t2 = ms_op.FusedOp(t1, y)            # com.microsoft domain
 t3 = op.Relu(t2)                     # back to standard domain
 ```
 
+## Specifying Attributes
+
+Many ONNX operators accept attributes — compile-time constants that configure
+the node's behaviour. Pass them as keyword arguments alongside the inputs:
+
+### Scalar attributes
+
+```python
+# int, float, and str attributes
+result = op.MyOp(x, axis=0, epsilon=1e-5, mode="linear")
+```
+
+### List attributes
+
+Pass Python lists for repeated attribute fields:
+
+```python
+result = op.Reshape(x, shape, allowzero=1)
+result = op.Resize(x, roi, scales, sizes, mode="nearest", axes=[2, 3])
+```
+
+### Mixing with builder kwargs
+
+The builder reserves a few keyword names for its own use — `_domain`,
+`_version`, and `_outputs` — all prefixed with an underscore. Everything
+else is forwarded as ONNX attributes:
+
+```python
+result = op.CustomOp(
+    x,
+    y,
+    _domain="com.example",
+    _version=1,
+    _outputs=["my_output"],
+    mode="bilinear",        # attribute
+    block_size=2,           # attribute
+    scales=[1.0, 2.0],     # attribute
+)
+```
+
+The builder delegates attribute type inference to the IR layer, which maps
+Python types to ONNX attribute types automatically:
+
+| Python type    | ONNX attribute type |
+|----------------|---------------------|
+| `int`          | `INT`               |
+| `float`        | `FLOAT`             |
+| `str`          | `STRING`            |
+| `list[int]`    | `INTS`              |
+| `list[float]`  | `FLOATS`            |
+| `list[str]`    | `STRINGS`           |
+
 ## Initializers
 
 Besides automatic constant promotion, you can create initializers explicitly

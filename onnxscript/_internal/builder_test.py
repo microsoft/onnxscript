@@ -505,6 +505,52 @@ class GraphBuilderTest(unittest.TestCase):
         # Add should use the CastLike output, not the raw constant
         self.assertIs(add_node.inputs[1], cast_like_node.outputs[0])
 
+    def test_attributes_are_created_properly(self):
+        """Test that int, float, str, and list attributes are set correctly on a node."""
+        op, x, y = _create_builder_with_inputs()
+
+        result = op.DummyOp(
+            x,
+            y,
+            _domain="test.domain",
+            int_attr=42,
+            float_attr=3.14,
+            str_attr="hello",
+            ints_attr=[1, 2, 3],
+            floats_attr=[1.0, 2.0, 3.0],
+            strs_attr=["a", "b", "c"],
+        )
+
+        node = result.producer()
+        self.assertEqual(node.op_type, "DummyOp")
+        self.assertEqual(node.domain, "test.domain")
+
+        # Verify scalar attributes
+        int_attr = node.attributes["int_attr"]
+        self.assertEqual(int_attr.type, ir.AttributeType.INT)
+        self.assertEqual(int_attr.value, 42)
+
+        float_attr = node.attributes["float_attr"]
+        self.assertEqual(float_attr.type, ir.AttributeType.FLOAT)
+        self.assertAlmostEqual(float_attr.value, 3.14)
+
+        str_attr = node.attributes["str_attr"]
+        self.assertEqual(str_attr.type, ir.AttributeType.STRING)
+        self.assertEqual(str_attr.value, "hello")
+
+        # Verify list attributes
+        ints_attr = node.attributes["ints_attr"]
+        self.assertEqual(ints_attr.type, ir.AttributeType.INTS)
+        self.assertEqual(list(ints_attr.value), [1, 2, 3])
+
+        floats_attr = node.attributes["floats_attr"]
+        self.assertEqual(floats_attr.type, ir.AttributeType.FLOATS)
+        self.assertEqual(list(floats_attr.value), [1.0, 2.0, 3.0])
+
+        strs_attr = node.attributes["strs_attr"]
+        self.assertEqual(strs_attr.type, ir.AttributeType.STRINGS)
+        self.assertEqual(list(strs_attr.value), ["a", "b", "c"])
+
 
 if __name__ == "__main__":
     unittest.main()
