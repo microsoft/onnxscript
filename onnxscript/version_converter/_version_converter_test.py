@@ -237,11 +237,8 @@ class VersionConverter19to20Test(unittest.TestCase):
         version_converter.convert_version(model, target_version=target_version)
         self.assertEqual(model.opset_imports[""], target_version)
 
-        # Verify that the function's opset_imports are updated
-        func = model.functions[("pkg.custom", "dft_func", "")]
-        self.assertEqual(func.opset_imports[""], target_version)
-
         # Verify that nodes inside the function were version-converted
+        func = model.functions[("pkg.custom", "dft_func", "")]
         self.assertEqual(func[0].op_type, "Constant")
         self.assertEqual(func[0].version, 20)
         self.assertEqual(func[1].op_type, "Reshape")
@@ -296,12 +293,8 @@ class VersionConverter19to20Test(unittest.TestCase):
         version_converter.convert_version(model, target_version=target_version)
         self.assertEqual(model.opset_imports[""], target_version)
 
-        # Verify that the function's opset_imports are updated
+        # Verify nodes inside the function's If node subgraphs were version-converted
         func = model.functions[("pkg.custom", "conditional_dft", "")]
-        self.assertEqual(func.opset_imports[""], target_version)
-
-        # Verify nodes inside the function's If node subgraphs were version-converted
-        # Verify nodes inside the function's If node subgraphs were version-converted
         if_node = func[0]
         self.assertEqual(if_node.op_type, "If")
         self.assertEqual(if_node.version, 20)

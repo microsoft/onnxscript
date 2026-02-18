@@ -34,11 +34,11 @@ def _get_onnx_opset_version(model: ir.Model) -> int | None:
     return model_version1 or model_version2
 
 
-def _set_onnx_opset_version(model_or_function: ir.Model | ir.Function, version: int) -> None:
-    """Set the ONNX opset version imported by the model or function."""
-    if "ai.onnx" in model_or_function.opset_imports:
-        del model_or_function.opset_imports["ai.onnx"]
-    model_or_function.opset_imports[""] = version
+def _set_onnx_opset_version(model: ir.Model, version: int) -> None:
+    """Set the ONNX opset version imported by the model."""
+    if "ai.onnx" in model.opset_imports:
+        del model.opset_imports["ai.onnx"]
+    model.opset_imports[""] = version
 
 
 class VersionConverterError(RuntimeError):
@@ -334,7 +334,6 @@ class _VersionConverter:
         self.visit_graph_or_function(model.graph)
         for function in model.functions.values():
             self.visit_graph_or_function(function)
-            _set_onnx_opset_version(function, self._target_version)
         _set_onnx_opset_version(model, self._target_version)
 
 
