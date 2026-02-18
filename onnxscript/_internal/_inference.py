@@ -96,6 +96,8 @@ def _do_onnx_inference(node: ir.Node) -> None:
 def infer_outputs(node: ir.Node) -> None:
     try:
         _do_onnx_inference(node)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # Inference is best-effort: failures (missing schema, unknown types,
+        # serialization errors, etc.) are recorded but must not crash the builder.
         # TODO: compose with any existing error
         node.metadata_props["inference_error"] = str(e)
