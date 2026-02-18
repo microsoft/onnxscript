@@ -37,8 +37,14 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         super().__init__()
         self.target_version = target_version
         self.fallback = fallback
-        # NOTE: The current version converter only supports inlined models.
-        self._inline_pass = common_passes.InlinePass()
+        self._inline_pass = ir.passes.Sequential(
+            # NOTE: The current version converter only supports inlined models.
+            common_passes.InlinePass(),
+            # NOTE: Old torch version might include legacy Rank onnx functions which is
+            # not used in the converted model.
+            common_passes.RemoveUnusedFunctionsPass(),
+            common_passes.RemoveUnusedOpsetsPass(),
+        )
         self._convert_pass = _ConvertVersionPassRequiresInline(
             target_version=target_version,
             fallback=fallback,
