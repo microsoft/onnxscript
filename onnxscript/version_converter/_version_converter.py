@@ -310,11 +310,6 @@ class _VersionConverter:
             node_version = node.version or self._default_onnx_opset
             if node_version is None:
                 raise VersionConverterError(f"Node {node} has no version.")
-            # RefAttr is not supported by adapters for now.
-            if any(attr.is_ref() for attr in node.attributes.values()):
-                raise VersionConverterError(
-                    f"Node '{node!r}' has ref attribute, which is not supported by version converter."
-                )
             # Iterate each node from current node version -> target version
             # and updating node based on the correct adapter
             # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
