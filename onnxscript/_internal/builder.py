@@ -199,6 +199,7 @@ class GraphBuilder:
         kwargs: dict[str, Any],
     ) -> tuple[Sequence[ir.Value | ir.TensorProtocol], dict[str, Any]]:
         # Not implemented yet
+        del schema
         return inputs, kwargs
 
     def _cast_inputs(
@@ -264,13 +265,9 @@ class GraphBuilder:
         self,
         schema: onnx.defs.OpSchema | None,
         attributes: dict[str, Any],
-    ) -> Sequence[ir.Attr]:
+    ) -> dict[str, Any]:
         del schema  # Not implemented yet
-        if attributes is None:
-            attrs: Sequence[ir.Attr] = ()
-        else:
-            attrs = ir._convenience.convert_attributes(attributes)
-        return attrs
+        return attributes if attributes is not None else {}
 
     def add_node(self, node: ir.Node) -> None:
         self.graph.append(node)
@@ -295,13 +292,13 @@ class GraphBuilder:
         schema = self._get_schema(op_type, domain, version)
         inputs, attributes = self._partition_inputs_attributes(schema, inputs, kwargs)
         inputs = self._cast_inputs(schema, inputs)
-        attr_sequence = self._cast_attributes(schema, attributes)
+        attributes = self._cast_attributes(schema, attributes)
 
-        node = ir.Node(
-            domain,
+        node = ir.node(
             op_type,
             inputs,
-            attr_sequence,
+            attributes=attributes or None,
+            domain=domain,
             outputs=output_values,
             version=version,
             name=node_name,
