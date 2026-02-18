@@ -214,9 +214,6 @@ class GraphBuilder:
         tensor inputs that are required to be of same type.
         Thus, in "A+1" or "Add(A, 1)", the value 1 will be converted to the same
         type as A.
-
-        This is used by the converter in a static-mode, as well as by the eager-mode
-        execution in a dynamic-mode.
         """
         if schema is None:
             return [self._input_to_ir_value(i) for i in inputs]
