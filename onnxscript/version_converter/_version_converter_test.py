@@ -208,6 +208,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(4).version, 20)
         self.assertEqual(model.graph.node(4).attributes["mode"].value, "cubic")
 
+    @pytest.mark.xfail(reason="Version converter does not currently support local-function.")
     def test_version_convert_function_nodes(self):
         """Test that version converter processes nodes inside model functions."""
         model = ir.from_onnx_text(
@@ -253,6 +254,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(func[3].version, 20)
         self.assertEqual(len(func[3].inputs), 3)  # DFT 19->20 adds dft_length input
 
+    @pytest.mark.xfail(reason="Version converter does not currently support local-function.")
     def test_version_convert_function_with_control_flow_subgraph(self):
         """Test that version converter processes subgraphs inside control flow nodes in functions."""
         model = ir.from_onnx_text(
@@ -455,6 +457,7 @@ class VersionConverterMetadataMergeTest(unittest.TestCase):
                     f"Node {i} ({node.op_type}) should have metadata copied",
                 )
 
+    @pytest.mark.xfail(reason="Version converter does not currently support local-function.")
     def test_version_convert_raises_on_function_node_with_ref_attribute(self):
         """Test that version conversion raises when a function contains a node with a ref attribute."""
         # Build a function with a LeakyRelu node that uses a RefAttr for 'alpha'
