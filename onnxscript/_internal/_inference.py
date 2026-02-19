@@ -52,7 +52,6 @@ def _get_numpy_value(
 
 
 def _do_onnx_inference(node: ir.Node) -> None:
-    output_types = {}
 
     def get_constant_value(x: ir.Value) -> onnx.TensorProto | None:
         value = _get_numpy_value(x, size_limit=20)
