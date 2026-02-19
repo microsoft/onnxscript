@@ -52,6 +52,7 @@ def _get_numpy_value(
 
 
 def _do_onnx_inference(node: ir.Node) -> None:
+    """Run ONNX shape and type inference on a single node, updating its outputs in place."""
 
     def get_constant_value(x: ir.Value) -> onnx.TensorProto | None:
         value = _get_numpy_value(x, size_limit=20)
