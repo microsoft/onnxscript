@@ -70,7 +70,7 @@ class GraphBuilder:
         if qualify:
             name = self.qualify_name(name)
         tensor.name = name
-        shape = ir.Shape((d if isinstance(d, int) else d.value) for d in tensor.shape.dims)
+        shape = ir.Shape(tensor.shape)
         value = ir.Value(
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
         )
