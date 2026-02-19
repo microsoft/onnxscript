@@ -350,6 +350,3 @@ class OpBuilder:
 
     def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
         return self._builder.initializer(tensor, name)
-
-    def call(self, function, *args, **kwargs):
-        return self._builder.call(function, *args, **kwargs)
