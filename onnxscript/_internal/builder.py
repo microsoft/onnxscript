@@ -253,7 +253,7 @@ class GraphBuilder:
                 return None
             if typevar is None:
                 return self._input_to_ir_value(x)
-            type_like = type_bindings.get(typevar) if typevar is not None else None
+            type_like = type_bindings.get(typevar)
             return self._input_to_ir_value(x, type_like)
 
         return [adapt(x, typevar) for x, typevar in args_typevars]
