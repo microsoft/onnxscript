@@ -180,6 +180,8 @@ class GraphBuilder:
         self, outputs: int | Sequence[str | ir.Value], op_type: str = ""
     ) -> Sequence[ir.Value]:
         if isinstance(outputs, int):
+            if outputs < 0:
+                raise ValueError(f"Number of outputs must be non-negative, got {outputs}")
             if outputs == 1:
                 name = f"{op_type}_output" if op_type else "output"
                 return [ir.Value(name=self.qualify_name(name))]
