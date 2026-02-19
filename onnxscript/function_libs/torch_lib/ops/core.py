@@ -9068,7 +9068,7 @@ def aten_sparse_mask(self: TensorType, mask: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::split", "aten::split.Tensor"))
+@torch_op(("aten::split", "aten::split.Tensor"), trace_only=True)
 def aten_split(self: TTensor, split_size: INT64, dim: int = 0) -> TTensor:
     """split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]"""
 
@@ -9081,7 +9081,7 @@ def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> Tensor
     raise NotImplementedError()
 
 
-@torch_op("aten::split_with_sizes")
+@torch_op(("aten::split_with_sizes",), trace_only=True)
 def aten_split_with_sizes(self: TTensor, split_sizes: INT64, dim: int = 0) -> TTensor:
     """split_with_sizes(Tensor(a -> *) self, SymInt[] split_sizes, int dim=0) -> Tensor(a)[]"""
 
@@ -10101,7 +10101,7 @@ def aten_unsafe_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType
     raise NotImplementedError()
 
 
-@torch_op("aten::unsafe_split.Tensor")
+@torch_op("aten::unsafe_split.Tensor", trace_only=True)
 def aten_unsafe_split(self: TTensor, split_size: INT64, dim: int = 0) -> Sequence[TTensor]:
     """unsafe_split.Tensor(Tensor self, SymInt split_size, int dim=0) -> Tensor[]"""
 
