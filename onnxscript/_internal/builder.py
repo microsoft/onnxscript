@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Sequence, Union
 
 import onnx
 import onnx_ir as ir
@@ -12,18 +12,18 @@ import onnxscript._internal._inference as inference
 import onnxscript.optimizer
 
 # A permissible value for an op input, which can be converted to an ir.Value.
-VALUE_LIKE = (
-    ir.Value
-    | ir.TensorProtocol
-    | int
-    | float
-    | bool
-    | str
-    | Sequence[int]
-    | Sequence[float]
-    | Sequence[bool]
-    | Sequence[str]
-)
+VALUE_LIKE = Union[
+    ir.Value,
+    ir.TensorProtocol,
+    int,
+    float,
+    bool,
+    str,
+    Sequence[int],
+    Sequence[float],
+    Sequence[bool],
+    Sequence[str],
+]
 
 # Mapping from Python scalar types to their default ONNX DataType,
 # used when no schema-based type binding is available.
@@ -44,16 +44,26 @@ def _dtype_suffix(dtype: ir.DataType) -> str:
     return dtype.short_name()
 
 
-def _constant_name(value: int | float | bool | str | Sequence, type_suffix: str) -> str:
-    """Generate a descriptive name for a constant value."""
-    if isinstance(value, (int, float, bool, str)):
+def _constant_name(
+    value: int | float | bool | str | Sequence, type_suffix: str, num: int = 0
+) -> str:
+    """Generate a descriptive name for a constant value.
+
+    Args:
+        value: The constant value
+        type_suffix: Type suffix (e.g., 'F', 'I64')
+        num: A number used for generating unique names for str/sequences
+
+    Returns:
+        A name string for the constant
+    """
+    if isinstance(value, str):
+        # For strings, use a generic name with cache size as unique identifier
+        return f"const_str_{num}"
+    if isinstance(value, (int, float, bool)):
         return f"const_{value}_{type_suffix}" if type_suffix else f"const_{value}"
-    # Sequence: use up to 2 elements in the name
-    if len(value) <= 2:
-        vals = ",".join(str(v) for v in value)
-    else:
-        vals = f"{value[0]},{value[1]},..."
-    return f"const_[{vals}]_{type_suffix}" if type_suffix else f"const_[{vals}]"
+    # Sequence: use generic name with cache size as unique identifier
+    return f"const_1d_{num}"
 
 
 class GraphBuilder:
@@ -134,7 +144,7 @@ class GraphBuilder:
                 type_suffix = (
                     _dtype_suffix(dtype) if dtype is not None else _type_suffix(type(value))
                 )
-                name = _constant_name(value, type_suffix)
+                name = _constant_name(value, type_suffix, len(self._constant_cache))
                 tensor = ir.tensor(value, dtype=dtype, name=name)
                 ir_value = self.initializer(tensor, name=name, qualify=False)
                 self._constant_cache[cache_key] = ir_value
@@ -151,7 +161,7 @@ class GraphBuilder:
                 type_suffix = (
                     _dtype_suffix(dtype) if dtype is not None else _type_suffix(type(value[0]))
                 )
-                name = _constant_name(value, type_suffix)
+                name = _constant_name(value, type_suffix, len(self._constant_cache))
                 tensor = ir.tensor(list(value), dtype=dtype, name=name)
                 ir_value = self.initializer(tensor, name=name, qualify=False)
                 self._constant_cache[cache_key] = ir_value
