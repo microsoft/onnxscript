@@ -11,7 +11,7 @@ import onnx_ir as ir
 import onnxscript._internal._inference as inference
 import onnxscript.optimizer
 
-# A permissable value for an op input, which can be converted to an ir.Value.
+# A permissible value for an op input, which can be converted to an ir.Value.
 VALUE_LIKE = (
     ir.Value
     | ir.TensorProtocol
