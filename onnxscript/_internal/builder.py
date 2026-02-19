@@ -247,7 +247,7 @@ class GraphBuilder:
         for i, x in enumerate(inputs):
             if i < len(expected_inputs):
                 expected = expected_inputs[i]
-            elif (
+            elif expected_inputs and (
                 expected_inputs[-1].option == onnx.defs.OpSchema.FormalParameterOption.Variadic
             ):
                 expected = expected_inputs[-1]
