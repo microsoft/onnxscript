@@ -99,4 +99,4 @@ def infer_outputs(node: ir.Node) -> None:
         # Inference is best-effort: failures (missing schema, unknown types,
         # serialization errors, etc.) are recorded but must not crash the builder.
         # TODO: compose with any existing error
-        node.metadata_props["inference_error"] = str(e)
+        node.metadata_props["pkg.onnxscript.shape_inference_error"] = str(e)
