@@ -70,7 +70,7 @@ class GraphBuilder:
         if qualify:
             name = self.qualify_name(name)
         tensor.name = name
-        shape = ir.Shape((d if isinstance(d, int) else d.value) for d in tensor.shape.dims)
+        shape = ir.Shape(tensor.shape)
         value = ir.Value(
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
         )
@@ -253,7 +253,7 @@ class GraphBuilder:
                 return None
             if typevar is None:
                 return self._input_to_ir_value(x)
-            type_like = type_bindings.get(typevar) if typevar is not None else None
+            type_like = type_bindings.get(typevar)
             return self._input_to_ir_value(x, type_like)
 
         return [adapt(x, typevar) for x, typevar in args_typevars]

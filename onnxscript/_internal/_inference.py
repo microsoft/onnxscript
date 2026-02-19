@@ -52,7 +52,6 @@ def _get_numpy_value(
 
 
 def _do_onnx_inference(node: ir.Node) -> None:
-    output_types = {}
 
     def get_constant_value(x: ir.Value) -> onnx.TensorProto | None:
         value = _get_numpy_value(x, size_limit=20)
@@ -100,4 +99,4 @@ def infer_outputs(node: ir.Node) -> None:
         # Inference is best-effort: failures (missing schema, unknown types,
         # serialization errors, etc.) are recorded but must not crash the builder.
         # TODO: compose with any existing error
-        node.metadata_props["inference_error"] = str(e)
+        node.metadata_props["pkg.onnxscript.shape_inference_error"] = str(e)
