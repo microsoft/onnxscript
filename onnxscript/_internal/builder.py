@@ -11,6 +11,20 @@ import onnx_ir as ir
 import onnxscript._internal._inference as inference
 import onnxscript.optimizer
 
+# A permissable value for an op input, which can be converted to an ir.Value.
+VALUE_LIKE = (
+    ir.Value
+    | ir.TensorProtocol
+    | int
+    | float
+    | bool
+    | str
+    | Sequence[int]
+    | Sequence[float]
+    | Sequence[bool]
+    | Sequence[str]
+)
+
 # Mapping from Python scalar types to their default ONNX DataType,
 # used when no schema-based type binding is available.
 _PYTHON_TYPE_TO_DTYPE: dict[type, ir.DataType] = {
@@ -86,7 +100,6 @@ class GraphBuilder:
             name = tensor.name
         if qualify:
             name = self.qualify_name(name)
-        tensor.name = name
         shape = ir.Shape(tensor.shape)
         value = ir.Value(
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
@@ -94,7 +107,9 @@ class GraphBuilder:
         self._graph.register_initializer(value)
         return value
 
-    def _input_to_ir_value(self, value, like_type: ir.Value | None = None) -> ir.Value:
+    def _input_to_ir_value(
+        self, value: VALUE_LIKE, like_type: ir.Value | None = None
+    ) -> ir.Value:
         """Convert a permissible input (for a call to an op) into an ir.Value.
 
         Permissible values include ir.Value as well as python constants that can be converted
@@ -198,8 +213,8 @@ class GraphBuilder:
     def _cast_inputs(
         self,
         schema: onnx.defs.OpSchema | None,
-        inputs: Sequence[ir.Value | ir.TensorProtocol],
-    ) -> Sequence[ir.Value]:
+        inputs: Sequence[VALUE_LIKE],
+    ) -> Sequence[ir.Value | None]:
         """Uses schema specification to support a limited form of auto-casting.
 
         * Scalars are promoted to tensors.
