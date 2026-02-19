@@ -8,9 +8,10 @@ myst:
 
 ## Welcome to ONNX Script Tutorials
 
-For extended tutorials on how to use the **Optimizer** and **Rewriter** tools, refer to the relevant sub-sections within the Tutorial section.
+For extended tutorials on how to use the **Optimizer**, **Rewriter**, and **Graph Builder** tools, refer to the relevant sub-sections within the Tutorial section.
 - <project:optimizer/optimize.md>
 - <project:rewriter/rewrite_patterns.md>
+- <project:builder/graph_builder.md>
 
 
 In this tutorial, we illustrate the features supported by {{ onnxscript }} using examples.
@@ -272,5 +273,6 @@ ONNX perspective, the two assignments to *g* represent two distinct tensors
 
 rewriter/index
 optimizer/index
+builder/index
 
 ```
