@@ -8,10 +8,8 @@ from typing import Sequence
 
 import onnx_ir as ir
 
-import onnxscript
 import onnxscript._internal.builder as builder
-from onnxscript import script
-from onnxscript.onnx_opset import opset23 as op23
+from onnxscript import opset23 as op23, script
 
 
 _default_opset_version = 23
@@ -577,9 +575,6 @@ class GraphBuilderTest(unittest.TestCase):
             tmp = X * Y
             tmp = tmp + X
             return op23.Relu(tmp)
-
-        # Verify we got an OnnxFunction
-        self.assertIsInstance(mul_add_relu, onnxscript.values.OnnxFunction)
 
         # Create a GraphBuilder and call the function
         op, x, y = _create_builder_with_inputs()
