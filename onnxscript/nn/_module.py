@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import Any, Iterator
 
+import onnx_ir as ir
+
 from onnxscript._internal.builder import GraphBuilder, OpBuilder
 from onnxscript.nn._parameter import Parameter
 
@@ -109,6 +111,14 @@ class Module:
                 sub_prefix = f"{prefix}.{mod_name}" if prefix else mod_name
                 yield from module.named_parameters(prefix=sub_prefix, recurse=True)
 
+    def children(self) -> Iterator[Module]:
+        """Return an iterator over immediate child modules."""
+        yield from self._modules.values()
+
+    def named_children(self) -> Iterator[tuple[str, Module]]:
+        """Return an iterator over immediate child modules, yielding (name, Module) pairs."""
+        yield from self._modules.items()
+
     def modules(self) -> Iterator[Module]:
         """Return an iterator over all modules in the tree (including self)."""
         yield self
@@ -121,6 +131,69 @@ class Module:
         for name, module in self._modules.items():
             sub_prefix = f"{prefix}.{name}" if prefix else name
             yield from module.named_modules(prefix=sub_prefix)
+
+    # ------------------------------------------------------------------
+    # State dict
+    # ------------------------------------------------------------------
+
+    def state_dict(self, prefix: str = "") -> dict[str, ir.TensorProtocol | None]:
+        """Return a dictionary mapping parameter names to their tensor data.
+
+        Mirrors ``torch.nn.Module.state_dict()``. Keys use dot-separated
+        hierarchical names (e.g. ``"layer1.weight"``). Values are the
+        ``const_value`` of each parameter (``None`` if uninitialized).
+        """
+        result: dict[str, ir.TensorProtocol | None] = {}
+        for name, param in self._parameters.items():
+            full_name = f"{prefix}.{name}" if prefix else name
+            result[full_name] = param.const_value
+        for mod_name, module in self._modules.items():
+            sub_prefix = f"{prefix}.{mod_name}" if prefix else mod_name
+            result.update(module.state_dict(prefix=sub_prefix))
+        return result
+
+    def load_state_dict(
+        self,
+        state_dict: dict[str, ir.TensorProtocol],
+        strict: bool = True,
+    ) -> None:
+        """Load parameter data from a state dictionary.
+
+        Mirrors ``torch.nn.Module.load_state_dict()``. Sets ``const_value``
+        on each matching parameter.
+
+        Args:
+            state_dict: Mapping of parameter names to tensor data.
+            strict: If ``True`` (default), raises ``KeyError`` for missing
+                keys and ``ValueError`` for unexpected keys.
+        """
+        self._load_state_dict_recursive(state_dict, prefix="", strict=strict)
+
+    def _load_state_dict_recursive(
+        self,
+        state_dict: dict[str, ir.TensorProtocol],
+        prefix: str,
+        strict: bool,
+    ) -> set[str]:
+        """Recursively load state and return the set of consumed keys."""
+        consumed: set[str] = set()
+        for name, param in self._parameters.items():
+            full_name = f"{prefix}.{name}" if prefix else name
+            if full_name in state_dict:
+                param.const_value = state_dict[full_name]
+                consumed.add(full_name)
+            elif strict:
+                raise KeyError(f"Missing key in state_dict: {full_name!r}")
+        for mod_name, module in self._modules.items():
+            sub_prefix = f"{prefix}.{mod_name}" if prefix else mod_name
+            consumed |= module._load_state_dict_recursive(  # pylint: disable=protected-access
+                state_dict, prefix=sub_prefix, strict=strict
+            )
+        if strict and prefix == "":
+            unexpected = set(state_dict.keys()) - consumed
+            if unexpected:
+                raise ValueError(f"Unexpected keys in state_dict: {unexpected}")
+        return consumed
 
     def __repr__(self) -> str:
         lines = [f"{type(self).__name__}("]
