@@ -5,6 +5,7 @@ __all__ = [
     "script",
     "graph",
     "ir",
+    "nn",
     "optimizer",
     "rewriter",
     "version_converter",
@@ -127,7 +128,7 @@ from .onnx_types import (
 
 # isort: on
 
-from . import ir, optimizer, rewriter, version_converter
+from . import ir, nn, optimizer, rewriter, version_converter
 from ._internal.builder import GraphBuilder
 from ._internal.utils import external_tensor
 from ._internal.values import OnnxFunction, TracedOnnxFunction
