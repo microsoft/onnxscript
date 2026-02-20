@@ -9,6 +9,7 @@ import onnx
 import onnx_ir as ir
 
 import onnxscript._internal._inference as inference
+import onnxscript._internal._inliner as inliner
 import onnxscript.optimizer
 
 # A permissible value for an op input, which can be converted to an ir.Value.

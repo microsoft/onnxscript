@@ -8,7 +8,11 @@ from typing import Sequence
 
 import onnx_ir as ir
 
+import onnxscript
 import onnxscript._internal.builder as builder
+from onnxscript import script
+from onnxscript.onnx_opset import opset23 as op23
+
 
 _default_opset_version = 23
 
@@ -564,6 +568,44 @@ class GraphBuilderTest(unittest.TestCase):
         strs_attr = node.attributes["strs_attr"]
         self.assertEqual(strs_attr.type, ir.AttributeType.STRINGS)
         self.assertEqual(list(strs_attr.value), ["a", "b", "c"])
+
+    def test_call_inlines_onnxscript_function(self):
+        """Test that GraphBuilder.call inlines an @onnxscript.script function."""
+
+        @script(default_opset=op23)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op23.Relu(tmp)
+
+        # Verify we got an OnnxFunction
+        self.assertIsInstance(mul_add_relu, onnxscript.values.OnnxFunction)
+
+        # Create a GraphBuilder and call the function
+        op, x, y = _create_builder_with_inputs()
+        result = op.call(mul_add_relu, x, y)
+
+        # The inlined function should produce 3 nodes: Mul, Add, Relu
+        nodes = list(op.builder.graph)
+        op_types = [n.op_type for n in nodes]
+        self.assertEqual(op_types, ["Mul", "Add", "Relu"])
+
+        # The result should be a single ir.Value (the Relu output)
+        self.assertIsInstance(result, ir.Value)
+
+        # Verify connectivity: Relu takes the Add output
+        relu_node = nodes[2]
+        add_node = nodes[1]
+        self.assertIs(relu_node.inputs[0], add_node.outputs[0])
+
+        # Verify the Add takes the Mul output and original input x
+        mul_node = nodes[0]
+        self.assertIs(add_node.inputs[0], mul_node.outputs[0])
+        self.assertIs(add_node.inputs[1], x)
+
+        # Verify the Mul takes the original inputs x and y
+        self.assertIs(mul_node.inputs[0], x)
+        self.assertIs(mul_node.inputs[1], y)
 
 
 if __name__ == "__main__":
