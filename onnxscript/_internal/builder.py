@@ -327,7 +327,7 @@ class GraphBuilder:
 
         return node.outputs if len(node.outputs) > 1 else node.outputs[0]
 
-    def call(self, function, *args, **kwargs):
+    def call(self, function, *args, _outputs: Sequence[str] | None = None, _prefix: str = "", **kwargs):
         if isinstance(function, ir.Function):
             function_ir = function
         elif isinstance(function, onnxscript.values.OnnxFunction):
@@ -335,9 +335,32 @@ class GraphBuilder:
             function_ir = ir.serde.deserialize_function(function_proto)
         else:
             raise TypeError("Function must be an ir.Function or onnxscript.ONNXFunction")
+        output_renaming : dict[str, str] = {}
+        if _outputs is not None:
+            if len(_outputs) != len(function_ir.outputs):
+                raise ValueError(
+                    f"Number of provided output names {_outputs} does not match "
+                    f"number of function outputs {len(function_ir.outputs)}."
+                )
+            for output, name in zip(function_ir.outputs, _outputs):
+                output_renaming[output.name] = self.qualify_name(name)
+        else:
+            for output in function_ir.outputs:
+                output_renaming[output.name] = self.qualify_name(output.name)
         nodes, outputs = inliner.instantiate(function_ir, args, kwargs)
+        if _prefix:
+            self.push_module(_prefix)
         for node in nodes:
+            node.name = self.qualify_name(node.name)
+            for output in node.outputs:
+                if output.name:
+                    if output.name in output_renaming:
+                        output.name = output_renaming[output.name]
+                    else:
+                        output.name = self.qualify_name(output.name)
             self.add_node(node)
+        if _prefix:
+            self.pop_module()
         return outputs if len(outputs) > 1 else outputs[0]
     
     def push_module(self, module: str) -> None:
@@ -392,5 +415,5 @@ class OpBuilder:
     def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
         return self._builder.initializer(tensor, name)
 
-    def call(self, function, *args, **kwargs):
-        return self._builder.call(function, *args, **kwargs)
+    def call(self, function, *args, _outputs: Sequence[str] | None = None, _prefix: str = "", **kwargs):
+        return self._builder.call(function, *args, _outputs=_outputs, _prefix=_prefix, **kwargs)

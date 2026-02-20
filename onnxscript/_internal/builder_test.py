@@ -602,6 +602,128 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertIs(mul_node.inputs[0], x)
         self.assertIs(mul_node.inputs[1], y)
 
+    def test_call_with_outputs_option(self):
+        """Test that GraphBuilder.call respects the _outputs option for renaming."""
+
+        @script(default_opset=op23)
+        def add_mul(X, Y):
+            a = X + Y
+            b = X * Y
+            return a, b
+
+        # Create a GraphBuilder and call the function with custom output names
+        op, x, y = _create_builder_with_inputs()
+        result = op.call(add_mul, x, y, _outputs=["sum_result", "product_result"])
+
+        # The result should be a list of 2 ir.Values (when function returns multiple outputs)
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 2)
+        sum_result, product_result = result
+
+        # Verify output names are correctly set
+        self.assertEqual(sum_result.name, "sum_result")
+        self.assertEqual(product_result.name, "product_result")
+
+        # Verify the nodes were created correctly
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 2)
+        self.assertEqual(nodes[0].op_type, "Add")
+        self.assertEqual(nodes[1].op_type, "Mul")
+
+    def test_call_with_prefix_option(self):
+        """Test that GraphBuilder.call respects the _prefix option for hierarchical naming."""
+
+        @script(default_opset=op23)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op23.Relu(tmp)
+
+        # Create a GraphBuilder and call the function with a prefix
+        op, x, y = _create_builder_with_inputs()
+        result = op.call(mul_add_relu, x, y, _prefix="layer1")
+
+        # The nodes should have the prefix in their names
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 3)
+        
+        # Check that all node names start with the prefix
+        for node in nodes:
+            self.assertTrue(node.name.startswith("layer1."), f"Node name {node.name} should start with layer1.")
+        
+        # Verify the result is a single ir.Value
+        self.assertIsInstance(result, ir.Value)
+
+    def test_call_with_outputs_and_prefix_options(self):
+        """Test that GraphBuilder.call respects both _outputs and _prefix options together.
+        
+        Note: _outputs names are set before the prefix context is applied, so they don't get
+        the prefix in their names. However, the inlined nodes do get the prefix applied, and
+        intermediate values (not renamed by _outputs) do get the prefix applied.
+        """
+
+        @script(default_opset=op23)
+        def add_mul(X, Y):
+            # Intermediate values that are not explicitly renamed by _outputs
+            XSquare = X * X
+            YSquare = Y * Y
+            # Final outputs that will be renamed by _outputs
+            a = XSquare + Y
+            b = XSquare * YSquare
+            return a, b
+
+        # Create a GraphBuilder and call the function with both options
+        op, x, y = _create_builder_with_inputs()
+        result = op.call(
+            add_mul, x, y, 
+            _outputs=["custom_sum", "custom_product"],
+            _prefix="math_ops"
+        )
+
+        # The result should be a list of 2 ir.Values
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 2)
+        sum_result, product_result = result
+
+        # Verify output names are set (without prefix, as _outputs renaming happens before prefix context)
+        self.assertEqual(sum_result.name, "custom_sum")
+        self.assertEqual(product_result.name, "custom_product")
+
+        # Verify all nodes have the prefix applied to their names
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 4)  # Mul (XSquare), Mul (YSquare), Add, Mul (final)
+        
+        # All node names should start with prefix
+        for node in nodes:
+            self.assertTrue(node.name.startswith("math_ops."), f"Node name {node.name} should start with math_ops.")
+
+        # Verify intermediate value names also get the prefix
+        # The first Mul produces XSquare
+        x_square = nodes[0].outputs[0]
+        self.assertTrue(x_square.name.startswith("math_ops."), f"Intermediate value {x_square.name} should have prefix")
+        
+        # The second Mul produces YSquare
+        y_square = nodes[1].outputs[0]
+        self.assertTrue(y_square.name.startswith("math_ops."), f"Intermediate value {y_square.name} should have prefix")
+
+    def test_call_outputs_mismatch_error(self):
+        """Test that GraphBuilder.call raises an error if _outputs has wrong count."""
+
+        @script(default_opset=op23)
+        def add_mul(X, Y):
+            a = X + Y
+            b = X * Y
+            return a, b
+
+        # Create a GraphBuilder and try to call with wrong number of output names
+        op, x, y = _create_builder_with_inputs()
+        
+        # The function returns 2 outputs, but we provide only 1 name
+        with self.assertRaises(ValueError) as cm:
+            result = op.call(add_mul, x, y, _outputs=["only_one_name"])
+        
+        self.assertIn("does not match", str(cm.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
