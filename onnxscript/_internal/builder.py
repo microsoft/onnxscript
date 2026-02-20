@@ -183,12 +183,13 @@ class GraphBuilder:
         if isinstance(outputs, int):
             if outputs < 0:
                 raise ValueError(f"Number of outputs must be non-negative, got {outputs}")
+            count = self.graph.num_nodes()
             if outputs == 1:
-                name = f"{op_type}_output" if op_type else "output"
+                name = f"{op_type}_n{count}_output" if op_type else f"n{count}_output"
                 return [ir.Value(name=self.qualify_name(name))]
             else:
                 names = [
-                    f"{op_type}_output{i}" if op_type else f"output{i}" for i in range(outputs)
+                    f"{op_type}_n{count}_output{i}" if op_type else f"n{count}_output{i}" for i in range(outputs)
                 ]
                 return [ir.Value(name=self.qualify_name(n)) for n in names]
         adapted_outputs = []
@@ -401,6 +402,14 @@ class OpBuilder:
     @property
     def builder(self) -> GraphBuilder:
         return self._builder
+
+    @property
+    def domain(self) -> str:
+        return self._domain
+
+    @property
+    def version(self) -> int | None:
+        return self._version
 
     def _call_op(self, op_type: str, inputs: Sequence[Any], kwargs: dict[str, Any]):
         if "_domain" not in kwargs:
