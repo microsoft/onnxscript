@@ -147,6 +147,40 @@ class ModuleBasicTest(unittest.TestCase):
         m = MyModule()
         self.assertEqual(m.weight.name, "weight")
 
+    def test_name_property(self):
+        """The name property returns the module name."""
+
+        class MyModule(Module):
+            def __init__(self):
+                super().__init__("my_mod")
+
+            def forward(self, op):
+                pass
+
+        m = MyModule()
+        self.assertEqual(m.name, "my_mod")
+
+    def test_setattr_plain_attribute(self):
+        """Non-Parameter, non-Module attributes are stored normally."""
+
+        class MyModule(Module):
+            def __init__(self):
+                super().__init__("mod")
+                self.hidden_size = 128
+
+            def forward(self, op):
+                pass
+
+        m = MyModule()
+        self.assertEqual(m.hidden_size, 128)
+
+    def test_forward_not_implemented(self):
+        """Calling forward() on base Module raises NotImplementedError."""
+        m = Module("base")
+        _, op = _create_graph_and_op()
+        with self.assertRaises(NotImplementedError):
+            m(op)
+
 
 class ModuleForwardTest(unittest.TestCase):
     def test_parameter_is_ir_value_in_forward(self):
@@ -285,6 +319,30 @@ class ModuleIteratorTest(unittest.TestCase):
         m = MyModule()
         params = list(m.parameters())
         self.assertEqual(len(params), 2)
+
+    def test_parameters_recursive(self):
+        class Child(Module):
+            def __init__(self):
+                super().__init__("child")
+                self.w = Parameter([3], name="w")
+
+            def forward(self, op):
+                pass
+
+        class Parent(Module):
+            def __init__(self):
+                super().__init__("parent")
+                self.p = Parameter([2], name="p")
+                self.child = Child()
+
+            def forward(self, op):
+                pass
+
+        m = Parent()
+        params = list(m.parameters(recurse=True))
+        self.assertEqual(len(params), 2)
+        params_no_recurse = list(m.parameters(recurse=False))
+        self.assertEqual(len(params_no_recurse), 1)
 
     def test_named_parameters_recursive(self):
         class Child(Module):
