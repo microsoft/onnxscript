@@ -326,6 +326,19 @@ class GraphBuilder:
 
         return node.outputs if len(node.outputs) > 1 else node.outputs[0]
 
+    def call(self, function, *args, **kwargs):
+        if isinstance(function, ir.Function):
+            function_ir = function
+        elif isinstance(function, onnxscript.values.OnnxFunction):
+            function_proto = function.to_function_proto()
+            function_ir = ir.serde.deserialize_function(function_proto)
+        else:
+            raise TypeError("Function must be an ir.Function or onnxscript.ONNXFunction")
+        nodes, outputs = inliner.instantiate(function_ir, args, kwargs)
+        for node in nodes:
+            self.add_node(node)
+        return outputs if len(outputs) > 1 else outputs[0]
+    
     def push_module(self, module: str) -> None:
         """Push a new naming context onto the stack (e.g. a layer or module name)."""
         current = self.context_name()
@@ -377,3 +390,6 @@ class OpBuilder:
 
     def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
         return self._builder.initializer(tensor, name)
+
+    def call(self, function, *args, **kwargs):
+        return self._builder.call(function, *args, **kwargs)
