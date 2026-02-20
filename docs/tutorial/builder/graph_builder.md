@@ -406,3 +406,110 @@ def build_linear(op, x, weight, bias_value):
 
 This pattern keeps function signatures simple while preserving access to the
 full builder API when needed.
+## Calling Script Functions from OpBuilder
+
+The `OpBuilder` provides a `call()` method to inline `@script`-decorated ONNX functions directly into the builder's graph. This enables composition of both imperative (builder) and declarative (`@script`) code within a single graph.
+
+### Basic function inlining
+
+Define an ONNX script function and then call it through `op.call()`:
+
+```python
+from onnxscript import script, opset23 as op23
+
+# Define a reusable script function
+@script(default_opset=op23)
+def mul_add_relu(X, Y):
+    tmp = X * Y
+    tmp = tmp + X
+    return op23.Relu(tmp)
+
+# Now build a graph using OpBuilder
+graph = ir.Graph(
+    name="my_graph",
+    inputs=[],
+    outputs=[],
+    nodes=[],
+    opset_imports={"": 23},
+)
+x = ir.Value(name="x", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([3, 4]))
+y = ir.Value(name="y", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([3, 4]))
+graph.inputs.extend([x, y])
+
+builder = onnxscript.GraphBuilder(graph)
+op = builder.op
+
+# Call the script function — it gets inlined into the graph
+result = op.call(mul_add_relu, x, y)
+graph.outputs.append(result)
+```
+
+The function body (three nodes: Mul, Add, Relu) is inlined directly into the graph.
+
+### Renaming outputs with `_outputs`
+
+By default, inlined function outputs keep their original names, qualified by the
+current naming context. You can rename them explicitly with `_outputs`:
+
+```python
+@script(default_opset=op23)
+def add_mul(X, Y):
+    a = X + Y
+    b = X * Y
+    return a, b
+
+# Inline with custom output names
+result_sum, result_prod = op.call(
+    add_mul, x, y,
+    _outputs=["custom_sum", "custom_product"]
+)
+```
+
+### Adding hierarchical context with `_prefix`
+
+Use `_prefix` to add a naming context to all nodes and intermediate values created
+by the inlined function:
+
+```python
+result = op.call(
+    mul_add_relu, x, y,
+    _prefix="layer1"
+)
+# Node names will be "layer1.Mul_n...", "layer1.Add_n...", "layer1.Relu_n..."
+# Intermediate value names will also start with "layer1."
+```
+
+You can combine both options:
+
+```python
+result_a, result_b = op.call(
+    add_mul, x, y,
+    _outputs=["sum_out", "prod_out"],
+    _prefix="math_ops"
+)
+# Final outputs: "sum_out", "prod_out" (renamed before prefix context)
+# Intermediate values: "math_ops.Add_n...", "math_ops.Mul_n..." (with prefix)
+```
+
+### Using OpBuilder as the default_opset
+
+`OpBuilder` can be passed directly as the `default_opset` when decorating a script
+function. This enables scripted functions to use the same opset version as the
+builder they will be inlined into:
+
+```python
+builder = onnxscript.GraphBuilder(graph)
+op = builder.op
+
+# Define the function *after* creating the builder, using op as default_opset
+@script(default_opset=op)
+def my_func(X, Y):
+    t = X + Y
+    return op.Relu(t)  # Uses the op directly
+
+# Inline it
+result = op.call(my_func, x, y)
+```
+
+This pattern ensures consistency: the script function operates in the same domain
+and opset version as the builder.
