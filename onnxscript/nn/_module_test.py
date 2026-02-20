@@ -34,9 +34,9 @@ class ParameterTest(unittest.TestCase):
     def test_realize_creates_initializer(self):
         graph, op = _create_graph_and_op()
         p = Parameter([3, 4], dtype=ir.DataType.FLOAT, name="weight")
-        value = p.realize(op.builder)
+        value = p._realize(op.builder)  # pylint: disable=protected-access
 
-        self.assertIs(value, p)  # realize returns self
+        self.assertIs(value, p)  # _realize returns self
         self.assertIsInstance(value, ir.Value)
         self.assertEqual(value.name, "weight")
         self.assertEqual(value.type.dtype, ir.DataType.FLOAT)
@@ -47,15 +47,15 @@ class ParameterTest(unittest.TestCase):
     def test_realize_is_idempotent(self):
         _, op = _create_graph_and_op()
         p = Parameter([3, 4], name="weight")
-        v1 = p.realize(op.builder)
-        v2 = p.realize(op.builder)
+        v1 = p._realize(op.builder)  # pylint: disable=protected-access
+        v2 = p._realize(op.builder)  # pylint: disable=protected-access
         self.assertIs(v1, v2)
 
     def test_realize_with_data(self):
         graph, op = _create_graph_and_op()
         tensor = ir.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=ir.DataType.FLOAT)
         p = Parameter([2, 2], name="weight", data=tensor)
-        value = p.realize(op.builder)
+        value = p._realize(op.builder)  # pylint: disable=protected-access
 
         self.assertIs(value.const_value, tensor)
         self.assertIn("weight", graph.initializers)
@@ -66,7 +66,7 @@ class ParameterTest(unittest.TestCase):
         graph, op = _create_graph_and_op()
         op.builder.push_module("layer1")
         p = Parameter([3], name="bias")
-        value = p.realize(op.builder)
+        value = p._realize(op.builder)  # pylint: disable=protected-access
         op.builder.pop_module()
 
         self.assertEqual(value.name, "layer1.bias")

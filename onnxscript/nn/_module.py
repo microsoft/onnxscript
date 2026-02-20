@@ -73,7 +73,7 @@ class Module:
         try:
             # Realize parameters: qualify names and register as graph initializers.
             for param in self._parameters.values():
-                param.realize(builder)
+                param._realize(builder)  # pylint: disable=protected-access
 
             result = self.forward(op, *args, **kwargs)
         finally:
