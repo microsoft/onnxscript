@@ -15,7 +15,7 @@ class Parameter(ir.Value):
 
     Since ``Parameter`` subclasses ``ir.Value``, it can be passed directly
     to ONNX ops inside ``Module.forward()`` without any conversion.
-    Calling :meth:`realize` qualifies the name with the current module
+    Calling :meth:`_realize` qualifies the name with the current module
     context and registers the parameter as a graph initializer.
 
     Args:
