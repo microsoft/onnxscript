@@ -184,11 +184,11 @@ class GraphBuilder:
             if outputs < 0:
                 raise ValueError(f"Number of outputs must be non-negative, got {outputs}")
             if outputs == 1:
-                name = f"{op_type}_output_{count}" if op_type else f"output_{count}"
+                name = f"v_{op_type}_{count}" if op_type else f"f_{count}"
                 return [ir.Value(name=self.qualify_name(name))]
             else:
                 names = [
-                    (f"{op_type}_output{i}_{count}" if op_type else f"output{i}_{count}")
+                    (f"v_{op_type}_{count}_{i}" if op_type else f"v_{count}_{i}")
                     for i in range(outputs)
                 ]
                 return [ir.Value(name=self.qualify_name(n)) for n in names]
