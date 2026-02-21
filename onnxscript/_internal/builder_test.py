@@ -587,12 +587,12 @@ class GraphBuilderTest(unittest.TestCase):
         )
         self.assertEqual(
             node.metadata_props["pkg.onnxscript.name_scopes"],
-            repr(["layer1", "self_attn"]),
+            repr(["layer1", "self_attn", "MatMul"]),
         )
-        # class_hierarchy includes one entry per scope plus the op
+        # class_hierarchy and name_scopes have the same length
         self.assertEqual(
             len(eval(node.metadata_props["pkg.onnxscript.class_hierarchy"])),
-            len(eval(node.metadata_props["pkg.onnxscript.name_scopes"])) + 1,
+            len(eval(node.metadata_props["pkg.onnxscript.name_scopes"])),
         )
         op.builder.pop_module()
         op.builder.pop_module()

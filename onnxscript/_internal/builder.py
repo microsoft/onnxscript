@@ -327,10 +327,13 @@ class GraphBuilder:
 
         # Attach scope metadata to the node
         node.metadata_props["namespace"] = self._build_namespace(op_type, domain)
-        class_hierarchy = self._scope_classes()
         op_id = f"{domain}.{op_type}" if domain else op_type
-        node.metadata_props["pkg.onnxscript.class_hierarchy"] = repr([*class_hierarchy, op_id])
-        node.metadata_props["pkg.onnxscript.name_scopes"] = repr(self._scope_names())
+        node.metadata_props["pkg.onnxscript.class_hierarchy"] = repr(
+            [*self._scope_classes(), op_id]
+        )
+        node.metadata_props["pkg.onnxscript.name_scopes"] = repr(
+            [*self._scope_names(), op_type]
+        )
 
         self.add_node(node)
 
