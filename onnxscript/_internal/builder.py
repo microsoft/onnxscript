@@ -109,7 +109,7 @@ class GraphBuilder:
         if name is None:
             name = tensor.name
         if qualify:
-            name = self.qualify_name(name)
+            name = self._qualify_initializer_name(name)
         shape = ir.Shape(tensor.shape)
         value = ir.Value(
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
@@ -363,7 +363,7 @@ class GraphBuilder:
         """Return the list of class names in the current scope."""
         return [cls for _, cls in self._scope_stack if cls]
 
-    def qualify_name(self, name: str) -> str:
+    def _qualify_initializer_name(self, name: str) -> str:
         """Prepend the current hierarchical context prefix to the given name.
 
         Uses ``.`` as separator, appropriate for parameter and initializer names.

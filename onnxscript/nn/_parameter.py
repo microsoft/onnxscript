@@ -63,7 +63,7 @@ class Parameter(ir.Value):
                 "initialized with a name before realization."
             )
         if self.name:
-            self.name = builder.qualify_name(self.name)
+            self.name = builder._qualify_initializer_name(self.name)
         builder.graph.initializers[self.name] = self  # type: ignore[index]
         self._realized = True
         return self
