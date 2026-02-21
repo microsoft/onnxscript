@@ -148,17 +148,17 @@ class GraphBuilderTest(unittest.TestCase):
         # Test custom names with hierarchical context
         op.builder.push_module("layer1")
         t2 = op.Mul(t1, y, _outputs=["my_mul"])
-        self.assertEqual(t2.name, "layer1.my_mul")
+        self.assertEqual(t2.name, "layer1/my_mul")
 
         # Test nested hierarchical context with custom names
         op.builder.push_module("attention")
         t3 = op.Add(t2, x, _outputs=["my_nested_add"])
-        self.assertEqual(t3.name, "layer1.attention.my_nested_add")
+        self.assertEqual(t3.name, "layer1.attention/my_nested_add")
 
         # Pop back and verify prefix is applied correctly
         op.builder.pop_module()
         t4 = op.Mul(t3, y, _outputs=["another_mul"])
-        self.assertEqual(t4.name, "layer1.another_mul")
+        self.assertEqual(t4.name, "layer1/another_mul")
 
         op.builder.pop_module()
         t5 = op.Add(t4, x, _outputs=["final_result"])
@@ -181,13 +181,13 @@ class GraphBuilderTest(unittest.TestCase):
         # Test with hierarchical context
         op.builder.push_module("layer1")
         t2 = op.Mul(t1, y, _outputs=[out2])
-        self.assertEqual(t2.name, "layer1.layer_output")
+        self.assertEqual(t2.name, "layer1/layer_output")
         self.assertIs(t2, out2)
 
         # Test nested hierarchical context
         op.builder.push_module("attention")
         t3 = op.Add(t2, x, _outputs=[out3])
-        self.assertEqual(t3.name, "layer1.attention.nested_output")
+        self.assertEqual(t3.name, "layer1.attention/nested_output")
         self.assertIs(t3, out3)
 
     def test_default_output_naming_strategy(self):
@@ -239,20 +239,20 @@ class GraphBuilderTest(unittest.TestCase):
         # Test node and value naming with hierarchical context prefix
         op.builder.push_module("layer1")
         t3 = op.Add(t2, x)
-        self.assertEqual(t3.name, "layer1.v_Add_2")
-        self.assertEqual(t3.producer().name, "layer1.Add_node_2")
+        self.assertEqual(t3.name, "layer1/v_Add_2")
+        self.assertEqual(t3.producer().name, "layer1/Add_node_2")
 
         # Test nested hierarchical context
         op.builder.push_module("attention")
         t4 = op.Mul(t3, y)
-        self.assertEqual(t4.name, "layer1.attention.v_Mul_3")
-        self.assertEqual(t4.producer().name, "layer1.attention.Mul_node_3")
+        self.assertEqual(t4.name, "layer1.attention/v_Mul_3")
+        self.assertEqual(t4.producer().name, "layer1.attention/Mul_node_3")
 
         # Pop back to layer1 and verify naming continues correctly
         op.builder.pop_module()
         t5 = op.Add(t4, x)
-        self.assertEqual(t5.name, "layer1.v_Add_4")
-        self.assertEqual(t5.producer().name, "layer1.Add_node_4")
+        self.assertEqual(t5.name, "layer1/v_Add_4")
+        self.assertEqual(t5.producer().name, "layer1/Add_node_4")
 
         # Pop back to root context
         op.builder.pop_module()

@@ -185,21 +185,21 @@ class GraphBuilder:
                 raise ValueError(f"Number of outputs must be non-negative, got {outputs}")
             if outputs == 1:
                 name = f"v_{op_type}_{count}" if op_type else f"f_{count}"
-                return [ir.Value(name=self.qualify_name(name))]
+                return [ir.Value(name=self._qualify_node_name(name))]
             else:
                 names = [
                     (f"v_{op_type}_{count}_{i}" if op_type else f"v_{count}_{i}")
                     for i in range(outputs)
                 ]
-                return [ir.Value(name=self.qualify_name(n)) for n in names]
+                return [ir.Value(name=self._qualify_node_name(n)) for n in names]
         adapted_outputs = []
         for output in outputs:
             if isinstance(output, ir.Value):
                 if output.name:
-                    output.name = self.qualify_name(output.name)
+                    output.name = self._qualify_node_name(output.name)
                 adapted_outputs.append(output)
             elif isinstance(output, str):
-                adapted_outputs.append(ir.Value(name=self.qualify_name(output)))
+                adapted_outputs.append(ir.Value(name=self._qualify_node_name(output)))
             else:
                 raise TypeError("Output type not supported.")
         return adapted_outputs
@@ -306,7 +306,7 @@ class GraphBuilder:
         outputs = kwargs.pop("_outputs", 1)
 
         count = self.graph.num_nodes()
-        node_name = self.qualify_name(f"{op_type}_node_{count}")
+        node_name = self._qualify_node_name(f"{op_type}_node_{count}")
 
         output_values = self._adapt_outputs(outputs, op_type)
 
@@ -348,9 +348,21 @@ class GraphBuilder:
         return self._context_stack[-1] if self._context_stack else ""
 
     def qualify_name(self, name: str) -> str:
-        """Prepend the current hierarchical context prefix to the given name."""
+        """Prepend the current hierarchical context prefix to the given name.
+
+        Uses ``.`` as separator, appropriate for parameter and initializer names.
+        """
         prefix = self.context_name()
         return f"{prefix}.{name}" if prefix else name
+
+    def _qualify_node_name(self, name: str) -> str:
+        """Prepend the current hierarchical context prefix to a node name.
+
+        Uses ``/`` as separator, following the ONNX convention for node
+        scope hierarchies.
+        """
+        prefix = self.context_name()
+        return f"{prefix}/{name}" if prefix else name
 
 
 class OpBuilder:
