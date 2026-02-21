@@ -727,7 +727,7 @@ class GraphBuilderTest(unittest.TestCase):
 
         # The function returns 2 outputs, but we provide only 1 name
         with self.assertRaises(ValueError) as cm:
-            result = op.call(add_mul, x, y, _outputs=["only_one_name"])
+            op.call(add_mul, x, y, _outputs=["only_one_name"])
         
         self.assertIn("does not match", str(cm.exception))
 
