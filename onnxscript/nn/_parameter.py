@@ -56,15 +56,15 @@ class Parameter(ir.Value):
         if self._realized:
             return self
 
-        if self.name is None:
+        self_name = self.name
+        if not self_name:
             raise ValueError(
                 "Parameter._realize() called on a Parameter without a name. "
                 "Ensure the Parameter is attached to a Module attribute or otherwise "
                 "initialized with a name before realization."
             )
-        if self.name:
-            self.name = builder._qualify_initializer_name(self.name)
-        builder.graph.initializers[self.name] = self  # type: ignore[index]
+        self_name = self.name = builder._qualify_initializer_name(self_name)
+        builder.graph.initializers[self_name] = self
         self._realized = True
         return self
 
