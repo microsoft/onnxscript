@@ -362,7 +362,9 @@ class GraphBuilder:
         scope hierarchies.
         """
         prefix = self.context_name()
-        return f"{prefix}/{name}" if prefix else name
+        if not prefix:
+            return name
+        return f"{prefix.replace('.', '/')}/{name}"
 
 
 class OpBuilder:
