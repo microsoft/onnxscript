@@ -68,8 +68,9 @@ class Module:
 
     def __call__(self, op: OpBuilder, *args: Any, **kwargs: Any) -> Any:
         builder: GraphBuilder = op.builder
-        module_name = self._name or ""
-        builder.push_module(module_name)
+        has_name = bool(self._name)  # Only push if we have a name
+        if has_name:
+            builder.push_module(self._name)
         try:
             # Realize parameters: qualify names and register as graph initializers.
             for param in self._parameters.values():
@@ -77,7 +78,8 @@ class Module:
 
             result = self.forward(op, *args, **kwargs)
         finally:
-            builder.pop_module()
+            if has_name:
+                builder.pop_module()
         return result
 
     def forward(self, op: OpBuilder, *args: Any, **kwargs: Any) -> Any:
