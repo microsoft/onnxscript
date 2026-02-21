@@ -9,7 +9,7 @@ from typing import Any
 import onnx_ir as ir
 
 from onnxscript._internal.builder import GraphBuilder, OpBuilder
-from onnxscript.nn import Module, Parameter
+from onnxscript.nn import Module, ModuleList, Parameter
 
 
 def _create_graph_and_op() -> tuple[ir.Graph, OpBuilder]:
@@ -661,6 +661,171 @@ class ModuleStateDictTest(unittest.TestCase):
         m.load_state_dict({"w": w_data}, strict=False)
         self.assertIs(m.w.const_value, w_data)
         self.assertIsNone(m.b.const_value)
+
+
+class ModuleListTest(unittest.TestCase):
+    def test_basic_indexing(self):
+        """ModuleList supports integer indexing."""
+
+        class Layer(Module):
+            def __init__(self):
+                super().__init__()
+                self.w = Parameter([3], name="w")
+
+            def forward(self, op):
+                pass
+
+        ml = ModuleList([Layer(), Layer(), Layer()])
+        self.assertEqual(len(ml), 3)
+        self.assertIsInstance(ml[0], Layer)
+        self.assertIsInstance(ml[2], Layer)
+        self.assertIsInstance(ml[-1], Layer)
+        self.assertIs(ml[-1], ml[2])
+
+    def test_index_out_of_range(self):
+        ml = ModuleList()
+        with self.assertRaises(IndexError):
+            _ = ml[0]
+
+    def test_append(self):
+        class Layer(Module):
+            def __init__(self):
+                super().__init__()
+
+            def forward(self, op):
+                pass
+
+        ml = ModuleList()
+        ml.append(Layer())
+        ml.append(Layer())
+        self.assertEqual(len(ml), 2)
+
+    def test_extend(self):
+        class Layer(Module):
+            def __init__(self):
+                super().__init__()
+
+            def forward(self, op):
+                pass
+
+        ml = ModuleList()
+        ml.extend([Layer(), Layer()])
+        self.assertEqual(len(ml), 2)
+
+    def test_iteration(self):
+        class Layer(Module):
+            def __init__(self):
+                super().__init__()
+
+            def forward(self, op):
+                pass
+
+        layers = [Layer(), Layer(), Layer()]
+        ml = ModuleList(layers)
+        for i, layer in enumerate(ml):
+            self.assertIs(layer, layers[i])
+
+    def test_slice(self):
+        class Layer(Module):
+            def __init__(self):
+                super().__init__()
+
+            def forward(self, op):
+                pass
+
+        ml = ModuleList([Layer(), Layer(), Layer()])
+        sub = ml[1:]
+        self.assertIsInstance(sub, ModuleList)
+        self.assertEqual(len(sub), 2)
+
+    def test_children_auto_named(self):
+        """Children get '0', '1', ... names automatically."""
+
+        class Layer(Module):
+            def __init__(self):
+                super().__init__()
+
+            def forward(self, op):
+                pass
+
+        ml = ModuleList([Layer(), Layer()])
+        self.assertEqual(ml[0]._name, "0")  # pylint: disable=protected-access
+        self.assertEqual(ml[1]._name, "1")  # pylint: disable=protected-access
+
+    def test_named_parameters_with_numeric_keys(self):
+        """Parameters within ModuleList children use numeric-indexed names."""
+
+        class Layer(Module):
+            def __init__(self):
+                super().__init__()
+                self.w = Parameter([3], name="w")
+
+            def forward(self, op):
+                pass
+
+        ml = ModuleList([Layer(), Layer()])
+        named = dict(ml.named_parameters())
+        self.assertIn("0.w", named)
+        self.assertIn("1.w", named)
+
+    def test_same_class_submodules_get_distinct_names_in_graph(self):
+        """Multiple sub-modules of the same class in a ModuleList get distinct
+        .0., .1. prefixed initializer and node names in the graph.
+        """
+
+        class Linear(Module):
+            def __init__(self, in_f, out_f):
+                super().__init__()
+                self.weight = Parameter([out_f, in_f], name="weight")
+
+            def forward(self, op, x):
+                w_t = op.Transpose(self.weight, perm=[1, 0])
+                return op.MatMul(x, w_t)
+
+        class Model(Module):
+            def __init__(self):
+                super().__init__("model")
+                self.layers = ModuleList([Linear(4, 4), Linear(4, 4), Linear(4, 4)])
+
+            def forward(self, op, x):
+                for layer in self.layers:
+                    x = layer(op, x)
+                return x
+
+        graph, op = _create_graph_and_op()
+        x = ir.Value(
+            name="input",
+            type=ir.TensorType(ir.DataType.FLOAT),
+            shape=ir.Shape([1, 4]),
+        )
+        graph.inputs.append(x)
+
+        m = Model()
+        result = m(op, x)
+
+        self.assertIsInstance(result, ir.Value)
+        # Each layer's weight must have a distinct hierarchical name
+        self.assertIn("model.layers.0.weight", graph.initializers)
+        self.assertIn("model.layers.1.weight", graph.initializers)
+        self.assertIn("model.layers.2.weight", graph.initializers)
+        # All three must be different ir.Value objects
+        self.assertIsNot(
+            graph.initializers["model.layers.0.weight"],
+            graph.initializers["model.layers.1.weight"],
+        )
+        self.assertIsNot(
+            graph.initializers["model.layers.1.weight"],
+            graph.initializers["model.layers.2.weight"],
+        )
+        # Check that we got 6 nodes: (Transpose + MatMul) * 3 layers
+        op_types = [node.op_type for node in graph]
+        self.assertEqual(op_types, ["Transpose", "MatMul"] * 3)
+
+    def test_modulelist_not_directly_callable(self):
+        ml = ModuleList()
+        _, op = _create_graph_and_op()
+        with self.assertRaises(NotImplementedError):
+            ml(op)
 
 
 if __name__ == "__main__":

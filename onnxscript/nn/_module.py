@@ -49,6 +49,10 @@ class Module:
     def name(self) -> str | None:
         return self._name
 
+    def _set_name(self, name: str) -> None:
+        """Set the module name. Subclasses may override to propagate names to children."""
+        object.__setattr__(self, "_name", name)
+
     def __setattr__(self, name: str, value: Any) -> None:
         if isinstance(value, Parameter):
             # Auto-register parameters; set default name from attribute name.
@@ -60,7 +64,7 @@ class Module:
         elif isinstance(value, Module):
             # Auto-register child modules; inherit attribute name if unnamed.
             if value._name is None:
-                object.__setattr__(value, "_name", name)
+                value._set_name(name)
             self._modules[name] = value
             object.__setattr__(self, name, value)
         else:
