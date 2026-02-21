@@ -242,7 +242,7 @@ class Converter:
                                 return opset
                         elif isinstance(opset, builder.OpBuilder):
                             if opset.domain == "":
-                                return opset
+                                return values.Opset(opset.domain, opset.version)
         for child in ast.iter_child_nodes(node):
             res = self._find_onnx_opset(child)
             if res is not None:
