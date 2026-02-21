@@ -180,14 +180,16 @@ class GraphBuilder:
         self, outputs: int | Sequence[str | ir.Value], op_type: str = ""
     ) -> Sequence[ir.Value]:
         if isinstance(outputs, int):
+            count = self.graph.num_nodes()
             if outputs < 0:
                 raise ValueError(f"Number of outputs must be non-negative, got {outputs}")
             if outputs == 1:
-                name = f"{op_type}_output" if op_type else "output"
+                name = f"{op_type}_output_{count}" if op_type else f"output_{count}"
                 return [ir.Value(name=self.qualify_name(name))]
             else:
                 names = [
-                    f"{op_type}_output{i}" if op_type else f"output{i}" for i in range(outputs)
+                    (f"{op_type}_output{i}_{count}" if op_type else f"output{i}_{count}")
+                    for i in range(outputs)
                 ]
                 return [ir.Value(name=self.qualify_name(n)) for n in names]
         adapted_outputs = []
