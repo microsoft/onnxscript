@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import unittest
 from typing import Sequence
 
@@ -591,8 +592,8 @@ class GraphBuilderTest(unittest.TestCase):
         )
         # class_hierarchy and name_scopes have the same length
         self.assertEqual(
-            len(eval(node.metadata_props["pkg.onnxscript.class_hierarchy"])),
-            len(eval(node.metadata_props["pkg.onnxscript.name_scopes"])),
+            len(ast.literal_eval(node.metadata_props["pkg.onnxscript.class_hierarchy"])),
+            len(ast.literal_eval(node.metadata_props["pkg.onnxscript.name_scopes"])),
         )
         op.builder.pop_module()
         op.builder.pop_module()
