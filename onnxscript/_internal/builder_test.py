@@ -560,13 +560,13 @@ class GraphBuilderTest(unittest.TestCase):
         # Node inside a module scope
         op.builder.push_module("layer1", "DecoderLayer")
         t2 = op.Mul(t1, y)
-        self.assertEqual(t2.producer().metadata_props["namespace"], "layer1: Mul")
+        self.assertEqual(t2.producer().metadata_props["namespace"], "layer1: DecoderLayer/Mul")
 
         # Nested scope
         op.builder.push_module("self_attn", "Attention")
         t3 = op.Add(t2, x)
         self.assertEqual(
-            t3.producer().metadata_props["namespace"], "layer1/self_attn: Add"
+            t3.producer().metadata_props["namespace"], "layer1: DecoderLayer/self_attn: Attention/Add"
         )
         op.builder.pop_module()
         op.builder.pop_module()
@@ -587,6 +587,11 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertEqual(
             node.metadata_props["pkg.onnxscript.name_scopes"],
             repr(["layer1", "self_attn"]),
+        )
+        # class_hierarchy includes one entry per scope plus the op
+        self.assertEqual(
+            len(eval(node.metadata_props["pkg.onnxscript.class_hierarchy"])),
+            len(eval(node.metadata_props["pkg.onnxscript.name_scopes"])) + 1,
         )
         op.builder.pop_module()
         op.builder.pop_module()

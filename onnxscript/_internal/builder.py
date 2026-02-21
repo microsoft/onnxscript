@@ -357,18 +357,22 @@ class GraphBuilder:
 
     def scope_names(self) -> list[str]:
         """Return the list of module attribute names in the current scope."""
-        return [name for name, _ in self._scope_stack if name]
+        return [name for name, _ in self._scope_stack]
 
     def scope_classes(self) -> list[str]:
         """Return the list of class names in the current scope."""
-        return [cls for _, cls in self._scope_stack if cls]
+        return [cls for _, cls in self._scope_stack]
+
+    def _scope_name_parts(self) -> list[str]:
+        """Return non-empty module names for qualifying names."""
+        return [name for name, _ in self._scope_stack if name]
 
     def _qualify_initializer_name(self, name: str) -> str:
         """Prepend the current hierarchical context prefix to the given name.
 
         Uses ``.`` as separator, appropriate for parameter and initializer names.
         """
-        parts = self.scope_names()
+        parts = self._scope_name_parts()
         if parts:
             return ".".join(parts) + "." + name
         return name
@@ -378,14 +382,14 @@ class GraphBuilder:
 
         The name is prefixed with ``v_`` to distinguish values from parameters.
         """
-        parts = self.scope_names()
+        parts = self._scope_name_parts()
         if parts:
             return "v_" + ".".join(parts) + "." + name
         return f"v_{name}"
 
     def _qualify_node_name(self, name: str) -> str:
         """Qualify a node name with the current scope using ``/`` separator."""
-        parts = self.scope_names()
+        parts = self._scope_name_parts()
         if parts:
             return "/".join(parts) + "/" + name
         return name
@@ -393,13 +397,15 @@ class GraphBuilder:
     def _build_namespace(self, op_type: str, domain: str = "") -> str:
         """Build the namespace string for a node.
 
-        Format: ``scope1/scope2: domain.op_type`` or ``scope1/scope2: op_type``.
+        Each scope entry is formatted as ``name: class_name`` joined by ``/``.
         """
-        scope = "/".join(self.scope_names())
+        parts = []
+        for name, cls in self._scope_stack:
+            if name or cls:
+                parts.append(f"{name}: {cls}" if cls else name)
         op_id = f"{domain}.{op_type}" if domain else op_type
-        if scope:
-            return f"{scope}: {op_id}"
-        return op_id
+        parts.append(op_id)
+        return "/".join(parts)
 
 
 class OpBuilder:
