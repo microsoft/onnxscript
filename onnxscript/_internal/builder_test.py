@@ -566,7 +566,8 @@ class GraphBuilderTest(unittest.TestCase):
         op.builder.push_module("self_attn", "Attention")
         t3 = op.Add(t2, x)
         self.assertEqual(
-            t3.producer().metadata_props["namespace"], "layer1: DecoderLayer/self_attn: Attention/Add"
+            t3.producer().metadata_props["namespace"],
+            "layer1: DecoderLayer/self_attn: Attention/Add",
         )
         op.builder.pop_module()
         op.builder.pop_module()

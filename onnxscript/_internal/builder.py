@@ -327,14 +327,10 @@ class GraphBuilder:
 
         # Attach scope metadata to the node
         node.metadata_props["namespace"] = self._build_namespace(op_type, domain)
-        class_hierarchy = self.scope_classes()
+        class_hierarchy = self._scope_classes()
         op_id = f"{domain}.{op_type}" if domain else op_type
-        node.metadata_props["pkg.onnxscript.class_hierarchy"] = repr(
-            class_hierarchy + [op_id]
-        )
-        node.metadata_props["pkg.onnxscript.name_scopes"] = repr(
-            self.scope_names()
-        )
+        node.metadata_props["pkg.onnxscript.class_hierarchy"] = repr([*class_hierarchy, op_id])
+        node.metadata_props["pkg.onnxscript.name_scopes"] = repr(self._scope_names())
 
         self.add_node(node)
 
@@ -355,11 +351,11 @@ class GraphBuilder:
             raise RuntimeError("Cannot pop_module: no module context has been pushed.")
         self._scope_stack.pop()
 
-    def scope_names(self) -> list[str]:
+    def _scope_names(self) -> list[str]:
         """Return the list of module attribute names in the current scope."""
         return [name for name, _ in self._scope_stack]
 
-    def scope_classes(self) -> list[str]:
+    def _scope_classes(self) -> list[str]:
         """Return the list of class names in the current scope."""
         return [cls for _, cls in self._scope_stack]
 
