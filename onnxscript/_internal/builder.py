@@ -331,11 +331,11 @@ class GraphBuilder:
     def call(self, function, *args, _outputs: Sequence[str] | None = None, _prefix: str = "", **kwargs):
         if isinstance(function, ir.Function):
             function_ir = function
-        elif isinstance(function, onnxscript.values.OnnxFunction):
+        elif isinstance(function, onnxscript.OnnxFunction):
             function_proto = function.to_function_proto()
             function_ir = ir.serde.deserialize_function(function_proto)
         else:
-            raise TypeError("Function must be an ir.Function or onnxscript.ONNXFunction")
+            raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
         output_renaming: dict[str, str] = {}
         if _outputs is not None:
             if len(_outputs) != len(function_ir.outputs):
@@ -363,7 +363,7 @@ class GraphBuilder:
         if _prefix:
             self.pop_module()
         return outputs if len(outputs) > 1 else outputs[0]
-    
+
     def push_module(self, module: str) -> None:
         """Push a new naming context onto the stack (e.g. a layer or module name)."""
         current = self.context_name()
