@@ -336,7 +336,7 @@ class GraphBuilder:
             function_ir = ir.serde.deserialize_function(function_proto)
         else:
             raise TypeError("Function must be an ir.Function or onnxscript.ONNXFunction")
-        output_renaming : dict[str, str] = {}
+        output_renaming: dict[str, str] = {}
         if _outputs is not None:
             if len(_outputs) != len(function_ir.outputs):
                 raise ValueError(
