@@ -9,7 +9,7 @@ from typing import Sequence
 import onnx_ir as ir
 
 import onnxscript._internal.builder as builder
-from onnxscript import opset23 as op23, script
+from onnxscript import script
 
 
 _default_opset_version = 23
