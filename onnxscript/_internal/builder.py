@@ -374,15 +374,14 @@ class GraphBuilder:
         return name
 
     def _qualify_value_name(self, name: str) -> str:
-        """Qualify a value name with the current scope using ``/`` separator.
+        """Qualify a value name with the current scope using ``.`` separator.
 
         The name is prefixed with ``v_`` to distinguish values from parameters.
         """
         parts = self.scope_names()
-        qualified = f"v_{name}"
         if parts:
-            return "/".join(parts) + "/" + qualified
-        return qualified
+            return "v_" + ".".join(parts) + "." + name
+        return f"v_{name}"
 
     def _qualify_node_name(self, name: str) -> str:
         """Qualify a node name with the current scope using ``/`` separator."""
