@@ -20,7 +20,7 @@ class Parameter(ir.Value):
 
     Args:
         shape: Shape of the parameter tensor.
-        dtype: Data type of the parameter. Defaults to FLOAT.
+        dtype: Data type of the parameter. If None and data is not provided, defaults to float32.
         name: Name for the parameter. If None, the attribute name from
             the parent Module is used.
         data: Optional initial tensor data. If provided, the initializer
@@ -29,11 +29,21 @@ class Parameter(ir.Value):
 
     def __init__(
         self,
-        shape: Sequence[int | ir.SymbolicDim | None],
-        dtype: ir.DataType = ir.DataType.FLOAT,
+        shape: Sequence[int],
+        dtype: ir.DataType | None = None,
         name: str | None = None,
         data: ir.TensorProtocol | None = None,
     ) -> None:
+        if data is not None:
+            if data.dtype != dtype:
+                raise ValueError(
+                    f"Data type of provided data ({data.dtype}) does not match the specified dtype ({dtype})."
+                )
+            if dtype is None:
+                dtype = data.dtype
+        elif dtype is None:
+            dtype = ir.DataType.FLOAT
+
         super().__init__(
             name=name,
             shape=ir.Shape(shape),
