@@ -73,7 +73,7 @@ class Parameter(ir.Value):
                 "Ensure the Parameter is attached to a Module attribute or otherwise "
                 "initialized with a name before realization."
             )
-        self_name = self.name = builder._qualify_initializer_name(self_name)
+        self_name = self.name = builder._qualify_initializer_name(self_name)  # pylint: disable=protected-access
         builder.graph.initializers[self_name] = self
         self._realized = True
         return self
