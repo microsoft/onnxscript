@@ -35,7 +35,7 @@ class Parameter(ir.Value):
         data: ir.TensorProtocol | None = None,
     ) -> None:
         if data is not None:
-            if data.dtype != dtype:
+            if dtype is not None and data.dtype != dtype:
                 raise ValueError(
                     f"Data type of provided data ({data.dtype}) does not match the specified dtype ({dtype})."
                 )
