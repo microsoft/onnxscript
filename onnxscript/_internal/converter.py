@@ -230,19 +230,17 @@ class Converter:
     def _find_onnx_opset(self, node: ast.AST) -> values.Opset | None:
         """Find the (first) ONNX opset used in the function, if any."""
         # Search for a Call expression of form "op.OpName(...)"
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Attribute):
-                opset_expr = node.func.value
-                if isinstance(opset_expr, ast.Name):
-                    if opset_expr.id in self.globals:
-                        opset = self.globals[opset_expr.id]
-                        # Accept both values.Opset and builder.OpBuilder
-                        if isinstance(opset, values.Opset):
-                            if opset.domain == "":
-                                return opset
-                        elif isinstance(opset, builder.OpBuilder):
-                            if opset.domain == "":
-                                return values.Opset(opset.domain, opset.version)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            opset_expr = node.func.value
+            if isinstance(opset_expr, ast.Name) and opset_expr.id in self.globals:
+                opset = self.globals[opset_expr.id]
+                # Accept both values.Opset and builder.OpBuilder
+                if isinstance(opset, values.Opset):
+                    if opset.domain == "":
+                        return opset
+                elif isinstance(opset, builder.OpBuilder):
+                    if opset.domain == "":
+                        return values.Opset(opset.domain, opset.version)
         for child in ast.iter_child_nodes(node):
             res = self._find_onnx_opset(child)
             if res is not None:
@@ -972,6 +970,7 @@ class Converter:
             self.fail(node, "Nested module unimplemented.")  # TODO
         else:
             self.fail(node, "Invalid opset expression.")
+
     # pylint: enable=inconsistent-return-statements
     def _translate_callee_expr(self, node: ast.AST) -> values.Op:  # pylint: disable=R1710
         """Return an Op"""

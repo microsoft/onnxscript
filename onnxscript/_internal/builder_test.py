@@ -11,7 +11,6 @@ import onnx_ir as ir
 import onnxscript._internal.builder as builder
 from onnxscript import script
 
-
 _default_opset_version = 23
 
 
@@ -654,7 +653,10 @@ class GraphBuilderTest(unittest.TestCase):
 
         # Check that all node names start with the prefix
         for node in nodes:
-            self.assertTrue(node.name.startswith("layer1."), f"Node name {node.name} should start with layer1.")
+            self.assertTrue(
+                node.name.startswith("layer1."),
+                f"Node name {node.name} should start with layer1.",
+            )
 
         # Verify the result is a single ir.Value
         self.assertIsInstance(result, ir.Value)
@@ -681,9 +683,7 @@ class GraphBuilderTest(unittest.TestCase):
             return a, b
 
         result = op.call(
-            add_mul, x, y,
-            _outputs=["custom_sum", "custom_product"],
-            _prefix="math_ops"
+            add_mul, x, y, _outputs=["custom_sum", "custom_product"], _prefix="math_ops"
         )
 
         # The result should be a list of 2 ir.Values
@@ -701,16 +701,25 @@ class GraphBuilderTest(unittest.TestCase):
 
         # All node names should start with prefix
         for node in nodes:
-            self.assertTrue(node.name.startswith("math_ops."), f"Node name {node.name} should start with math_ops.")
+            self.assertTrue(
+                node.name.startswith("math_ops."),
+                f"Node name {node.name} should start with math_ops.",
+            )
 
         # Verify intermediate value names also get the prefix
         # The first Mul produces XSquare
         x_square = nodes[0].outputs[0]
-        self.assertTrue(x_square.name.startswith("math_ops."), f"Intermediate value {x_square.name} should have prefix")
+        self.assertTrue(
+            x_square.name.startswith("math_ops."),
+            f"Intermediate value {x_square.name} should have prefix",
+        )
 
         # The second Mul produces YSquare
         y_square = nodes[1].outputs[0]
-        self.assertTrue(y_square.name.startswith("math_ops."), f"Intermediate value {y_square.name} should have prefix")
+        self.assertTrue(
+            y_square.name.startswith("math_ops."),
+            f"Intermediate value {y_square.name} should have prefix",
+        )
 
     def test_call_outputs_mismatch_error(self):
         """Test that GraphBuilder.call raises an error if _outputs has wrong count."""

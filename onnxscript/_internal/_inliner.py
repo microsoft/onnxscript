@@ -53,4 +53,3 @@ def instantiate(
     nodes = [cloner.clone_node(n) for n in function]
     outputs = [value_map.get(v) for v in function.outputs]
     return nodes, outputs
-

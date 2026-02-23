@@ -9,8 +9,8 @@ import onnx
 import onnx_ir as ir
 
 import onnxscript._internal._inference as inference
-from onnxscript._internal import _inliner as inliner
 import onnxscript.optimizer
+from onnxscript._internal import _inliner as inliner
 
 # A permissible value for an op input, which can be converted to an ir.Value.
 VALUE_LIKE = Union[
@@ -327,7 +327,14 @@ class GraphBuilder:
 
         return node.outputs if len(node.outputs) > 1 else node.outputs[0]
 
-    def call(self, function, *args, _outputs: Sequence[str] | None = None, _prefix: str = "", **kwargs):
+    def call(
+        self,
+        function,
+        *args,
+        _outputs: Sequence[str] | None = None,
+        _prefix: str = "",
+        **kwargs,
+    ):
         if isinstance(function, ir.Function):
             function_ir = function
         elif isinstance(function, onnxscript.OnnxFunction):
@@ -423,5 +430,14 @@ class OpBuilder:
     def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
         return self._builder.initializer(tensor, name)
 
-    def call(self, function, *args, _outputs: Sequence[str] | None = None, _prefix: str = "", **kwargs):
-        return self._builder.call(function, *args, _outputs=_outputs, _prefix=_prefix, **kwargs)
+    def call(
+        self,
+        function,
+        *args,
+        _outputs: Sequence[str] | None = None,
+        _prefix: str = "",
+        **kwargs,
+    ):
+        return self._builder.call(
+            function, *args, _outputs=_outputs, _prefix=_prefix, **kwargs
+        )
