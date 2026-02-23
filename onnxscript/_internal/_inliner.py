@@ -34,9 +34,7 @@ def instantiate(
             f"Too many inputs: got {len(inputs)}, "
             f"but function has {len(formal_inputs)} parameters."
         )
-    value_map: dict[ir.Value, ir.Value | None] = {
-        formal: actual for formal, actual in zip(formal_inputs, inputs)
-    }
+    value_map: dict[ir.Value, ir.Value | None] = dict(zip(formal_inputs, inputs))
 
     def rename(node: ir.Node) -> None:
         if prefix:
