@@ -337,10 +337,10 @@ exactly the same imperative style as the outer graph, and the resulting
 The subgraph automatically inherits the opset version from the parent
 `GraphBuilder`, so there is no need to specify it separately.
 
-### Type annotations for subgraph ports
+### Type annotations for subgraph inputs and outputs
 
 `subgraph()` accepts `input_types` and `output_types` lists that describe
-the types and shapes of each port. Each element can be either an
+the types and shapes of each input and output. Each element can be either an
 `ir.TypeAndShape` object or — more conveniently — an
 `onnxscript` tensor-type expression:
 
