@@ -43,6 +43,18 @@ class Sequential(_module_list.ModuleList):
         for key, child in self._modules.items():
             child._set_name(key)
 
+    def _register_child(self, key: str, module: _module_list.Module) -> None:
+        """Register a child module under the given string key.
+
+        Unlike ``ModuleList._register_child`` which qualifies the child name
+        with the parent name, Sequential keeps children with simple index
+        names because ``__call__`` already pushes the Sequential's own name.
+        """
+        if module._name is None:  # pylint: disable=protected-access
+            object.__setattr__(module, "_name", key)
+        self._modules[key] = module
+        object.__setattr__(self, key, module)
+
     def forward(self, op: _builder.OpBuilder, *args: Any, **kwargs: Any) -> Any:
         """Run each child module sequentially, passing output to the next."""
         if len(self) == 0:

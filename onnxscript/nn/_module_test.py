@@ -917,6 +917,107 @@ class SequentialTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             seq(op, None)
 
+    def test_sequential_append_produces_correct_initializer_names(self):
+        """Sequential with append (after parent registration) gets correct names.
+
+        This tests the pattern where a Sequential is created empty, registered
+        on a parent Module, and then children are appended. The children should
+        produce initializer names like ``parent.seq.0.weight``, not
+        ``parent.seq.seq.0.weight`` (double-prefixed).
+        """
+
+        class Linear(Module):
+            def __init__(self, size):
+                super().__init__()
+                self.weight = Parameter([size, size], name="weight")
+
+            def forward(self, op, x):
+                return op.MatMul(x, op.Transpose(self.weight, perm=[1, 0]))
+
+        class Model(Module):
+            def __init__(self):
+                super().__init__("model")
+                self.blocks = Sequential([])
+                # Append AFTER __setattr__ has set Sequential._name = "blocks"
+                self.blocks.append(Linear(4))
+                self.blocks.append(Linear(4))
+
+            def forward(self, op, x):
+                return self.blocks(op, x)
+
+        graph, op = _create_graph_and_op()
+        x = ir.Value(
+            name="input",
+            type=ir.TensorType(ir.DataType.FLOAT),
+            shape=ir.Shape([1, 4]),
+        )
+        graph.inputs.append(x)
+
+        m = Model()
+        m(op, x)
+
+        self.assertIn("model.blocks.0.weight", graph.initializers)
+        self.assertIn("model.blocks.1.weight", graph.initializers)
+        self.assertEqual(len(graph.initializers), 2)
+
+    def test_modulelist_append_produces_correct_initializer_names(self):
+        """ModuleList with append after parent registration gets correct names.
+
+        Tests the interleaved ModuleList pattern (like a mid_block with separate
+        resnets and attentions lists). Children appended after parent registration
+        should produce names like ``parent.resnets.1.weight``.
+        """
+
+        class Linear(Module):
+            def __init__(self, size):
+                super().__init__()
+                self.weight = Parameter([size, size], name="weight")
+
+            def forward(self, op, x):
+                return op.MatMul(x, op.Transpose(self.weight, perm=[1, 0]))
+
+        class MidBlock(Module):
+            def __init__(self):
+                super().__init__()
+                self.resnets = ModuleList([Linear(4)])
+                self.attentions = ModuleList([])
+                # Appends after parent has set _name on the ModuleLists
+                self.attentions.append(Linear(4))
+                self.resnets.append(Linear(4))
+
+            def forward(self, op, x):
+                x = self.resnets[0](op, x)
+                for i in range(len(self.attentions)):
+                    x = self.attentions[i](op, x)
+                    x = self.resnets[i + 1](op, x)
+                return x
+
+        class Model(Module):
+            def __init__(self):
+                super().__init__("model")
+                self.mid = MidBlock()
+
+            def forward(self, op, x):
+                return self.mid(op, x)
+
+        graph, op = _create_graph_and_op()
+        x = ir.Value(
+            name="input",
+            type=ir.TensorType(ir.DataType.FLOAT),
+            shape=ir.Shape([1, 4]),
+        )
+        graph.inputs.append(x)
+
+        m = Model()
+        m(op, x)
+
+        expected = {
+            "model.mid.resnets.0.weight",
+            "model.mid.resnets.1.weight",
+            "model.mid.attentions.0.weight",
+        }
+        self.assertEqual(set(graph.initializers.keys()), expected)
+
 
 if __name__ == "__main__":
     unittest.main()

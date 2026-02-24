@@ -47,7 +47,11 @@ class ModuleList(Module):
     def _register_child(self, key: str, module: Module) -> None:
         """Register a child module under the given string key."""
         if module._name is None:  # pylint: disable=protected-access
-            object.__setattr__(module, "_name", key)
+            # Qualify with parent name if already set (e.g. after append)
+            if self._name is not None:
+                module._set_name(f"{self._name}.{key}")
+            else:
+                object.__setattr__(module, "_name", key)
         self._modules[key] = module
         object.__setattr__(self, key, module)
 
