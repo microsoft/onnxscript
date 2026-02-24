@@ -49,7 +49,7 @@ class ModuleList(Module):
         if module._name is None:  # pylint: disable=protected-access
             # Qualify with parent name if already set (e.g. after append)
             if self._name is not None:
-                module._set_name(f"{self._name}.{key}")
+                module._set_name(f"{self._name}.{key}")  # pylint: disable=protected-access
             else:
                 object.__setattr__(module, "_name", key)
         self._modules[key] = module

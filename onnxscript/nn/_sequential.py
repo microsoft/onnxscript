@@ -41,7 +41,7 @@ class Sequential(_module_list.ModuleList):
         """
         object.__setattr__(self, "_name", name)
         for key, child in self._modules.items():
-            child._set_name(key)
+            child._set_name(key)  # pylint: disable=protected-access
 
     def _register_child(self, key: str, module: _module_list.Module) -> None:
         """Register a child module under the given string key.
