@@ -20,6 +20,7 @@ from onnxscript._internal import (
     analysis,
     ast_utils,
     autocast,
+    builder,
     irbuilder,
     param_manipulation,
     sourceinfo,
@@ -171,14 +172,18 @@ class Converter:
         opset: values.Opset | None = None,
         global_names: dict[str, Any] | None = None,
         source: str | None = None,
-        default_opset: values.Opset | None = None,
+        default_opset: Union[values.Opset, builder.OpBuilder, None] = None,
     ):
         self.source = source
         if global_names is not None:
             # We make a copy in case function eval modifies it.
             self.globals = global_names.copy()
         self.this_module = opset
-        self.default_opset_ = default_opset
+        # Convert OpBuilder to Opset if necessary and store the converted value
+        if isinstance(default_opset, builder.OpBuilder):
+            self.default_opset_ = values.Opset(default_opset.domain, default_opset.version)
+        else:
+            self.default_opset_ = default_opset
 
         # States initialized by `_init_function_translation`
         self._outer: list[irbuilder.IRFunction] = []
@@ -225,14 +230,17 @@ class Converter:
     def _find_onnx_opset(self, node: ast.AST) -> values.Opset | None:
         """Find the (first) ONNX opset used in the function, if any."""
         # Search for a Call expression of form "op.OpName(...)"
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Attribute):
-                opset_expr = node.func.value
-                if isinstance(opset_expr, ast.Name):
-                    if opset_expr.id in self.globals:
-                        opset = self.globals[opset_expr.id]
-                        if isinstance(opset, values.Opset) and opset.domain == "":
-                            return opset
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            opset_expr = node.func.value
+            if isinstance(opset_expr, ast.Name) and opset_expr.id in self.globals:
+                opset = self.globals[opset_expr.id]
+                # Accept both values.Opset and builder.OpBuilder
+                if isinstance(opset, values.Opset):
+                    if opset.domain == "":
+                        return opset
+                elif isinstance(opset, builder.OpBuilder):
+                    if opset.domain == "":
+                        return values.Opset(opset.domain, opset.version)
         for child in ast.iter_child_nodes(node):
             res = self._find_onnx_opset(child)
             if res is not None:
@@ -954,6 +962,9 @@ class Converter:
             val = self._lookup(node.id, self._source_of(node), raise_exception=False)
             if isinstance(val, values.Opset):
                 return val
+            elif isinstance(val, builder.OpBuilder):
+                # Convert OpBuilder to Opset for compatibility
+                return values.Opset(val.domain, val.version)
             self.fail(node, f"'{node.id}' is not an instance of type Opset but {type(val)}.")
         elif isinstance(node, ast.Attribute):
             self.fail(node, "Nested module unimplemented.")  # TODO
