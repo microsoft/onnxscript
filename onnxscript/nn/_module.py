@@ -7,7 +7,7 @@ from typing import Any, Iterator
 
 import onnx_ir as ir
 
-from onnxscript._internal.builder import GraphBuilder, OpBuilder
+from onnxscript._internal import builder as _builder
 from onnxscript.nn._parameter import Parameter
 
 
@@ -70,8 +70,8 @@ class Module:
         else:
             object.__setattr__(self, name, value)
 
-    def __call__(self, op: OpBuilder, *args: Any, **kwargs: Any) -> Any:
-        builder: GraphBuilder = op.builder
+    def __call__(self, op: _builder.OpBuilder, *args: Any, **kwargs: Any) -> Any:
+        builder = op.builder
         module_name = self._name or ""
         class_name = type(self).__qualname__
         builder.push_module(module_name, class_name)
@@ -85,7 +85,7 @@ class Module:
             builder.pop_module()
         return result
 
-    def forward(self, op: OpBuilder, *args: Any, **kwargs: Any) -> Any:
+    def forward(self, op: _builder.OpBuilder, *args: Any, **kwargs: Any) -> Any:
         """Define the computation performed by this module.
 
         Must be overridden by subclasses. Receives an ``OpBuilder`` as the

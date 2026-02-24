@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Iterator, overload
 
-from onnxscript._internal.builder import OpBuilder
+from onnxscript._internal import builder as _builder
 from onnxscript.nn._module import Module
 
 
@@ -47,7 +47,11 @@ class ModuleList(Module):
     def _register_child(self, key: str, module: Module) -> None:
         """Register a child module under the given string key."""
         if module._name is None:  # pylint: disable=protected-access
-            object.__setattr__(module, "_name", key)
+            # Qualify with parent name if already set (e.g. after append)
+            if self._name is not None:
+                module._set_name(f"{self._name}.{key}")  # pylint: disable=protected-access
+            else:
+                object.__setattr__(module, "_name", key)
         self._modules[key] = module
         object.__setattr__(self, key, module)
 
@@ -89,7 +93,7 @@ class ModuleList(Module):
     def __iter__(self) -> Iterator[Module]:
         return iter(self._modules.values())
 
-    def forward(self, op: OpBuilder, *args: Any, **kwargs: Any) -> Any:
+    def forward(self, op: _builder.OpBuilder, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError(
             "ModuleList is not callable directly. "
             "Iterate over its children and call them individually."
