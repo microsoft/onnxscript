@@ -61,11 +61,14 @@ class Sequential(_module_list.ModuleList):
             raise RuntimeError("Cannot call forward on an empty Sequential container")
         for i, module in enumerate(self):
             if i == 0:
-                args = (module(op, *args, **kwargs),)
-                kwargs = {}
+                result = module(op, *args, **kwargs)
             else:
-                args = (module(op, *args),)
-        return args[0]
+                result = module(op, *args)
+            if not isinstance(result, (list, tuple)):
+                args = (result,)
+            else:
+                args = result
+        return result
 
     def __repr__(self) -> str:
         lines = ["Sequential("]
