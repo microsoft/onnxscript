@@ -46,7 +46,7 @@ class Sequential(_module_list.ModuleList):
     def forward(self, op: _builder.OpBuilder, *args: Any, **kwargs: Any) -> Any:
         """Run each child module sequentially, passing output to the next."""
         if len(self) == 0:
-            raise RuntimeError("Sequential is empty")
+            raise RuntimeError("Cannot call forward on an empty Sequential container")
         for i, module in enumerate(self):
             if i == 0:
                 args = (module(op, *args, **kwargs),)
