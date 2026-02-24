@@ -76,26 +76,29 @@ def _constant_name(
 
 # Type accepted as an element of *input_types* / *output_types* by
 # :meth:`GraphBuilder.subgraph`.  Can be an already-resolved
-# :class:`ir.TypeAndShape`, or any object that exposes a ``to_ir()``
-# class/static method returning an :class:`ir.TypeAndShape` (e.g. a
-# :class:`~onnxscript.onnx_types.TensorType` subclass such as ``FLOAT[1024]``).
+# :class:`ir.TypeAndShape`, or a
+# :class:`~onnxscript.onnx_types.TensorType` subclass such as ``FLOAT[1024]``.
 TypeSpec = Union[ir.TypeAndShape, Any]
 
 
 def _resolve_type_spec(spec: TypeSpec) -> ir.TypeAndShape:
     """Convert a *TypeSpec* to an :class:`ir.TypeAndShape`.
 
-    Accepts either an ``ir.TypeAndShape`` directly, or any class/object that has a
-    ``to_ir()`` method (e.g. a :class:`~onnxscript.onnx_types.TensorType` subclass).
+    Accepts either an :class:`ir.TypeAndShape` directly, or a
+    :class:`~onnxscript.onnx_types.TensorType` subclass (e.g. ``FLOAT[1024]``
+    or ``FLOAT['M', 'N']``).
     """
+    # Lazy import to avoid a circular dependency: onnxscript.__init__ imports
+    # onnx_types (line ~106) before builder (line ~132), so by the time any
+    # call reaches here the module is fully initialised — but a top-level
+    # import in builder.py could break if builder is ever imported first.
+    from onnxscript.onnx_types import TensorType  # pylint: disable=import-outside-toplevel
+
     if isinstance(spec, ir.TypeAndShape):
         return spec
-    if hasattr(spec, "to_ir"):
+    if isinstance(spec, type) and issubclass(spec, TensorType):
         return spec.to_ir()
-    raise TypeError(
-        f"Expected ir.TypeAndShape or a TensorType subclass, got {type(spec)!r}. "
-        "If using an onnxscript tensor type, make sure it has a to_ir() classmethod."
-    )
+    raise TypeError(f"Expected ir.TypeAndShape or a TensorType subclass, got {type(spec)!r}.")
 
 
 class GraphBuilder:
