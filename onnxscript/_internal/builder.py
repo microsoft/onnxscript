@@ -1,5 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""Graph builder for constructing ONNX IR graphs imperatively.
+
+This module provides imperative builders for constructing ONNX IR graphs with automatic
+constant promotion, type casting, and shape inference. The GraphBuilder class enables
+programmatic construction of graphs with proper scoping, constant management, and node
+creation. The OpBuilder class provides dynamic op dispatching via attribute access.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +17,7 @@ import onnx_ir as ir
 
 import onnxscript._internal._inference as inference
 import onnxscript.optimizer
-from onnxscript._internal import _inliner as inliner
+from onnxscript._internal import _inliner
 
 # A permissible value for an op input, which can be converted to an ir.Value.
 VALUE_LIKE = Union[
@@ -362,7 +369,7 @@ class GraphBuilder:
         else:
             for output in function_ir.outputs:
                 output_renaming[output.name] = self._qualify_value_name(output.name)
-        nodes, outputs = inliner.instantiate(function_ir, args, kwargs)
+        nodes, outputs = _inliner.instantiate(function_ir, args, kwargs)
         if _prefix:
             self.push_module(_prefix)
         for node in nodes:
@@ -487,6 +494,19 @@ class OpBuilder:
         _prefix: str = "",
         **kwargs,
     ):
+        """Call a function and inline it into the graph.
+
+        Args:
+            function: The function to call (ir.Function or onnxscript.OnnxFunction).
+            *args: Positional arguments to pass to the function.
+            _outputs: Optional sequence of output names. If provided, must match the
+                number of function outputs.
+            _prefix: Optional prefix for module scoping (e.g., "layers.0").
+            **kwargs: Keyword arguments to pass to the function.
+
+        Returns:
+            The output value(s) from the function call.
+        """
         return self._builder.call(
             function, *args, _outputs=_outputs, _prefix=_prefix, **kwargs
         )

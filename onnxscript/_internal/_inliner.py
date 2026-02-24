@@ -38,10 +38,11 @@ def instantiate(
 
     def rename(node: ir.Node) -> None:
         if prefix:
-            node.name = prefix + (node.name or "")
+            if node.name:
+                node.name = prefix + node.name
             for output in node.outputs:
-                if output is not None:
-                    output.name = prefix + (output.name or "")
+                if output is not None and output.name:
+                    output.name = prefix + output.name
 
     cloner = Cloner(
         attr_map=attributes,
