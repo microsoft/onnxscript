@@ -74,6 +74,30 @@ def _constant_name(
     return f"const_1d_{num}"
 
 
+# Type accepted as an element of *input_types* / *output_types* by
+# :meth:`GraphBuilder.subgraph`.  Can be an already-resolved
+# :class:`ir.TypeAndShape`, or any object that exposes a ``to_ir()``
+# class/static method returning an :class:`ir.TypeAndShape` (e.g. a
+# :class:`~onnxscript.onnx_types.TensorType` subclass such as ``FLOAT[1024]``).
+TypeSpec = Union[ir.TypeAndShape, Any]
+
+
+def _resolve_type_spec(spec: TypeSpec) -> ir.TypeAndShape:
+    """Convert a *TypeSpec* to an :class:`ir.TypeAndShape`.
+
+    Accepts either an ``ir.TypeAndShape`` directly, or any class/object that has a
+    ``to_ir()`` method (e.g. a :class:`~onnxscript.onnx_types.TensorType` subclass).
+    """
+    if isinstance(spec, ir.TypeAndShape):
+        return spec
+    if hasattr(spec, "to_ir"):
+        return spec.to_ir()
+    raise TypeError(
+        f"Expected ir.TypeAndShape or a TensorType subclass, got {type(spec)!r}. "
+        "If using an onnxscript tensor type, make sure it has a to_ir() classmethod."
+    )
+
+
 class GraphBuilder:
     """Imperative builder for constructing ONNX IR graphs with automatic constant promotion, type casting, and shape inference."""
 
@@ -301,6 +325,78 @@ class GraphBuilder:
         self.graph.append(node)
         onnxscript.optimizer.basic_constant_propagation([node])
         inference.infer_outputs(node)
+
+    def subgraph(
+        self,
+        trace_function: Callable,
+        input_types: Sequence[TypeSpec],
+        output_types: Sequence[TypeSpec],
+        *,
+        name: str = "subgraph",
+    ) -> ir.Graph:
+        """Build an :class:`ir.Graph` suitable for use as a graph-valued attribute.
+
+        The subgraph inherits the opset version from this :class:`GraphBuilder`.
+        It is particularly useful for constructing the body graphs of control-flow ops
+        such as ``Scan``, ``Loop``, and ``If``.
+
+        Example - building a Scan body that adds two sequences element-wise::
+
+            body = graph_builder.subgraph(
+                lambda op, x, y: op.Add(x, y),
+                input_types=[FLOAT[...], FLOAT[...]],
+                output_types=[FLOAT[...]],
+            )
+
+        Args:
+            trace_function: A callable with signature
+                ``(op: OpBuilder, *inputs: ir.Value) -> ir.Value | Sequence[ir.Value]``.
+                It is called once with freshly created placeholder inputs to record the
+                graph topology.
+            input_types: Types for each graph input.  Each element may be an
+                :class:`ir.TypeAndShape` **or** a
+                :class:`~onnxscript.onnx_types.TensorType` subclass (e.g.
+                ``FLOAT[1024]`` or ``FLOAT['M', 'N']``).
+            output_types: Types for each graph output, in the same format as
+                *input_types*.
+            name: Name of the resulting :class:`ir.Graph`.
+
+        Returns:
+            An :class:`ir.Graph` whose inputs and outputs are populated and whose
+            nodes record the operations traced by *trace_function*.  This graph can be
+            passed directly as a graph-valued attribute (e.g. the ``body`` attribute of
+            a ``Scan`` or ``Loop`` node).
+        """
+        opset_version = self._graph.opset_imports[""]
+        resolved_inputs = [_resolve_type_spec(t) for t in input_types]
+        resolved_outputs = [_resolve_type_spec(t) for t in output_types]
+
+        subgraph = ir.Graph(
+            name=name,
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": opset_version},
+        )
+
+        for i, ts in enumerate(resolved_inputs):
+            subgraph.inputs.append(ir.Value(name=f"input_{i}", type=ts.type, shape=ts.shape))
+
+        sub_builder = GraphBuilder(subgraph)
+        outputs = trace_function(sub_builder.op, *subgraph.inputs)
+        if not isinstance(outputs, Sequence):
+            outputs = [outputs]
+        if len(outputs) != len(resolved_outputs):
+            raise ValueError(
+                f"trace_function returned {len(outputs)} output(s), "
+                f"but {len(resolved_outputs)} were declared in output_types."
+            )
+        for output, ts in zip(outputs, resolved_outputs):
+            output.type = ts.type
+            output.merge_shapes(ts.shape)
+
+        subgraph.outputs.extend(outputs)
+        return subgraph
 
     def call_op(
         self,
