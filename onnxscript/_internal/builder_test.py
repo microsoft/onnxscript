@@ -10,6 +10,7 @@ from typing import Sequence
 import onnx_ir as ir
 
 import onnxscript._internal.builder as builder
+from onnxscript import script
 
 _default_opset_version = 23
 
@@ -192,12 +193,12 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertIs(t3, out3)
 
     def test_default_output_naming_strategy(self):
-        """Test the default naming strategy for generated output values using op_type_output format."""
+        """Test the default naming strategy for generated output values using op_type_nX_output format."""
 
         def _ops_with_default_names(
             op: builder.OpBuilder, x: ir.Value, y: ir.Value
         ) -> ir.Value:
-            # Single output operations should be named {op_type}_output
+            # Single output operations should be named {op_type}_nX_output where X is node count
             t1 = op.Add(x, y)
             t2 = op.Mul(x, y)
             z = op.Add(t1, t2)
@@ -275,6 +276,8 @@ class GraphBuilderTest(unittest.TestCase):
         # Verify output shape is inferred correctly
         self.assertIsNotNone(result.shape)
         self.assertEqual(list(result.shape), [2, 3, 4])
+
+        self.assertEqual(result.name, "v_Add_0")
 
     def test_custom_domain_explicit(self):
         """Test using operations from custom domains with explicit _domain parameter."""
@@ -643,6 +646,177 @@ class GraphBuilderTest(unittest.TestCase):
         strs_attr = node.attributes["strs_attr"]
         self.assertEqual(strs_attr.type, ir.AttributeType.STRINGS)
         self.assertEqual(list(strs_attr.value), ["a", "b", "c"])
+
+    def test_call_inlines_onnxscript_function(self):
+        """Test that GraphBuilder.call inlines an @onnxscript.script function."""
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+
+        # Define the script function after creating op, using op as default_opset
+        @script(default_opset=op)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op.Relu(tmp)
+
+        result = op.call(mul_add_relu, x, y)
+
+        # The inlined function should produce 3 nodes: Mul, Add, Relu
+        nodes = list(op.builder.graph)
+        op_types = [n.op_type for n in nodes]
+        self.assertEqual(op_types, ["Mul", "Add", "Relu"])
+
+        # The result should be a single ir.Value (the Relu output)
+        self.assertIsInstance(result, ir.Value)
+
+        # Verify connectivity: Relu takes the Add output
+        relu_node = nodes[2]
+        add_node = nodes[1]
+        self.assertIs(relu_node.inputs[0], add_node.outputs[0])
+
+        # Verify the Add takes the Mul output and original input x
+        mul_node = nodes[0]
+        self.assertIs(add_node.inputs[0], mul_node.outputs[0])
+        self.assertIs(add_node.inputs[1], x)
+
+        # Verify the Mul takes the original inputs x and y
+        self.assertIs(mul_node.inputs[0], x)
+        self.assertIs(mul_node.inputs[1], y)
+
+    def test_call_with_outputs_option(self):
+        """Test that GraphBuilder.call respects the _outputs option for renaming."""
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+
+        # Define the script function after creating op, using op as default_opset
+        @script(default_opset=op)
+        def add_mul(X, Y):
+            a = X + Y
+            b = X * Y
+            return a, b
+
+        result = op.call(add_mul, x, y, _outputs=["sum_result", "product_result"])
+
+        # The result should be a list of 2 ir.Values (when function returns multiple outputs)
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 2)
+        sum_result, product_result = result
+
+        # Verify output names are correctly set (with v_ prefix from value naming convention)
+        self.assertEqual(sum_result.name, "v_sum_result")
+        self.assertEqual(product_result.name, "v_product_result")
+
+        # Verify the nodes were created correctly
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 2)
+        self.assertEqual(nodes[0].op_type, "Add")
+        self.assertEqual(nodes[1].op_type, "Mul")
+
+    def test_call_with_prefix_option(self):
+        """Test that GraphBuilder.call respects the _prefix option for hierarchical naming."""
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+
+        # Define the script function after creating op, using op as default_opset
+        @script(default_opset=op)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op.Relu(tmp)
+
+        result = op.call(mul_add_relu, x, y, _prefix="layer1")
+
+        # The nodes should have the prefix in their names
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 3)
+
+        # Check that all node names start with the prefix (node names use / separator)
+        for node in nodes:
+            self.assertTrue(
+                node.name.startswith("layer1/"),
+                f"Node name {node.name} should start with layer1/",
+            )
+
+        # Verify the result is a single ir.Value
+        self.assertIsInstance(result, ir.Value)
+
+    def test_call_with_outputs_and_prefix_options(self):
+        """Test that GraphBuilder.call respects both _outputs and _prefix options together.
+
+        Note: _outputs names are set before the prefix context is applied, so they don't get
+        the prefix in their names. However, the inlined nodes do get the prefix applied, and
+        intermediate values (not renamed by _outputs) do get the prefix applied.
+        """
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+
+        # Define the script function after creating op, using op as default_opset
+        @script(default_opset=op)
+        def add_mul(X, Y):
+            # Intermediate values that are not explicitly renamed by _outputs
+            XSquare = X * X
+            YSquare = Y * Y
+            # Final outputs that will be renamed by _outputs
+            a = XSquare + Y
+            b = XSquare * YSquare
+            return a, b
+
+        result = op.call(
+            add_mul, x, y, _outputs=["custom_sum", "custom_product"], _prefix="math_ops"
+        )
+
+        # The result should be a list of 2 ir.Values
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 2)
+        sum_result, product_result = result
+
+        # Verify output names are set (with v_ prefix from value naming convention)
+        self.assertEqual(sum_result.name, "v_custom_sum")
+        self.assertEqual(product_result.name, "v_custom_product")
+
+        # Verify all nodes have the prefix applied to their names
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 4)  # Mul (XSquare), Mul (YSquare), Add, Mul (final)
+
+        # All node names should start with prefix (node names use / separator)
+        for node in nodes:
+            self.assertTrue(
+                node.name.startswith("math_ops/"),
+                f"Node name {node.name} should start with math_ops/",
+            )
+
+        # Verify intermediate value names also get the prefix (value names use v_ prefix and . separator)
+        # The first Mul produces XSquare
+        x_square = nodes[0].outputs[0]
+        self.assertTrue(
+            x_square.name.startswith("v_math_ops."),
+            f"Intermediate value {x_square.name} should have prefix",
+        )
+
+        # The second Mul produces YSquare
+        y_square = nodes[1].outputs[0]
+        self.assertTrue(
+            y_square.name.startswith("v_math_ops."),
+            f"Intermediate value {y_square.name} should have prefix",
+        )
+
+    def test_call_outputs_mismatch_error(self):
+        """Test that GraphBuilder.call raises an error if _outputs has wrong count."""
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+
+        # Define the script function after creating op, using op as default_opset
+        @script(default_opset=op)
+        def add_mul(X, Y):
+            a = X + Y
+            b = X * Y
+            return a, b
+
+        # The function returns 2 outputs, but we provide only 1 name
+        with self.assertRaises(ValueError) as cm:
+            op.call(add_mul, x, y, _outputs=["only_one_name"])
+
+        self.assertIn("does not match", str(cm.exception))
 
 
 if __name__ == "__main__":

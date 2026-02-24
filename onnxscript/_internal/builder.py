@@ -1,5 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""Graph builder for constructing ONNX IR graphs imperatively.
+
+This module provides imperative builders for constructing ONNX IR graphs with automatic
+constant promotion, type casting, and shape inference. The GraphBuilder class enables
+programmatic construction of graphs with proper scoping, constant management, and node
+creation. The OpBuilder class provides dynamic op dispatching via attribute access.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +17,7 @@ import onnx_ir as ir
 
 import onnxscript._internal._inference as inference
 import onnxscript.optimizer
+from onnxscript._internal import _inliner
 
 # A permissible value for an op input, which can be converted to an ir.Value.
 VALUE_LIKE = Union[
@@ -334,6 +342,49 @@ class GraphBuilder:
 
         return node.outputs if len(node.outputs) > 1 else node.outputs[0]
 
+    def call(
+        self,
+        function,
+        *args,
+        _outputs: Sequence[str] | None = None,
+        _prefix: str = "",
+        **kwargs,
+    ):
+        if isinstance(function, ir.Function):
+            function_ir = function
+        elif isinstance(function, onnxscript.OnnxFunction):
+            function_proto = function.to_function_proto()
+            function_ir = ir.serde.deserialize_function(function_proto)
+        else:
+            raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
+        output_renaming: dict[str, str] = {}
+        if _outputs is not None:
+            if len(_outputs) != len(function_ir.outputs):
+                raise ValueError(
+                    f"Number of provided output names {_outputs} does not match "
+                    f"number of function outputs {len(function_ir.outputs)}."
+                )
+            for output, name in zip(function_ir.outputs, _outputs):
+                output_renaming[output.name] = self._qualify_value_name(name)
+        else:
+            for output in function_ir.outputs:
+                output_renaming[output.name] = self._qualify_value_name(output.name)
+        nodes, outputs = _inliner.instantiate(function_ir, args, kwargs)
+        if _prefix:
+            self.push_module(_prefix)
+        for node in nodes:
+            node.name = self._qualify_node_name(node.name)
+            for output in node.outputs:
+                if output.name:
+                    if output.name in output_renaming:
+                        output.name = output_renaming[output.name]
+                    else:
+                        output.name = self._qualify_value_name(output.name)
+            self.add_node(node)
+        if _prefix:
+            self.pop_module()
+        return outputs if len(outputs) > 1 else outputs[0]
+
     def push_module(self, module: str, class_name: str = "") -> None:
         """Push a new module scope onto the stack.
 
@@ -414,6 +465,14 @@ class OpBuilder:
     def builder(self) -> GraphBuilder:
         return self._builder
 
+    @property
+    def domain(self) -> str:
+        return self._domain
+
+    @property
+    def version(self) -> int | None:
+        return self._version
+
     def _call_op(self, op_type: str, inputs: Sequence[Any], kwargs: dict[str, Any]):
         if "_domain" not in kwargs:
             kwargs["_domain"] = self._domain
@@ -426,3 +485,28 @@ class OpBuilder:
 
     def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
         return self._builder.initializer(tensor, name)
+
+    def call(
+        self,
+        function,
+        *args,
+        _outputs: Sequence[str] | None = None,
+        _prefix: str = "",
+        **kwargs,
+    ):
+        """Call a function and inline it into the graph.
+
+        Args:
+            function: The function to call (ir.Function or onnxscript.OnnxFunction).
+            *args: Positional arguments to pass to the function.
+            _outputs: Optional sequence of output names. If provided, must match the
+                number of function outputs.
+            _prefix: Optional prefix for module scoping (e.g., "layers.0").
+            **kwargs: Keyword arguments to pass to the function.
+
+        Returns:
+            The output value(s) from the function call.
+        """
+        return self._builder.call(
+            function, *args, _outputs=_outputs, _prefix=_prefix, **kwargs
+        )
