@@ -9,7 +9,7 @@ from typing import Any
 import onnx_ir as ir
 
 from onnxscript._internal.builder import GraphBuilder, OpBuilder
-from onnxscript.nn import Module, ModuleList, Parameter
+from onnxscript.nn import Module, ModuleList, Parameter, Sequential
 
 
 def _create_graph_and_op() -> tuple[ir.Graph, OpBuilder]:
@@ -839,8 +839,6 @@ class SequentialTest(unittest.TestCase):
             def forward(self, op, x):
                 return op.Add(x, op.Constant(value_float=1.0))
 
-        from onnxscript.nn._sequential import Sequential
-
         graph, op = _create_graph_and_op()
         x = ir.Value(
             name="input",
@@ -867,8 +865,6 @@ class SequentialTest(unittest.TestCase):
 
             def forward(self, op, x):
                 return op.MatMul(x, op.Transpose(self.weight, perm=[1, 0]))
-
-        from onnxscript.nn._sequential import Sequential
 
         class Model(Module):
             def __init__(self):
@@ -907,8 +903,6 @@ class SequentialTest(unittest.TestCase):
             def forward(self, op, x):
                 return op.MatMul(x, op.Transpose(self.weight, perm=[1, 0]))
 
-        from onnxscript.nn._sequential import Sequential
-
         seq = Sequential([SiLU(), Linear(4)])
         named = dict(seq.named_parameters())
         # SiLU at index 0 has no params; Linear at index 1 has weight
@@ -917,19 +911,11 @@ class SequentialTest(unittest.TestCase):
 
     def test_sequential_empty_raises(self):
         """Empty Sequential raises RuntimeError on forward."""
-        from onnxscript.nn._sequential import Sequential
 
         seq = Sequential()
         _, op = _create_graph_and_op()
         with self.assertRaises(RuntimeError):
             seq(op, None)
-
-    def test_sequential_import_from_nn(self):
-        """Sequential is importable from onnxscript.nn."""
-        from onnxscript.nn import Sequential as Seq
-        from onnxscript.nn._sequential import Sequential
-
-        self.assertIs(Seq, Sequential)
 
 
 if __name__ == "__main__":

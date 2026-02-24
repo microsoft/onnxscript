@@ -7,7 +7,7 @@ from typing import Sequence
 
 import onnx_ir as ir
 
-from onnxscript._internal.builder import GraphBuilder
+from onnxscript._internal import builder as _builder
 
 
 class Parameter(ir.Value):
@@ -57,7 +57,7 @@ class Parameter(ir.Value):
         """Return the element data type of this parameter."""
         return self.type.dtype if self.type is not None else None
 
-    def _realize(self, builder: GraphBuilder) -> Parameter:
+    def _realize(self, builder: _builder.GraphBuilder) -> Parameter:
         """Qualify the name and register as a graph initializer.
 
         Uses direct assignment to ``graph.initializers[...]`` to skip the

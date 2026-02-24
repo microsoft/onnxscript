@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Iterator, overload
 
-from onnxscript._internal.builder import OpBuilder
+from onnxscript._internal import builder as _builder
 from onnxscript.nn._module import Module
 
 
@@ -89,7 +89,7 @@ class ModuleList(Module):
     def __iter__(self) -> Iterator[Module]:
         return iter(self._modules.values())
 
-    def forward(self, op: OpBuilder, *args: Any, **kwargs: Any) -> Any:
+    def forward(self, op: _builder.OpBuilder, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError(
             "ModuleList is not callable directly. "
             "Iterate over its children and call them individually."

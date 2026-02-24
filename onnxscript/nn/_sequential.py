@@ -5,12 +5,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from onnxscript._internal.builder import OpBuilder
-from onnxscript.nn._module import Module
-from onnxscript.nn._module_list import ModuleList
+from onnxscript._internal import builder as _builder
+from onnxscript.nn import _module_list
 
 
-class Sequential(ModuleList):
+class Sequential(_module_list.ModuleList):
     """A sequential container that calls children in order, mirroring ``torch.nn.Sequential``.
 
     Children are registered with string keys ``"0"``, ``"1"``, etc., just like
@@ -44,7 +43,7 @@ class Sequential(ModuleList):
         for key, child in self._modules.items():
             child._set_name(key)
 
-    def forward(self, op: OpBuilder, *args: Any, **kwargs: Any) -> Any:
+    def forward(self, op: _builder.OpBuilder, *args: Any, **kwargs: Any) -> Any:
         """Run each child module sequentially, passing output to the next."""
         if len(self) == 0:
             raise RuntimeError("Sequential is empty")
