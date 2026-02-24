@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import unittest
 from typing import Sequence
 
@@ -129,14 +130,14 @@ class GraphBuilderTest(unittest.TestCase):
         nodes = list(graph)
         self.assertEqual(len(nodes), 3)
 
-        # Check output names
-        self.assertEqual(nodes[0].outputs[0].name, "add_result")
-        self.assertEqual(nodes[1].outputs[0].name, "mul_result")
-        self.assertEqual(nodes[2].outputs[0].name, "final_add")
+        # Check output names (v_ prefix is added to all value names)
+        self.assertEqual(nodes[0].outputs[0].name, "v_add_result")
+        self.assertEqual(nodes[1].outputs[0].name, "v_mul_result")
+        self.assertEqual(nodes[2].outputs[0].name, "v_final_add")
 
         # Verify the final output has the correct name
         self.assertEqual(len(graph.outputs), 1)
-        self.assertEqual(graph.outputs[0].name, "final_add")
+        self.assertEqual(graph.outputs[0].name, "v_final_add")
 
     def test_value_naming_with_hierarchy(self):
         """Test that hierarchical naming works with user-specified output names."""
@@ -144,26 +145,26 @@ class GraphBuilderTest(unittest.TestCase):
 
         # Test custom names at root level
         t1 = op.Add(x, y, _outputs=["my_add"])
-        self.assertEqual(t1.name, "my_add")
+        self.assertEqual(t1.name, "v_my_add")
 
         # Test custom names with hierarchical context
         op.builder.push_module("layer1")
         t2 = op.Mul(t1, y, _outputs=["my_mul"])
-        self.assertEqual(t2.name, "layer1.my_mul")
+        self.assertEqual(t2.name, "v_layer1.my_mul")
 
         # Test nested hierarchical context with custom names
         op.builder.push_module("attention")
         t3 = op.Add(t2, x, _outputs=["my_nested_add"])
-        self.assertEqual(t3.name, "layer1.attention.my_nested_add")
+        self.assertEqual(t3.name, "v_layer1.attention.my_nested_add")
 
         # Pop back and verify prefix is applied correctly
         op.builder.pop_module()
         t4 = op.Mul(t3, y, _outputs=["another_mul"])
-        self.assertEqual(t4.name, "layer1.another_mul")
+        self.assertEqual(t4.name, "v_layer1.another_mul")
 
         op.builder.pop_module()
         t5 = op.Add(t4, x, _outputs=["final_result"])
-        self.assertEqual(t5.name, "final_result")
+        self.assertEqual(t5.name, "v_final_result")
 
     def test_value_naming_with_ir_value_objects(self):
         """Test that hierarchical naming works when passing ir.Value objects as _outputs."""
@@ -176,19 +177,19 @@ class GraphBuilderTest(unittest.TestCase):
 
         # Test at root level
         t1 = op.Add(x, y, _outputs=[out1])
-        self.assertEqual(t1.name, "my_output")
+        self.assertEqual(t1.name, "v_my_output")
         self.assertIs(t1, out1)
 
         # Test with hierarchical context
         op.builder.push_module("layer1")
         t2 = op.Mul(t1, y, _outputs=[out2])
-        self.assertEqual(t2.name, "layer1.layer_output")
+        self.assertEqual(t2.name, "v_layer1.layer_output")
         self.assertIs(t2, out2)
 
         # Test nested hierarchical context
         op.builder.push_module("attention")
         t3 = op.Add(t2, x, _outputs=[out3])
-        self.assertEqual(t3.name, "layer1.attention.nested_output")
+        self.assertEqual(t3.name, "v_layer1.attention.nested_output")
         self.assertIs(t3, out3)
 
     def test_default_output_naming_strategy(self):
@@ -215,14 +216,14 @@ class GraphBuilderTest(unittest.TestCase):
         nodes = list(graph)
         self.assertEqual(len(nodes), 3)
 
-        # Check output names follow the {op_type}_output pattern for single outputs
-        self.assertEqual(nodes[0].outputs[0].name, "Add_output")
-        self.assertEqual(nodes[1].outputs[0].name, "Mul_output")
-        self.assertEqual(nodes[2].outputs[0].name, "Add_output")
+        # Check output names follow the v_{op_type}_{count} pattern for single outputs
+        self.assertEqual(nodes[0].outputs[0].name, "v_Add_0")
+        self.assertEqual(nodes[1].outputs[0].name, "v_Mul_1")
+        self.assertEqual(nodes[2].outputs[0].name, "v_Add_2")
 
         # Verify the final output has the correct name
         self.assertEqual(len(graph.outputs), 1)
-        self.assertEqual(graph.outputs[0].name, "Add_output")
+        self.assertEqual(graph.outputs[0].name, "v_Add_2")
 
     def test_hierarchical_naming(self):
         """Test the hierarchical naming strategy (for value and node names)."""
@@ -230,35 +231,35 @@ class GraphBuilderTest(unittest.TestCase):
 
         # Test node and value naming at root level
         t1 = op.Add(x, y)
-        self.assertEqual(t1.name, "Add_output")
+        self.assertEqual(t1.name, "v_Add_0")
         self.assertEqual(t1.producer().name, "Add_node_0")
 
         t2 = op.Mul(t1, y)
-        self.assertEqual(t2.name, "Mul_output")
+        self.assertEqual(t2.name, "v_Mul_1")
         self.assertEqual(t2.producer().name, "Mul_node_1")
 
         # Test node and value naming with hierarchical context prefix
         op.builder.push_module("layer1")
         t3 = op.Add(t2, x)
-        self.assertEqual(t3.name, "layer1.Add_output")
-        self.assertEqual(t3.producer().name, "layer1.Add_node_2")
+        self.assertEqual(t3.name, "v_layer1.Add_2")
+        self.assertEqual(t3.producer().name, "layer1/Add_node_2")
 
         # Test nested hierarchical context
         op.builder.push_module("attention")
         t4 = op.Mul(t3, y)
-        self.assertEqual(t4.name, "layer1.attention.Mul_output")
-        self.assertEqual(t4.producer().name, "layer1.attention.Mul_node_3")
+        self.assertEqual(t4.name, "v_layer1.attention.Mul_3")
+        self.assertEqual(t4.producer().name, "layer1/attention/Mul_node_3")
 
         # Pop back to layer1 and verify naming continues correctly
         op.builder.pop_module()
         t5 = op.Add(t4, x)
-        self.assertEqual(t5.name, "layer1.Add_output")
-        self.assertEqual(t5.producer().name, "layer1.Add_node_4")
+        self.assertEqual(t5.name, "v_layer1.Add_4")
+        self.assertEqual(t5.producer().name, "layer1/Add_node_4")
 
         # Pop back to root context
         op.builder.pop_module()
         t6 = op.Mul(t5, y)
-        self.assertEqual(t6.name, "Mul_output")
+        self.assertEqual(t6.name, "v_Mul_5")
         self.assertEqual(t6.producer().name, "Mul_node_5")
 
     def test_shape_inference_add(self):
@@ -314,7 +315,7 @@ class GraphBuilderTest(unittest.TestCase):
 
         # Verify output value is created
         self.assertIsNotNone(result)
-        self.assertEqual(result.name, "MicrosoftOp_output")
+        self.assertEqual(result.name, "v_MicrosoftOp_0")
 
     def test_multiple_custom_domain_operations(self):
         """Test mixing operations from multiple domains."""
@@ -521,6 +522,84 @@ class GraphBuilderTest(unittest.TestCase):
         op.builder.pop_module()
         with self.assertRaises(RuntimeError):
             op.builder.pop_module()
+
+    def test_output_names_are_unique_for_same_op_type(self):
+        """Test that repeated calls to the same op produce unique output names."""
+        op, x, y = _create_builder_with_inputs()
+
+        t1 = op.Add(x, y)
+        t2 = op.Add(x, y)
+        t3 = op.Add(x, y)
+
+        # Each Add output should have a unique name via the node count suffix
+        self.assertEqual(t1.name, "v_Add_0")
+        self.assertEqual(t2.name, "v_Add_1")
+        self.assertEqual(t3.name, "v_Add_2")
+
+        # Verify all names are distinct
+        names = [t1.name, t2.name, t3.name]
+        self.assertEqual(len(set(names)), 3)
+
+    def test_multi_output_names_are_unique(self):
+        """Test that multi-output ops produce unique names with counter suffix."""
+        op, x, y = _create_builder_with_inputs()
+
+        # First multi-output call
+        out1_a, out1_b = op.TopK(x, 1, axis=-1, _outputs=2)
+        # Second multi-output call
+        out2_a, out2_b = op.TopK(y, 1, axis=-1, _outputs=2)
+
+        # Each call should produce unique names
+        self.assertNotEqual(out1_a.name, out2_a.name)
+        self.assertNotEqual(out1_b.name, out2_b.name)
+
+    def test_node_metadata_props_namespace(self):
+        """Test that nodes have namespace metadata matching the scope hierarchy."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Root-level node
+        t1 = op.Add(x, y)
+        self.assertEqual(t1.producer().metadata_props["namespace"], "")
+
+        # Node inside a module scope
+        op.builder.push_module("layer1", "DecoderLayer")
+        t2 = op.Mul(t1, y)
+        self.assertEqual(t2.producer().metadata_props["namespace"], "layer1: DecoderLayer")
+
+        # Nested scope
+        op.builder.push_module("self_attn", "Attention")
+        t3 = op.Add(t2, x)
+        self.assertEqual(
+            t3.producer().metadata_props["namespace"],
+            "layer1: DecoderLayer/self_attn: Attention",
+        )
+        op.builder.pop_module()
+        op.builder.pop_module()
+
+    def test_node_metadata_props_class_hierarchy(self):
+        """Test that nodes have class hierarchy metadata."""
+        op, x, y = _create_builder_with_inputs()
+
+        op.builder.push_module("layer1", "DecoderLayer")
+        op.builder.push_module("self_attn", "Attention")
+        t1 = op.MatMul(x, y)
+        node = t1.producer()
+
+        self.assertEqual(
+            node.metadata_props["pkg.onnxscript.class_hierarchy"],
+            repr(["DecoderLayer", "Attention"]),
+        )
+        self.assertEqual(
+            node.metadata_props["pkg.onnxscript.name_scopes"],
+            repr(["layer1", "self_attn"]),
+        )
+        # class_hierarchy and name_scopes have the same length
+        self.assertEqual(
+            len(ast.literal_eval(node.metadata_props["pkg.onnxscript.class_hierarchy"])),
+            len(ast.literal_eval(node.metadata_props["pkg.onnxscript.name_scopes"])),
+        )
+        op.builder.pop_module()
+        op.builder.pop_module()
 
     def test_attributes_are_created_properly(self):
         """Test that int, float, str, and list attributes are set correctly on a node."""

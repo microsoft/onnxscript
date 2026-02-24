@@ -81,10 +81,10 @@ class GraphBuilder:
 
         self._op_builder = self.opset("", opset_version)
 
-        # Context stack to manage hierarchical naming. Each module/layer can push a new context, and pop it when done.
-        # The current context is used as a prefix for naming values and nodes.
-        # This allows us to generate names like "layer1.attention.query"
-        self._context_stack: list[str] = [""]
+        # Module scope stack. Each entry is (name, class_name) where name is
+        # the module attribute name (e.g. "layers.0", "self_attn") and
+        # class_name is the qualified class name (e.g. "Gemma3DecoderLayer").
+        self._scope_stack: list[tuple[str, str]] = []
 
         # Cache for constant initializers (scalars and sequences), keyed by (value, dtype).
         # This avoids creating duplicate initializers for the same constant
@@ -110,7 +110,7 @@ class GraphBuilder:
         if name is None:
             name = tensor.name
         if qualify:
-            name = self.qualify_name(name)
+            name = self._qualify_initializer_name(name)
         shape = ir.Shape(tensor.shape)
         value = ir.Value(
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
@@ -181,24 +181,26 @@ class GraphBuilder:
         self, outputs: int | Sequence[str | ir.Value], op_type: str = ""
     ) -> Sequence[ir.Value]:
         if isinstance(outputs, int):
+            count = self.graph.num_nodes()
             if outputs < 0:
                 raise ValueError(f"Number of outputs must be non-negative, got {outputs}")
             if outputs == 1:
-                name = f"{op_type}_output" if op_type else "output"
-                return [ir.Value(name=self.qualify_name(name))]
+                name = f"{op_type}_{count}" if op_type else f"{count}"
+                return [ir.Value(name=self._qualify_value_name(name))]
             else:
                 names = [
-                    f"{op_type}_output{i}" if op_type else f"output{i}" for i in range(outputs)
+                    (f"{op_type}_{count}_{i}" if op_type else f"{count}_{i}")
+                    for i in range(outputs)
                 ]
-                return [ir.Value(name=self.qualify_name(n)) for n in names]
+                return [ir.Value(name=self._qualify_value_name(n)) for n in names]
         adapted_outputs = []
         for output in outputs:
             if isinstance(output, ir.Value):
                 if output.name:
-                    output.name = self.qualify_name(output.name)
+                    output.name = self._qualify_value_name(output.name)
                 adapted_outputs.append(output)
             elif isinstance(output, str):
-                adapted_outputs.append(ir.Value(name=self.qualify_name(output)))
+                adapted_outputs.append(ir.Value(name=self._qualify_value_name(output)))
             else:
                 raise TypeError("Output type not supported.")
         return adapted_outputs
@@ -305,7 +307,7 @@ class GraphBuilder:
         outputs = kwargs.pop("_outputs", 1)
 
         count = self.graph.num_nodes()
-        node_name = self.qualify_name(f"{op_type}_node_{count}")
+        node_name = self._qualify_node_name(f"{op_type}_node_{count}")
 
         output_values = self._adapt_outputs(outputs, op_type)
 
@@ -323,6 +325,12 @@ class GraphBuilder:
             version=version,
             name=node_name,
         )
+
+        # Attach scope metadata to the node
+        node.metadata_props["namespace"] = self._build_namespace()
+        node.metadata_props["pkg.onnxscript.class_hierarchy"] = repr(self._scope_classes())
+        node.metadata_props["pkg.onnxscript.name_scopes"] = repr(self._scope_names())
+
         self.add_node(node)
 
         return node.outputs if len(node.outputs) > 1 else node.outputs[0]
@@ -370,29 +378,70 @@ class GraphBuilder:
             self.pop_module()
         return outputs if len(outputs) > 1 else outputs[0]
 
-    def push_module(self, module: str) -> None:
-        """Push a new naming context onto the stack (e.g. a layer or module name)."""
-        current = self.context_name()
-        if module:
-            new_context = f"{current}.{module}" if current else module
-        else:
-            new_context = current
-        self._context_stack.append(new_context)
+    def push_module(self, module: str, class_name: str = "") -> None:
+        """Push a new module scope onto the stack.
+
+        Args:
+            module: The attribute name of the module (e.g. ``"layers.0"``).
+            class_name: The qualified class name (e.g. ``"Gemma3DecoderLayer"``).
+        """
+        self._scope_stack.append((module, class_name))
 
     def pop_module(self) -> None:
-        """Pop the most recent naming context off the stack."""
-        if len(self._context_stack) <= 1:
+        """Pop the most recent module scope off the stack."""
+        if not self._scope_stack:
             raise RuntimeError("Cannot pop_module: no module context has been pushed.")
-        self._context_stack.pop()
+        self._scope_stack.pop()
 
-    def context_name(self) -> str:
-        """Return the current dot-separated naming context prefix."""
-        return self._context_stack[-1] if self._context_stack else ""
+    def _scope_names(self) -> list[str]:
+        """Return the list of module attribute names in the current scope."""
+        return [name for name, _ in self._scope_stack]
 
-    def qualify_name(self, name: str) -> str:
-        """Prepend the current hierarchical context prefix to the given name."""
-        prefix = self.context_name()
-        return f"{prefix}.{name}" if prefix else name
+    def _scope_classes(self) -> list[str]:
+        """Return the list of class names in the current scope."""
+        return [cls for _, cls in self._scope_stack]
+
+    def _scope_name_parts(self) -> list[str]:
+        """Return non-empty module names for qualifying names."""
+        return [name for name, _ in self._scope_stack if name]
+
+    def _qualify_initializer_name(self, name: str) -> str:
+        """Prepend the current hierarchical context prefix to the given name.
+
+        Uses ``.`` as separator, appropriate for parameter and initializer names.
+        """
+        parts = self._scope_name_parts()
+        if parts:
+            return ".".join(parts) + "." + name
+        return name
+
+    def _qualify_value_name(self, name: str) -> str:
+        """Qualify a value name with the current scope using ``.`` separator.
+
+        The name is prefixed with ``v_`` to distinguish values from parameters.
+        """
+        parts = self._scope_name_parts()
+        if parts:
+            return "v_" + ".".join(parts) + "." + name
+        return f"v_{name}"
+
+    def _qualify_node_name(self, name: str) -> str:
+        """Qualify a node name with the current scope using ``/`` separator."""
+        parts = self._scope_name_parts()
+        if parts:
+            return "/".join(parts) + "/" + name
+        return name
+
+    def _build_namespace(self) -> str:
+        """Build the namespace string for a node.
+
+        Each scope entry is formatted as ``name: class_name`` joined by ``/``.
+        """
+        parts = []
+        for name, cls in self._scope_stack:
+            if name or cls:
+                parts.append(f"{name}: {cls}" if cls else name)
+        return "/".join(parts)
 
 
 class OpBuilder:
