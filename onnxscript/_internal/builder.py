@@ -358,21 +358,21 @@ class GraphBuilder:
                     f"number of function outputs {len(function_ir.outputs)}."
                 )
             for output, name in zip(function_ir.outputs, _outputs):
-                output_renaming[output.name] = self.qualify_name(name)
+                output_renaming[output.name] = self._qualify_value_name(name)
         else:
             for output in function_ir.outputs:
-                output_renaming[output.name] = self.qualify_name(output.name)
+                output_renaming[output.name] = self._qualify_value_name(output.name)
         nodes, outputs = inliner.instantiate(function_ir, args, kwargs)
         if _prefix:
             self.push_module(_prefix)
         for node in nodes:
-            node.name = self.qualify_name(node.name)
+            node.name = self._qualify_node_name(node.name)
             for output in node.outputs:
                 if output.name:
                     if output.name in output_renaming:
                         output.name = output_renaming[output.name]
                     else:
-                        output.name = self.qualify_name(output.name)
+                        output.name = self._qualify_value_name(output.name)
             self.add_node(node)
         if _prefix:
             self.pop_module()

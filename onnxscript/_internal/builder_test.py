@@ -277,7 +277,7 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertIsNotNone(result.shape)
         self.assertEqual(list(result.shape), [2, 3, 4])
 
-        self.assertEqual(result.name, "Add_output")
+        self.assertEqual(result.name, "v_Add_0")
 
     def test_custom_domain_explicit(self):
         """Test using operations from custom domains with explicit _domain parameter."""
@@ -702,9 +702,9 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertEqual(len(result), 2)
         sum_result, product_result = result
 
-        # Verify output names are correctly set
-        self.assertEqual(sum_result.name, "sum_result")
-        self.assertEqual(product_result.name, "product_result")
+        # Verify output names are correctly set (with v_ prefix from value naming convention)
+        self.assertEqual(sum_result.name, "v_sum_result")
+        self.assertEqual(product_result.name, "v_product_result")
 
         # Verify the nodes were created correctly
         nodes = list(op.builder.graph)
@@ -730,11 +730,11 @@ class GraphBuilderTest(unittest.TestCase):
         nodes = list(op.builder.graph)
         self.assertEqual(len(nodes), 3)
 
-        # Check that all node names start with the prefix
+        # Check that all node names start with the prefix (node names use / separator)
         for node in nodes:
             self.assertTrue(
-                node.name.startswith("layer1."),
-                f"Node name {node.name} should start with layer1.",
+                node.name.startswith("layer1/"),
+                f"Node name {node.name} should start with layer1/",
             )
 
         # Verify the result is a single ir.Value
@@ -770,33 +770,33 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertEqual(len(result), 2)
         sum_result, product_result = result
 
-        # Verify output names are set (without prefix, as _outputs renaming happens before prefix context)
-        self.assertEqual(sum_result.name, "custom_sum")
-        self.assertEqual(product_result.name, "custom_product")
+        # Verify output names are set (with v_ prefix from value naming convention)
+        self.assertEqual(sum_result.name, "v_custom_sum")
+        self.assertEqual(product_result.name, "v_custom_product")
 
         # Verify all nodes have the prefix applied to their names
         nodes = list(op.builder.graph)
         self.assertEqual(len(nodes), 4)  # Mul (XSquare), Mul (YSquare), Add, Mul (final)
 
-        # All node names should start with prefix
+        # All node names should start with prefix (node names use / separator)
         for node in nodes:
             self.assertTrue(
-                node.name.startswith("math_ops."),
-                f"Node name {node.name} should start with math_ops.",
+                node.name.startswith("math_ops/"),
+                f"Node name {node.name} should start with math_ops/",
             )
 
-        # Verify intermediate value names also get the prefix
+        # Verify intermediate value names also get the prefix (value names use v_ prefix and . separator)
         # The first Mul produces XSquare
         x_square = nodes[0].outputs[0]
         self.assertTrue(
-            x_square.name.startswith("math_ops."),
+            x_square.name.startswith("v_math_ops."),
             f"Intermediate value {x_square.name} should have prefix",
         )
 
         # The second Mul produces YSquare
         y_square = nodes[1].outputs[0]
         self.assertTrue(
-            y_square.name.startswith("math_ops."),
+            y_square.name.startswith("v_math_ops."),
             f"Intermediate value {y_square.name} should have prefix",
         )
 
