@@ -828,5 +828,109 @@ class ModuleListTest(unittest.TestCase):
             ml(op)
 
 
+class SequentialTest(unittest.TestCase):
+    def test_sequential_chains_forward_calls(self):
+        """Sequential calls children in order, passing output to next."""
+
+        class AddOne(Module):
+            def __init__(self):
+                super().__init__()
+
+            def forward(self, op, x):
+                return op.Add(x, op.Constant(value_float=1.0))
+
+        from onnxscript.nn._sequential import Sequential
+
+        graph, op = _create_graph_and_op()
+        x = ir.Value(
+            name="input",
+            type=ir.TensorType(ir.DataType.FLOAT),
+            shape=ir.Shape([3]),
+        )
+        graph.inputs.append(x)
+
+        seq = Sequential([AddOne(), AddOne()])
+        result = seq(op, x)
+
+        self.assertIsInstance(result, ir.Value)
+        op_types = [node.op_type for node in graph]
+        # Two Add ops (one Constant + Add per child)
+        self.assertEqual(op_types.count("Add"), 2)
+
+    def test_sequential_parameter_naming(self):
+        """Sequential produces numeric-indexed parameter names like ModuleList."""
+
+        class Linear(Module):
+            def __init__(self, in_f, out_f):
+                super().__init__()
+                self.weight = Parameter([out_f, in_f], name="weight")
+
+            def forward(self, op, x):
+                return op.MatMul(x, op.Transpose(self.weight, perm=[1, 0]))
+
+        from onnxscript.nn._sequential import Sequential
+
+        class Model(Module):
+            def __init__(self):
+                super().__init__("model")
+                self.layers = Sequential([Linear(4, 4), Linear(4, 4)])
+
+            def forward(self, op, x):
+                return self.layers(op, x)
+
+        graph, op = _create_graph_and_op()
+        x = ir.Value(
+            name="input",
+            type=ir.TensorType(ir.DataType.FLOAT),
+            shape=ir.Shape([1, 4]),
+        )
+        graph.inputs.append(x)
+
+        m = Model()
+        m(op, x)
+
+        self.assertIn("model.layers.0.weight", graph.initializers)
+        self.assertIn("model.layers.1.weight", graph.initializers)
+
+    def test_sequential_with_parameterless_modules(self):
+        """Sequential works with mixed param/no-param children (like SiLU + Linear)."""
+
+        class SiLU(Module):
+            def forward(self, op, x):
+                return op.Mul(x, op.Sigmoid(x))
+
+        class Linear(Module):
+            def __init__(self, size):
+                super().__init__()
+                self.weight = Parameter([size, size], name="weight")
+
+            def forward(self, op, x):
+                return op.MatMul(x, op.Transpose(self.weight, perm=[1, 0]))
+
+        from onnxscript.nn._sequential import Sequential
+
+        seq = Sequential([SiLU(), Linear(4)])
+        named = dict(seq.named_parameters())
+        # SiLU at index 0 has no params; Linear at index 1 has weight
+        self.assertIn("1.weight", named)
+        self.assertEqual(len(named), 1)
+
+    def test_sequential_empty_raises(self):
+        """Empty Sequential raises RuntimeError on forward."""
+        from onnxscript.nn._sequential import Sequential
+
+        seq = Sequential()
+        _, op = _create_graph_and_op()
+        with self.assertRaises(RuntimeError):
+            seq(op, None)
+
+    def test_sequential_import_from_nn(self):
+        """Sequential is importable from onnxscript.nn."""
+        from onnxscript.nn import Sequential as Seq
+        from onnxscript.nn._sequential import Sequential
+
+        self.assertIs(Seq, Sequential)
+
+
 if __name__ == "__main__":
     unittest.main()
