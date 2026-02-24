@@ -55,20 +55,17 @@ class Sequential(_module_list.ModuleList):
         self._modules[key] = module
         object.__setattr__(self, key, module)
 
-    def forward(self, op: _builder.OpBuilder, *args: Any, **kwargs: Any) -> Any:
-        """Run each child module sequentially, passing output to the next."""
+    def forward(self, op: _builder.OpBuilder, input: Any) -> Any:  # pylint: disable=redefined-builtin
+        """Run each child module sequentially, passing output to the next.
+
+        Mirrors ``torch.nn.Sequential.forward``: each child receives exactly
+        one positional argument (the output of the previous child).
+        """
         if len(self) == 0:
             raise RuntimeError("Cannot call forward on an empty Sequential container")
-        for i, module in enumerate(self):
-            if i == 0:
-                result = module(op, *args, **kwargs)
-            else:
-                result = module(op, *args)
-            if not isinstance(result, (list, tuple)):
-                args = (result,)
-            else:
-                args = result
-        return result
+        for module in self:
+            input = module(op, input)
+        return input
 
     def __repr__(self) -> str:
         lines = ["Sequential("]

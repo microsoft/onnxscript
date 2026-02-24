@@ -829,33 +829,172 @@ class ModuleListTest(unittest.TestCase):
 
 
 class SequentialTest(unittest.TestCase):
-    def test_sequential_chains_forward_calls(self):
-        """Sequential calls children in order, passing output to next."""
+    def _make_input(
+        self, name: str = "input", shape: list[int] | None = None
+    ) -> tuple[ir.Graph, OpBuilder, ir.Value]:
+        """Create a graph, OpBuilder, and a FLOAT input value."""
+        if shape is None:
+            shape = [3]
+        graph, op = _create_graph_and_op()
+        x = ir.Value(
+            name=name,
+            type=ir.TensorType(ir.DataType.FLOAT),
+            shape=ir.Shape(shape),
+        )
+        graph.inputs.append(x)
+        return graph, op, x
+
+    # -- basic forward chaining --
+
+    def test_chains_forward_calls(self):
+        """Sequential calls children in order, each receiving one input."""
 
         class AddOne(Module):
-            def __init__(self):
-                super().__init__()
-
             def forward(self, op, x):
                 return op.Add(x, op.Constant(value_float=1.0))
 
-        graph, op = _create_graph_and_op()
-        x = ir.Value(
-            name="input",
-            type=ir.TensorType(ir.DataType.FLOAT),
-            shape=ir.Shape([3]),
-        )
-        graph.inputs.append(x)
-
-        seq = Sequential([AddOne(), AddOne()])
+        graph, op, x = self._make_input()
+        seq = Sequential([AddOne(), AddOne(), AddOne()])
         result = seq(op, x)
 
         self.assertIsInstance(result, ir.Value)
         op_types = [node.op_type for node in graph]
-        # Two Add ops (one Constant + Add per child)
-        self.assertEqual(op_types.count("Add"), 2)
+        self.assertEqual(op_types.count("Add"), 3)
 
-    def test_sequential_parameter_naming(self):
+    def test_single_module_passthrough(self):
+        """Single-module Sequential passes input through correctly."""
+
+        class PassThrough(Module):
+            def forward(self, op, x):
+                return op.Identity(x)
+
+        _, op, x = self._make_input()
+        seq = Sequential([PassThrough()])
+        result = seq(op, x)
+        self.assertIsInstance(result, ir.Value)
+
+    def test_empty_raises(self):
+        """Empty Sequential raises RuntimeError on forward."""
+        seq = Sequential()
+        _, op = _create_graph_and_op()
+        with self.assertRaises(RuntimeError):
+            seq(op, None)
+
+    # -- tuple / list passthrough (PyTorch-aligned: no unpacking) --
+
+    def test_tuple_result_passed_as_single_arg(self):
+        """When a module returns a tuple, the next module receives it as one argument."""
+
+        class SplitTwo(Module):
+            """Returns two outputs as a tuple."""
+
+            def forward(self, op, x):
+                return (op.Identity(x), op.Identity(x))
+
+        class UnpackAndAdd(Module):
+            """Accepts a single tuple argument and unpacks it."""
+
+            def forward(self, op, pair):
+                a, b = pair
+                return op.Add(a, b)
+
+        graph, op, x = self._make_input()
+        seq = Sequential([SplitTwo(), UnpackAndAdd()])
+        result = seq(op, x)
+
+        self.assertIsInstance(result, ir.Value)
+        op_types = [node.op_type for node in graph]
+        self.assertEqual(op_types.count("Identity"), 2)
+        self.assertEqual(op_types.count("Add"), 1)
+
+    def test_list_result_passed_as_single_arg(self):
+        """When a module returns a list, the next module receives it as one argument."""
+
+        class SplitTwoList(Module):
+            def forward(self, op, x):
+                return [op.Identity(x), op.Identity(x)]
+
+        class UnpackAndAdd(Module):
+            def forward(self, op, pair):
+                a, b = pair
+                return op.Add(a, b)
+
+        _, op, x = self._make_input()
+        seq = Sequential([SplitTwoList(), UnpackAndAdd()])
+        result = seq(op, x)
+        self.assertIsInstance(result, ir.Value)
+
+    def test_tuple_passthrough_chain(self):
+        """Tuple output passes through identity-like modules as a single arg."""
+
+        class ReturnPair(Module):
+            def forward(self, op, x):
+                return (op.Identity(x), op.Identity(x))
+
+        class TupleIdentity(Module):
+            """Receives a tuple, returns it as-is."""
+
+            def forward(self, op, pair):
+                return pair
+
+        _, op, x = self._make_input()
+        seq = Sequential([ReturnPair(), TupleIdentity()])
+        result = seq(op, x)
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_single_module_returns_tuple_unchanged(self):
+        """A single-module Sequential that returns a tuple passes it through."""
+
+        class ReturnPair(Module):
+            def forward(self, op, x):
+                return (op.Identity(x), op.Identity(x))
+
+        _, op, x = self._make_input()
+        seq = Sequential([ReturnPair()])
+        result = seq(op, x)
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_last_module_tuple_return_is_preserved(self):
+        """The final module's tuple return is preserved as the Sequential result."""
+
+        class Identity(Module):
+            def forward(self, op, x):
+                return op.Identity(x)
+
+        class SplitThree(Module):
+            def forward(self, op, x):
+                return (op.Identity(x), op.Identity(x), op.Identity(x))
+
+        _, op, x = self._make_input()
+        seq = Sequential([Identity(), SplitThree()])
+        result = seq(op, x)
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 3)
+
+    def test_none_passthrough(self):
+        """Module returning None passes None to the next module."""
+
+        class ReturnNone(Module):
+            def forward(self, op, x):  # pylint: disable=unused-argument
+                return None
+
+        class AcceptNone(Module):
+            def forward(self, op, x):
+                self.received = x
+                return x
+
+        _, op = _create_graph_and_op()
+        accept = AcceptNone()
+        seq = Sequential([ReturnNone(), accept])
+        result = seq(op, "anything")
+        self.assertIsNone(result)
+        self.assertIsNone(accept.received)
+
+    # -- parameter naming --
+
+    def test_parameter_naming(self):
         """Sequential produces numeric-indexed parameter names like ModuleList."""
 
         class Linear(Module):
@@ -874,21 +1013,14 @@ class SequentialTest(unittest.TestCase):
             def forward(self, op, x):
                 return self.layers(op, x)
 
-        graph, op = _create_graph_and_op()
-        x = ir.Value(
-            name="input",
-            type=ir.TensorType(ir.DataType.FLOAT),
-            shape=ir.Shape([1, 4]),
-        )
-        graph.inputs.append(x)
-
+        graph, op, x = self._make_input(shape=[1, 4])
         m = Model()
         m(op, x)
 
         self.assertIn("model.layers.0.weight", graph.initializers)
         self.assertIn("model.layers.1.weight", graph.initializers)
 
-    def test_sequential_with_parameterless_modules(self):
+    def test_parameterless_modules(self):
         """Sequential works with mixed param/no-param children (like SiLU + Linear)."""
 
         class SiLU(Module):
@@ -909,18 +1041,10 @@ class SequentialTest(unittest.TestCase):
         self.assertIn("1.weight", named)
         self.assertEqual(len(named), 1)
 
-    def test_sequential_empty_raises(self):
-        """Empty Sequential raises RuntimeError on forward."""
+    def test_append_produces_correct_initializer_names(self):
+        """Children appended after parent registration get correct names.
 
-        seq = Sequential()
-        _, op = _create_graph_and_op()
-        with self.assertRaises(RuntimeError):
-            seq(op, None)
-
-    def test_sequential_append_produces_correct_initializer_names(self):
-        """Sequential with append (after parent registration) gets correct names.
-
-        This tests the pattern where a Sequential is created empty, registered
+        Tests the pattern where a Sequential is created empty, registered
         on a parent Module, and then children are appended. The children should
         produce initializer names like ``parent.seq.0.weight``, not
         ``parent.seq.seq.0.weight`` (double-prefixed).
@@ -945,14 +1069,7 @@ class SequentialTest(unittest.TestCase):
             def forward(self, op, x):
                 return self.blocks(op, x)
 
-        graph, op = _create_graph_and_op()
-        x = ir.Value(
-            name="input",
-            type=ir.TensorType(ir.DataType.FLOAT),
-            shape=ir.Shape([1, 4]),
-        )
-        graph.inputs.append(x)
-
+        graph, op, x = self._make_input(shape=[1, 4])
         m = Model()
         m(op, x)
 
@@ -987,7 +1104,7 @@ class SequentialTest(unittest.TestCase):
 
             def forward(self, op, x):
                 x = self.resnets[0](op, x)
-                for i in range(len(self.attentions)):
+                for i in range(len(self.attentions)):  # pylint: disable=consider-using-enumerate
                     x = self.attentions[i](op, x)
                     x = self.resnets[i + 1](op, x)
                 return x
@@ -1000,14 +1117,7 @@ class SequentialTest(unittest.TestCase):
             def forward(self, op, x):
                 return self.mid(op, x)
 
-        graph, op = _create_graph_and_op()
-        x = ir.Value(
-            name="input",
-            type=ir.TensorType(ir.DataType.FLOAT),
-            shape=ir.Shape([1, 4]),
-        )
-        graph.inputs.append(x)
-
+        graph, op, x = self._make_input(shape=[1, 4])
         m = Model()
         m(op, x)
 
