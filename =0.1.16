@@ -1,0 +1,32 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting onnx_ir
+  Downloading onnx_ir-0.2.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting numpy (from onnx_ir)
+  Downloading numpy-2.4.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (6.6 kB)
+Collecting onnx>=1.16 (from onnx_ir)
+  Downloading onnx-1.20.1-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (8.4 kB)
+Requirement already satisfied: typing_extensions>=4.10 in /usr/lib/python3/dist-packages (from onnx_ir) (4.10.0)
+Collecting ml_dtypes>=0.5.0 (from onnx_ir)
+  Downloading ml_dtypes-0.5.4-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (8.9 kB)
+Collecting sympy>=1.13 (from onnx_ir)
+  Downloading sympy-1.14.0-py3-none-any.whl.metadata (12 kB)
+Collecting protobuf>=4.25.1 (from onnx>=1.16->onnx_ir)
+  Downloading protobuf-6.33.5-cp39-abi3-manylinux2014_x86_64.whl.metadata (593 bytes)
+Collecting mpmath<1.4,>=1.1.0 (from sympy>=1.13->onnx_ir)
+  Downloading mpmath-1.3.0-py3-none-any.whl.metadata (8.6 kB)
+Downloading onnx_ir-0.2.0-py3-none-any.whl (164 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 164.1/164.1 kB 49.2 MB/s eta 0:00:00
+Downloading ml_dtypes-0.5.4-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (5.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.0/5.0 MB 158.1 MB/s eta 0:00:00
+Downloading numpy-2.4.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.6/16.6 MB 173.5 MB/s eta 0:00:00
+Downloading onnx-1.20.1-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (17.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 17.5/17.5 MB 101.3 MB/s eta 0:00:00
+Downloading sympy-1.14.0-py3-none-any.whl (6.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.3/6.3 MB 172.9 MB/s eta 0:00:00
+Downloading mpmath-1.3.0-py3-none-any.whl (536 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 536.2/536.2 kB 94.6 MB/s eta 0:00:00
+Downloading protobuf-6.33.5-cp39-abi3-manylinux2014_x86_64.whl (323 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 323.5/323.5 kB 79.6 MB/s eta 0:00:00
+Installing collected packages: mpmath, sympy, protobuf, numpy, ml_dtypes, onnx, onnx_ir
+Successfully installed ml_dtypes-0.5.4 mpmath-1.3.0 numpy-2.4.2 onnx-1.20.1 onnx_ir-0.2.0 protobuf-6.33.5 sympy-1.14.0
