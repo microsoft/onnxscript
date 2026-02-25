@@ -152,6 +152,52 @@ class GraphBuilder:
         self._graph.register_initializer(value)
         return value
 
+    def input(
+        self,
+        name: str,
+        dtype: ir.DataType | None = None,
+        shape: ir.Shape | Sequence[int | str | None] | None = None,
+        *,
+        type: ir.TypeProtocol | None = None,
+        const_value: ir.TensorProtocol | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> ir.Value:
+        """Create an input to the graph and return the corresponding ir.Value.
+
+        Args:
+            name: The name of the value.
+            dtype: The data type of the TensorType of the value. This is used only when type is None.
+            shape: The shape of the value.
+            type: The type of the value. Only one of dtype and type can be specified.
+            const_value: The constant tensor that initializes the value. Supply this argument
+                when you want to create an initializer. The type and shape can be obtained from the tensor.
+            metadata_props: The metadata properties that will be serialized to the ONNX proto.
+
+        Returns:
+            A Value object.
+        """
+        value = ir.val(
+            name=name,
+            dtype=dtype,
+            shape=shape,
+            type=type,
+            const_value=const_value,
+            metadata_props=metadata_props,
+        )
+        self._graph.inputs.append(value)
+        return value
+
+    def add_output(self, value: ir.Value, name: str | None) -> None:
+        """Add an output to the graph.
+
+        Args:
+            value: The ir.Value to add as an output.
+            name: The name to assign to the output value. If None, no renaming is done.
+        """
+        if name:
+            value.name = name
+        self._graph.outputs.append(value)
+
     def _input_to_ir_value(
         self, value: VALUE_LIKE, like_type: ir.Value | None = None
     ) -> ir.Value:
