@@ -6,8 +6,6 @@ import unittest
 
 import numpy as np
 import onnx
-import onnx.helper
-import onnx.numpy_helper
 import parameterized
 
 import onnxscript.optimizer as optimizer
@@ -132,71 +130,44 @@ class FoldConstantsTest(unittest.TestCase):
         self.assertEqual(optimized.graph[0].outputs[0].name, "z")
         self.assertEqual(optimized.graph[0].op_type, "Mul")
 
-    def _make_if_model_with_subgraph_initializer(self) -> ir.Model:
-        """Build a model where the then_branch of an If node has an initializer."""
-        # Build then_branch: Squeeze(x, axes) where axes=[0] is an initializer
-        axes_init = onnx.numpy_helper.from_array(np.array([0], dtype=np.int64), name="axes")
-        squeeze_node = onnx.helper.make_node(
-            "Squeeze", inputs=["x", "axes"], outputs=["z"], name="Squeeze_0"
-        )
-        then_branch = onnx.helper.make_graph(
-            [squeeze_node],
-            "then_branch",
-            [],
-            [onnx.helper.make_tensor_value_info("z", onnx.TensorProto.FLOAT, [16, 16])],
-            initializer=[axes_init],
-        )
-        # Build else_branch: Identity(x)
-        identity_node = onnx.helper.make_node(
-            "Identity", inputs=["x"], outputs=["z"], name="Identity_0"
-        )
-        else_branch = onnx.helper.make_graph(
-            [identity_node],
-            "else_branch",
-            [],
-            [onnx.helper.make_tensor_value_info("z", onnx.TensorProto.FLOAT, [1, 16, 16])],
-        )
-        # Build main graph with a constant True condition
-        one_node = onnx.helper.make_node(
-            "Constant",
-            inputs=[],
-            outputs=["one"],
-            value=onnx.helper.make_tensor("one", onnx.TensorProto.BOOL, [], [True]),
-        )
-        if_node = onnx.helper.make_node(
-            "If",
-            inputs=["one"],
-            outputs=["z"],
-            then_branch=then_branch,
-            else_branch=else_branch,
-            name="If_1",
-        )
-        main_graph = onnx.helper.make_graph(
-            [one_node, if_node],
-            "main",
-            [onnx.helper.make_tensor_value_info("x", onnx.TensorProto.FLOAT, [1, 16, 16])],
-            [onnx.helper.make_tensor_value_info("z", onnx.TensorProto.FLOAT, [16, 16])],
-        )
-        proto = onnx.helper.make_model(
-            main_graph, opset_imports=[onnx.helper.make_opsetid("", 17)]
-        )
-        proto.ir_version = 8
-        return ir.serde.deserialize_model(proto)
-
     def test_fold_if_cond_with_subgraph_initializer(self):
-        """Test that initializers in inlined If branches are moved to the main graph."""
-        model = self._make_if_model_with_subgraph_initializer()
-        self.assertIn("axes", model.graph[1].attributes["then_branch"].as_graph().initializers)
-        self.assertNotIn("axes", model.graph.initializers)
+        """If branch initializers should be moved to the main graph when the branch is inlined."""
+        # A model with a non-constant condition; constants inside the then_branch will
+        # be folded into subgraph initializers on the first fold pass.
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[16, 16] x, bool cond) => (float[16, 16] z) {
+                two = Constant <value_float=2.0> ()
+                three = Constant <value_float=3.0> ()
+                z = If (cond) <
+                    then_branch = then_graph () => (then_z) {
+                        temp = Add (two, three)
+                        then_z = Mul (temp, x)
+                    },
+                    else_branch = else_graph () => (else_z) {
+                        else_z = Identity (x)
+                    }
+                >
+            }
+        """)
+        # First fold: 'temp = Add(2.0, 3.0)' gets folded into a subgraph initializer.
+        _constant_folding.fold_constants(model)
+        optimizer.remove_unused_nodes(model)
+        if_node = next(n for n in model.graph if n.op_type == "If")
+        then_branch = if_node.attributes["then_branch"].as_graph()
+        self.assertIn("temp", then_branch.initializers)
+        self.assertNotIn("temp", model.graph.initializers)
 
-        optimized = self._fold(model)
+        # Make the condition constant (True) to trigger inlining of the then_branch.
+        const_true = ir.Value(name="const_true")
+        const_true.const_value = ir.Tensor(np.array(True))
+        if_node.replace_input_with(0, const_true)
 
-        # The If node should be inlined; the axes initializer must be in the main graph
-        self.assertIn("axes", optimized.graph.initializers)
-        np.testing.assert_array_equal(
-            optimized.graph.initializers["axes"].const_value.numpy(),
-            np.array([0], dtype=np.int64),
-        )
+        # Second fold: the If is inlined; 'temp' must be moved to the main graph.
+        _constant_folding.fold_constants(model)
+        optimizer.remove_unused_nodes(model)
+        onnx.checker.check_model(ir.serde.serialize_model(model))
+        self.assertIn("temp", model.graph.initializers)
 
     def test_fold_inside_if_branch(self):
         model = """
