@@ -10,7 +10,7 @@ import onnx_ir as ir
 
 import onnxscript
 from onnxscript import script
-from onnxscript._internal.builder import TypeSpec, _resolve_type_spec
+from onnxscript._internal.builder import OpBuilder, TypeSpec, _resolve_type_spec
 from onnxscript.onnx_types import BOOL, FLOAT, INT64
 
 
@@ -22,7 +22,8 @@ from onnxscript.onnx_types import BOOL, FLOAT, INT64
 def _make_graph_and_builder(
     inputs: list[Tuple[str, TypeSpec]],
     opset_version: int = 15,
-) -> Tuple[ir.Graph, onnxscript.GraphBuilder]:
+) -> Tuple[OpBuilder, ...]:
+    """Create a graph with the given inputs and return (op, *input_values)."""
     graph = ir.Graph(
         name="test",
         inputs=[],
@@ -34,7 +35,7 @@ def _make_graph_and_builder(
         ts = _resolve_type_spec(type_spec)
         graph.inputs.append(ir.Value(name=name, type=ts.type, shape=ts.shape))
     gb = onnxscript.GraphBuilder(graph)
-    return graph, gb
+    return (gb.op, *graph.inputs)
 
 
 # ---------------------------------------------------------------------------
@@ -47,8 +48,8 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
 
     def test_if_then_else(self):
         """Call a script function containing an If node."""
-        graph, gb = _make_graph_and_builder([("A", FLOAT[4]), ("B", FLOAT[4])])
-        op = gb.op
+        op, A, B = _make_graph_and_builder([("A", FLOAT[4]), ("B", FLOAT[4])])
+        graph = op.builder.graph
 
         @script(default_opset=op)
         def _maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:  # noqa: F821
@@ -61,7 +62,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
                 result = op.Identity(A)
             return result
 
-        result = op.call(_maxsum, *graph.inputs)
+        result = op.call(_maxsum, A, B)
         graph.outputs.append(result)
 
         op_types = [n.op_type for n in graph]
@@ -78,8 +79,8 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
 
     def test_for_loop(self):
         """Call a script function containing a Loop node."""
-        graph, gb = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64)])
-        op = gb.op
+        op, x, N = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64)])
+        graph = op.builder.graph
 
         @script(default_opset=op)
         def _sumprod(x, N):
@@ -91,7 +92,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
                 prod = prod * x
             return sum, prod
 
-        result = op.call(_sumprod, *graph.inputs)
+        result = op.call(_sumprod, x, N)
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 2)
         graph.outputs.extend(result)
@@ -116,8 +117,8 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         After inlining via op.call(), this outer-scope reference should be
         correctly wired to the caller's value.
         """
-        graph, gb = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64), ("alpha", FLOAT)])
-        op = gb.op
+        op, x, N, alpha = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64), ("alpha", FLOAT)])
+        graph = op.builder.graph
 
         @script(default_opset=op)
         def _loop_with_alpha(x, N, alpha):
@@ -127,7 +128,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
                 result = result * alpha
             return result
 
-        result = op.call(_loop_with_alpha, *graph.inputs)
+        result = op.call(_loop_with_alpha, x, N, alpha)
         graph.outputs.append(result)
 
         op_types = [n.op_type for n in graph]
@@ -155,8 +156,8 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         inside the branches (outer scope reference). After inlining, these should
         be properly wired.
         """
-        graph, gb = _make_graph_and_builder([("X", FLOAT[4]), ("Y", FLOAT[4]), ("flag", BOOL)])
-        op = gb.op
+        op, X, Y, flag = _make_graph_and_builder([("X", FLOAT[4]), ("Y", FLOAT[4]), ("flag", BOOL)])
+        graph = op.builder.graph
 
         @script(default_opset=op)
         def _conditional_add_or_mul(X, Y, flag):
@@ -168,7 +169,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
                 result = Z * X
             return result
 
-        result = op.call(_conditional_add_or_mul, *graph.inputs)
+        result = op.call(_conditional_add_or_mul, X, Y, flag)
         graph.outputs.append(result)
 
         op_types = [n.op_type for n in graph]
@@ -195,8 +196,8 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
 
     def test_model_validation_with_if(self):
         """Build a complete model with an inlined if-then-else and validate it."""
-        graph, gb = _make_graph_and_builder([("A", FLOAT[4]), ("B", FLOAT[4])])
-        op = gb.op
+        op, A, B = _make_graph_and_builder([("A", FLOAT[4]), ("B", FLOAT[4])])
+        graph = op.builder.graph
 
         @script(default_opset=op)
         def _maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:  # noqa: F821
@@ -209,7 +210,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
                 result = op.Identity(A)
             return result
 
-        result = op.call(_maxsum, *graph.inputs)
+        result = op.call(_maxsum, A, B)
         graph.outputs.append(result)
 
         model = ir.Model(graph=graph, ir_version=8)
@@ -225,8 +226,8 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         body's inputs/outputs lack type information. The ONNX checker requires
         these to be present.
         """
-        graph, gb = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64)])
-        op = gb.op
+        op, x, N = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64)])
+        graph = op.builder.graph
 
         @script(default_opset=op)
         def _sumprod(x, N):
@@ -238,7 +239,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
                 prod = prod * x
             return sum, prod
 
-        result = op.call(_sumprod, *graph.inputs)
+        result = op.call(_sumprod, x, N)
         if isinstance(result, list):
             graph.outputs.extend(result)
         else:
