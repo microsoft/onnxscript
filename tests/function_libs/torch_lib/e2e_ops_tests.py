@@ -39,6 +39,41 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(model, xs, dynamo=True)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_scatter_reduce_mean_include_self_false(self):
+        """Test scatter_reduce with reduce='mean' and include_self=False (GitHub issue)."""
+
+        class ScatterMeanModel(torch.nn.Module):
+            def forward(self, h: torch.Tensor, batch: torch.Tensor) -> torch.Tensor:
+                index = batch.unsqueeze(1).repeat(1, h.shape[1])
+                groups = batch.max().int() + 1
+                out = torch.zeros(groups, h.shape[1], dtype=h.dtype, device=h.device)
+                out = out.scatter_reduce_(0, index, h, reduce="mean", include_self=False)
+                return out
+
+        h = torch.tensor(
+            [[1.0, 10.0], [3.0, 30.0], [5.0, 50.0], [7.0, 70.0], [2.0, 20.0], [4.0, 40.0]],
+            dtype=torch.float32,
+        )
+        batch = torch.tensor([0, 0, 1, 1, 2, 2], dtype=torch.int64)
+        onnx_program = torch.onnx.export(ScatterMeanModel(), (h, batch), dynamo=True)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_scatter_reduce_mean_include_self_true(self):
+        """Test scatter_reduce with reduce='mean' and include_self=True."""
+
+        class ScatterMeanIncludeSelfModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor, index: torch.Tensor, src: torch.Tensor) -> torch.Tensor:
+                x = x.clone()
+                return x.scatter_reduce(0, index, src, reduce="mean", include_self=True)
+
+        x = torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], dtype=torch.float32)
+        index = torch.tensor([[0, 0], [1, 1], [0, 1]], dtype=torch.int64)
+        src = torch.tensor([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]], dtype=torch.float32)
+        onnx_program = torch.onnx.export(
+            ScatterMeanIncludeSelfModel(), (x, index, src), dynamo=True
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_pow_tensor_scalar_int_float(self):
         class PowModel(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:

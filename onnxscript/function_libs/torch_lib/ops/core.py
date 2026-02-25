@@ -8691,14 +8691,6 @@ def aten_scatter_reduce(
 ):
     """scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"""
 
-    reduce_mode = {  # convert torch string name to onnx string name
-        "mean": "none",  # 'mean' doesn't support in ONNX 1.14 definition
-        "sum": "add",
-        "prod": "mul",
-        "amin": "min",
-        "amax": "max",
-    }
-    onnx_reduce = reduce_mode[reduce]
     dtype = src.dtype or self.dtype
     assert dtype is not None, "dtype should be not None"
 
@@ -8709,13 +8701,59 @@ def aten_scatter_reduce(
         index = op.Reshape(index, neg_1)
         src = op.Reshape(src, neg_1)
 
+    if reduce == "mean":
+        # ONNX ScatterElements does not support "mean" reduction.
+        # Implement mean as: mean = sum(src) / count(src), with optional include_self.
+        zero_val = ir.tensor([0], dtype=dtype)
+        one_val = ir.tensor([1], dtype=dtype)
+        # Scatter sum of src values onto a zeros tensor
+        scatter_sum = op.ScatterElements(
+            op.ConstantOfShape(op.Shape(self), value=zero_val),
+            index,
+            src,
+            axis=dim,
+            reduction="add",
+        )
+        # Scatter count of src contributions onto a zeros tensor
+        scatter_count = op.ScatterElements(
+            op.ConstantOfShape(op.Shape(self), value=zero_val),
+            index,
+            op.ConstantOfShape(op.Shape(src), value=one_val),
+            axis=dim,
+            reduction="add",
+        )
+        if include_self:
+            # Include self in both sum and count
+            total_sum = op.Add(self, scatter_sum)
+            total_count = op.Add(
+                op.ConstantOfShape(op.Shape(self), value=one_val), scatter_count
+            )
+        else:
+            total_sum = scatter_sum
+            # Avoid division by zero: where count == 0, sum is also 0, so 0/1 = 0 is correct
+            total_count = op.Max(
+                scatter_count,
+                op.ConstantOfShape(op.Shape(scatter_count), value=one_val),
+            )
+        result = op.Div(total_sum, total_count)
+        if self_is_scalar:
+            result = op.Squeeze(result)
+        return result
+
+    reduce_mode = {  # convert torch string name to onnx string name
+        "sum": "add",
+        "prod": "mul",
+        "amin": "min",
+        "amax": "max",
+    }
+    onnx_reduce = reduce_mode[reduce]
+
     if not include_self:
         # onnx standard always assume the value from self is part of the reduction.
         # A first step is added to replace the impacted value by another one
         # chosen in a way that the results of the reduction is not changed
         # whether or not it takes part in it.
         # It is -inf if the reduction is max, inf for min, 0 for add, 1 for mul.
-        # mean is not supported.
         if onnx_reduce == "max":
             if dtype in {
                 ir.DataType.FLOAT16,
