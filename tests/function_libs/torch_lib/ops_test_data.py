@@ -448,36 +448,6 @@ def _where_input_wrangler(
     args[0], args[1] = args[1], args[0]
     return args, kwargs
 
-
-def _torchvision_roi_align_default_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Convert:
-    #   roi_align(input, boxes, output_size, spatial_scale=..., sampling_ratio=..., aligned=...)
-    # into:
-    #   roi_align(input, boxes, spatial_scale, pooled_height, pooled_width, sampling_ratio, aligned)
-    output_size = args.pop(2)
-    if isinstance(output_size, np.ndarray):
-        if output_size.ndim == 0:
-            pooled_height = int(output_size)
-            pooled_width = int(output_size)
-        else:
-            pooled_height, pooled_width = output_size.tolist()
-    elif isinstance(output_size, (tuple, list)):
-        pooled_height, pooled_width = output_size
-    else:
-        pooled_height = output_size
-        pooled_width = output_size
-
-    pooled_height = int(pooled_height)
-    pooled_width = int(pooled_width)
-    spatial_scale = float(kwargs.pop("spatial_scale", 1.0))
-    sampling_ratio = int(kwargs.pop("sampling_ratio", -1))
-    aligned = bool(kwargs.pop("aligned", False))
-    args.extend([spatial_scale, pooled_height, pooled_width, sampling_ratio, aligned])
-    return args, {}
-
-
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
@@ -1948,11 +1918,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like),
     TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
-    TorchLibOpInfo(
-        "torchvision.ops.roi_align",
-        vision_ops.torchvision_roi_align,
-        input_wrangler=_torchvision_roi_align_default_input_wrangler,
-    ),
+    TorchLibOpInfo("torchvision.ops.roi_align", vision_ops.torchvision_roi_align),
     TorchLibOpInfo("torchvision.ops.roi_pool", vision_ops.torchvision_roi_pool),
 )
 
