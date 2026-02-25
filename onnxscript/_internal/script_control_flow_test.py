@@ -9,58 +9,9 @@ import onnx
 import onnx_ir as ir
 
 import onnxscript
-from onnxscript import opset15 as op15
 from onnxscript import script
 from onnxscript._internal.builder import TypeSpec, _resolve_type_spec
 from onnxscript.onnx_types import BOOL, FLOAT, INT64
-
-# ---------------------------------------------------------------------------
-# @script functions with control flow, defined at module level so that
-# inspect.getsource() can find them (required by the @script decorator).
-# ---------------------------------------------------------------------------
-
-
-@script(default_opset=op15)
-def _maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:  # noqa: F821
-    """If-then-else: return the input whose element sum is larger."""
-    sum1 = op15.ReduceSum(A)
-    sum2 = op15.ReduceSum(B)
-    if sum1 < sum2:
-        result = op15.Identity(B)
-    else:
-        result = op15.Identity(A)
-    return result
-
-
-@script(default_opset=op15)
-def _sumprod(x, N):
-    """For-loop: accumulate sum and product over N iterations."""
-    sum = op15.Identity(x)
-    prod = op15.Identity(x)
-    for _ in range(N):
-        sum = sum + x
-        prod = prod * x
-    return sum, prod
-
-
-@script(default_opset=op15)
-def _loop_with_alpha(x, N, alpha):
-    """Loop whose body references a function parameter (outer-scope ref)."""
-    result = op15.Identity(x)
-    for _ in range(N):
-        result = result * alpha
-    return result
-
-
-@script(default_opset=op15)
-def _conditional_add_or_mul(X, Y, flag):
-    """If-then-else whose branches reference a value defined before the if."""
-    Z = X + Y
-    if flag:
-        result = Z + X
-    else:
-        result = Z * X
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +50,17 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         graph, gb = _make_graph_and_builder([("A", FLOAT[4]), ("B", FLOAT[4])])
         op = gb.op
 
+        @script(default_opset=op)
+        def _maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:  # noqa: F821
+            """If-then-else: return the input whose element sum is larger."""
+            sum1 = op.ReduceSum(A)
+            sum2 = op.ReduceSum(B)
+            if sum1 < sum2:
+                result = op.Identity(B)
+            else:
+                result = op.Identity(A)
+            return result
+
         result = op.call(_maxsum, *graph.inputs)
         graph.outputs.append(result)
 
@@ -118,6 +80,16 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         """Call a script function containing a Loop node."""
         graph, gb = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64)])
         op = gb.op
+
+        @script(default_opset=op)
+        def _sumprod(x, N):
+            """For-loop: accumulate sum and product over N iterations."""
+            sum = op.Identity(x)
+            prod = op.Identity(x)
+            for _ in range(N):
+                sum = sum + x
+                prod = prod * x
+            return sum, prod
 
         result = op.call(_sumprod, *graph.inputs)
         self.assertIsInstance(result, list)
@@ -146,6 +118,14 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         """
         graph, gb = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64), ("alpha", FLOAT)])
         op = gb.op
+
+        @script(default_opset=op)
+        def _loop_with_alpha(x, N, alpha):
+            """Loop whose body references a function parameter (outer-scope ref)."""
+            result = op.Identity(x)
+            for _ in range(N):
+                result = result * alpha
+            return result
 
         result = op.call(_loop_with_alpha, *graph.inputs)
         graph.outputs.append(result)
@@ -178,6 +158,16 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         graph, gb = _make_graph_and_builder([("X", FLOAT[4]), ("Y", FLOAT[4]), ("flag", BOOL)])
         op = gb.op
 
+        @script(default_opset=op)
+        def _conditional_add_or_mul(X, Y, flag):
+            """If-then-else whose branches reference a value defined before the if."""
+            Z = X + Y
+            if flag:
+                result = Z + X
+            else:
+                result = Z * X
+            return result
+
         result = op.call(_conditional_add_or_mul, *graph.inputs)
         graph.outputs.append(result)
 
@@ -208,6 +198,17 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         graph, gb = _make_graph_and_builder([("A", FLOAT[4]), ("B", FLOAT[4])])
         op = gb.op
 
+        @script(default_opset=op)
+        def _maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:  # noqa: F821
+            """If-then-else: return the input whose element sum is larger."""
+            sum1 = op.ReduceSum(A)
+            sum2 = op.ReduceSum(B)
+            if sum1 < sum2:
+                result = op.Identity(B)
+            else:
+                result = op.Identity(A)
+            return result
+
         result = op.call(_maxsum, *graph.inputs)
         graph.outputs.append(result)
 
@@ -226,6 +227,16 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         """
         graph, gb = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64)])
         op = gb.op
+
+        @script(default_opset=op)
+        def _sumprod(x, N):
+            """For-loop: accumulate sum and product over N iterations."""
+            sum = op.Identity(x)
+            prod = op.Identity(x)
+            for _ in range(N):
+                sum = sum + x
+                prod = prod * x
+            return sum, prod
 
         result = op.call(_sumprod, *graph.inputs)
         if isinstance(result, list):
