@@ -560,6 +560,43 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertEqual(len(graph.inputs), 1)
         self.assertIs(graph.inputs[0], value)
 
+    def test_input_with_const_value_registers_initializer(self):
+        """Test that GraphBuilder.input registers initializer when const_value is provided."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        const_tensor = ir.tensor([1.0, 2.0], dtype=ir.DataType.FLOAT, name="const_data")
+        value = graph_builder.input("const_input", const_value=const_tensor)
+
+        self.assertEqual(len(graph.inputs), 1)
+        self.assertIs(graph.inputs[0], value)
+        self.assertIn("const_input", graph.initializers)
+        self.assertIs(graph.initializers["const_input"], value)
+        self.assertIs(value.const_value, const_tensor)
+
+    def test_input_without_const_value_does_not_register_initializer(self):
+        """Test that GraphBuilder.input does not register initializer without const_value."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        value = graph_builder.input("regular_input", dtype=ir.DataType.FLOAT, shape=[2])
+
+        self.assertEqual(len(graph.inputs), 1)
+        self.assertIs(graph.inputs[0], value)
+        self.assertNotIn("regular_input", graph.initializers)
+
     def test_add_output_renames_and_registers_output(self):
         """Test that GraphBuilder.add_output renames (optionally) and appends outputs."""
         graph = ir.Graph(
