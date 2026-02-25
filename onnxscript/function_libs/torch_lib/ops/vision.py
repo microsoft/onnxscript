@@ -62,7 +62,7 @@ def torchvision_roi_align(
     sampling_ratio: int = -1,
     aligned: bool = False,
 ):
-    """torchvision::roi_align(input, rois, spatial_scale, pooled_height, pooled_width, sampling_ratio, aligned)"""
+    """torchvision::roi_align(Tensor input, Tensor rois, float spatial_scale, SymInt pooled_height, SymInt pooled_width, int sampling_ratio, bool aligned) -> Tensor"""
     batch_indices = _process_batch_indices_for_roi_align(rois)
     rois_coords = _process_rois_for_roi_align(rois)
     coordinate_transformation_mode = "half_pixel" if aligned else "output_half_pixel"
