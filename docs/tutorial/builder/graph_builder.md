@@ -326,6 +326,139 @@ print(w.name)  # "encoder.W"
 builder.pop_module()
 ```
 
+## Building Subgraphs for Control-Flow Ops
+
+ONNX control-flow operators such as `Scan`, `Loop`, and `If` accept one or more
+**graph-valued attributes** — graphs that define the body executed at each
+iteration (or branch). `GraphBuilder.subgraph()` builds these inner graphs in
+exactly the same imperative style as the outer graph, and the resulting
+`ir.Graph` can be passed directly as an attribute.
+
+The subgraph automatically inherits the opset version from the parent
+`GraphBuilder`, so there is no need to specify it separately.
+
+### Type annotations for subgraph inputs and outputs
+
+`subgraph()` accepts `input_types` and `output_types` lists that describe
+the types and shapes of each input and output. Each element can be either an
+`ir.TypeAndShape` object or — more conveniently — an
+`onnxscript` tensor-type expression:
+
+| Expression           | Meaning                                 |
+|----------------------|-----------------------------------------|
+| `FLOAT`              | Rank-0 scalar float tensor              |
+| `FLOAT[...]`         | Float tensor of unknown rank            |
+| `FLOAT[1024]`        | 1-D float tensor with 1024 elements     |
+| `FLOAT[3, 4]`        | 2-D float tensor of shape (3, 4)        |
+| `FLOAT['M', 'N']`    | 2-D float tensor with symbolic dims     |
+
+These types come from `onnxscript.onnx_types` (also importable from
+`onnxscript` directly):
+
+```python
+from onnxscript.onnx_types import FLOAT, INT64
+```
+
+### Example: cumulative sum with Scan
+
+The `Scan` op iterates over a sequence axis, threading a state vector through
+each step. Here is how to build a cumulative-sum model with `subgraph()`:
+
+```python
+import onnx_ir as ir
+import onnxscript
+from onnxscript.onnx_types import FLOAT
+
+D = 4    # feature dimension
+N = 10   # sequence length
+
+# --- Parent graph -----------------------------------------------------------
+graph = ir.Graph(
+    name="cumsum_model",
+    inputs=[],
+    outputs=[],
+    nodes=[],
+    opset_imports={"": 23},
+)
+
+# Initial accumulator (shape [D]) and input sequence (shape [N, D])
+init_state = ir.Value(
+    name="init_state",
+    type=ir.TensorType(ir.DataType.FLOAT),
+    shape=ir.Shape([D]),
+)
+sequence = ir.Value(
+    name="sequence",
+    type=ir.TensorType(ir.DataType.FLOAT),
+    shape=ir.Shape([N, D]),
+)
+graph.inputs.extend([init_state, sequence])
+
+builder = onnxscript.GraphBuilder(graph)
+op = builder.op
+
+# --- Scan body --------------------------------------------------------------
+# The body receives one state slice (the running sum) and one scan slice
+# (the current element of the sequence). It adds them and returns the new
+# state both as the updated state and as a scan output.
+
+def cumsum_body(op, state, x_i):
+    new_state = op.Add(state, x_i)
+    return new_state, new_state   # (updated_state, scan_output_for_this_step)
+
+body = builder.subgraph(
+    cumsum_body,
+    input_types=[FLOAT[D], FLOAT[D]],   # state, x_i
+    output_types=[FLOAT[D], FLOAT[D]],  # new_state, scan_out_i
+    name="cumsum_body",
+)
+
+# --- Scan node --------------------------------------------------------------
+# Inputs:  init_state (1 state variable), sequence (1 scan input)
+# Outputs: final_state, all_partial_sums  (shape [N, D])
+final_state, partial_sums = op.Scan(
+    init_state,
+    sequence,
+    body=body,
+    num_scan_inputs=1,
+    _outputs=2,
+)
+graph.outputs.extend([final_state, partial_sums])
+
+model = ir.Model(graph=graph, ir_version=10)
+```
+
+Key points:
+
+- `builder.subgraph(fn, input_types, output_types)` creates a fresh
+  `ir.Graph`, calls `fn(op, *inputs)` to trace the body, and wires up the
+  declared input/output types.
+- The `fn` receives an `OpBuilder` as its first argument — exactly the same
+  API as the outer graph — so you can use the full builder feature set inside
+  a body (constants, module scopes, nested subgraphs, etc.).
+- The returned `ir.Graph` is passed as the `body` keyword attribute of `Scan`.
+- `_outputs=2` tells the builder that `Scan` returns two output values.
+
+### Nested subgraphs
+
+Because the `fn` receives an `OpBuilder`, and `OpBuilder` exposes
+`op.builder`, you can reach the inner `GraphBuilder` and call `subgraph()`
+recursively for doubly-nested control flow (e.g. a `Scan` inside a `Loop`):
+
+```python
+def outer_body(op, state, x_i):
+    # Build a nested subgraph inside the scan body
+    inner = op.builder.subgraph(
+        lambda iop, v: iop.Relu(v),
+        input_types=[FLOAT[D]],
+        output_types=[FLOAT[D]],
+        name="relu_body",
+    )
+    # ... use inner as a graph attribute of a nested op ...
+    new_state = op.Add(state, x_i)
+    return new_state, new_state
+```
+
 ## Putting It All Together
 
 Here is a complete example that builds a small model with two layers:

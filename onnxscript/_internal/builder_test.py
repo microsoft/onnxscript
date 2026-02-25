@@ -11,6 +11,7 @@ import onnx_ir as ir
 
 import onnxscript._internal.builder as builder
 from onnxscript import script
+from onnxscript.onnx_types import DOUBLE, FLOAT
 
 _default_opset_version = 23
 
@@ -817,6 +818,124 @@ class GraphBuilderTest(unittest.TestCase):
             op.call(add_mul, x, y, _outputs=["only_one_name"])
 
         self.assertIn("does not match", str(cm.exception))
+
+
+class BuildSubgraphTest(unittest.TestCase):
+    """Tests for GraphBuilder.subgraph()."""
+
+    def _make_builder(self, opset_version: int = 23) -> builder.GraphBuilder:
+        """Return a minimal GraphBuilder for the given opset version."""
+        graph = ir.Graph(
+            name="parent",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": opset_version},
+        )
+        return builder.GraphBuilder(graph)
+
+    def test_basic_subgraph(self):
+        """Subgraph returns a valid ir.Graph with correct inputs/outputs."""
+
+        def _add(op, x, y):
+            return op.Add(x, y)
+
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _add,
+            input_types=[FLOAT[3, 4], FLOAT[3, 4]],
+            output_types=[FLOAT[3, 4]],
+        )
+        self.assertIsInstance(graph, ir.Graph)
+        self.assertEqual(len(graph.inputs), 2)
+        self.assertEqual(len(graph.outputs), 1)
+        op_types = [node.op_type for node in graph]
+        self.assertEqual(op_types, ["Add"])
+
+    def test_subgraph_inherits_opset_version(self):
+        """The subgraph opset version matches the parent GraphBuilder."""
+        gb = self._make_builder(opset_version=17)
+        graph = gb.subgraph(
+            lambda op, x: op.Identity(x),
+            input_types=[FLOAT[...]],
+            output_types=[FLOAT[...]],
+        )
+        self.assertEqual(graph.opset_imports[""], 17)
+
+    def test_subgraph_with_ir_type_and_shape(self):
+        """Subgraph also accepts ir.TypeAndShape directly."""
+
+        def _mul(op, x, y):
+            return op.Mul(x, y)
+
+        float_2d = ir.TypeAndShape(ir.TensorType(ir.DataType.FLOAT), ir.Shape([2, 3]))
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _mul,
+            input_types=[float_2d, float_2d],
+            output_types=[float_2d],
+        )
+        self.assertIsInstance(graph, ir.Graph)
+        self.assertEqual(len(list(graph)), 1)
+        self.assertEqual(next(iter(graph)).op_type, "Mul")
+
+    def test_subgraph_multiple_outputs(self):
+        """Subgraph handles multiple outputs."""
+
+        def _add_and_mul(op, x, y):
+            return op.Add(x, y), op.Mul(x, y)
+
+        ts = FLOAT[...]
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _add_and_mul,
+            input_types=[ts, ts],
+            output_types=[ts, ts],
+        )
+        self.assertEqual(len(graph.outputs), 2)
+
+    def test_subgraph_output_count_mismatch_raises(self):
+        """Subgraph raises ValueError when output count does not match."""
+
+        def _returns_one(op, x, y):
+            return op.Add(x, y)
+
+        gb = self._make_builder()
+        with self.assertRaises(ValueError):
+            gb.subgraph(
+                _returns_one,
+                input_types=[FLOAT[...], FLOAT[...]],
+                output_types=[FLOAT[...], FLOAT[...]],  # expects 2, gets 1
+            )
+
+    def test_subgraph_custom_name(self):
+        """Subgraph passes the name through to the ir.Graph."""
+
+        def _id(op, x):
+            return op.Identity(x)
+
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _id,
+            input_types=[DOUBLE[...]],
+            output_types=[DOUBLE[...]],
+            name="scan_body",
+        )
+        self.assertEqual(graph.name, "scan_body")
+
+    def test_invalid_type_spec_raises(self):
+        """Subgraph raises TypeError for an unrecognised type specification."""
+
+        def _id(op, x):
+            return op.Identity(x)
+
+        gb = self._make_builder()
+        with self.assertRaises(TypeError):
+            gb.subgraph(
+                _id,
+                input_types=["not_a_type_spec"],
+                output_types=["not_a_type_spec"],
+            )
 
 
 if __name__ == "__main__":

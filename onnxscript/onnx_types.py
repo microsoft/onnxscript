@@ -100,6 +100,30 @@ class TensorType(abc.ABC):
         return onnx.helper.make_tensor_type_proto(cls.dtype, shape)  # noqa: TID251
 
     @classmethod
+    def to_ir(cls) -> ir.TypeAndShape:
+        """Return an :class:`ir.TypeAndShape` representing this tensor type and shape.
+
+        This enables using ONNX Script tensor-type notation (e.g. ``FLOAT[1024]``
+        or ``FLOAT['M', 'N']``) wherever an :class:`ir.TypeAndShape` is expected,
+        such as the *input_types* / *output_types* arguments of
+        :func:`onnxscript._internal.builder.build_subgraph`.
+        """
+        ir_type = ir.TensorType(cls.dtype)
+        if cls.shape is None:
+            # No subscript (e.g. ``FLOAT``): treat as scalar / rank-0 tensor.
+            ir_shape: ir.Shape | None = ir.Shape([])
+        elif cls.shape is Ellipsis:
+            # ``FLOAT[...]``: tensor of unknown rank.
+            ir_shape = None
+        elif isinstance(cls.shape, tuple):
+            # ``FLOAT[3, 4]`` or ``FLOAT['M', 'N']``: explicit dims.
+            ir_shape = ir.Shape(list(cls.shape))
+        else:
+            # ``FLOAT[1024]``: single-dimension 1-D tensor.
+            ir_shape = ir.Shape([cls.shape])
+        return ir.TypeAndShape(ir_type, ir_shape)
+
+    @classmethod
     def to_string(cls) -> str:
         return f"tensor({cls.__name__.lower()})"
 
