@@ -32,7 +32,7 @@ class Sequential(_module_list.ModuleList):
     """
 
     def __init__(self, *modules: _module_list.Module) -> None:
-        super().__init__(list(modules))
+        super().__init__(modules)
 
     def _set_name(self, name: str) -> None:
         """Set this container's name. Children keep simple ``"0"``, ``"1"`` names.
