@@ -1474,13 +1474,17 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
     del op_info, kwargs
 
     def make_x():
-        return torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
+        return torch.rand(
+            1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad
+        )
 
     # rois is [K, 5] = [batch_idx, x1, y1, x2, y2]
     roi_a = torch.tensor([[0, 1.5, 1.5, 3.0, 3.0]], dtype=dtype, device=device)
     roi_b = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
     roi_int = torch.tensor([[0, 0.0, 0.0, 4.0, 4.0]], dtype=dtype, device=device)
-    roi_malformed = torch.tensor([[0, 2.0, 0.3, 1.5, 1.5]], dtype=dtype, device=device)  # x1 > x2-ish
+    roi_malformed = torch.tensor(
+        [[0, 2.0, 0.3, 1.5, 1.5]], dtype=dtype, device=device
+    )  # x1 > x2-ish
 
     # (rois, spatial_scale, pooled_h, pooled_w, sampling_ratio, aligned)
     cases = [
