@@ -185,6 +185,8 @@ class GraphBuilder:
             metadata_props=metadata_props,
         )
         self._graph.inputs.append(value)
+        if const_value is not None:
+            self._graph.register_initializer(value)
         return value
 
     def add_output(self, value: ir.Value, name: str | None) -> None:
