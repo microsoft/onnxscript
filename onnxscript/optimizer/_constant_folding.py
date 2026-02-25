@@ -561,6 +561,21 @@ def size(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return op.Constant(value_int=size)
 
 
+def _move_initializers_to_graph(src: ir.Graph, dst: ir.Graph) -> None:
+    """Move all initializers from src graph to dst graph, ensuring name uniqueness."""
+    counter: dict[str, int] = {}
+    for name in list(src.initializers):
+        initializer = src.initializers.pop(name)
+        # Ensure name uniqueness in the destination graph
+        new_name = name
+        while new_name in dst.initializers:
+            counter[name] = counter.get(name, 0) + 1
+            new_name = f"{name}_{counter[name]}"
+        if new_name != name:
+            initializer.name = new_name
+        dst.register_initializer(initializer)
+
+
 @register("If")
 def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     cond_input = _get_input(node, 0)
@@ -598,7 +613,11 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
             # Avoid name collision.
             sub_node.name = f"{node.name}_{sub_node.name}"
 
-        # TODO: we should handle initializers as well!
+        # Move initializers from the subgraph to the main graph to avoid losing them.
+        main_graph = node.graph
+        if main_graph is not None:
+            _move_initializers_to_graph(graph, main_graph)
+
         return Replacement(formal_outs, graph_nodes)
     return None
 
