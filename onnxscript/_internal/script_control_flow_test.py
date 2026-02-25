@@ -11,7 +11,8 @@ import onnx_ir as ir
 import onnxscript
 from onnxscript import opset15 as op15
 from onnxscript import script
-from onnxscript.onnx_types import FLOAT
+from onnxscript._internal.builder import TypeSpec, _resolve_type_spec
+from onnxscript.onnx_types import BOOL, FLOAT, INT64
 
 # ---------------------------------------------------------------------------
 # @script functions with control flow, defined at module level so that
@@ -68,6 +69,7 @@ def _conditional_add_or_mul(X, Y, flag):
 
 
 def _make_graph_and_builder(
+    inputs: list[Tuple[str, TypeSpec]],
     opset_version: int = 15,
 ) -> Tuple[ir.Graph, onnxscript.GraphBuilder]:
     graph = ir.Graph(
@@ -77,6 +79,9 @@ def _make_graph_and_builder(
         nodes=[],
         opset_imports={"": opset_version},
     )
+    for name, type_spec in inputs:
+        ts = _resolve_type_spec(type_spec)
+        graph.inputs.append(ir.Value(name=name, type=ts.type, shape=ts.shape))
     gb = onnxscript.GraphBuilder(graph)
     return graph, gb
 
@@ -91,13 +96,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
 
     def test_if_then_else(self):
         """Call a script function containing an If node."""
-        graph, gb = _make_graph_and_builder()
-        graph.inputs.append(
-            ir.Value(name="A", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([4]))
-        )
-        graph.inputs.append(
-            ir.Value(name="B", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([4]))
-        )
+        graph, gb = _make_graph_and_builder([("A", FLOAT[4]), ("B", FLOAT[4])])
         op = gb.op
 
         result = op.call(_maxsum, *graph.inputs)
@@ -117,13 +116,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
 
     def test_for_loop(self):
         """Call a script function containing a Loop node."""
-        graph, gb = _make_graph_and_builder()
-        graph.inputs.append(
-            ir.Value(name="x", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([4]))
-        )
-        graph.inputs.append(
-            ir.Value(name="N", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([]))
-        )
+        graph, gb = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64)])
         op = gb.op
 
         result = op.call(_sumprod, *graph.inputs)
@@ -151,18 +144,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         After inlining via op.call(), this outer-scope reference should be
         correctly wired to the caller's value.
         """
-        graph, gb = _make_graph_and_builder()
-        graph.inputs.extend(
-            [
-                ir.Value(name="x", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([4])),
-                ir.Value(name="N", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([])),
-                ir.Value(
-                    name="alpha",
-                    type=ir.TensorType(ir.DataType.FLOAT),
-                    shape=ir.Shape([]),
-                ),
-            ]
-        )
+        graph, gb = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64), ("alpha", FLOAT)])
         op = gb.op
 
         result = op.call(_loop_with_alpha, *graph.inputs)
@@ -193,18 +175,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         inside the branches (outer scope reference). After inlining, these should
         be properly wired.
         """
-        graph, gb = _make_graph_and_builder()
-        graph.inputs.extend(
-            [
-                ir.Value(name="X", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([4])),
-                ir.Value(name="Y", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([4])),
-                ir.Value(
-                    name="flag",
-                    type=ir.TensorType(ir.DataType.BOOL),
-                    shape=ir.Shape([]),
-                ),
-            ]
-        )
+        graph, gb = _make_graph_and_builder([("X", FLOAT[4]), ("Y", FLOAT[4]), ("flag", BOOL)])
         op = gb.op
 
         result = op.call(_conditional_add_or_mul, *graph.inputs)
@@ -234,13 +205,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
 
     def test_model_validation_with_if(self):
         """Build a complete model with an inlined if-then-else and validate it."""
-        graph, gb = _make_graph_and_builder()
-        graph.inputs.extend(
-            [
-                ir.Value(name="A", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([4])),
-                ir.Value(name="B", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([4])),
-            ]
-        )
+        graph, gb = _make_graph_and_builder([("A", FLOAT[4]), ("B", FLOAT[4])])
         op = gb.op
 
         result = op.call(_maxsum, *graph.inputs)
@@ -259,13 +224,7 @@ class ScriptControlFlowViaCallTest(unittest.TestCase):
         body's inputs/outputs lack type information. The ONNX checker requires
         these to be present.
         """
-        graph, gb = _make_graph_and_builder()
-        graph.inputs.extend(
-            [
-                ir.Value(name="x", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([4])),
-                ir.Value(name="N", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([])),
-            ]
-        )
+        graph, gb = _make_graph_and_builder([("x", FLOAT[4]), ("N", INT64)])
         op = gb.op
 
         result = op.call(_sumprod, *graph.inputs)
