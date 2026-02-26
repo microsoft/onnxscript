@@ -481,6 +481,98 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         ops = [node.op_type for node in nodes]
         self.assertEqual(ops, ["Identity", "Shape", "ConstantOfShape"])
 
+    def test_split_identity_num_outputs(self):
+        model = """
+            <ir_version: 8, opset_import: [ "" : 18]>
+            agraph (float[N] x) => (float[N] z)
+            {
+                z = Split <axis=-1, num_outputs=1> (x)
+            }
+        """
+
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertEqual(len(optimized.graph[-1].outputs), 1)
+        self.assertEqual(optimized.graph[-1].op_type, "Identity")
+
+    def test_split_identity_splits(self):
+        model = """
+            <ir_version: 8, opset_import: [ "" : 18]>
+            agraph (float[N] x, float[1] split) => (float[N] z)
+            {
+                z = Split <axis=-1> (x, split)
+            }
+        """
+
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertEqual(len(optimized.graph[-1].outputs), 1)
+        self.assertEqual(optimized.graph[-1].op_type, "Identity")
+
+
+    def test_split_constant_num_outputs_even(self):
+        model = """
+            <ir_version: 8, opset_import: [ "" : 18]>
+            agraph () => (float[N] z1, float[N] z2)
+            {
+                x = Constant <value: tensor = float[6] const {0,1,2,3,4,5}> ()
+                z1, z2 = Split <axis=-1, num_outputs=2> (x)
+            }
+        """
+
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 2)
+        self.assertEqual(len(optimized.graph[-2].outputs), 1)
+        self.assertEqual(len(optimized.graph[-1].outputs), 1)
+        self.assertEqual(optimized.graph[-2].outputs[0].shape, [3])
+        self.assertEqual(optimized.graph[-1].outputs[0].shape, [3])
+        self.assertEqual(optimized.graph[-2].op_type, "Constant")
+        self.assertEqual(optimized.graph[-1].op_type, "Constant")
+
+    def test_split_constant_num_outputs_odd(self):
+        model = """
+            <ir_version: 8, opset_import: [ "" : 18]>
+            agraph () => (float[N] z1, float[M] z2)
+            {
+                x = Constant <value: tensor = float[7] const {0,1,2,3,4,5,6}> ()
+                z1, z2 = Split <axis=-1, num_outputs=2> (x)
+            }
+        """
+
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 2)
+        self.assertEqual(len(optimized.graph[-2].outputs), 1)
+        self.assertEqual(len(optimized.graph[-1].outputs), 1)
+        self.assertEqual(optimized.graph[-2].outputs[0].shape, [4])
+        self.assertEqual(optimized.graph[-1].outputs[0].shape, [3])
+        self.assertEqual(optimized.graph[-2].op_type, "Constant")
+        self.assertEqual(optimized.graph[-1].op_type, "Constant")
+
+    def test_split_constant_splits(self):
+        model = """
+            <ir_version: 8, opset_import: [ "" : 18]>
+            agraph () => (float[N] z1, float[M] z2, float[L] z3, float[K] z4)
+            {
+                x = Constant <value: tensor = float[7] const {0,1,2,3,4,5,6}> ()
+                split = Constant <value_ints = [2, 3, 1, 1]> ()
+                z1, z2, z3, z4 = Split <axis=-1> (x, split)
+            }
+        """
+
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 4)
+        self.assertEqual(len(optimized.graph[-3].outputs), 1)
+        self.assertEqual(len(optimized.graph[-2].outputs), 1)
+        self.assertEqual(len(optimized.graph[-1].outputs), 1)
+        self.assertEqual(optimized.graph[-4].outputs[0].shape, [2])
+        self.assertEqual(optimized.graph[-3].outputs[0].shape, [3])
+        self.assertEqual(optimized.graph[-2].outputs[0].shape, [1])
+        self.assertEqual(optimized.graph[-1].outputs[0].shape, [1])
+        self.assertEqual(optimized.graph[-4].op_type, "Constant")
+        self.assertEqual(optimized.graph[-3].op_type, "Constant")
+        self.assertEqual(optimized.graph[-2].op_type, "Constant")
+        self.assertEqual(optimized.graph[-1].op_type, "Constant")
+
     def test_concat_identity(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>
