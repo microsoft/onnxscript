@@ -377,6 +377,9 @@ class Converter:
         if isinstance(val, values.SymbolValue):
             if isinstance(val.value, ir.Value):
                 return val.value
+        if isinstance(val, ir.Value):
+            # An outer-scope ir.Value (e.g., from a closure variable) can be used directly.
+            return val
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error _message otherwise

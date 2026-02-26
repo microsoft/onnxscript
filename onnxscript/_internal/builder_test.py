@@ -12,6 +12,7 @@ import onnx_ir as ir
 import onnxscript._internal.builder as builder
 from onnxscript import script
 from onnxscript.onnx_types import DOUBLE, FLOAT
+import onnxscript.testing
 
 _default_opset_version = 23
 
@@ -712,6 +713,33 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertEqual(len(nodes), 2)
         self.assertEqual(nodes[0].op_type, "Add")
         self.assertEqual(nodes[1].op_type, "Mul")
+
+    def test_call_with_outer_scope_value(self):
+        """Test that script supports references to pre-existing values."""
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+        product = op.Mul(x, y)
+
+        @script()
+        def add_product(X):
+            return op.Add(X, product)  # Reference to 'product' from outer scope
+
+        x_plus = op.call(add_product, x, _outputs=["x_plus"])
+        y_plus = op.call(add_product, y, _outputs=["y_plus"])
+
+        op.builder.graph.outputs.extend([x_plus, y_plus])
+
+        # Now, create the same graph directly:
+        op2, x2, y2 = _create_builder_with_inputs()
+        product2 = op2.Mul(x2, y2)
+        x2_plus = op2.Add(x2, product2, _outputs=["x_plus"])
+        y2_plus = op2.Add(y2, product2, _outputs=["y_plus"])
+        op2.builder.graph.outputs.extend([x2_plus, y2_plus])
+
+        # Verify that the two graphs are structurally equivalent
+        onnxscript.testing.assert_isomorphic_graph(op.builder.graph, op2.builder.graph)
+
+
 
     def test_call_with_prefix_option(self):
         """Test that GraphBuilder.call respects the _prefix option for hierarchical naming."""
