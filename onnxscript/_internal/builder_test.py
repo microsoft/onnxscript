@@ -542,6 +542,102 @@ class GraphBuilderTest(unittest.TestCase):
         names = [t1.name, t2.name, t3.name]
         self.assertEqual(len(set(names)), 3)
 
+    def test_input_creates_and_registers_graph_input(self):
+        """Test that GraphBuilder.input creates and appends a graph input value."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        value = graph_builder.input("data", dtype=ir.DataType.FLOAT, shape=[2, 3])
+
+        self.assertEqual(value.name, "data")
+        self.assertEqual(value.type.dtype, ir.DataType.FLOAT)
+        self.assertEqual(list(value.shape), [2, 3])
+        self.assertEqual(len(graph.inputs), 1)
+        self.assertIs(graph.inputs[0], value)
+
+    def test_input_with_const_value_registers_initializer(self):
+        """Test that GraphBuilder.input registers initializer when const_value is provided."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        const_tensor = ir.tensor([1.0, 2.0], dtype=ir.DataType.FLOAT, name="const_data")
+        value = graph_builder.input("const_input", const_value=const_tensor)
+
+        self.assertEqual(len(graph.inputs), 1)
+        self.assertIs(graph.inputs[0], value)
+        self.assertIn("const_input", graph.initializers)
+        self.assertIs(graph.initializers["const_input"], value)
+        self.assertIs(value.const_value, const_tensor)
+
+    def test_input_without_const_value_does_not_register_initializer(self):
+        """Test that GraphBuilder.input does not register initializer without const_value."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        value = graph_builder.input("regular_input", dtype=ir.DataType.FLOAT, shape=[2])
+
+        self.assertEqual(len(graph.inputs), 1)
+        self.assertIs(graph.inputs[0], value)
+        self.assertNotIn("regular_input", graph.initializers)
+
+    def test_add_output_renames_and_registers_output(self):
+        """Test that GraphBuilder.add_output renames (optionally) and appends outputs."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        output = ir.Value(name="old_name")
+        graph_builder.add_output(output, "new_name")
+
+        self.assertEqual(output.name, "new_name")
+        self.assertEqual(len(graph.outputs), 1)
+        self.assertIs(graph.outputs[0], output)
+
+    def test_initializer_qualification_behavior(self):
+        """Test that GraphBuilder.initializer qualifies names unless explicitly disabled."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        graph_builder.push_module("layer1")
+        qualified = graph_builder.initializer(ir.tensor([1.0], name="w"), name="weight")
+        unqualified = graph_builder.initializer(
+            ir.tensor([2.0], name="b"), name="bias", qualify=False
+        )
+
+        self.assertEqual(qualified.name, "layer1.weight")
+        self.assertEqual(unqualified.name, "bias")
+        self.assertIn("layer1.weight", graph.initializers)
+        self.assertIn("bias", graph.initializers)
+
     def test_multi_output_names_are_unique(self):
         """Test that multi-output ops produce unique names with counter suffix."""
         op, x, y = _create_builder_with_inputs()
