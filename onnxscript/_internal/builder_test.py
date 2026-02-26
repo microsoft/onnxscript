@@ -10,9 +10,9 @@ from typing import Sequence
 import onnx_ir as ir
 
 import onnxscript._internal.builder as builder
+import onnxscript.testing
 from onnxscript import script
 from onnxscript.onnx_types import DOUBLE, FLOAT
-import onnxscript.testing
 
 _default_opset_version = 23
 
@@ -738,8 +738,6 @@ class GraphBuilderTest(unittest.TestCase):
 
         # Verify that the two graphs are structurally equivalent
         onnxscript.testing.assert_isomorphic_graph(op.builder.graph, op2.builder.graph)
-
-
 
     def test_call_with_prefix_option(self):
         """Test that GraphBuilder.call respects the _prefix option for hierarchical naming."""
