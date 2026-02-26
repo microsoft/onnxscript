@@ -333,6 +333,15 @@ class OnnxFunction(Op, Generic[_P, _R]):
         """Converts the function into :class:`onnx.FunctionProto`."""
         return self.function_ir.to_function_proto()
 
+    def graph(self) -> ir.Graph:
+        """Returns the IR graph representation of this function.
+
+        Returns:
+            The :class:`ir.Graph` representing the computation graph of this function.
+            NOTE: This is not a copy, and should not be modified by the caller.
+        """
+        return self.function_ir.graph
+
     def to_model_proto(self, **kwargs):
         """Converts the function into :class:`onnx.ModelProto`."""
         if self.function_ir.attrs and any(

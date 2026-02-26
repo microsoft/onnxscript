@@ -450,25 +450,24 @@ class GraphBuilder:
         **kwargs,
     ):
         if isinstance(function, ir.Function):
-            function_ir = function
+            graph = function.graph
         elif isinstance(function, onnxscript.OnnxFunction):
-            function_proto = function.to_function_proto()
-            function_ir = ir.serde.deserialize_function(function_proto)
+            graph = function.graph()
         else:
             raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
         output_renaming: dict[str, str] = {}
         if _outputs is not None:
-            if len(_outputs) != len(function_ir.outputs):
+            if len(_outputs) != len(graph.outputs):
                 raise ValueError(
                     f"Number of provided output names {_outputs} does not match "
-                    f"number of function outputs {len(function_ir.outputs)}."
+                    f"number of function outputs {len(graph.outputs)}."
                 )
-            for output, name in zip(function_ir.outputs, _outputs):
+            for output, name in zip(graph.outputs, _outputs):
                 output_renaming[output.name] = self._qualify_value_name(name)
         else:
-            for output in function_ir.outputs:
+            for output in graph.outputs:
                 output_renaming[output.name] = self._qualify_value_name(output.name)
-        nodes, outputs = _inliner.instantiate(function_ir, args, kwargs)
+        nodes, outputs = _inliner.instantiate(graph, args, kwargs)
         if _prefix:
             self.push_module(_prefix)
         for node in nodes:
