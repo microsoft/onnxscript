@@ -1841,7 +1841,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_scatter_reduce,
         input_wrangler=_scatter_reduce_input_wrangler,
     )
-    .xfail(variant_name="mean", reason="ONNX doesn't support reduce='mean' option")
     .xfail(
         variant_name="prod",
         dtypes=(torch.float16, torch.float64),
