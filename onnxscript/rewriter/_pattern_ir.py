@@ -899,12 +899,26 @@ class GraphPattern:
         return len(self._outputs)
 
     def commute(self) -> Sequence[GraphPattern]:
+        # List all commutative elementwise (binary) operators for which we
+        # consider swapping the inputs
+        COMMUTATIVE_OPS = {
+            ("", "Add", ""),
+            ("", "Mul", ""),
+            ("", "And", ""),
+            ("", "Or", ""),
+            ("", "Xor", ""),
+            ("", "BitwiseAnd", ""),
+            ("", "BitwiseOr", ""),
+            ("", "BitwiseXor", ""),
+            ("", "Equal", ""),
+            ("", "Max", ""),
+            ("", "Mean", ""),
+            ("", "Min", ""),
+            ("", "Sum", ""),
+        }
+
         def commute_node(node: NodePattern) -> Iterable[bool]:
-            if node.op_identifier() == ("", "Add", "") or node.op_identifier() == (
-                "",
-                "Mul",
-                "",
-            ):
+            if node.op_identifier() in COMMUTATIVE_OPS:
                 # Try with and without swapping inputs.
                 return [False, True]
             # No swapping of inputs
