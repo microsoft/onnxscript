@@ -2362,6 +2362,16 @@ def sample_inputs_unique_dim(op_info, device, dtype, requires_grad, **kwargs):
             yield sample
 
 
+def sample_inputs_unique_consecutive(op_info, device, dtype, requires_grad, **kwargs):
+    for sample in common_methods_invocations.sample_inputs_unique(
+        op_info, device, dtype, requires_grad, **kwargs
+    ):
+        # unique_consecutive only supports dim=None or (dim=0 with rank=1)
+        # So filter out samples with dim != None
+        if sample.kwargs.get("dim") is None:
+            yield sample
+
+
 def sample_inputs_upsample_trilinear3d_vec(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -2967,6 +2977,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="unique_dim.default",
         dtypes=common_dtype.floating_types_and(torch.float16, torch.int64, torch.int8),
         sample_inputs_func=sample_inputs_unique_dim,
+        supports_out=False,
+        supports_autograd=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.unique_consecutive",
+        aten_name="unique_consecutive",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_unique_consecutive,
         supports_out=False,
         supports_autograd=False,
     ),
