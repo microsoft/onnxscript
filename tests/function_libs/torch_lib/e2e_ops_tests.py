@@ -62,7 +62,9 @@ class TorchLibe2eTest(unittest.TestCase):
         """Test scatter_reduce with reduce='mean' and include_self=True."""
 
         class ScatterMeanIncludeSelfModel(torch.nn.Module):
-            def forward(self, x: torch.Tensor, index: torch.Tensor, src: torch.Tensor) -> torch.Tensor:
+            def forward(
+                self, x: torch.Tensor, index: torch.Tensor, src: torch.Tensor
+            ) -> torch.Tensor:
                 x = x.clone()
                 return x.scatter_reduce(0, index, src, reduce="mean", include_self=True)
 

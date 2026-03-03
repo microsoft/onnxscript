@@ -8728,14 +8728,23 @@ def aten_scatter_reduce(
             total_count = op.Add(
                 op.ConstantOfShape(op.Shape(self), value=one_val), scatter_count
             )
+            result = op.Div(total_sum, total_count)
         else:
-            total_sum = scatter_sum
-            # Avoid division by zero: where count == 0, sum is also 0, so 0/1 = 0 is correct
-            total_count = op.Max(
+            # For positions with scattered values: mean = sum / count
+            # For positions with no scattered values: preserve self[i] (include_self=False
+            # means the initial self value is not part of the reduction, but it is the
+            # output for positions with no incoming values)
+            safe_count = op.Max(
                 scatter_count,
                 op.ConstantOfShape(op.Shape(scatter_count), value=one_val),
             )
-        result = op.Div(total_sum, total_count)
+            mean_vals = op.Div(scatter_sum, safe_count)
+            # Where count == 0, keep original self value; otherwise use computed mean
+            no_scatter = op.Equal(
+                scatter_count,
+                op.ConstantOfShape(op.Shape(scatter_count), value=zero_val),
+            )
+            result = op.Where(no_scatter, self, mean_vals)
         if self_is_scalar:
             result = op.Squeeze(result)
         return result
