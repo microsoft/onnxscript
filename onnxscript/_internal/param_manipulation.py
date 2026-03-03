@@ -16,6 +16,7 @@ def separate_input_attributes_from_arguments(
     kwargs,
     fill_defaults: bool = True,
     allow_extra_kwargs: bool = False,
+    allow_extra_args: bool = True,
 ) -> tuple[list[Any], OrderedDict[str, Any]]:
     """Separate Python args and kwargs into ONNX inputs and attributes.
 
@@ -26,6 +27,9 @@ def separate_input_attributes_from_arguments(
         fill_defaults: Whether to fill the default values for attributes.
         allow_extra_kwargs: Whether to allow extra keyword arguments.
             When set to True, extra/unknown arguments will be ignored.
+        allow_extra_args: Whether to allow extra positional arguments beyond
+            what the schema declares (when no variadic parameter exists).
+            When set to False, a TypeError is raised for extra args.
 
     Returns:
         A tuple of two elements:
@@ -34,6 +38,7 @@ def separate_input_attributes_from_arguments(
 
     Raises:
         TypeError: When allow_extra_kwargs is False and there are unknown kwargs.
+        TypeError: When allow_extra_args is False and there are extra positional args.
         TypeError: When a required input is not provided.
     """
     # args, kwargs and op_signature.params should be all in order
@@ -46,12 +51,14 @@ def separate_input_attributes_from_arguments(
 
     onnx_inputs = []
     onnx_attributes = collections.OrderedDict()
+    has_variadic = False
 
     for i, param in enumerate(op_signature.params):
         is_input = param.is_param()
         is_variadic = is_input and param.variadic
 
         if is_variadic:
+            has_variadic = True
             # Exhaust all remaining args
             onnx_inputs.extend(args[i:])
             args = []
@@ -73,6 +80,12 @@ def separate_input_attributes_from_arguments(
                 onnx_attributes[param.name] = param.default.value
         elif param.required:
             raise TypeError(f"Required input '{param}' was not provided")
+
+    if not allow_extra_args and not has_variadic and len(args) > len(op_signature.params):
+        raise TypeError(
+            f"Too many positional arguments: expected {len(op_signature.params)}, "
+            f"got {len(args)}"
+        )
 
     return onnx_inputs, onnx_attributes
 
