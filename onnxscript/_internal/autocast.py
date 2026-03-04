@@ -187,15 +187,15 @@ def static_cast_inputs(
         argument of CastLike) and None otherwise. In the expression "Add(X, 1), 1 is
         castable, while X can serve as the target-type.
         """
-        return None if x is None or converter_.is_castable(x.name) else x
+        return None if x is None or converter_._is_castable(x.name) else x  # pylint: disable=protected-access
 
     def cast_like(x: Optional[ir.Value], y: Optional[ir.Value]) -> Optional[str]:
         if x is None:
             return None
-        if converter_.is_castable(x.name) and y is not None:
+        if converter_._is_castable(x.name) and y is not None:  # pylint: disable=protected-access
             # Polymorphic constant x is cast to the type of y:
-            x_cast = converter_.generate_unique_name(f"{x.name}_cast")
-            return converter_.emit1([x_cast], "CastLike", [x, y])
+            x_cast = converter_._generate_unique_name(f"{x.name}_cast")  # pylint: disable=protected-access
+            return converter_._emit1([x_cast], "CastLike", [x, y])  # pylint: disable=protected-access
         return x
 
     return cast_inputs(get_type_info, cast_like, op_signature, args)

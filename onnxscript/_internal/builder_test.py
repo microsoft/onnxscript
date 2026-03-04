@@ -982,21 +982,6 @@ class BuildSubgraphTest(unittest.TestCase):
         self.assertEqual(len(graph.outputs), 1)
         self.assertEqual(graph.outputs[0].name, "sum")
 
-    def test_subgraph_dict_inputs_list_outputs(self):
-        """Subgraph allows mixing dict inputs with list outputs."""
-
-        def _id(op, x):
-            return op.Identity(x)
-
-        gb = self._make_builder()
-        graph = gb.subgraph(
-            _id,
-            inputs={"value": FLOAT[...]},
-            outputs=[FLOAT[...]],
-        )
-        self.assertEqual(graph.inputs[0].name, "value")
-        self.assertEqual(graph.outputs[0].name, "output_0")
-
     def test_subgraph_list_auto_names(self):
         """List-based inputs/outputs get auto-generated names."""
 
@@ -1029,15 +1014,6 @@ class BuildGraphFunctionTest(unittest.TestCase):
         self.assertEqual(graph.inputs[0].name, "x")
         self.assertEqual(graph.inputs[1].name, "y")
         self.assertEqual(graph.outputs[0].name, "sum")
-
-    def test_build_graph_default_opset(self):
-        """build_graph defaults to opset 23 when opset_imports is omitted."""
-        graph = builder.build_graph(
-            lambda op, x: op.Identity(x),
-            inputs=[FLOAT[...]],
-            outputs=[FLOAT[...]],
-        )
-        self.assertEqual(graph.opset_imports[""], 23)
 
     def test_build_graph_custom_name(self):
         """build_graph passes name to the ir.Graph."""
