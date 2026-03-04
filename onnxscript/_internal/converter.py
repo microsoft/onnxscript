@@ -958,7 +958,6 @@ class Converter:
     def _translate_name_expr(self, node: ast.Name) -> ir.Value:
         return self._py_var_to_onnx_var(node.id, self._source_of(node))
 
-    # pylint: disable=inconsistent-return-statements
     def _translate_opset_expr(self, node: ast.Attribute) -> values.Opset:
         """Return an Opset"""
         if isinstance(node, ast.Name):
@@ -974,7 +973,6 @@ class Converter:
         else:
             self.fail(node, "Invalid opset expression.")
 
-    # pylint: enable=inconsistent-return-statements
     def _translate_callee_expr(self, node: ast.AST) -> values.Op:  # pylint: disable=R1710
         """Return an Op"""
         if isinstance(node, ast.Attribute):
@@ -1155,10 +1153,10 @@ class Converter:
         live_defs = list(live_def_set)
         test = self._translate_expr(stmt.test, "cond")
         lineno = self._source_of(stmt).lineno
-        thenGraph = self._translate_block(stmt.body, f"thenGraph_{lineno}", live_defs)
-        thenAttr = ir.AttrGraph("then_branch", thenGraph)
-        elseGraph = self._translate_block(stmt.orelse, f"elseGraph_{lineno}", live_defs)
-        elseAttr = ir.AttrGraph("else_branch", elseGraph)
+        then_graph = self._translate_block(stmt.body, f"thenGraph_{lineno}", live_defs)
+        then_attr = ir.AttrGraph("then_branch", then_graph)
+        else_graph = self._translate_block(stmt.orelse, f"elseGraph_{lineno}", live_defs)
+        else_attr = ir.AttrGraph("else_branch", else_graph)
 
         def rename(x):
             return self.generate_unique_name(x)
@@ -1174,7 +1172,7 @@ class Converter:
             renamed,
             values.Op(self.default_opset, "If"),
             [test],
-            [thenAttr, elseAttr],
+            [then_attr, else_attr],
         )
         if isinstance(if_outputs, ir.Value):
             if_outputs = [if_outputs]
