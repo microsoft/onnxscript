@@ -37,10 +37,6 @@ logger = logging.getLogger("onnxscript")
 # Python-to-IR converter:
 
 
-def not_allowed(construct):
-    return f"{construct}not supported."
-
-
 class TranslationError(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
@@ -978,9 +974,6 @@ class Converter:
         if isinstance(node, ast.Attribute):
             module = self._translate_opset_expr(node.value)
             self._set_default_opset(module, node)
-            opname = node.attr
-            if opname in module:
-                return values.Op(module, node.attr)
             return values.Op(module, node.attr)
         if isinstance(node, ast.Name):
             function_name = node.id
