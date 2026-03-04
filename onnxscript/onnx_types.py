@@ -100,13 +100,13 @@ class TensorType(abc.ABC):
         return onnx.helper.make_tensor_type_proto(cls.dtype, shape)  # noqa: TID251
 
     @classmethod
-    def to_ir(cls) -> ir.TypeAndShape:
+    def to_ir_type_and_shape(cls) -> ir.TypeAndShape:
         """Return an :class:`ir.TypeAndShape` representing this tensor type and shape.
 
         This enables using ONNX Script tensor-type notation (e.g. ``FLOAT[1024]``
         or ``FLOAT['M', 'N']``) wherever an :class:`ir.TypeAndShape` is expected,
-        such as the *input_types* / *output_types* arguments of
-        :func:`onnxscript._internal.builder.build_subgraph`.
+        such as the *inputs* / *outputs* arguments of
+        :func:`onnxscript._internal.builder.build_graph`.
         """
         ir_type = ir.TensorType(cls.dtype)
         if cls.shape is None:
