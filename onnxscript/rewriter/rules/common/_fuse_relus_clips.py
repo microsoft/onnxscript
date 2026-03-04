@@ -74,7 +74,9 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
                 min_clip = min_input.const_value.numpy()
 
         if len(node.inputs) > 2:
-            max_clip = node.inputs[2].const_value.numpy()
+            max_clip = node.inputs[2]
+            if max_clip is not None:
+                max_clip = max_clip.const_value.numpy()
 
         return min_clip, max_clip, dtype
 
