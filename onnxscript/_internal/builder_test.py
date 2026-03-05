@@ -17,6 +17,25 @@ from onnxscript.onnx_types import DOUBLE, FLOAT, INT64
 _default_opset_version = 23
 
 
+def _resolve_type_spec(spec: builder.TypeSpec) -> ir.TypeAndShape:
+    """Convert a *TypeSpec* to an :class:`ir.TypeAndShape`.
+
+    Accepts either an :class:`ir.TypeAndShape` directly, or a
+    :class:`~onnxscript.onnx_types.TensorType` subclass (e.g. ``FLOAT[1024]``
+    or ``FLOAT['M', 'N']``).
+
+    NOTE: This is a local copy of :func:`builder._resolve_type_spec` so that
+    tests do not reference a private helper directly.
+    """
+    from onnxscript.onnx_types import TensorType  # pylint: disable=import-outside-toplevel
+
+    if isinstance(spec, ir.TypeAndShape):
+        return spec
+    if isinstance(spec, type) and issubclass(spec, TensorType):
+        return spec.to_ir()
+    raise TypeError(f"Expected ir.TypeAndShape or a TensorType subclass, got {type(spec)!r}.")
+
+
 def _build(
     input_types: Sequence[builder.TypeSpec],
     trace_function=None,
@@ -30,7 +49,7 @@ def _build(
         opset_imports={"": _default_opset_version},
     )
 
-    resolved_inputs = [builder._resolve_type_spec(t) for t in input_types]
+    resolved_inputs = [_resolve_type_spec(t) for t in input_types]
     for i, ts in enumerate(resolved_inputs):
         graph.inputs.append(ir.Value(name=f"input_{i}", type=ts.type, shape=ts.shape))
 
@@ -41,7 +60,7 @@ def _build(
             outputs = [outputs]
 
         if output_types is not None:
-            resolved_outputs = [builder._resolve_type_spec(t) for t in output_types]
+            resolved_outputs = [_resolve_type_spec(t) for t in output_types]
             if len(outputs) != len(resolved_outputs):
                 raise ValueError(
                     f"Expected {len(resolved_outputs)} outputs, but got {len(outputs)}."
