@@ -981,7 +981,7 @@ class PartitionInputsAttributesTest(unittest.TestCase):
             trace_function=_dummy,
         )
         x, y = graph.inputs
-        node = list(graph)[0]
+        node = graph.node(0)
         self.assertEqual(node.op_type, "DummyOp")
         self.assertEqual(list(node.inputs), [x, y])
         self.assertEqual(node.attributes["alpha"].as_float(), 1.0)
@@ -997,7 +997,7 @@ class PartitionInputsAttributesTest(unittest.TestCase):
             trace_function=_add,
         )
         x, y = graph.inputs
-        node = list(graph)[0]
+        node = graph.node(0)
         self.assertEqual(node.op_type, "Add")
         self.assertEqual(list(node.inputs), [x, y])
         self.assertEqual(len(node.attributes), 0)
@@ -1013,7 +1013,7 @@ class PartitionInputsAttributesTest(unittest.TestCase):
             trace_function=_gemm,
         )
         a, b, c = graph.inputs
-        node = list(graph)[0]
+        node = graph.node(0)
         self.assertEqual(node.op_type, "Gemm")
         self.assertEqual(list(node.inputs), [a, b, c])
         self.assertEqual(node.attributes["alpha"].as_float(), 2.0)
@@ -1030,7 +1030,7 @@ class PartitionInputsAttributesTest(unittest.TestCase):
             trace_function=_gemm_no_c,
         )
         a, b = graph.inputs
-        node = list(graph)[0]
+        node = graph.node(0)
         self.assertEqual(node.op_type, "Gemm")
         self.assertEqual(list(node.inputs), [a, b])
         self.assertEqual(node.attributes["alpha"].as_float(), 2.0)
@@ -1045,7 +1045,7 @@ class PartitionInputsAttributesTest(unittest.TestCase):
             input_types=[FLOAT[3, 4], FLOAT[4, 5]],
             trace_function=_gemm_no_attrs,
         )
-        node = list(graph)[0]
+        node = graph.node(0)
         # alpha, beta, transA, transB all have defaults but should NOT appear
         self.assertFalse(node.attributes)
 
@@ -1060,7 +1060,7 @@ class PartitionInputsAttributesTest(unittest.TestCase):
             trace_function=_concat,
         )
         x, y, z = graph.inputs
-        node = list(graph)[0]
+        node = graph.node(0)
         self.assertEqual(node.op_type, "Concat")
         self.assertEqual(list(node.inputs), [x, y, z])
         self.assertEqual(node.attributes["axis"].as_int(), 0)
@@ -1078,7 +1078,7 @@ class PartitionInputsAttributesTest(unittest.TestCase):
         )
         data, starts, ends, axes, steps = graph.inputs
 
-        slice_node = list(graph)[0]
+        slice_node = graph.node(0)
         self.assertEqual(slice_node.op_type, "Slice")
         # Schema order: data, starts, ends, axes, steps
         self.assertEqual(list(slice_node.inputs), [data, starts, ends, axes, steps])
