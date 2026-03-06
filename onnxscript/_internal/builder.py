@@ -17,7 +17,7 @@ import onnx_ir as ir
 
 import onnxscript._internal._inference as inference
 import onnxscript.optimizer
-from onnxscript._internal import _inliner
+from onnxscript._internal import _inliner, param_manipulation
 
 # A permissible value for an op input, which can be converted to an ir.Value.
 VALUE_LIKE = Union[
@@ -359,9 +359,16 @@ class GraphBuilder:
         inputs: Sequence[ir.Value | ir.TensorProtocol],
         kwargs: dict[str, Any],
     ) -> tuple[Sequence[ir.Value | ir.TensorProtocol], dict[str, Any]]:
-        # Not implemented yet
-        del schema
-        return inputs, kwargs
+        if schema is None:
+            return inputs, kwargs
+        op_signature = ir.schemas.OpSignature.from_op_schema(schema)
+        return param_manipulation.separate_input_attributes_from_arguments(
+            op_signature,
+            list(inputs),
+            kwargs,
+            fill_defaults=False,
+            allow_extra_args=False,
+        )
 
     def _cast_inputs(
         self,
