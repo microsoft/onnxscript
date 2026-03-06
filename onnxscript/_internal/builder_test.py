@@ -872,8 +872,8 @@ class BuildSubgraphTest(unittest.TestCase):
         gb = self._make_builder()
         graph = gb.subgraph(
             _add,
-            input_types=[FLOAT[3, 4], FLOAT[3, 4]],
-            output_types=[FLOAT[3, 4]],
+            inputs=[FLOAT[3, 4], FLOAT[3, 4]],
+            outputs=[FLOAT[3, 4]],
         )
         self.assertIsInstance(graph, ir.Graph)
         self.assertEqual(len(graph.inputs), 2)
@@ -886,8 +886,8 @@ class BuildSubgraphTest(unittest.TestCase):
         gb = self._make_builder(opset_version=17)
         graph = gb.subgraph(
             lambda op, x: op.Identity(x),
-            input_types=[FLOAT[...]],
-            output_types=[FLOAT[...]],
+            inputs=[FLOAT[...]],
+            outputs=[FLOAT[...]],
         )
         self.assertEqual(graph.opset_imports[""], 17)
 
@@ -901,8 +901,8 @@ class BuildSubgraphTest(unittest.TestCase):
         gb = self._make_builder()
         graph = gb.subgraph(
             _mul,
-            input_types=[float_2d, float_2d],
-            output_types=[float_2d],
+            inputs=[float_2d, float_2d],
+            outputs=[float_2d],
         )
         self.assertIsInstance(graph, ir.Graph)
         self.assertEqual(len(list(graph)), 1)
@@ -918,8 +918,8 @@ class BuildSubgraphTest(unittest.TestCase):
         gb = self._make_builder()
         graph = gb.subgraph(
             _add_and_mul,
-            input_types=[ts, ts],
-            output_types=[ts, ts],
+            inputs=[ts, ts],
+            outputs=[ts, ts],
         )
         self.assertEqual(len(graph.outputs), 2)
 
@@ -933,8 +933,8 @@ class BuildSubgraphTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             gb.subgraph(
                 _returns_one,
-                input_types=[FLOAT[...], FLOAT[...]],
-                output_types=[FLOAT[...], FLOAT[...]],  # expects 2, gets 1
+                inputs=[FLOAT[...], FLOAT[...]],
+                outputs=[FLOAT[...], FLOAT[...]],  # expects 2, gets 1
             )
 
     def test_subgraph_custom_name(self):
@@ -946,8 +946,8 @@ class BuildSubgraphTest(unittest.TestCase):
         gb = self._make_builder()
         graph = gb.subgraph(
             _id,
-            input_types=[DOUBLE[...]],
-            output_types=[DOUBLE[...]],
+            inputs=[DOUBLE[...]],
+            outputs=[DOUBLE[...]],
             name="scan_body",
         )
         self.assertEqual(graph.name, "scan_body")
@@ -962,9 +962,71 @@ class BuildSubgraphTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             gb.subgraph(
                 _id,
-                input_types=["not_a_type_spec"],
-                output_types=["not_a_type_spec"],
+                inputs=["not_a_type_spec"],
+                outputs=["not_a_type_spec"],
             )
+
+    def test_subgraph_dict_inputs_outputs(self):
+        """Subgraph accepts a dict to name inputs and outputs."""
+
+        def _add(op, x, y):
+            return op.Add(x, y)
+
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _add,
+            inputs={"x": FLOAT[3, 4], "y": FLOAT[3, 4]},
+            outputs={"sum": FLOAT[3, 4]},
+        )
+        self.assertIsInstance(graph, ir.Graph)
+        self.assertEqual(len(graph.inputs), 2)
+        self.assertEqual(graph.inputs[0].name, "x")
+        self.assertEqual(graph.inputs[1].name, "y")
+        self.assertEqual(len(graph.outputs), 1)
+        self.assertEqual(graph.outputs[0].name, "sum")
+
+    def test_subgraph_list_auto_names(self):
+        """List-based inputs/outputs get auto-generated names."""
+
+        def _id(op, x):
+            return op.Identity(x)
+
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _id,
+            inputs=[FLOAT[...]],
+            outputs=[FLOAT[...]],
+        )
+        self.assertEqual(graph.inputs[0].name, "input_0")
+        self.assertEqual(graph.outputs[0].name, "output_0")
+
+
+class BuildGraphFunctionTest(unittest.TestCase):
+    """Tests for the module-level build_graph() utility."""
+
+    def test_build_graph_basic(self):
+        """build_graph works without a parent GraphBuilder."""
+        graph = builder.build_graph(
+            lambda op, x, y: op.Add(x, y),
+            inputs={"x": FLOAT[3, 4], "y": FLOAT[3, 4]},
+            outputs={"sum": FLOAT[3, 4]},
+            opset_imports={"": 20},
+        )
+        self.assertIsInstance(graph, ir.Graph)
+        self.assertEqual(graph.opset_imports[""], 20)
+        self.assertEqual(graph.inputs[0].name, "x")
+        self.assertEqual(graph.inputs[1].name, "y")
+        self.assertEqual(graph.outputs[0].name, "sum")
+
+    def test_build_graph_custom_name(self):
+        """build_graph passes name to the ir.Graph."""
+        graph = builder.build_graph(
+            lambda op, x: op.Identity(x),
+            inputs=[FLOAT[...]],
+            outputs=[FLOAT[...]],
+            name="loop_body",
+        )
+        self.assertEqual(graph.name, "loop_body")
 
 
 class PartitionInputsAttributesTest(unittest.TestCase):
