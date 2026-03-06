@@ -32,7 +32,7 @@ def _resolve_type_spec(spec: builder.TypeSpec) -> ir.TypeAndShape:
     if isinstance(spec, ir.TypeAndShape):
         return spec
     if isinstance(spec, type) and issubclass(spec, TensorType):
-        return spec.to_ir()
+        return spec.to_ir_type_and_shape()
     raise TypeError(f"Expected ir.TypeAndShape or a TensorType subclass, got {type(spec)!r}.")
 
 
