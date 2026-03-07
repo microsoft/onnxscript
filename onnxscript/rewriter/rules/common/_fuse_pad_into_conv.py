@@ -147,6 +147,9 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
         if np.any(self._pads_list[:2] + self._pads_list[x_rank : x_rank + 2]):
             self._pads_list = None
             return check_result.fail(f"{pads.name} must be zero in non-spatial dimensions.")
+        if any(p < 0 for p in self._pads_list):
+            self._pads_list = None
+            return check_result.fail(f"{pads.name} must not contain negative values.")
 
         return check_result
 
