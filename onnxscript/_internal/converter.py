@@ -930,8 +930,8 @@ class Converter:
 
     def _translate_compare_expr(self, node):
         # TODO: handle multiple comparisons in one expression
-        assert len(node.ops) == 1
-        assert len(node.comparators) == 1
+        if len(node.ops) != 1 or len(node.comparators) != 1:
+            self._fail(node, "Multiple comparisons in one expression are not supported.")
         op = type(node.ops[0])
         if op not in primop_map:
             raise ValueError(self._message(node, f"Unsupported operator {op!r}."))
@@ -1120,7 +1120,8 @@ class Converter:
             return return_var
 
         val = stmt.value
-        assert val is not None, "Return statement without return-value not supported."
+        if val is None:
+            self._fail(stmt, "Return statement without a return value is not supported.")
         if isinstance(val, ast.Tuple):
             check_num_outputs(len(val.elts))
             return [ret(exp, i, str(i)) for i, exp in enumerate(val.elts)]
@@ -1185,7 +1186,8 @@ class Converter:
             python_loop_var_name = loop_stmt.target.id
             # iter
             iter = loop_stmt.iter
-            assert isinstance(iter, ast.Call), "Loop bound not a call."
+            if not isinstance(iter, ast.Call):
+                self._fail(loop_stmt, "Loop bound must be a function call (e.g. 'range(n)').")
             if not isinstance(iter.func, ast.Name):
                 self._fail(loop_stmt, f"Unsupported loop bound {iter.func!r}.")
             if iter.func.id != "range":
@@ -1194,7 +1196,8 @@ class Converter:
                 )
             if not iter.args or len(iter.args) != 1:
                 self._fail(loop_stmt, "Unsupported loop bound, it should be 'range(?)'.")
-            assert not iter.keywords, "Unsupported loop bound."
+            if iter.keywords:
+                self._fail(loop_stmt, "Keyword arguments in loop bound are not supported.")
             o_loop_bound = self._translate_expr(iter.args[0], "loop_bound")
             onnx_cond_var = make_value(
                 self._generate_unique_name("cond_in"),
