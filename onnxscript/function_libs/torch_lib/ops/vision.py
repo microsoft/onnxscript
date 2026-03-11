@@ -56,13 +56,13 @@ def _process_sampling_ratio_for_roi_align(sampling_ratio: int):
 def torchvision_roi_align(
     input,
     boxes,
-    output_size: Sequence[int],
-    spatial_scale: float = 1.0,
+    spatial_scale: float,
+    pooled_height: int,
+    pooled_width: int,
     sampling_ratio: int = -1,
     aligned: bool = False,
 ):
-    """roi_align(input: torch.Tensor, boxes: Union[torch.Tensor, list[torch.Tensor]], output_size: None, spatial_scale: float = 1.0, sampling_ratio: int = -1, aligned: bool = False) -> torch.Tensor"""
-    pooled_height, pooled_width = output_size
+    """roi_align(input, boxes, spatial_scale, pooled_height, pooled_width, sampling_ratio, aligned)"""    
     batch_indices = _process_batch_indices_for_roi_align(boxes)
     rois_coords = _process_rois_for_roi_align(boxes)
     coordinate_transformation_mode = "half_pixel" if aligned else "output_half_pixel"
@@ -78,7 +78,6 @@ def torchvision_roi_align(
         output_width=pooled_width,
         sampling_ratio=sampling_ratio,
     )
-
 
 @torch_op("torchvision::roi_pool", trace_only=True)
 def torchvision_roi_pool(input, boxes, output_size: Sequence[int], spatial_scale: float = 1.0):
