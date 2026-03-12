@@ -68,6 +68,35 @@ def sample_inputs_bilinear(op_info, device, dtype, requires_grad, **kwargs):
             yield opinfo_core.SampleInput(input1, args=(input2, weight, None))
 
 
+def sample_inputs__trilinear(op_info, device, dtype, requires_grad, **kwargs):
+    """Sample inputs for aten._trilinear using bilinear's internal call pattern."""
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    cases = [
+        (2, 3, 4, 5),
+        (1, 2, 2, 1),
+        (3, 5, 2, 4),
+    ]
+    expand1 = [1, 3]
+    expand2 = [0]
+    expand3 = [1, 2]
+    sumdim = [2, 3]
+
+    for batch_size, in1_features, in2_features, out_features in cases:
+        input1 = make_arg((batch_size, in1_features))
+        weight = make_arg((out_features, in1_features, in2_features))
+        input2 = make_arg((batch_size, in2_features))
+        yield opinfo_core.SampleInput(
+            input1,
+            args=(weight, input2, expand1, expand2, expand3, sumdim, 1),
+        )
+
+
 def sample_inputs_bernoulli_p(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
 
@@ -2514,6 +2543,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torch.nn.functional.bilinear,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_bilinear,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._trilinear.default",
+        aten_name="_trilinear.default",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs__trilinear,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
