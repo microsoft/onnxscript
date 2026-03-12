@@ -23,6 +23,34 @@ S = 5
 M = 10
 
 
+def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    cases = [
+        # (G, M, K), (G, K, N)
+        ((2, 3, 4), (2, 4, 5)),
+        ((1, 2, 2), (1, 2, 1)),
+    ]
+
+    for self_shape, mat2_shape in cases:
+        self_t = make_arg(self_shape)
+        mat2_t = make_arg(mat2_shape)
+
+        # Test without bias
+        yield opinfo_core.SampleInput(self_t, args=(mat2_t,))
+
+def _mock_grouped_mm(self, mat2, offs=None, bias=None, out_dtype=None):
+    res = torch.matmul(self, mat2)
+    if bias is not None:
+        res = res + bias
+    return res
+
+
 def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -3142,6 +3170,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torchvision.ops.roi_pool,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_roi_pool,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._grouped_mm",
+        aten_name="_grouped_mm",
+        op=_mock_grouped_mm,
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_grouped_mm,
         supports_out=False,
     ),
 ]
