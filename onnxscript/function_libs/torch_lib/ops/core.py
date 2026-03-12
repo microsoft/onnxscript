@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import math
+import string
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -56,7 +57,7 @@ _INT32_MAX = 2147483647
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
-_EINSUM_SYMBOLS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+_EINSUM_SYMBOLS = string.ascii_letters
 
 
 @torch_op("aten::_local_scalar_dense", trace_only=True)
