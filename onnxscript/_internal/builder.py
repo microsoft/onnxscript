@@ -1,0 +1,710 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+"""Graph builder for constructing ONNX IR graphs imperatively.
+
+This module provides imperative builders for constructing ONNX IR graphs with automatic
+constant promotion, type casting, and shape inference. The GraphBuilder class enables
+programmatic construction of graphs with proper scoping, constant management, and node
+creation. The OpBuilder class provides dynamic op dispatching via attribute access.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Callable, Mapping, Sequence, Union
+
+import onnx
+import onnx_ir as ir
+
+import onnxscript._internal._inference as inference
+import onnxscript.optimizer
+from onnxscript._internal import _inliner, param_manipulation
+
+# A permissible value for an op input, which can be converted to an ir.Value.
+VALUE_LIKE = Union[
+    ir.Value,
+    ir.TensorProtocol,
+    int,
+    float,
+    bool,
+    str,
+    Sequence[int],
+    Sequence[float],
+    Sequence[bool],
+    Sequence[str],
+]
+
+# Mapping from Python scalar types to their default ONNX DataType,
+# used when no schema-based type binding is available.
+_PYTHON_TYPE_TO_DTYPE: dict[type, ir.DataType] = {
+    int: ir.DataType.INT64,
+    float: ir.DataType.FLOAT,
+}
+
+
+def _type_suffix(element_type: type) -> str:
+    """Return a short type suffix for naming constants based on Python type."""
+    dtype = _PYTHON_TYPE_TO_DTYPE.get(element_type)
+    return dtype.short_name() if dtype is not None else ""
+
+
+def _dtype_suffix(dtype: ir.DataType) -> str:
+    """Return a short type suffix for naming constants based on ir.DataType."""
+    return dtype.short_name()
+
+
+def _constant_name(
+    value: int | float | bool | str | Sequence, type_suffix: str, num: int = 0
+) -> str:
+    """Generate a descriptive name for a constant value.
+
+    Args:
+        value: The constant value
+        type_suffix: Type suffix (e.g., 'F', 'I64')
+        num: A number used for generating unique names for str/sequences
+
+    Returns:
+        A name string for the constant
+    """
+    if isinstance(value, str):
+        # For strings, use a generic name with cache size as unique identifier
+        return f"const_str_{num}"
+    if isinstance(value, (int, float, bool)):
+        return f"const_{value}_{type_suffix}" if type_suffix else f"const_{value}"
+    # Sequence: use generic name with cache size as unique identifier
+    return f"const_1d_{num}"
+
+
+# Type accepted as an element of *inputs* / *outputs* by
+# :meth:`GraphBuilder.subgraph`.  Can be an already-resolved
+# :class:`ir.TypeAndShape`, or a
+# :class:`~onnxscript.onnx_types.TensorType` subclass such as ``FLOAT[1024]``.
+TypeSpec = Union[ir.TypeAndShape, Any]
+
+# Acceptable collection forms for *inputs* / *outputs* in
+# :meth:`GraphBuilder.subgraph`.  A :class:`Sequence` of :data:`TypeSpec`
+# auto-names entries (``input_0``, ``input_1``, …), while a :class:`Mapping`
+# from :class:`str` to :data:`TypeSpec` uses the keys as explicit names.
+InputOutputSpec = Union[Sequence[TypeSpec], Mapping[str, TypeSpec]]
+
+
+def _resolve_type_spec(spec: TypeSpec) -> ir.TypeAndShape:
+    """Convert a *TypeSpec* to an :class:`ir.TypeAndShape`.
+
+    Accepts an :class:`ir.TypeAndShape` directly, or any object with a
+    ``to_ir_type_and_shape()`` method (e.g. a
+    :class:`~onnxscript.onnx_types.TensorType` subclass such as
+    ``FLOAT[1024]`` or ``FLOAT['M', 'N']``).
+    """
+    if isinstance(spec, ir.TypeAndShape):
+        return spec
+    if hasattr(spec, "to_ir_type_and_shape"):
+        result = spec.to_ir_type_and_shape()
+        if not isinstance(result, ir.TypeAndShape):
+            raise TypeError(
+                f"{type(spec)!r}.to_ir_type_and_shape() returned {type(result)!r}, "
+                f"expected ir.TypeAndShape."
+            )
+        return result
+    raise TypeError(
+        f"Expected ir.TypeAndShape or an object with a to_ir_type_and_shape() method, "
+        f"got {type(spec)!r}."
+    )
+
+
+def _normalize_io_spec(
+    spec: InputOutputSpec, default_prefix: str
+) -> list[tuple[str, ir.TypeAndShape]]:
+    """Normalize an *InputOutputSpec* into a list of ``(name, TypeAndShape)`` pairs.
+
+    When *spec* is a :class:`Mapping`, the keys are used as names.  When it is
+    a plain :class:`Sequence`, names are generated as
+    ``{default_prefix}_0``, ``{default_prefix}_1``, etc.
+    """
+    if isinstance(spec, Mapping):
+        return [(name, _resolve_type_spec(ts)) for name, ts in spec.items()]
+    return [(f"{default_prefix}_{i}", _resolve_type_spec(ts)) for i, ts in enumerate(spec)]
+
+
+def build_graph(
+    trace_function: Callable,
+    inputs: InputOutputSpec,
+    outputs: InputOutputSpec,
+    *,
+    opset_imports: dict[str, int] | None = None,
+    name: str = "subgraph",
+) -> ir.Graph:
+    """Build an :class:`ir.Graph` suitable for use as a graph-valued attribute.
+
+    This is a module-level utility that constructs a subgraph by tracing
+    *trace_function*.  It is useful for building body graphs of control-flow ops
+    such as ``Scan``, ``Loop``, and ``If``.
+
+    Example - building a Scan body that adds two sequences element-wise::
+
+        body = build_graph(
+            lambda op, x, y: op.Add(x, y),
+            inputs={"x": FLOAT[...], "y": FLOAT[...]},
+            outputs={"sum": FLOAT[...]},
+        )
+
+    Args:
+        trace_function: A callable with signature
+            ``(op: OpBuilder, *inputs: ir.Value) -> ir.Value | Sequence[ir.Value]``.
+            It is called once with freshly created placeholder inputs to record the
+            graph topology.
+        inputs: Types (and optionally names) for each graph input.  May be a
+            :class:`Sequence` of :data:`TypeSpec` values (names are auto-generated
+            as ``input_0``, ``input_1``, …) **or** a :class:`Mapping` from
+            :class:`str` names to :data:`TypeSpec` values.  Each :data:`TypeSpec`
+            can be an :class:`ir.TypeAndShape` or a
+            :class:`~onnxscript.onnx_types.TensorType` subclass (e.g.
+            ``FLOAT[1024]`` or ``FLOAT['M', 'N']``).
+        outputs: Types (and optionally names) for each graph output, in the
+            same format as *inputs*.
+        opset_imports: Opset version map for the subgraph (e.g.
+            ``{"": 23}``).  Defaults to ``{"": 23}`` when *None*.
+        name: Name of the resulting :class:`ir.Graph`.
+
+    Returns:
+        An :class:`ir.Graph` whose inputs and outputs are populated and whose
+        nodes record the operations traced by *trace_function*.  This graph can be
+        passed directly as a graph-valued attribute (e.g. the ``body`` attribute of
+        a ``Scan`` or ``Loop`` node).
+    """
+    if opset_imports is None:
+        opset_imports = {"": 23}
+    resolved_inputs = _normalize_io_spec(inputs, "input")
+    resolved_outputs = _normalize_io_spec(outputs, "output")
+
+    subgraph = ir.Graph(
+        name=name,
+        inputs=[],
+        outputs=[],
+        nodes=[],
+        opset_imports=opset_imports,
+    )
+
+    for input_name, ts in resolved_inputs:
+        subgraph.inputs.append(ir.Value(name=input_name, type=ts.type, shape=ts.shape))
+
+    sub_builder = GraphBuilder(subgraph)
+    trace_outputs = trace_function(sub_builder.op, *subgraph.inputs)
+    if not isinstance(trace_outputs, Sequence):
+        trace_outputs = [trace_outputs]
+    if len(trace_outputs) != len(resolved_outputs):
+        raise ValueError(
+            f"trace_function returned {len(trace_outputs)} output(s), "
+            f"but {len(resolved_outputs)} were declared in outputs."
+        )
+    for output, (output_name, ts) in zip(trace_outputs, resolved_outputs):
+        output.name = output_name
+        output.type = ts.type
+        output.merge_shapes(ts.shape)
+
+    subgraph.outputs.extend(trace_outputs)
+    return subgraph
+
+
+class GraphBuilder:
+    """Imperative builder for constructing ONNX IR graphs with automatic constant promotion, type casting, and shape inference."""
+
+    def __init__(self, graph: ir.Graph) -> None:
+        self._graph = graph
+
+        # Get the opset version for "" (default domain) from the graph
+        if "" not in graph.opset_imports:
+            # Force this for now. Default opset version for "" is problematic.
+            raise ValueError('Input graph does not have an import for domain ""')
+        opset_version = graph.opset_imports[""]
+
+        self._op_builder = self.opset("", opset_version)
+
+        # Module scope stack. Each entry is (name, class_name) where name is
+        # the module attribute name (e.g. "layers.0", "self_attn") and
+        # class_name is the qualified class name (e.g. "Gemma3DecoderLayer").
+        self._scope_stack: list[tuple[str, str]] = []
+
+        # Cache for constant initializers (scalars and sequences), keyed by (value, dtype).
+        # This avoids creating duplicate initializers for the same constant
+        # and allows sharing them across different layers/contexts.
+        self._constant_cache: dict[tuple[Any, ir.DataType | None], ir.Value] = {}
+
+    def opset(self, domain: str, version: int = 1) -> OpBuilder:
+        """Create an OpBuilder bound to the given domain and version."""
+        return OpBuilder(self, domain, version)
+
+    @property
+    def op(self) -> OpBuilder:
+        return self._op_builder
+
+    @property
+    def graph(self) -> ir.Graph:
+        return self._graph
+
+    def initializer(
+        self, tensor: ir.TensorProtocol, name: str | None = None, *, qualify: bool = True
+    ) -> ir.Value:
+        """Register a tensor as a graph initializer, returning the corresponding ir.Value."""
+        if name is None:
+            name = tensor.name
+        if qualify:
+            name = self._qualify_initializer_name(name)
+        shape = ir.Shape(tensor.shape)
+        value = ir.Value(
+            name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
+        )
+        self._graph.register_initializer(value)
+        return value
+
+    def _input_to_ir_value(
+        self, value: VALUE_LIKE, like_type: ir.Value | None = None
+    ) -> ir.Value:
+        """Convert a permissible input (for a call to an op) into an ir.Value.
+
+        Permissible values include ir.Value as well as python constants that can be converted
+        into ONNX constant tensors. For constant values, the like_type is used to determine the
+        target onnx type.
+        """
+        if isinstance(value, ir.Value):
+            return value
+        dtype = (
+            like_type.type.dtype
+            if like_type is not None and like_type.type is not None
+            else None
+        )
+        needs_dynamic_cast = like_type is not None and dtype is None
+        # For simple scalar/sequence constants, use a cache to avoid duplicate initializers.
+        # These are shared across layers, so we don't qualify the name with context prefix.
+        if isinstance(value, (int, float, bool, str)):
+            cache_key = (value, dtype)
+            if cache_key in self._constant_cache:
+                ir_value = self._constant_cache[cache_key]
+            else:
+                type_suffix = (
+                    _dtype_suffix(dtype) if dtype is not None else _type_suffix(type(value))
+                )
+                name = _constant_name(value, type_suffix, len(self._constant_cache))
+                tensor = ir.tensor(value, dtype=dtype, name=name)
+                ir_value = self.initializer(tensor, name=name, qualify=False)
+                self._constant_cache[cache_key] = ir_value
+        elif (
+            isinstance(value, (list, tuple))
+            and value
+            and all(isinstance(v, type(value[0])) for v in value)
+            and isinstance(value[0], (int, float, bool, str))
+        ):
+            cache_key = (tuple(value), dtype)
+            if cache_key in self._constant_cache:
+                ir_value = self._constant_cache[cache_key]
+            else:
+                type_suffix = (
+                    _dtype_suffix(dtype) if dtype is not None else _type_suffix(type(value[0]))
+                )
+                name = _constant_name(value, type_suffix, len(self._constant_cache))
+                tensor = ir.tensor(list(value), dtype=dtype, name=name)
+                ir_value = self.initializer(tensor, name=name, qualify=False)
+                self._constant_cache[cache_key] = ir_value
+        else:
+            # For other types (TensorProtocol, numpy arrays, torch tensors, etc.),
+            # ir.tensor() handles the conversion.
+            # TODO(rama): Consider caching for other tensor values.
+            ir_value = self.initializer(ir.tensor(value, dtype=dtype))
+        # If like_type is provided but its type is unknown, insert a dynamic CastLike
+        # so the constant is cast to match like_type's type at runtime.
+        if needs_dynamic_cast:
+            ir_value = self.op.CastLike(ir_value, like_type)
+        return ir_value
+
+    def _adapt_outputs(
+        self, outputs: int | Sequence[str | ir.Value], op_type: str = ""
+    ) -> Sequence[ir.Value]:
+        if isinstance(outputs, int):
+            count = self.graph.num_nodes()
+            if outputs < 0:
+                raise ValueError(f"Number of outputs must be non-negative, got {outputs}")
+            if outputs == 1:
+                name = f"{op_type}_{count}" if op_type else f"{count}"
+                return [ir.Value(name=self._qualify_value_name(name))]
+            else:
+                names = [
+                    (f"{op_type}_{count}_{i}" if op_type else f"{count}_{i}")
+                    for i in range(outputs)
+                ]
+                return [ir.Value(name=self._qualify_value_name(n)) for n in names]
+        adapted_outputs = []
+        for output in outputs:
+            if isinstance(output, ir.Value):
+                if output.name:
+                    output.name = self._qualify_value_name(output.name)
+                adapted_outputs.append(output)
+            elif isinstance(output, str):
+                adapted_outputs.append(ir.Value(name=self._qualify_value_name(output)))
+            else:
+                raise TypeError("Output type not supported.")
+        return adapted_outputs
+
+    def _get_schema(
+        self, op_type: str, domain: str, version: int | None
+    ) -> onnx.defs.OpSchema | None:
+        if version is not None:
+            try:
+                return onnx.defs.get_schema(op_type, version, domain)
+            except onnx.defs.SchemaError:
+                pass
+        return None
+
+    def _partition_inputs_attributes(
+        self,
+        schema: onnx.defs.OpSchema | None,
+        inputs: Sequence[ir.Value | ir.TensorProtocol],
+        kwargs: dict[str, Any],
+    ) -> tuple[Sequence[ir.Value | ir.TensorProtocol], dict[str, Any]]:
+        if schema is None:
+            return inputs, kwargs
+        op_signature = ir.schemas.OpSignature.from_op_schema(schema)
+        return param_manipulation.separate_input_attributes_from_arguments(
+            op_signature,
+            list(inputs),
+            kwargs,
+            fill_defaults=False,
+            allow_extra_args=False,
+        )
+
+    def _cast_inputs(
+        self,
+        schema: onnx.defs.OpSchema | None,
+        inputs: Sequence[VALUE_LIKE],
+    ) -> Sequence[ir.Value | None]:
+        """Uses schema specification to support a limited form of auto-casting.
+
+        * Scalars are promoted to tensors.
+        * Further. they are cast to the required type when used in ops with other
+        tensor inputs that are required to be of same type.
+        Thus, in "A+1" or "Add(A, 1)", the value 1 will be converted to the same
+        type as A.
+        """
+        if schema is None:
+            return [self._input_to_ir_value(i) for i in inputs]
+
+        expected_inputs = schema.inputs
+        # We make two passes. In the first pass, we identify known type-bindings for
+        # type-variables: eg., {'T1' : np.float32, 'T2' : np.int32}.
+        # In the second pass, we use these bindings to cast scalar-values to
+        # tensors of appropriate types. The two passes are needed to handle cases
+        # like "Add(1, X)" where 1 must be cast to the same type as X.
+        type_bindings: dict[str, ir.Value] = {}
+        args_typevars: list[tuple[ir.Value | None, str | None]] = []
+        for i, x in enumerate(inputs):
+            if i < len(expected_inputs):
+                expected = expected_inputs[i]
+            elif expected_inputs and (
+                expected_inputs[-1].option == onnx.defs.OpSchema.FormalParameterOption.Variadic
+            ):
+                expected = expected_inputs[-1]
+                if not expected.is_homogeneous:
+                    args_typevars.append((x, None))
+                    continue
+            else:
+                raise ValueError(
+                    f"Number of actual parameters {len(inputs)} "
+                    f"exceeds number of formal parameters {len(expected_inputs)}."
+                )
+            typevar = expected.type_str
+            if ("(" not in typevar) and (typevar not in type_bindings):
+                # typevar is an identifier, like "T"
+                if isinstance(x, ir.Value):
+                    type_bindings[typevar] = x
+            args_typevars.append((x, typevar))
+
+        def adapt(x, typevar: str | None) -> ir.Value | None:
+            if x is None:
+                return None
+            if typevar is None:
+                return self._input_to_ir_value(x)
+            type_like = type_bindings.get(typevar)
+            return self._input_to_ir_value(x, type_like)
+
+        return [adapt(x, typevar) for x, typevar in args_typevars]
+
+    def _cast_attributes(
+        self,
+        schema: onnx.defs.OpSchema | None,
+        attributes: dict[str, Any],
+    ) -> dict[str, Any]:
+        del schema  # Not implemented yet
+        return attributes if attributes is not None else {}
+
+    def add_node(self, node: ir.Node) -> None:
+        """Append a node to the graph, run constant propagation and shape inference."""
+        self.graph.append(node)
+        onnxscript.optimizer.basic_constant_propagation([node])
+        inference.infer_outputs(node)
+
+    def subgraph(
+        self,
+        trace_function: Callable,
+        inputs: InputOutputSpec,
+        outputs: InputOutputSpec,
+        *,
+        name: str = "subgraph",
+    ) -> ir.Graph:
+        """Build an :class:`ir.Graph` suitable for use as a graph-valued attribute.
+
+        The subgraph inherits the opset version from this :class:`GraphBuilder`.
+        It is particularly useful for constructing the body graphs of control-flow ops
+        such as ``Scan``, ``Loop``, and ``If``.
+
+        Example - building a Scan body that adds two sequences element-wise::
+
+            body = graph_builder.subgraph(
+                lambda op, x, y: op.Add(x, y),
+                inputs=[FLOAT[...], FLOAT[...]],
+                outputs=[FLOAT[...]],
+            )
+
+        Inputs and outputs can also be given as a :class:`dict` to assign
+        explicit names::
+
+            body = graph_builder.subgraph(
+                lambda op, x, y: op.Add(x, y),
+                inputs={"x": FLOAT[...], "y": FLOAT[...]},
+                outputs={"sum": FLOAT[...]},
+            )
+
+        Args:
+            trace_function: A callable with signature
+                ``(op: OpBuilder, *inputs: ir.Value) -> ir.Value | Sequence[ir.Value]``.
+                It is called once with freshly created placeholder inputs to record the
+                graph topology.
+            inputs: Types (and optionally names) for each graph input.  May be a
+                :class:`Sequence` of :data:`TypeSpec` values (names are auto-generated
+                as ``input_0``, ``input_1``, …) **or** a :class:`Mapping` from
+                :class:`str` names to :data:`TypeSpec` values.  Each :data:`TypeSpec`
+                can be an :class:`ir.TypeAndShape` or a
+                :class:`~onnxscript.onnx_types.TensorType` subclass (e.g.
+                ``FLOAT[1024]`` or ``FLOAT['M', 'N']``).
+            outputs: Types (and optionally names) for each graph output, in the
+                same format as *inputs*.
+            name: Name of the resulting :class:`ir.Graph`.
+
+        Returns:
+            An :class:`ir.Graph` whose inputs and outputs are populated and whose
+            nodes record the operations traced by *trace_function*.  This graph can be
+            passed directly as a graph-valued attribute (e.g. the ``body`` attribute of
+            a ``Scan`` or ``Loop`` node).
+        """
+        return build_graph(
+            trace_function,
+            inputs,
+            outputs,
+            opset_imports=dict(self._graph.opset_imports),
+            name=name,
+        )
+
+    def call_op(
+        self,
+        op_type: str,
+        inputs: Sequence[ir.Value | ir.TensorProtocol],
+        kwargs: dict[str, Any],
+    ):
+        """Create an ONNX node and add it to the graph, returning its output value(s)."""
+        domain = kwargs.pop("_domain", "")
+        version = kwargs.pop("_version", None)
+        outputs = kwargs.pop("_outputs", 1)
+
+        count = self.graph.num_nodes()
+        node_name = self._qualify_node_name(f"{op_type}_node_{count}")
+
+        output_values = self._adapt_outputs(outputs, op_type)
+
+        schema = self._get_schema(op_type, domain, version)
+        inputs, attributes = self._partition_inputs_attributes(schema, inputs, kwargs)
+        inputs = self._cast_inputs(schema, inputs)
+        attributes = self._cast_attributes(schema, attributes)
+
+        node = ir.node(
+            op_type,
+            inputs,
+            attributes=attributes or None,
+            domain=domain,
+            outputs=output_values,
+            version=version,
+            name=node_name,
+        )
+
+        # Attach scope metadata to the node
+        node.metadata_props["namespace"] = self._build_namespace()
+        node.metadata_props["pkg.onnxscript.class_hierarchy"] = repr(self._scope_classes())
+        node.metadata_props["pkg.onnxscript.name_scopes"] = repr(self._scope_names())
+
+        self.add_node(node)
+
+        return node.outputs if len(node.outputs) > 1 else node.outputs[0]
+
+    def call(
+        self,
+        function,
+        *args,
+        _outputs: Sequence[str] | None = None,
+        _prefix: str = "",
+        **kwargs,
+    ):
+        if isinstance(function, ir.Function):
+            graph = function.graph
+        elif isinstance(function, onnxscript.OnnxFunction):
+            graph = function.graph()
+        else:
+            raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
+        output_renaming: dict[str, str] = {}
+        if _outputs is not None:
+            if len(_outputs) != len(graph.outputs):
+                raise ValueError(
+                    f"Number of provided output names {_outputs} does not match "
+                    f"number of function outputs {len(graph.outputs)}."
+                )
+            for output, name in zip(graph.outputs, _outputs):
+                output_renaming[output.name] = self._qualify_value_name(name)
+        else:
+            for output in graph.outputs:
+                output_renaming[output.name] = self._qualify_value_name(output.name)
+        nodes, outputs = _inliner.instantiate(graph, args, kwargs)
+        if _prefix:
+            self.push_module(_prefix)
+        for node in nodes:
+            node.name = self._qualify_node_name(node.name)
+            for output in node.outputs:
+                if output.name:
+                    if output.name in output_renaming:
+                        output.name = output_renaming[output.name]
+                    else:
+                        output.name = self._qualify_value_name(output.name)
+            self.add_node(node)
+        if _prefix:
+            self.pop_module()
+        return outputs if len(outputs) > 1 else outputs[0]
+
+    def push_module(self, module: str, class_name: str = "") -> None:
+        """Push a new module scope onto the stack.
+
+        Args:
+            module: The attribute name of the module (e.g. ``"layers.0"``).
+            class_name: The qualified class name (e.g. ``"Gemma3DecoderLayer"``).
+        """
+        self._scope_stack.append((module, class_name))
+
+    def pop_module(self) -> None:
+        """Pop the most recent module scope off the stack."""
+        if not self._scope_stack:
+            raise RuntimeError("Cannot pop_module: no module context has been pushed.")
+        self._scope_stack.pop()
+
+    def _scope_names(self) -> list[str]:
+        """Return the list of module attribute names in the current scope."""
+        return [name for name, _ in self._scope_stack]
+
+    def _scope_classes(self) -> list[str]:
+        """Return the list of class names in the current scope."""
+        return [cls for _, cls in self._scope_stack]
+
+    def _scope_name_parts(self) -> list[str]:
+        """Return non-empty module names for qualifying names."""
+        return [name for name, _ in self._scope_stack if name]
+
+    def _qualify_initializer_name(self, name: str) -> str:
+        """Prepend the current hierarchical context prefix to the given name.
+
+        Uses ``.`` as separator, appropriate for parameter and initializer names.
+        """
+        parts = self._scope_name_parts()
+        if parts:
+            return ".".join(parts) + "." + name
+        return name
+
+    def _qualify_value_name(self, name: str) -> str:
+        """Qualify a value name with the current scope using ``.`` separator.
+
+        The name is prefixed with ``v_`` to distinguish values from parameters.
+        """
+        parts = self._scope_name_parts()
+        if parts:
+            return "v_" + ".".join(parts) + "." + name
+        return f"v_{name}"
+
+    def _qualify_node_name(self, name: str) -> str:
+        """Qualify a node name with the current scope using ``/`` separator."""
+        parts = self._scope_name_parts()
+        if parts:
+            return "/".join(parts) + "/" + name
+        return name
+
+    def _build_namespace(self) -> str:
+        """Build the namespace string for a node.
+
+        Each scope entry is formatted as ``name: class_name`` joined by ``/``.
+        """
+        parts = []
+        for name, cls in self._scope_stack:
+            if name or cls:
+                parts.append(f"{name}: {cls}" if cls else name)
+        return "/".join(parts)
+
+
+class OpBuilder:
+    """Dynamic op dispatcher that translates attribute access into ONNX node creation via a GraphBuilder."""
+
+    def __init__(
+        self, builder: GraphBuilder, domain: str = "", version: int | None = None
+    ) -> None:
+        self._builder = builder
+        self._domain = domain
+        self._version = version
+
+    @property
+    def builder(self) -> GraphBuilder:
+        return self._builder
+
+    @property
+    def domain(self) -> str:
+        return self._domain
+
+    @property
+    def version(self) -> int | None:
+        return self._version
+
+    def _call_op(self, op_type: str, inputs: Sequence[Any], kwargs: dict[str, Any]):
+        if "_domain" not in kwargs:
+            kwargs["_domain"] = self._domain
+        if self._version is not None and "_version" not in kwargs:
+            kwargs["_version"] = self._version
+        return self._builder.call_op(op_type, inputs, kwargs)
+
+    def __getattr__(self, op_type: str) -> Callable:
+        return lambda *args, **kwargs: self._call_op(op_type, args, kwargs)
+
+    def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
+        return self._builder.initializer(tensor, name)
+
+    def call(
+        self,
+        function,
+        *args,
+        _outputs: Sequence[str] | None = None,
+        _prefix: str = "",
+        **kwargs,
+    ):
+        """Call a function and inline it into the graph.
+
+        Args:
+            function: The function to call (ir.Function or onnxscript.OnnxFunction).
+            *args: Positional arguments to pass to the function.
+            _outputs: Optional sequence of output names. If provided, must match the
+                number of function outputs.
+            _prefix: Optional prefix for module scoping (e.g., "layers.0").
+            **kwargs: Keyword arguments to pass to the function.
+
+        Returns:
+            The output value(s) from the function call.
+        """
+        return self._builder.call(
+            function, *args, _outputs=_outputs, _prefix=_prefix, **kwargs
+        )
