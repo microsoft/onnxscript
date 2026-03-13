@@ -1194,60 +1194,6 @@ def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
     return op.CastLike(sampled, self)
 
 
-def _get_einsum_symbol(dim: int) -> str:
-    if dim >= len(_EINSUM_SYMBOLS):
-        raise ValueError("aten::_trilinear only supports up to 52 dimensions")
-    return _EINSUM_SYMBOLS[dim]
-
-
-def _build_trilinear_subscript(total_dim: int, expanded_dims: Sequence[int]) -> str:
-    expanded_dims_set = set(expanded_dims)
-    return "".join(
-        _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in expanded_dims_set
-    )
-
-
-def _build_trilinear_equation(
-    total_dim: int,
-    expand1: Sequence[int],
-    expand2: Sequence[int],
-    expand3: Sequence[int],
-    sumdim: Sequence[int],
-) -> str:
-    sumdim_set = set(sumdim)
-    output_subscript = "".join(
-        _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in sumdim_set
-    )
-    return (
-        f"{_build_trilinear_subscript(total_dim, expand1)},"
-        f"{_build_trilinear_subscript(total_dim, expand2)},"
-        f"{_build_trilinear_subscript(total_dim, expand3)}->{output_subscript}"
-    )
-
-
-@torch_op("aten::_trilinear", trace_only=True)
-def aten__trilinear(
-    i1: TReal,
-    i2: TReal,
-    i3: TReal,
-    expand1: Sequence[int],
-    expand2: Sequence[int],
-    expand3: Sequence[int],
-    sumdim: Sequence[int],
-    unroll_dim: int = 1,
-) -> TReal:
-    """_trilinear(Tensor i1, Tensor i2, Tensor i3, int[] expand1, int[] expand2, int[] expand3, int[] sumdim, int unroll_dim=1) -> Tensor"""
-
-    del unroll_dim
-
-    input_rank = getattr(i1, "rank", None)
-    if input_rank is None:
-        input_rank = len(i1.shape)
-    total_dim = input_rank + len(expand1)
-    equation = _build_trilinear_equation(total_dim, expand1, expand2, expand3, sumdim)
-    return op.Einsum(i1, i2, i3, equation=equation)
-
-
 @torch_op("aten::bilinear", trace_only=True)
 def aten_bilinear(
     input1: TensorType,
@@ -9845,6 +9791,60 @@ def aten_tril_indices(row: int, col: int, offset: int = 0) -> TensorType:
     """tril_indices(int row, int col, int offset=0, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     raise NotImplementedError()
+
+
+def _get_einsum_symbol(dim: int) -> str:
+    if dim >= len(_EINSUM_SYMBOLS):
+        raise ValueError("aten::_trilinear only supports up to 52 dimensions")
+    return _EINSUM_SYMBOLS[dim]
+
+
+def _build_trilinear_subscript(total_dim: int, expanded_dims: Sequence[int]) -> str:
+    expanded_dims_set = set(expanded_dims)
+    return "".join(
+        _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in expanded_dims_set
+    )
+
+
+def _build_trilinear_equation(
+    total_dim: int,
+    expand1: Sequence[int],
+    expand2: Sequence[int],
+    expand3: Sequence[int],
+    sumdim: Sequence[int],
+) -> str:
+    sumdim_set = set(sumdim)
+    output_subscript = "".join(
+        _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in sumdim_set
+    )
+    return (
+        f"{_build_trilinear_subscript(total_dim, expand1)},"
+        f"{_build_trilinear_subscript(total_dim, expand2)},"
+        f"{_build_trilinear_subscript(total_dim, expand3)}->{output_subscript}"
+    )
+
+
+@torch_op("aten::_trilinear", trace_only=True)
+def aten__trilinear(
+    i1: TReal,
+    i2: TReal,
+    i3: TReal,
+    expand1: Sequence[int],
+    expand2: Sequence[int],
+    expand3: Sequence[int],
+    sumdim: Sequence[int],
+    unroll_dim: int = 1,
+) -> TReal:
+    """_trilinear(Tensor i1, Tensor i2, Tensor i3, int[] expand1, int[] expand2, int[] expand3, int[] sumdim, int unroll_dim=1) -> Tensor"""
+
+    del unroll_dim
+
+    input_rank = getattr(i1, "rank", None)
+    if input_rank is None:
+        input_rank = len(i1.shape)
+    total_dim = input_rank + len(expand1)
+    equation = _build_trilinear_equation(total_dim, expand1, expand2, expand3, sumdim)
+    return op.Einsum(i1, i2, i3, equation=equation)
 
 
 def aten_triplet_margin_loss(

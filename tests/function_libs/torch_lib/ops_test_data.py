@@ -602,11 +602,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "bilinear", core_ops.aten_bilinear, tolerance={torch.float32: (2e-5, 2e-5)}
     ),
     TorchLibOpInfo(
-        "ops.aten._trilinear.default",
-        core_ops.aten__trilinear,
-        tolerance={torch.float32: (2e-5, 2e-5)},
-    ),
-    TorchLibOpInfo(
         # This string is a unique ID. In extra_opinfo.py, we
         # also define test data for this ID with
         # `opinfo_core.OpInfo("aten.bernoulli.p", ...)`.
@@ -1297,6 +1292,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("tril", core_ops.aten_tril).xfail(
         dtypes=(torch.int32,),
         reason="fixme: ORT does not have an implementation of Trilu for int32.",
+    ),
+    TorchLibOpInfo(
+        "ops.aten._trilinear.default",
+        core_ops.aten__trilinear,
+        tolerance={torch.float32: (2e-5, 2e-5)},
     ),
     TorchLibOpInfo("triu", core_ops.aten_triu).xfail(
         dtypes=(torch.int32,),
