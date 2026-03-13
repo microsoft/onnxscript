@@ -9799,7 +9799,26 @@ def _get_einsum_symbol(dim: int) -> str:
     return _EINSUM_SYMBOLS[dim]
 
 
-def _build_trilinear_subscript(total_dim: int, expanded_dims: Sequence[int]) -> str:
+def _validate_trilinear_dims(
+    total_dim: int, dims: Sequence[int], dims_name: str
+) -> None:
+    seen_dims = set()
+    for dim in dims:
+        if dim < 0 or dim >= total_dim:
+            raise ValueError(
+                f"aten::_trilinear {dims_name} values must be in [0, {total_dim})"
+            )
+        if dim in seen_dims:
+            raise ValueError(
+                f"aten::_trilinear {dims_name} values must be unique"
+            )
+        seen_dims.add(dim)
+
+
+def _build_trilinear_subscript(
+    total_dim: int, expanded_dims: Sequence[int], dims_name: str
+) -> str:
+    _validate_trilinear_dims(total_dim, expanded_dims, dims_name)
     expanded_dims_set = set(expanded_dims)
     return "".join(
         _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in expanded_dims_set
@@ -9813,14 +9832,16 @@ def _build_trilinear_equation(
     expand3: Sequence[int],
     sumdim: Sequence[int],
 ) -> str:
+    _validate_trilinear_dims(total_dim, sumdim, "sumdim")
     sumdim_set = set(sumdim)
     output_subscript = "".join(
         _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in sumdim_set
     )
     return (
-        f"{_build_trilinear_subscript(total_dim, expand1)},"
-        f"{_build_trilinear_subscript(total_dim, expand2)},"
-        f"{_build_trilinear_subscript(total_dim, expand3)}->{output_subscript}"
+        f"{_build_trilinear_subscript(total_dim, expand1, 'expand1')},"
+        f"{_build_trilinear_subscript(total_dim, expand2, 'expand2')},"
+        f"{_build_trilinear_subscript(total_dim, expand3, 'expand3')}"
+        f"->{output_subscript}"
     )
 
 
