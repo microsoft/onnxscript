@@ -603,7 +603,7 @@ class GraphBuilder:
             )
             outputs = node.outputs
             self.add_node(node)
-            self._functions[function.identifier] = function
+            self._functions[function.identifier()] = function
 
         if _prefix:
             self.pop_module()
