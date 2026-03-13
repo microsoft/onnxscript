@@ -884,7 +884,7 @@ class GraphBuilderTest(unittest.TestCase):
 
         # The function should be registered
         self.assertEqual(len(op.builder.functions), 1)
-        registered = list(op.builder.functions.values())[0]
+        registered = next(iter(op.builder.functions.values()))
         self.assertEqual(registered.name, "simple_add")
 
     def test_call_inline_true_does_not_register_function(self):
