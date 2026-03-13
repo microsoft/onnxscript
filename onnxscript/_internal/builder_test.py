@@ -848,6 +848,157 @@ class GraphBuilderTest(unittest.TestCase):
 
         self.assertIn("does not match", str(cm.exception))
 
+    def test_call_inline_false_creates_single_function_node(self):
+        """Test that _inline=False creates a single function call node instead of inlining."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op.Relu(tmp)
+
+        result = op.call(mul_add_relu, x, y, _inline=False)
+
+        # With _inline=False, only a single node should be created (the function call)
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+
+        node = nodes[0]
+        self.assertEqual(node.op_type, "mul_add_relu")
+        self.assertEqual(list(node.inputs), [x, y])
+
+        # The result should be a single ir.Value
+        self.assertIsInstance(result, ir.Value)
+        self.assertIs(result, node.outputs[0])
+
+    def test_call_inline_false_registers_function(self):
+        """Test that _inline=False registers the function in GraphBuilder.functions."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        op.call(simple_add, x, y, _inline=False)
+
+        # The function should be registered
+        self.assertEqual(len(op.builder.functions), 1)
+        registered = list(op.builder.functions.values())[0]
+        self.assertEqual(registered.name, "simple_add")
+
+    def test_call_inline_true_does_not_register_function(self):
+        """Test that _inline=True (default) does not register the function."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        op.call(simple_add, x, y, _inline=True)
+
+        # No function should be registered when inlining
+        self.assertEqual(len(op.builder.functions), 0)
+
+    def test_call_inline_false_with_outputs_option(self):
+        """Test that _inline=False respects the _outputs option for renaming."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def add_mul(X, Y):
+            a = X + Y
+            b = X * Y
+            return a, b
+
+        result = op.call(
+            add_mul, x, y, _outputs=["sum_result", "product_result"], _inline=False
+        )
+
+        # The result should be a sequence of 2 ir.Values
+        self.assertEqual(len(result), 2)
+        sum_result, product_result = result
+
+        # Verify output names
+        self.assertEqual(sum_result.name, "v_sum_result")
+        self.assertEqual(product_result.name, "v_product_result")
+
+        # Only one node (the function call), not inlined
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(nodes[0].op_type, "add_mul")
+
+    def test_call_inline_false_with_prefix_option(self):
+        """Test that _inline=False respects the _prefix option for hierarchical naming."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op.Relu(tmp)
+
+        result = op.call(mul_add_relu, x, y, _prefix="layer1", _inline=False)
+
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+
+        # The node name should have the prefix
+        self.assertTrue(
+            nodes[0].name.startswith("layer1/"),
+            f"Node name {nodes[0].name} should start with layer1/",
+        )
+
+        self.assertIsInstance(result, ir.Value)
+
+    def test_call_inline_false_via_op_builder(self):
+        """Test that _inline=False works when called through OpBuilder.call."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        # Call through OpBuilder (not GraphBuilder directly)
+        result = op.call(simple_add, x, y, _inline=False)
+
+        # Should produce a single function call node
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(nodes[0].op_type, "simple_add")
+        self.assertIsInstance(result, ir.Value)
+
+        # Function should be registered
+        self.assertEqual(len(op.builder.functions), 1)
+
+    def test_call_inline_true_produces_more_nodes_than_inline_false(self):
+        """Test that inlining produces individual op nodes while non-inlining produces one."""
+        # Inline version
+        op1, x1, y1 = _create_builder_with_inputs()
+
+        @script(default_opset=op1)
+        def mul_add(X, Y):
+            tmp = X * Y
+            return op1.Add(tmp, X)
+
+        op1.call(mul_add, x1, y1, _inline=True)
+        inline_nodes = list(op1.builder.graph)
+
+        # Non-inline version
+        op2, x2, y2 = _create_builder_with_inputs()
+
+        @script(default_opset=op2)
+        def mul_add2(X, Y):
+            tmp = X * Y
+            return op2.Add(tmp, X)
+
+        op2.call(mul_add2, x2, y2, _inline=False)
+        non_inline_nodes = list(op2.builder.graph)
+
+        # Inlining should produce 2 nodes (Mul, Add), non-inlining should produce 1
+        self.assertEqual(len(inline_nodes), 2)
+        self.assertEqual(len(non_inline_nodes), 1)
+        self.assertEqual(non_inline_nodes[0].op_type, "mul_add2")
+
 
 class BuildSubgraphTest(unittest.TestCase):
     """Tests for GraphBuilder.subgraph()."""

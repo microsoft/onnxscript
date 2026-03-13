@@ -710,6 +710,9 @@ class OpBuilder:
     def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
         return self._builder.initializer(tensor, name)
 
+    def functions(self) -> dict[ir.OperatorIdentifier, ir.Function]:
+        return self._builder.functions
+
     def call(
         self,
         function,
@@ -728,12 +731,13 @@ class OpBuilder:
                 number of function outputs.
             _prefix: Optional prefix for module scoping (e.g., "layers.0").
             _inline: If True, the function body is inlined into the caller graph instead of being
-                called as a separate node. Defaults to True.
+                called as a separate node. When False, the function will be added
+                to the ``.functions`` dictionary. Defaults to True.
             **kwargs: Keyword arguments to pass to the function.
 
         Returns:
             The output value(s) from the function call.
         """
         return self._builder.call(
-            function, *args, _outputs=_outputs, _prefix=_prefix, **kwargs
+            function, *args, _outputs=_outputs, _prefix=_prefix, _inline=_inline, **kwargs
         )
