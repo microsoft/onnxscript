@@ -270,15 +270,6 @@ def _einsum_input_wrangler(
     return [args[1], args[0]], kwargs
 
 
-def _trilinear_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    for index in range(3, 7):
-        if isinstance(args[index], np.ndarray):
-            args[index] = args[index].tolist()
-    return args, kwargs
-
-
 def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -614,7 +605,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten._trilinear.default",
         core_ops.aten__trilinear,
         tolerance={torch.float32: (2e-5, 2e-5)},
-        input_wrangler=_trilinear_input_wrangler,
     ),
     TorchLibOpInfo(
         # This string is a unique ID. In extra_opinfo.py, we

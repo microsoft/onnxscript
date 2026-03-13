@@ -82,10 +82,10 @@ def sample_inputs__trilinear(op_info, device, dtype, requires_grad, **kwargs):
         (1, 2, 2, 1),
         (3, 5, 2, 4),
     ]
-    expand1 = [1, 3]
-    expand2 = [0]
-    expand3 = [1, 2]
-    sumdim = [2, 3]
+    expand1 = (1, 3)
+    expand2 = (0,)
+    expand3 = (1, 2)
+    sumdim = (2, 3)
 
     for batch_size, in1_features, in2_features, out_features in cases:
         input1 = make_arg((batch_size, in1_features))
