@@ -4357,6 +4357,7 @@ def aten_gru(
                 initial_h=layer_h,
                 direction=direction,
                 hidden_size=hidden_size_attr,
+                linear_before_reset=1,
             )
         else:
             Y, Y_h = op.GRU(
@@ -4366,6 +4367,7 @@ def aten_gru(
                 initial_h=layer_h,
                 direction=direction,
                 hidden_size=hidden_size_attr,
+                linear_before_reset=1,
             )
 
         # Y shape: [seq_length, num_directions, batch_size, hidden_size]
