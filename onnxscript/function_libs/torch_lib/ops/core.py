@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import math
+import string
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -56,6 +57,7 @@ _INT32_MAX = 2147483647
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
+_EINSUM_SYMBOLS = string.ascii_letters
 
 
 @torch_op("aten::_local_scalar_dense", trace_only=True)
@@ -9789,6 +9791,81 @@ def aten_tril_indices(row: int, col: int, offset: int = 0) -> TensorType:
     """tril_indices(int row, int col, int offset=0, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     raise NotImplementedError()
+
+
+def _get_einsum_symbol(dim: int) -> str:
+    if dim >= len(_EINSUM_SYMBOLS):
+        raise ValueError("aten::_trilinear only supports up to 52 dimensions")
+    return _EINSUM_SYMBOLS[dim]
+
+
+def _validate_trilinear_dims(
+    total_dim: int, dims: Sequence[int], dims_name: str
+) -> None:
+    seen_dims = set()
+    for dim in dims:
+        if dim < 0 or dim >= total_dim:
+            raise ValueError(
+                f"aten::_trilinear {dims_name} values must be in [0, {total_dim})"
+            )
+        if dim in seen_dims:
+            raise ValueError(
+                f"aten::_trilinear {dims_name} values must be unique"
+            )
+        seen_dims.add(dim)
+
+
+def _build_trilinear_subscript(
+    total_dim: int, expanded_dims: Sequence[int], dims_name: str
+) -> str:
+    _validate_trilinear_dims(total_dim, expanded_dims, dims_name)
+    expanded_dims_set = set(expanded_dims)
+    return "".join(
+        _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in expanded_dims_set
+    )
+
+
+def _build_trilinear_equation(
+    total_dim: int,
+    expand1: Sequence[int],
+    expand2: Sequence[int],
+    expand3: Sequence[int],
+    sumdim: Sequence[int],
+) -> str:
+    _validate_trilinear_dims(total_dim, sumdim, "sumdim")
+    sumdim_set = set(sumdim)
+    output_subscript = "".join(
+        _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in sumdim_set
+    )
+    return (
+        f"{_build_trilinear_subscript(total_dim, expand1, 'expand1')},"
+        f"{_build_trilinear_subscript(total_dim, expand2, 'expand2')},"
+        f"{_build_trilinear_subscript(total_dim, expand3, 'expand3')}"
+        f"->{output_subscript}"
+    )
+
+
+@torch_op("aten::_trilinear", trace_only=True)
+def aten__trilinear(
+    i1: TReal,
+    i2: TReal,
+    i3: TReal,
+    expand1: Sequence[int],
+    expand2: Sequence[int],
+    expand3: Sequence[int],
+    sumdim: Sequence[int],
+    unroll_dim: int = 1,
+) -> TReal:
+    """_trilinear(Tensor i1, Tensor i2, Tensor i3, int[] expand1, int[] expand2, int[] expand3, int[] sumdim, int unroll_dim=1) -> Tensor"""
+
+    del unroll_dim
+
+    input_rank = getattr(i1, "rank", None)
+    if input_rank is None:
+        input_rank = len(i1.shape)
+    total_dim = input_rank + len(expand1)
+    equation = _build_trilinear_equation(total_dim, expand1, expand2, expand3, sumdim)
+    return op.Einsum(i1, i2, i3, equation=equation)
 
 
 def aten_triplet_margin_loss(

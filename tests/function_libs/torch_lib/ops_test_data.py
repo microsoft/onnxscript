@@ -1293,6 +1293,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.int32,),
         reason="fixme: ORT does not have an implementation of Trilu for int32.",
     ),
+    TorchLibOpInfo(
+        "ops.aten._trilinear.default",
+        core_ops.aten__trilinear,
+        tolerance={torch.float32: (2e-5, 2e-5)},
+    ),
     TorchLibOpInfo("triu", core_ops.aten_triu).xfail(
         dtypes=(torch.int32,),
         reason="fixme: ORT does not have an implementation of Trilu for int32.",
