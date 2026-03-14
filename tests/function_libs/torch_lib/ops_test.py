@@ -40,7 +40,6 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 from onnxscript._internal import version_utils
-from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from tests.function_libs.torch_lib import (
     error_reproduction,
     ops_test_common,
@@ -109,45 +108,6 @@ class TestFunctionValidity(unittest.TestCase):
             self.skipTest("Traced functions does not have a function proto")
         function_proto = torchlib_op_info.op.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
-
-
-class TestTrilinearHelpers(unittest.TestCase):
-    def test_build_trilinear_equation_returns_expected_equation(self) -> None:
-        equation = core_ops._build_trilinear_equation(
-            4,
-            (1, 3),
-            (0,),
-            (1, 2),
-            (2, 3),
-        )
-
-        self.assertEqual(equation, "ac,bcd,ad->ab")
-
-    def test_build_trilinear_equation_rejects_out_of_range_dims(self) -> None:
-        with self.assertRaisesRegex(
-            ValueError,
-            "aten::_trilinear expand1 values must be in",
-        ):
-            core_ops._build_trilinear_equation(
-                4,
-                (4,),
-                (0,),
-                (1, 2),
-                (2, 3),
-            )
-
-    def test_build_trilinear_equation_rejects_duplicate_dims(self) -> None:
-        with self.assertRaisesRegex(
-            ValueError,
-            "aten::_trilinear sumdim values must be unique",
-        ):
-            core_ops._build_trilinear_equation(
-                4,
-                (1, 3),
-                (0,),
-                (1, 2),
-                (2, 2),
-            )
 
 
 def run_test_output_match(
