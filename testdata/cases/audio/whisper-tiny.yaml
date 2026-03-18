@@ -1,0 +1,16 @@
+model_id: "openai/whisper-tiny"
+revision: "169d4a4341b33bc18d8881c4b69c2e104e1cc0af"
+task_type: "speech-to-text"
+dtype: "float32"
+
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+
+generation:
+  max_new_tokens: 50
+  do_sample: false
+
+level: "L4+L5"
+
+notes: "Whisper tiny. Speech-to-text encoder-decoder."

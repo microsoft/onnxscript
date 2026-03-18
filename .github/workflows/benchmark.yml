@@ -1,0 +1,87 @@
+name: Benchmark
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-bench-${{ hashFiles('pyproject.toml') }}
+
+      - name: Install PyTorch CPU
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/ci/requirements.txt
+          pip install -e '.[testing]'
+
+      - name: Run benchmarks
+        run: |
+          python tests/benchmark_build.py --json results.json
+
+      - name: Compare against baseline
+        id: compare
+        run: |
+          python tests/benchmark_compare.py \
+            --current results.json \
+            --baseline tests/perf_baseline.json \
+            --output comparison.md
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('comparison.md', 'utf8');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const marker = 'Performance Comparison';
+            const existing = comments.find(c => c.body.includes(marker));
+            const params = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body,
+            };
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...params, comment_id: existing.id,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...params, issue_number: context.issue.number,
+              });
+            }
+
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-results
+          path: |
+            results.json
+            comparison.md

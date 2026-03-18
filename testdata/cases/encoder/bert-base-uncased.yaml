@@ -1,0 +1,12 @@
+model_id: "google-bert/bert-base-uncased"
+revision: "86b5e0934494bd15c9632b12f734a8a67f723594"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+notes: "BERT base uncased. Canonical encoder-only model."

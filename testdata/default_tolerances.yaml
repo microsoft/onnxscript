@@ -1,0 +1,56 @@
+# Tolerance thresholds for L3 (Synthetic), L4 (Checkpoint Verified),
+# and L5 (Generation E2E) testing layers.
+#
+# These are defaults. Individual test cases can override via
+# tolerance_overrides in their YAML file.
+#
+# Source: parity.py DEFAULT_TOLERANCES and NEAR_TIE_MARGINS,
+# plus integration_test.py baseline (atol=1e-3, rtol=1e-3 for f32).
+
+L3:
+  # L3 synthetic parity: atol/rtol gate with identical random weights.
+  # Any divergence beyond these thresholds is a genuine op-level bug.
+  float32:
+    atol: 1.0e-3
+    rtol: 1.0e-3
+  float16:
+    atol: 1.0e-1
+    rtol: 1.0e-1
+  bfloat16:
+    atol: 5.0e-1
+    rtol: 5.0e-1
+
+L4:
+  # L4 checkpoint-verified: argmax-gated with real weights.
+  # near_tie_margin: when |top1 - top2| < margin, argmax mismatch
+  # is downgraded to AMBIGUOUS instead of FAIL.
+  # Jaccard and cosine thresholds are diagnostic (warnings, not gates).
+  float32:
+    near_tie_margin: 0.01
+    top10_jaccard_warn: 0.7
+    cosine_similarity_warn: 0.999
+  float16:
+    near_tie_margin: 0.1
+    top10_jaccard_warn: 0.5
+    cosine_similarity_warn: 0.99
+  bfloat16:
+    near_tie_margin: 0.5
+    top10_jaccard_warn: 0.4
+    cosine_similarity_warn: 0.95
+  int4:
+    near_tie_margin: 1.0
+    top10_jaccard_warn: 0.3
+    cosine_similarity_warn: 0.9
+
+L5:
+  # L5 generation E2E: greedy token sequence comparison.
+  # min_token_match_ratio: fraction of generated tokens that must
+  # match the golden reference. 1.0 = exact match required.
+  float32:
+    min_token_match_ratio: 1.0
+  float16:
+    min_token_match_ratio: 0.9
+  bfloat16:
+    min_token_match_ratio: 0.8
+  int4:
+    min_token_match_ratio: 0.7

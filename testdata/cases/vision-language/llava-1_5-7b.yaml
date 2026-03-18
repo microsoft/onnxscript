@@ -1,0 +1,18 @@
+model_id: "llava-hf/llava-1.5-7b-hf"
+revision: "b234b804b114d9e37bb655e11cbbb5f5e971b7a9"
+task_type: "image-text-to-text"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "What is shown in this image?"
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 30
+  do_sample: false
+
+notes: "LLaVA 1.5 7B. CLIP vision encoder + Vicuna decoder."

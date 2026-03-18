@@ -1,0 +1,12 @@
+model_id: "distilbert/distilbert-base-uncased"
+revision: "12040accade4e8a0f71eabdb258fecc2e7e948be"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+notes: "DistilBERT base uncased. Distilled 6-layer BERT."

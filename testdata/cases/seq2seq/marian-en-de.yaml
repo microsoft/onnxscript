@@ -1,0 +1,17 @@
+model_id: "Helsinki-NLP/opus-mt-en-de"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The house is wonderful."
+  decoder_prompt: ""
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "Marian NMT en-de. Lightweight encoder-decoder translation model."

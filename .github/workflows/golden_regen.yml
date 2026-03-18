@@ -1,0 +1,170 @@
+name: Regenerate Golden References
+
+on:
+  schedule:
+    # Run weekly on Sunday at 2am UTC (before nightly_l2 at 3am)
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: >-
+          Model filter pattern (e.g. "qwen2_5-0_5b" or "causal-lm/*").
+          Leave empty to regenerate all golden files.
+        required: false
+        default: ""
+      device:
+        description: "Device to run on (cpu or cuda)"
+        required: false
+        default: "cpu"
+        type: choice
+        options:
+          - cpu
+          - cuda
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: golden-regen
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    name: Regenerate Golden Files
+    runs-on: ${{ inputs.device == 'cuda' && 'gpu' || 'ubuntu-latest' }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          # NOTE: For production use, replace with a GitHub App or bot
+          # PAT (secrets.BOT_TOKEN) to allow the created PR to trigger
+          # CI workflows. The default GITHUB_TOKEN cannot trigger
+          # workflows on PRs it creates.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-golden-${{ hashFiles('pyproject.toml', 'requirements/ci/requirements.txt') }}
+          restore-keys: |
+            pip-golden-
+
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-golden-${{ hashFiles('testdata/cases/**/*.yaml') }}
+          restore-keys: |
+            hf-golden-
+
+      - name: Install PyTorch (CPU)
+        if: inputs.device != 'cuda'
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install PyTorch (CUDA)
+        if: inputs.device == 'cuda'
+        run: pip install torch --index-url https://download.pytorch.org/whl/cu124
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/ci/requirements.txt
+          pip install -e '.[testing,transformers]'
+
+      - name: Reject trust_remote_code cases
+        run: |
+          # Safety: never auto-run models that require trust_remote_code
+          # in unattended workflows. These could execute arbitrary code.
+          if grep -rl 'trust_remote_code: true' testdata/cases/ 2>/dev/null; then
+            echo "::warning::Some test cases use trust_remote_code: true — these will be skipped by generate_golden.py"
+          fi
+
+      - name: Regenerate golden files
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          FILTER_PATTERN: ${{ inputs.filter }}
+          DEVICE: ${{ inputs.device || 'cpu' }}
+        run: |
+          args=(--force)
+          if [ -n "$FILTER_PATTERN" ]; then
+            args+=(--filter "$FILTER_PATTERN")
+          fi
+          if [ "$DEVICE" = "cuda" ]; then
+            args+=(--device cuda)
+          fi
+          python scripts/generate_golden.py "${args[@]}"
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet testdata/golden/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No golden file changes detected."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Golden files changed:"
+            git diff --stat testdata/golden/
+          fi
+
+      - name: Guard against excessive changes
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          # Safety: if more than 20% of golden files changed in a single
+          # regen run, something may be wrong (bad model download, infra
+          # issue, etc.).  Flag for human review.
+          total=$(find testdata/golden -name '*.json' | wc -l)
+          changed=$(git diff --name-only testdata/golden/ | wc -l)
+          if [ "$total" -gt 0 ]; then
+            pct=$((changed * 100 / total))
+            echo "Changed $changed of $total golden files (${pct}%)"
+            if [ "$pct" -gt 20 ]; then
+              echo "::warning::More than 20% of golden files changed ($changed/$total = ${pct}%). Review carefully before merging."
+            fi
+          fi
+
+      - name: Create PR with updated golden files
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FILTER_PATTERN: ${{ inputs.filter || 'all' }}
+          DEVICE: ${{ inputs.device || 'cpu' }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          BRANCH="golden-regen/$(date +%Y%m%d-%H%M%S)"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add testdata/golden/
+          git commit -m "chore: regenerate golden reference files
+
+          Auto-generated by golden_regen workflow.
+          Trigger: ${TRIGGER}
+          Filter: ${FILTER_PATTERN}
+          Device: ${DEVICE}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: regenerate golden reference files" \
+            --body "Auto-generated by golden_regen workflow.
+
+          **Trigger:** \`${TRIGGER}\`
+          **Filter:** \`${FILTER_PATTERN}\`
+          **Device:** \`${DEVICE}\`
+
+          Review the golden file diffs to verify they reflect expected model behavior changes." \
+            --base main \
+            --head "$BRANCH"
+
+      - name: Upload golden files as artifact
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: golden-files
+          path: testdata/golden/
+          retention-days: 30

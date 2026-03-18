@@ -1,0 +1,16 @@
+model_id: "ibm-granite/granite-3.3-2b-instruct"
+revision: "707f574c62054322f6b5b04b6d075f0a8f05e0f0"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "Granite 3.3 2B. IBM granite architecture."

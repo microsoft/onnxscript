@@ -1,0 +1,18 @@
+model_id: "google/gemma-3-4b-it"
+revision: "main"
+task_type: "image-text-to-text"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Describe this image in detail."
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 30
+  do_sample: false
+
+notes: "Gemma 3 4B IT multimodal. SigLIP vision encoder + Gemma 3 decoder."

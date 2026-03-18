@@ -1,0 +1,18 @@
+model_id: "Qwen/Qwen2.5-VL-3B-Instruct"
+revision: "66285546d2b821cf421d4f5eb2576359d3770cd3"
+task_type: "image-text-to-text"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Describe this image in detail."
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 30
+  do_sample: false
+
+notes: "Qwen2.5-VL 3B. Vision encoder + embedding + decoder pipeline."

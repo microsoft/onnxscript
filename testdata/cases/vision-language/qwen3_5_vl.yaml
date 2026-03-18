@@ -1,0 +1,18 @@
+model_id: "Qwen/Qwen3.5-VL-3B-Instruct"
+revision: "main"
+task_type: "image-text-to-text"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Describe this image in detail."
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 30
+  do_sample: false
+
+notes: "Qwen3.5-VL 3B. Hybrid attention vision-language (Qwen35VL3ModelCausalLMModel)."

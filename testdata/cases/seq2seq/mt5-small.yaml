@@ -1,0 +1,17 @@
+model_id: "google/mt5-small"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "translate English to German: The house is wonderful."
+  decoder_prompt: ""
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "mT5 small. Multilingual T5 encoder-decoder."

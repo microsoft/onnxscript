@@ -1,0 +1,58 @@
+{
+  "_metadata": {
+    "commit": "170ab74",
+    "python": "3.12.7"
+  },
+  "models": {
+    "llama": {
+      "num_nodes": 68,
+      "num_models": 1,
+      "model_size_bytes": 435496
+    },
+    "qwen2": {
+      "num_nodes": 68,
+      "num_models": 1,
+      "model_size_bytes": 435496
+    },
+    "phi3": {
+      "num_nodes": 68,
+      "num_models": 1,
+      "model_size_bytes": 431400
+    },
+    "gemma2": {
+      "num_nodes": 109,
+      "num_models": 1,
+      "model_size_bytes": 438068
+    },
+    "falcon": {
+      "num_nodes": 66,
+      "num_models": 1,
+      "model_size_bytes": 372264
+    },
+    "gpt2": {
+      "num_nodes": 60,
+      "num_models": 1,
+      "model_size_bytes": 397352
+    },
+    "bert": {
+      "num_nodes": 61,
+      "num_models": 1,
+      "model_size_bytes": 367112
+    },
+    "t5": {
+      "num_nodes": 174,
+      "num_models": 2,
+      "model_size_bytes": 856096
+    },
+    "whisper": {
+      "num_nodes": 140,
+      "num_models": 2,
+      "model_size_bytes": 1031692
+    },
+    "mamba": {
+      "num_nodes": 109,
+      "num_models": 1,
+      "model_size_bytes": 368440
+    }
+  }
+}

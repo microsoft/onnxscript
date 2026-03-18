@@ -1,0 +1,12 @@
+model_id: "facebook/wav2vec2-base"
+revision: "0b5b8e868dd84f03fd87d01f9c4ff0f080fecfe8"
+task_type: "audio-feature-extraction"
+dtype: "float32"
+
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+
+level: "L4"
+
+notes: "Wav2Vec2 base. Self-supervised audio feature extraction."

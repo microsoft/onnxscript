@@ -1,0 +1,17 @@
+model_id: "tiiuae/falcon-7b"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "Falcon 7B. Multi-query attention architecture."
+skip_reason: "Falcon forward() incompatible with transformers 5.x."

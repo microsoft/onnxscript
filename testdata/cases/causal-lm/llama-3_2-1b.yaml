@@ -1,0 +1,16 @@
+model_id: "meta-llama/Llama-3.2-1B"
+revision: "4e20de362430cd3b72f300e6b0f18e50e7166e08"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "Llama 3.2 1B. Baseline llama architecture."

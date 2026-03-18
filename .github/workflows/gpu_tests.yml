@@ -1,0 +1,92 @@
+name: GPU Tests (L4/L5)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'testdata/**'
+      - 'scripts/**'
+  schedule:
+    # Run weekly on Monday at 4am UTC (after golden regen on Sunday)
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gpu-tests
+  cancel-in-progress: true
+
+jobs:
+  golden-tests:
+    name: L4/L5 Golden Tests
+    runs-on: gpu
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-gpu-${{ hashFiles('pyproject.toml', 'requirements/ci/requirements.txt') }}
+          restore-keys: |
+            pip-gpu-
+
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-gpu-${{ hashFiles('testdata/cases/**/*.yaml') }}
+          restore-keys: |
+            hf-gpu-
+
+      - name: Install PyTorch (CUDA)
+        run: pip install torch --index-url https://download.pytorch.org/whl/cu124
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/ci/requirements.txt
+          pip install -e '.[testing,transformers]'
+
+      - name: Run L4 checkpoint-verified tests
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          pytest tests/e2e_golden_test.py \
+            -m golden \
+            -v \
+            --timeout=300 \
+            --junitxml=junit-l4.xml \
+            --tb=short
+        timeout-minutes: 30
+
+      - name: Run L5 generation E2E tests
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          pytest tests/e2e_golden_test.py \
+            -m generation \
+            -v \
+            --timeout=300 \
+            --junitxml=junit-l5.xml \
+            --tb=short
+        timeout-minutes: 30
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gpu-test-results
+          path: |
+            junit-l4.xml
+            junit-l5.xml
+          retention-days: 30

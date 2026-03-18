@@ -1,0 +1,308 @@
+name: CI
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - v*
+  pull_request:
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Set up Python "3.13"
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.13"
+    - name: Lint with lintrunner
+      uses: justinchuby/lintrunner-action@main
+
+  detect-affected:
+    name: Detect affected models
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      affected: ${{ steps.detect.outputs.affected }}
+      run_all: ${{ steps.detect.outputs.run_all }}
+      has_affected: ${{ steps.detect.outputs.has_affected }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Get changed files
+        id: changed
+        run: |
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > changed_files.txt
+          echo "Changed files:"
+          cat changed_files.txt
+      - name: Detect affected models
+        id: detect
+        run: |
+          output=$(python scripts/detect_affected_models.py \
+            --stdin --output-format github < changed_files.txt)
+          echo "$output"
+          echo "$output" >> "$GITHUB_OUTPUT"
+
+  smoke-test:
+    name: L1 Smoke Test
+    runs-on: ubuntu-latest
+    needs: [detect-affected]
+    if: always() && !cancelled()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-smoke-${{ hashFiles('pyproject.toml', 'requirements/ci/requirements.txt') }}
+          restore-keys: |
+            pip-smoke-
+      - name: Install PyTorch CPU
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/ci/requirements.txt
+          pip install -e '.[testing]'
+      - name: Run L1 smoke tests (all model configs)
+        run: |
+          pytest tests/build_graph_test.py -v --tb=short -n auto
+        timeout-minutes: 10
+
+  synthetic-parity:
+    name: L3 Synthetic Parity
+    runs-on: ubuntu-latest
+    needs: [detect-affected]
+    if: >-
+      always() && !cancelled() &&
+      (needs.detect-affected.result == 'failure' ||
+       needs.detect-affected.outputs.has_affected == 'true' ||
+       github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-parity-${{ hashFiles('pyproject.toml', 'requirements/ci/requirements.txt') }}
+          restore-keys: |
+            pip-parity-
+      - name: Install PyTorch CPU
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/ci/requirements.txt
+          pip install -e '.[testing,transformers]'
+      - name: Run L3 synthetic parity tests
+        run: |
+          if [ ! -f tests/synthetic_parity_test.py ]; then
+            echo "tests/synthetic_parity_test.py not found — skipping"
+            exit 0
+          fi
+          if [ "${{ needs.detect-affected.result }}" = "failure" ] || \
+             [ "${{ needs.detect-affected.outputs.run_all }}" = "true" ] || \
+             [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Running all synthetic parity tests"
+            pytest tests/synthetic_parity_test.py -v --tb=short -n auto
+          else
+            AFFECTED='${{ needs.detect-affected.outputs.affected }}'
+            echo "Running parity for affected models: $AFFECTED"
+            # Escape hyphens to underscores for pytest -k compatibility
+            FILTER=$(echo "$AFFECTED" | python -c "
+          import json, sys, re
+          names = json.load(sys.stdin)
+          escaped = [re.sub(r'[^a-zA-Z0-9_]', '_', n) for n in names]
+          print(' or '.join(escaped))
+          ")
+            if [ -n "$FILTER" ]; then
+              pytest tests/synthetic_parity_test.py -v --tb=short -n auto -k "$FILTER"
+            else
+              echo "No affected models — skipping"
+            fi
+          fi
+        timeout-minutes: 20
+
+  golden-comparison:
+    name: L4 Golden Comparison
+    runs-on: ubuntu-latest
+    needs: [detect-affected]
+    if: >-
+      always() && !cancelled() &&
+      (needs.detect-affected.result == 'failure' ||
+       needs.detect-affected.outputs.has_affected == 'true' ||
+       github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-golden-${{ hashFiles('pyproject.toml', 'requirements/ci/requirements.txt') }}
+          restore-keys: |
+            pip-golden-
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-golden-${{ hashFiles('testdata/cases/**/*.yaml') }}
+          restore-keys: |
+            hf-golden-
+      - name: Install PyTorch CPU
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/ci/requirements.txt
+          pip install -e '.[testing,transformers]'
+      - name: Check for golden test data
+        id: check_golden
+        run: |
+          # Only run if there are actual golden .json files (not just .gitkeep)
+          if find testdata/golden -name '*.json' | grep -q .; then
+            echo "has_golden=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_golden=false" >> "$GITHUB_OUTPUT"
+            echo "No golden files found — skipping"
+          fi
+      - name: Run L4 golden comparison tests
+        if: steps.check_golden.outputs.has_golden == 'true'
+        run: |
+          if [ ! -f tests/e2e_golden_test.py ]; then
+            echo "tests/e2e_golden_test.py not found — skipping"
+            exit 0
+          fi
+          pytest tests/e2e_golden_test.py -m golden -v --tb=short \
+            --junitxml golden-results.xml
+        timeout-minutes: 30
+      - name: Upload golden test results
+        if: always() && steps.check_golden.outputs.has_golden == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: golden-test-results
+          path: golden-results.xml
+          retention-days: 7
+
+  test:
+    name: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python_version: ["3.10", "3.11", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python_version }}
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ matrix.python_version }}-${{ hashFiles('pyproject.toml', 'requirements/ci/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-${{ matrix.python_version }}-
+      - name: Install PyTorch CPU
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/ci/requirements.txt
+          pip install -e '.[testing]'
+      - name: Run tests
+        run: |
+          pytest -n auto -m 'not integration' --cov=src --cov-report=xml --cov-branch --junitxml junit.xml
+
+  integration-fast:
+    name: Integration (fast)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-integration-fast-${{ hashFiles('tests/integration_test.py') }}
+          restore-keys: |
+            hf-integration-fast-
+      - name: Install PyTorch CPU
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/ci/requirements.txt
+          pip install -e '.[testing]'
+      - name: Run fast integration tests
+        run: |
+          pytest tests/integration_test.py -m integration_fast -v \
+            -k "smollm-135m or albert-base or t5-small or dinov2-small or wav2vec2-base or whisper-tiny or test_gemma3_multimodal or test_qwen35 or test_qwen3_next or test_deepseek or test_sam_vit or test_ocr2"
+        timeout-minutes: 15
+
+  build:
+    name: Build
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Python build dependencies
+        run: |
+          pip install build wheel
+      - name: Build wheels
+        run: |
+          python -m build
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: dist
+          path: dist
+
+  release:
+    name: Release
+    environment: release
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [test, build]
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true

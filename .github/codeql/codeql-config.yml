@@ -1,0 +1,8 @@
+query-filters:
+- exclude:
+    id: py/import-and-import-from
+- exclude:
+    # Module level cyclic import, although should be avoided, is not a problem
+    # from the perspective of functionality. Follow advice on
+    # https://codeql.github.com/codeql-query-help/python/py-cyclic-import/ to break the cycle if needed.
+    id: py/cyclic-import

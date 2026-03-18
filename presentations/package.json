@@ -1,0 +1,19 @@
+{
+  "name": "mobius-slides",
+  "version": "1.0.0",
+  "description": "Slidev presentation for mobius",
+  "scripts": {
+    "dev": "slidev model-coverage-deck.md",
+    "build": "slidev build model-coverage-deck.md",
+    "export": "slidev export model-coverage-deck.md"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@slidev/cli": "^52.14.1",
+    "@slidev/theme-default": "^0.25.0"
+  },
+  "private": true
+}

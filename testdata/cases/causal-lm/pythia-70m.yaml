@@ -1,0 +1,16 @@
+model_id: "EleutherAI/pythia-70m"
+revision: "a39f36b100fe8a5377810d56c3f4789b9c53ac42"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "Pythia 70M. Smallest GPT-NeoX variant, fast CI model."

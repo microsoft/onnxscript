@@ -1,0 +1,17 @@
+model_id: "facebook/bart-base"
+revision: "aadd2ab0ae0c8268c7c9693540e9904811f36177"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "summarize: The tower is 324 metres tall and is the tallest structure in Paris."
+  decoder_prompt: ""
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "BART base. Denoising encoder-decoder for summarization."

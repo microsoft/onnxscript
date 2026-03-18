@@ -1,0 +1,12 @@
+model_id: "google/vit-base-patch16-224"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "ViT base patch16. Canonical vision transformer for image classification. Base class for 11+ aliases."

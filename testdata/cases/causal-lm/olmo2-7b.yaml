@@ -1,0 +1,16 @@
+model_id: "allenai/OLMo-2-1124-7B"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "OLMo 2 7B. Second-generation OLMo with architectural improvements."

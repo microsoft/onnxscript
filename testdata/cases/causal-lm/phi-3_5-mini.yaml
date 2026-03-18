@@ -1,0 +1,18 @@
+model_id: "microsoft/Phi-3.5-mini-instruct"
+revision: "2fe192450127e6a83f7441aef6e3ca586c338b77"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+trust_remote_code: true
+notes: "Phi-3.5 with LongRoPE positional embeddings."
+skip_reason: "DynamicCache.from_legacy_cache removed in transformers 5.x."

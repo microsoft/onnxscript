@@ -1,0 +1,12 @@
+model_id: "facebook/hubert-base-ls960"
+revision: "main"
+task_type: "audio-feature-extraction"
+dtype: "float32"
+
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+
+level: "L4"
+
+notes: "HuBERT base. Self-supervised audio representation learning."

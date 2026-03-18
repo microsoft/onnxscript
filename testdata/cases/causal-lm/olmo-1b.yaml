@@ -1,0 +1,16 @@
+model_id: "allenai/OLMo-1B-hf"
+revision: "aee7752d9c08ee4775e9b0091426d8410e8f6a89"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "OLMo 1B. Post-norm architecture variant."

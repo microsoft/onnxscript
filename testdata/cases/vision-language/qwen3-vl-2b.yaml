@@ -1,0 +1,18 @@
+model_id: "Qwen/Qwen3-VL-2B-Instruct"
+revision: "89644892e4d85e24eaac8bacfd4f463576704203"
+task_type: "image-text-to-text"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Describe this image in detail."
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 30
+  do_sample: false
+
+notes: "Qwen3-VL 2B. Latest Qwen vision-language model."

@@ -1,0 +1,17 @@
+model_id: "google/gemma-3n-E2B-pt"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "Gemma 3n E2B. AltUp/Laurel per-layer routing with sliding + global attention."
+skip_reason: "Model not yet published on HuggingFace."

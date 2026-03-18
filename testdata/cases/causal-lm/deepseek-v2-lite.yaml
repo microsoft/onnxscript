@@ -1,0 +1,18 @@
+model_id: "deepseek-ai/DeepSeek-V2-Lite"
+revision: "604d5664dddd88a0433dbae533b7fe9472482de0"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+trust_remote_code: true
+notes: "DeepSeek V2 Lite. Multi-head Latent Attention (MLA) + MoE."
+skip_reason: "Incompatible with transformers 5.x (uses removed API)."

@@ -1,0 +1,17 @@
+model_id: "facebook/opt-125m"
+revision: "27dcfa74d334bc871f3234de431e71c6eeba5dd6"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "Model only has pytorch_model.bin, no safetensors."
+notes: "OPT 125M. Learned positional embeddings."

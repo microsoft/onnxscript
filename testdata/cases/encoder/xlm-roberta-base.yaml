@@ -1,0 +1,12 @@
+model_id: "FacebookAI/xlm-roberta-base"
+revision: "main"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+notes: "XLM-RoBERTa base. Multilingual RoBERTa trained on 100 languages."

@@ -1,0 +1,17 @@
+model_id: "google-t5/t5-small"
+revision: "df1b051c49625cf57a3d0d8d3863ed4d13564fe4"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "translate English to German: The house is wonderful."
+  decoder_prompt: ""
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "T5 small. Encoder-decoder with relative position bias."

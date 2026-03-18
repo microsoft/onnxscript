@@ -1,0 +1,18 @@
+model_id: "microsoft/Phi-tiny-MoE-instruct"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+trust_remote_code: true
+notes: "Phi tiny MoE. Small testable Mixture-of-Experts from Microsoft."
+skip_reason: "Requires einops and flash_attn packages not in test environment."

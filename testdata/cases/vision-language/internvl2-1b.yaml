@@ -1,0 +1,19 @@
+model_id: "OpenGVLab/InternVL2-1B"
+revision: "main"
+task_type: "image-text-to-text"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Describe this image in detail."
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 30
+  do_sample: false
+
+trust_remote_code: true
+notes: "InternVL2 1B. InternViT vision encoder + InternLM2 decoder."

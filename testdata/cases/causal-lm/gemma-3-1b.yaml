@@ -1,0 +1,16 @@
+model_id: "google/gemma-3-1b-pt"
+revision: "fcf18a2a879aab110ca39f8bffbccd5d49d8eb29"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "Gemma 3 1B pre-trained. Sliding window + global attention."

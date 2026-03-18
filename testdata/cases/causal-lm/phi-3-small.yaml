@@ -1,0 +1,18 @@
+model_id: "microsoft/Phi-3-small-8k-instruct"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+trust_remote_code: true
+notes: "Phi-3 Small. Block-sparse attention variant."
+skip_reason: "Requires tiktoken package not in test environment."

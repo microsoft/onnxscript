@@ -1,0 +1,17 @@
+model_id: "ai21labs/Jamba-v0.1"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The capital of France is"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "Jamba v0.1. Hybrid SSM + attention architecture from AI21 Labs."
+skip_reason: "Requires CUDA Mamba kernels (no CPU support)."

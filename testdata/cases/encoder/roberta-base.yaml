@@ -1,0 +1,12 @@
+model_id: "FacebookAI/roberta-base"
+revision: "e2da8e2f811d1448a5b465c236feacd80ffbac7b"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+notes: "RoBERTa base. BERT variant with dynamic masking."

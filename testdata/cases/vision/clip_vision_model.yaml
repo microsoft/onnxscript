@@ -1,0 +1,12 @@
+model_id: "openai/clip-vit-base-patch32"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "CLIP vision encoder. Visual backbone used by CLIP, LLaVA, and other multimodal models."
