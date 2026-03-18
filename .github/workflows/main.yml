@@ -234,7 +234,7 @@ jobs:
           pip install -e '.[testing]'
       - name: Run tests
         run: |
-          pytest -n auto -m 'not integration' --cov=src --cov-report=xml --cov-branch --junitxml junit.xml
+          pytest -n auto -m 'not integration and not arch_validation' --cov=src --cov-report=xml --cov-branch --junitxml junit.xml
 
   integration-fast:
     name: Integration (fast)

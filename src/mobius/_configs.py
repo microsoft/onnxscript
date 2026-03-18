@@ -345,7 +345,9 @@ def _extract_vision_config(config, parent_config, model_type: str) -> dict:
                 getattr(vc, "num_hidden_layers", None) or getattr(vc, "depth", None)
             ),
             num_attention_heads=(
-                getattr(vc, "num_attention_heads", None) or getattr(vc, "num_heads", None)
+                getattr(vc, "num_attention_heads", None)
+                or getattr(vc, "num_heads", None)
+                or getattr(vc, "attention_heads", None)
             ),
             image_size=getattr(vc, "image_size", None),
             patch_size=getattr(vc, "patch_size", None),
@@ -401,6 +403,19 @@ def _extract_vision_config(config, parent_config, model_type: str) -> dict:
             norm_eps=1e-6,
             image_token_id=getattr(config, "special_image_token_id", 200010),
         )
+
+    # InternVL2 doesn't expose image_token_id in its config — default to
+    # the Qwen2 <IMG_CONTEXT> token id used by InternVL2-* models.
+    parent_model_type = getattr(vision_source, "model_type", None)
+    if parent_model_type in ("internvl_chat", "internvl2", "internvl") or model_type in (
+        "internvl_chat",
+        "internvl2",
+        "internvl",
+    ):
+        if vision_fields.get("image_token_id") is None:
+            vision_fields["image_token_id"] = getattr(
+                vision_source, "img_context_token_id", 151667
+            )
 
     # Build VisionConfig sub-config if any vision fields are set
     has_vision = any(
@@ -725,6 +740,24 @@ class ArchitectureConfig(BaseModelConfig):
         rope_config = _extract_rope_config(config)
         mrope_fields = _extract_mrope_fields(config)
 
+        # Some hierarchical models (Segformer, Swin) use plural list attrs
+        # instead of scalar ones.  Resolve to a scalar for the base config.
+        hidden_size = (
+            getattr(config, "hidden_size", None)
+            or _first(getattr(config, "hidden_sizes", None))
+            or 0
+        )
+        num_attention_heads = (
+            getattr(config, "num_attention_heads", None)
+            or _first(getattr(config, "num_heads", None))
+            or 1
+        )
+        num_hidden_layers = (
+            getattr(config, "num_hidden_layers", None)
+            or getattr(config, "num_encoder_blocks", None)
+            or 0
+        )
+
         # rope_interleave depends on model_type / qk_rope_head_dim
         rope_interleave = getattr(
             config,
@@ -739,15 +772,15 @@ class ArchitectureConfig(BaseModelConfig):
                 config.head_dim
                 if (hasattr(config, "head_dim") and config.head_dim is not None)
                 else getattr(config, "d_kv", None)
-                or config.hidden_size // config.num_attention_heads
+                or _as_int(hidden_size) // _as_int(num_attention_heads)
             ),
-            num_attention_heads=config.num_attention_heads,
-            num_key_value_heads=(
-                getattr(config, "num_key_value_heads", config.num_attention_heads)
+            num_attention_heads=_as_int(num_attention_heads),
+            num_key_value_heads=_as_int(
+                getattr(config, "num_key_value_heads", num_attention_heads)
             ),
-            num_hidden_layers=config.num_hidden_layers,
+            num_hidden_layers=_as_int(num_hidden_layers),
             vocab_size=getattr(config, "vocab_size", None) or 0,
-            hidden_size=config.hidden_size,
+            hidden_size=_as_int(hidden_size),
             intermediate_size=(
                 getattr(config, "intermediate_size", None)
                 or getattr(config, "n_inner", None)
@@ -756,7 +789,7 @@ class ArchitectureConfig(BaseModelConfig):
                 or getattr(config, "ffn_hidden_size", None)
                 or getattr(config, "encoder_ffn_dim", None)
                 or getattr(config, "decoder_ffn_dim", None)
-                or 4 * config.hidden_size
+                or 4 * _as_int(hidden_size)
             ),
             hidden_act=(
                 getattr(config, "hidden_act", None)
@@ -764,6 +797,8 @@ class ArchitectureConfig(BaseModelConfig):
                 or getattr(config, "activation_function", None)
                 or getattr(config, "dense_act_fn", None)
                 or getattr(config, "activation", None)
+                # Qwen v1 configs have no activation attr; default to silu
+                or ("silu" if model_type in ("qwen",) else None)
             ),
             layer_types=(getattr(config, "layer_types", None)),
             full_attention_interval=(getattr(config, "full_attention_interval", None)),
@@ -893,9 +928,9 @@ class ArchitectureConfig(BaseModelConfig):
             ),
             is_gated_act=getattr(config, "is_gated_act", False),
             scale_decoder_outputs=getattr(config, "scale_decoder_outputs", None),
-            # Standalone vision
-            image_size=getattr(config, "image_size", 224),
-            patch_size=getattr(config, "patch_size", 16),
+            # Standalone vision (coerce list to int — some HF configs use [H, W])
+            image_size=_as_int(getattr(config, "image_size", 224)),
+            patch_size=_as_int(getattr(config, "patch_size", 16)),
             num_channels=getattr(config, "num_channels", 3),
             # Granite scaling multipliers
             embedding_multiplier=getattr(config, "embedding_multiplier", 1.0),
@@ -1121,8 +1156,8 @@ class ArchitectureConfig(BaseModelConfig):
             )
         if self.num_hidden_layers <= 0:
             errors.append(f"num_hidden_layers must be positive, got {self.num_hidden_layers}")
-        if self.vocab_size <= 0:
-            errors.append(f"vocab_size must be positive, got {self.vocab_size}")
+        if self.vocab_size < 0:
+            errors.append(f"vocab_size must be non-negative, got {self.vocab_size}")
         if self.head_dim <= 0:
             errors.append(f"head_dim must be positive, got {self.head_dim}")
         if (
@@ -1158,6 +1193,24 @@ def _shallow_fields(config) -> dict:
     instances (:class:`VisionConfig`, :class:`AudioConfig`, etc.) as-is.
     """
     return {f.name: getattr(config, f.name) for f in dataclasses.fields(config)}
+
+
+def _as_int(value) -> int:
+    """Coerce *value* to int, taking the first element if it is a list/tuple.
+
+    Some HuggingFace configs express ``image_size`` or ``patch_size`` as
+    ``[H, W]`` lists.  We take the first element (height) for simplicity.
+    """
+    if isinstance(value, (list, tuple)):
+        return int(value[0])
+    return int(value)
+
+
+def _first(value):
+    """Return the first element of a list/tuple, or *value* unchanged."""
+    if isinstance(value, (list, tuple)) and value:
+        return value[0]
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -1552,8 +1605,9 @@ class JambaConfig(ArchitectureConfig):
         num_experts = getattr(config, "num_experts", 16)
         num_experts_per_tok = getattr(config, "num_experts_per_tok", 2)
 
-        # Exclude layer_types from base fields — we built it explicitly above
-        base_fields = {k: v for k, v in _shallow_fields(base).items() if k != "layer_types"}
+        # Exclude fields we set explicitly below to avoid duplicate keyword args
+        _exclude = {"layer_types", "num_local_experts", "num_experts_per_tok"}
+        base_fields = {k: v for k, v in _shallow_fields(base).items() if k not in _exclude}
         return cls(
             **base_fields,
             layer_types=layer_types,

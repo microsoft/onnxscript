@@ -121,6 +121,7 @@ def _dict_to_pretrained_config(d: dict):
         "thinker_config",
         "talker_config",
         "text_config",
+        "llm_config",
         "audio_config",
         "vision_config",
         "code_predictor_config",

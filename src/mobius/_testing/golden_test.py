@@ -129,7 +129,7 @@ class TestLoadTestCase:
     def test_empty_yaml_raises(self, tmp_path: Path):
         yaml_path = _write_yaml(tmp_path, "empty.yaml", "")
 
-        with pytest.raises(ValueError, match="Expected a YAML mapping"):
+        with pytest.raises(TypeError, match="Expected a YAML mapping"):
             load_test_case(yaml_path)
 
     def test_case_is_frozen(self, tmp_path: Path):

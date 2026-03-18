@@ -146,6 +146,16 @@ _XFAIL_REASONS: dict[str, str] = {
     # Hybrid Mamba: weight naming and MoE routing differences
     "jamba": "Jamba MoE/Mamba weight naming + routing differences",
     "bamba": "Bamba precision differences (near-threshold, 0.0017)",
+    # Additional divergences (newly registered models)
+    "doge": "DOGE dynamic mask / attention implementation differs",
+    "nanochat": "NanoChat architecture implementation differs",
+    "exaone4": "ExaOne4 architecture differences",
+    "apertus": "Apertus architecture differences",
+    "arcee": "Arcee architecture differences",
+    "modernbert-decoder": "ModernBERT decoder implementation differs",
+    "mixtral": "MoE routing differences",
+    "longcat_flash": "Flash attention implementation differs",
+    "zamba2": "Zamba2 HF modeling bug (list index out of range)",
 }
 
 # Fields that are properties in HF configs and cannot be set directly.

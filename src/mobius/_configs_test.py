@@ -694,10 +694,10 @@ class TestArchitectureConfigValidate:
         with pytest.raises(ValueError, match="num_attention_heads must be positive"):
             config.validate()
 
-    def test_zero_vocab_size_fails(self):
+    def test_zero_vocab_size_is_allowed(self):
+        """Encoder-only vision models legitimately have vocab_size=0."""
         config = self._make_valid_config(vocab_size=0)
-        with pytest.raises(ValueError, match="vocab_size must be positive"):
-            config.validate()
+        config.validate()  # Should not raise
 
     def test_zero_num_layers_fails(self):
         config = self._make_valid_config(num_hidden_layers=0)
@@ -757,12 +757,10 @@ class TestArchitectureConfigValidate:
     def test_multiple_errors_reported(self):
         config = self._make_valid_config(
             hidden_size=0,
-            vocab_size=0,
             num_hidden_layers=0,
         )
         with pytest.raises(ValueError) as exc_info:
             config.validate()
         msg = str(exc_info.value)
         assert "hidden_size" in msg
-        assert "vocab_size" in msg
         assert "num_hidden_layers" in msg

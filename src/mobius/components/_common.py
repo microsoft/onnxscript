@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import onnx_ir as ir
 from onnxscript import nn
 from onnxscript._internal import builder
@@ -77,10 +78,16 @@ class LayerNormNoAffine(nn.Module):
 
     def __init__(self, hidden_size: int, eps: float = 1e-5):
         super().__init__()
+        self._hidden_size = hidden_size
         self._eps = eps
 
     def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
-        return op.LayerNormalization(hidden_states, axis=-1, epsilon=self._eps)
+        # ONNX LayerNormalization requires a Scale input; use all-ones
+        # since this is the no-affine variant (scale/shift come externally).
+        # CastLike ensures Scale matches the input dtype (fp16/bf16/fp32).
+        scale = op.Constant(value=ir.tensor(np.ones(self._hidden_size, dtype=np.float32)))
+        scale = op.CastLike(scale, hidden_states)
+        return op.LayerNormalization(hidden_states, scale, axis=-1, epsilon=self._eps)
 
 
 class GroupNorm(nn.Module):
