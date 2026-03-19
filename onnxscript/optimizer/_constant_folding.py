@@ -1280,6 +1280,31 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 node.name,
             )
 
+        # Check estimated output size before calling the (potentially expensive) reference
+        # evaluator. This avoids hanging on ops like Resize with large output tensors where
+        # the reference implementation may be very slow.
+        for output in node.outputs:
+            if output.shape is not None and output.shape.is_static():
+                try:
+                    shape_tuple = output.shape.numpy()
+                    estimated_size = math.prod(shape_tuple)
+                    if estimated_size > self.output_size_limit:
+                        logger.info(
+                            "Skipping constant folding for node %r due to large estimated "
+                            "output size: %s > output_size_limit=%s",
+                            node.name,
+                            estimated_size,
+                            self.output_size_limit,
+                        )
+                        return None
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logger.debug(
+                        "Could not estimate output size for node %r output '%s': %s",
+                        node.name,
+                        output.name,
+                        e,
+                    )
+
         input_values = [_get_numpy_value(x) for x in node.inputs]
 
         def convert(av):
