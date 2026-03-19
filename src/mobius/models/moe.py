@@ -21,6 +21,7 @@ from mobius.components import (
     create_attention_bias,
     initialize_rope,
 )
+from mobius.components._attention import StaticCacheState
 from mobius.models.base import CausalLMModel
 
 if TYPE_CHECKING:
@@ -50,10 +51,18 @@ class MoEDecoderLayer(nn.Module):
         self,
         op: builder.OpBuilder,
         hidden_states: ir.Value,
-        attention_bias: ir.Value,
+        attention_bias: ir.Value | None,
         position_embeddings: tuple,
-        past_key_value: tuple | None,
+        past_key_value: tuple | StaticCacheState | None,
     ):
+        # Dispatch StaticCacheState to the static_cache parameter;
+        # custom MoEDecoderLayer subclasses must add this check themselves.
+        if isinstance(past_key_value, StaticCacheState):
+            static_cache = past_key_value
+            past_key_value = None
+        else:
+            static_cache = None
+
         residual = hidden_states
         hidden_states = self.input_layernorm(op, hidden_states)
 
@@ -63,6 +72,7 @@ class MoEDecoderLayer(nn.Module):
             attention_bias=attention_bias,
             position_embeddings=position_embeddings,
             past_key_value=past_key_value,
+            static_cache=static_cache,
         )
         hidden_states = op.Add(residual, attn_output)
 
@@ -113,19 +123,24 @@ class MoETextModel(nn.Module):
         self,
         op: builder.OpBuilder,
         input_ids: ir.Value,
-        attention_mask: ir.Value,
+        attention_mask: ir.Value | None,
         position_ids: ir.Value,
         past_key_values: list | None = None,
     ):
         hidden_states = self.embed_tokens(op, input_ids)
         position_embeddings = self.rotary_emb(op, position_ids)
 
-        attention_bias = create_attention_bias(
-            op,
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            dtype=self._dtype,
-        )
+        # When attention_mask is None (static cache mode), skip bias
+        # creation entirely — the Attention op uses is_causal=1 instead.
+        if attention_mask is not None:
+            attention_bias = create_attention_bias(
+                op,
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                dtype=self._dtype,
+            )
+        else:
+            attention_bias = None
 
         present_key_values = []
         past_kvs = past_key_values or [None] * len(self.layers)

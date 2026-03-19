@@ -73,7 +73,7 @@ class TextModel(nn.Module):
         self,
         op: builder.OpBuilder,
         input_ids: ir.Value,
-        attention_mask: ir.Value,
+        attention_mask: ir.Value | None,
         position_ids: ir.Value,
         past_key_values: list | None = None,
         inputs_embeds: ir.Value | None = None,
@@ -84,12 +84,17 @@ class TextModel(nn.Module):
             hidden_states = self.embed_tokens(op, input_ids)
         position_embeddings = self.rotary_emb(op, position_ids)
 
-        attention_bias = create_attention_bias(
-            op,
-            input_ids=hidden_states if input_ids is None else input_ids,
-            attention_mask=attention_mask,
-            dtype=self._dtype,
-        )
+        # When attention_mask is None (static cache mode), skip bias
+        # creation entirely — the Attention op uses is_causal=1 instead.
+        if attention_mask is not None:
+            attention_bias = create_attention_bias(
+                op,
+                input_ids=hidden_states if input_ids is None else input_ids,
+                attention_mask=attention_mask,
+                dtype=self._dtype,
+            )
+        else:
+            attention_bias = None
 
         present_key_values = []
         past_kvs = past_key_values or [None] * len(self.layers)
@@ -134,7 +139,7 @@ class CausalLMModel(nn.Module):
         self,
         op: builder.OpBuilder,
         input_ids: ir.Value,
-        attention_mask: ir.Value,
+        attention_mask: ir.Value | None,
         position_ids: ir.Value,
         past_key_values: list | None = None,
     ):

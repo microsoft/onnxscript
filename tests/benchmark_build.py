@@ -78,14 +78,33 @@ def _base_config(config_cls=None, **overrides):
     return config_cls(**defaults)
 
 
+def _display_key(model_type: str, task_name: str) -> str:
+    """Build a unique display key for a model entry.
+
+    Returns just ``model_type`` for the default ``text-generation`` task
+    (backward compatible), or ``model_type (task_name)`` otherwise.
+    """
+    if task_name == "text-generation":
+        return model_type
+    return f"{model_type} ({task_name})"
+
+
 # Top 10 diverse models spanning causal-LM, encoder-only, and seq2seq tasks.
 BENCHMARK_MODELS: list[_BenchEntry] = [
     _BenchEntry("llama", {}, "text-generation", "standard"),
+    _BenchEntry("llama", {}, "static-cache-text-generation", "standard"),
     _BenchEntry("qwen2", {}, "text-generation", "standard"),
+    _BenchEntry("qwen2", {}, "static-cache-text-generation", "standard"),
     _BenchEntry(
         "phi3",
         {"partial_rotary_factor": 0.5},
         "text-generation",
+        "standard",
+    ),
+    _BenchEntry(
+        "phi3",
+        {"partial_rotary_factor": 0.5},
+        "static-cache-text-generation",
         "standard",
     ),
     _BenchEntry(
@@ -340,7 +359,7 @@ def run_benchmarks(
         iterations: Number of times to build each model.
 
     Returns:
-        List of (model_type, mean_seconds, std_seconds, num_nodes,
+        List of (display_key, mean_seconds, std_seconds, num_nodes,
         num_models, peak_memory_mb, model_size_bytes).
     """
     if models is None:
@@ -359,7 +378,7 @@ def run_benchmarks(
         std = statistics.stdev(times) if len(times) > 1 else 0.0
         results.append(
             (
-                entry.model_type,
+                _display_key(entry.model_type, entry.task_name),
                 mean,
                 std,
                 last_result.num_nodes,
@@ -376,7 +395,7 @@ def print_table(
 ) -> None:
     """Print a formatted benchmark table to stdout."""
     header = (
-        f"{'Model':<16} {'Mean (s)':>10} {'Std (s)':>10}"
+        f"{'Model':<40} {'Mean (s)':>10} {'Std (s)':>10}"
         f" {'Nodes':>8} {'Models':>8} {'Peak MB':>10}"
         f" {'Size (KB)':>10}"
     )
@@ -387,7 +406,7 @@ def print_table(
     print(sep)
     for name, mean, std, nodes, n_models, peak_mb, size_bytes in results:
         print(
-            f"{name:<16} {mean:>10.4f} {std:>10.4f}"
+            f"{name:<40} {mean:>10.4f} {std:>10.4f}"
             f" {nodes:>8} {n_models:>8} {peak_mb:>10.1f}"
             f" {size_bytes / 1024:>10.1f}"
         )
@@ -401,7 +420,10 @@ def print_table(
 MAX_BUILD_TIME_SECONDS = 10.0
 MAX_PEAK_MEMORY_MB = 200.0
 
-_BENCH_PARAMS = [pytest.param(entry, id=entry.model_type) for entry in BENCHMARK_MODELS]
+_BENCH_PARAMS = [
+    pytest.param(entry, id=_display_key(entry.model_type, entry.task_name))
+    for entry in BENCHMARK_MODELS
+]
 
 
 @pytest.mark.benchmark

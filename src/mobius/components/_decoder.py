@@ -10,7 +10,7 @@ from onnxscript import nn
 from onnxscript._internal import builder
 
 from mobius._configs import ArchitectureConfig
-from mobius.components._attention import Attention
+from mobius.components._attention import Attention, StaticCacheState
 from mobius.components._mlp import MLP
 from mobius.components._rms_norm import RMSNorm
 
@@ -85,10 +85,18 @@ class DecoderLayer(nn.Module):
         self,
         op: builder.OpBuilder,
         hidden_states: ir.Value,
-        attention_bias: ir.Value,
+        attention_bias: ir.Value | None,
         position_embeddings: tuple,
-        past_key_value: tuple | None,
+        past_key_value: tuple | StaticCacheState | None,
     ):
+        # Dispatch StaticCacheState to the static_cache parameter;
+        # custom DecoderLayer subclasses must add this check themselves.
+        if isinstance(past_key_value, StaticCacheState):
+            static_cache = past_key_value
+            past_key_value = None
+        else:
+            static_cache = None
+
         if self._post_norm:
             return self._forward_post_norm(
                 op,
@@ -96,6 +104,7 @@ class DecoderLayer(nn.Module):
                 attention_bias,
                 position_embeddings,
                 past_key_value,
+                static_cache,
             )
         return self._forward_pre_norm(
             op,
@@ -103,15 +112,17 @@ class DecoderLayer(nn.Module):
             attention_bias,
             position_embeddings,
             past_key_value,
+            static_cache,
         )
 
     def _forward_pre_norm(
         self,
         op: builder.OpBuilder,
-        hidden_states,
-        attention_bias,
+        hidden_states: ir.Value,
+        attention_bias: ir.Value | None,
         position_embeddings: tuple,
         past_key_value: tuple | None,
+        static_cache: StaticCacheState | None,
     ):
         residual = hidden_states
         hidden_states = self.input_layernorm(op, hidden_states)
@@ -122,6 +133,7 @@ class DecoderLayer(nn.Module):
             attention_bias=attention_bias,
             position_embeddings=position_embeddings,
             past_key_value=past_key_value,
+            static_cache=static_cache,
         )
 
         if not math.isclose(self._residual_multiplier, 1.0):
@@ -141,10 +153,11 @@ class DecoderLayer(nn.Module):
     def _forward_post_norm(
         self,
         op: builder.OpBuilder,
-        hidden_states,
-        attention_bias,
+        hidden_states: ir.Value,
+        attention_bias: ir.Value | None,
         position_embeddings: tuple,
         past_key_value: tuple | None,
+        static_cache: StaticCacheState | None,
     ):
         residual = hidden_states
         attn_output, present_key_value = self.self_attn(
@@ -153,6 +166,7 @@ class DecoderLayer(nn.Module):
             attention_bias=attention_bias,
             position_embeddings=position_embeddings,
             past_key_value=past_key_value,
+            static_cache=static_cache,
         )
         hidden_states = self.post_attention_layernorm(op, attn_output)
         hidden_states = op.Add(residual, hidden_states)

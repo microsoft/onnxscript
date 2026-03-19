@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from onnxscript import nn
 from onnxscript._internal import builder
@@ -16,6 +16,126 @@ from mobius.components._rotary_embedding import apply_rotary_pos_emb
 
 if TYPE_CHECKING:
     import onnx_ir as ir
+
+
+class StaticCacheState(NamedTuple):
+    """Static KV cache state for opset-24 TensorScatter + Attention.
+
+    When used, the caller manages the KV cache statically. New key/value
+    tokens are scattered into the pre-allocated cache via TensorScatter,
+    and the full cache is passed to the Attention op with
+    ``nonpad_kv_seqlen`` to indicate valid token counts.
+
+    Fields:
+        key_cache: Pre-allocated key cache [B, max_seq, kv_hidden] 3D.
+        value_cache: Pre-allocated value cache [B, max_seq, kv_hidden] 3D.
+        write_indices: Position to write new tokens [B] int64.
+        nonpad_kv_seqlen: Valid KV length per batch entry [B] int64.
+    """
+
+    key_cache: ir.Value
+    value_cache: ir.Value
+    write_indices: ir.Value
+    nonpad_kv_seqlen: ir.Value
+
+
+def _apply_attention(
+    op: builder.OpBuilder,
+    query: ir.Value,
+    key: ir.Value,
+    value: ir.Value,
+    attn_mask: ir.Value | None,
+    past_key: ir.Value | None,
+    past_value: ir.Value | None,
+    *,
+    num_attention_heads: int,
+    num_key_value_heads: int,
+    scale: float,
+    static_cache: StaticCacheState | None = None,
+) -> tuple[ir.Value, ir.Value, ir.Value]:
+    """Apply the ONNX Attention op with internal or static KV cache.
+
+    Dynamic cache mode (``static_cache is None``):
+        Concatenates ``past_key``/``past_value`` with new key/value
+        internally.  Returns ``(attn_output, present_key, present_value)``.
+
+    Static cache mode (``static_cache is not None``):
+        Scatters new key/value into the static cache via TensorScatter,
+        then attends over the full cache using ``nonpad_kv_seqlen``.
+        Returns ``(attn_output, updated_key_cache, updated_value_cache)``.
+
+    Note:
+        In static cache mode, RoPE must be applied to key *before*
+        calling this function so that cached entries have RoPE baked in.
+    """
+    if static_cache is not None:
+        # Scatter new K/V into the pre-allocated cache at write_indices.
+        # write_indices [B] is a START POSITION per batch item, not
+        # per-token.  TensorScatter writes:
+        #   cache[b, write_indices[b] + t] = update[b, t]
+        # for all t in range(seq_len).  This handles both prefill
+        # (write_indices=0, seq_len=N) and decode (write_indices=N,
+        # seq_len=1) with the same graph.
+        updated_k = op.TensorScatter(
+            static_cache.key_cache,
+            key,
+            static_cache.write_indices,
+            axis=1,
+        )  # [B, max_seq, kv_hidden]
+        updated_v = op.TensorScatter(
+            static_cache.value_cache,
+            value,
+            static_cache.write_indices,
+            axis=1,
+        )  # [B, max_seq, kv_hidden]
+
+        # Attend over the full cache.  We pass None for attn_mask and use
+        # is_causal=1 instead — the Attention op handles causal + padding
+        # masking internally via is_causal + nonpad_kv_seqlen.  Using
+        # create_attention_bias() here would produce incorrect causality
+        # during prefill because it cannot represent the relationship
+        # between query positions and the full cache length.
+        #
+        # NOTE: The ONNX Attention spec supports attn_mask alongside
+        # nonpad_kv_seqlen for custom masking (e.g., user-defined masks
+        # beyond causal + padding).  Currently we rely on is_causal=1 +
+        # nonpad_kv_seqlen for standard LLM causal + padding masking.
+        # TODO(titaiwang): Support user-provided attn_mask in external
+        # cache mode for advanced use cases (e.g., prefix masking,
+        # document boundaries in batched inference).
+        # TODO(titaiwang): Support sliding window (circular cache mode)
+        # with static cache for long-context models that use local
+        # attention windows.
+        attn_output, _, _ = op.Attention(
+            query,
+            updated_k,
+            updated_v,
+            None,  # no attn_mask — is_causal handles masking
+            None,  # no past_key (full cache is already provided)
+            None,  # no past_value
+            static_cache.nonpad_kv_seqlen,
+            q_num_heads=num_attention_heads,
+            kv_num_heads=num_key_value_heads,
+            scale=scale,
+            is_causal=1,
+            _outputs=3,
+        )
+        return attn_output, updated_k, updated_v
+
+    # Dynamic cache mode: standard Attention with past KV concatenation
+    attn_output, present_key, present_value = op.Attention(
+        query,
+        key,
+        value,
+        attn_mask,
+        past_key,
+        past_value,
+        q_num_heads=num_attention_heads,
+        kv_num_heads=num_key_value_heads,
+        scale=scale,
+        _outputs=3,
+    )
+    return attn_output, present_key, present_value
 
 
 class Attention(nn.Module):
@@ -99,9 +219,10 @@ class Attention(nn.Module):
         self,
         op: builder.OpBuilder,
         hidden_states: ir.Value,
-        attention_bias: ir.Value,
+        attention_bias: ir.Value | None,
         position_embeddings: tuple | None = None,
         past_key_value: tuple | None = None,
+        static_cache: StaticCacheState | None = None,
     ):
         query_states = self.q_proj(op, hidden_states)
         key_states = self.k_proj(op, hidden_states)
@@ -140,18 +261,18 @@ class Attention(nn.Module):
                 interleaved=self._rope_interleave,
             )
 
-        # Use ONNX Attention op (opset 23)
-        attn_output, present_key, present_value = op.Attention(
+        attn_output, present_key, present_value = _apply_attention(
+            op,
             query_states,
             key_states,
             value_states,
             attention_bias,
             past_key_value[0] if past_key_value is not None else None,
             past_key_value[1] if past_key_value is not None else None,
-            kv_num_heads=self.num_key_value_heads,
-            q_num_heads=self.num_attention_heads,
+            num_attention_heads=self.num_attention_heads,
+            num_key_value_heads=self.num_key_value_heads,
             scale=self.scaling,
-            _outputs=3,
+            static_cache=static_cache,
         )
 
         attn_output = self.o_proj(op, attn_output)
@@ -214,9 +335,10 @@ class Qwen35Attention(nn.Module):
         self,
         op: builder.OpBuilder,
         hidden_states: ir.Value,
-        attention_bias: ir.Value,
+        attention_bias: ir.Value | None,
         position_embeddings: tuple,
         past_key_value: tuple | None = None,
+        static_cache: StaticCacheState | None = None,
     ):
         # Q projection (doubled) → split into Q and gate per head
         q_gate = self.q_proj(op, hidden_states)
@@ -256,18 +378,18 @@ class Qwen35Attention(nn.Module):
             interleaved=self._rope_interleave,
         )
 
-        # Use ONNX Attention op (opset 23)
-        attn_output, present_key, present_value = op.Attention(
+        attn_output, present_key, present_value = _apply_attention(
+            op,
             query_states,
             key_states,
             value_states,
             attention_bias,
             past_key_value[0] if past_key_value is not None else None,
             past_key_value[1] if past_key_value is not None else None,
-            kv_num_heads=self.num_key_value_heads,
-            q_num_heads=self.num_attention_heads,
+            num_attention_heads=self.num_attention_heads,
+            num_key_value_heads=self.num_key_value_heads,
             scale=self.scaling,
-            _outputs=3,
+            static_cache=static_cache,
         )
 
         # Output gating: attn_output * sigmoid(gate)

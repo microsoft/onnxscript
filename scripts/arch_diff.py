@@ -39,9 +39,13 @@ sys.path.insert(0, str(_PROJECT_ROOT / "tests"))
 #   build_kind is "standard", "whisper", or "mamba".
 _DIFF_MODELS: list[tuple[str, dict, str, str]] = [
     ("llama", {}, "text-generation", "standard"),
+    ("llama", {}, "static-cache-text-generation", "standard"),
     ("qwen2", {}, "text-generation", "standard"),
+    ("qwen2", {}, "static-cache-text-generation", "standard"),
     ("qwen", {}, "text-generation", "standard"),
+    ("qwen", {}, "static-cache-text-generation", "standard"),
     ("qwen3", {"attn_qk_norm": True}, "text-generation", "standard"),
+    ("qwen3", {"attn_qk_norm": True}, "static-cache-text-generation", "standard"),
     (
         "qwen3_5_text",
         {
@@ -99,6 +103,16 @@ _DIFF_MODELS: list[tuple[str, dict, str, str]] = [
         "standard",
     ),
     (
+        "qwen2_moe",
+        {
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "attn_qkv_bias": True,
+        },
+        "static-cache-text-generation",
+        "standard",
+    ),
+    (
         "qwen3_moe",
         {
             "num_local_experts": 4,
@@ -109,9 +123,25 @@ _DIFF_MODELS: list[tuple[str, dict, str, str]] = [
         "standard",
     ),
     (
+        "qwen3_moe",
+        {
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "attn_qk_norm": True,
+        },
+        "static-cache-text-generation",
+        "standard",
+    ),
+    (
         "phi3",
         {"partial_rotary_factor": 0.5},
         "text-generation",
+        "standard",
+    ),
+    (
+        "phi3",
+        {"partial_rotary_factor": 0.5},
+        "static-cache-text-generation",
         "standard",
     ),
     (
@@ -158,6 +188,17 @@ _DIFF_MODELS: list[tuple[str, dict, str, str]] = [
     ("whisper", {}, "speech-to-text", "whisper"),
     ("mamba", {}, "ssm-text-generation", "mamba"),
 ]
+
+
+def _display_key(model_type: str, task_name: str) -> str:
+    """Build a unique display key for a model entry.
+
+    Returns just ``model_type`` for the default ``text-generation`` task
+    (backward compatible), or ``model_type (task_name)`` otherwise.
+    """
+    if task_name == "text-generation":
+        return model_type
+    return f"{model_type} ({task_name})"
 
 
 # ------------------------------------------------------------------
@@ -488,7 +529,8 @@ def main() -> None:
         if model_type not in affected:
             continue
 
-        print(f"Building {model_type} at {args.base_ref} …")
+        display = _display_key(model_type, task_name)
+        print(f"Building {display} at {args.base_ref} …")
         base_pkg = _build_at_ref(
             args.base_ref,
             model_type,
@@ -496,7 +538,7 @@ def main() -> None:
             task_name,
             build_kind,
         )
-        print(f"Building {model_type} at {args.head_ref} …")
+        print(f"Building {display} at {args.head_ref} …")
         head_pkg = _build_at_ref(
             args.head_ref,
             model_type,
@@ -528,7 +570,7 @@ def main() -> None:
                 "_base_node_count": len(base_canon.get("nodes", [])),
                 "_head_node_count": len(head_canon.get("nodes", [])),
             }
-        all_diffs[model_type] = sub_models
+        all_diffs[display] = sub_models
 
     # 3. Render and write
     md = render_markdown(all_diffs)

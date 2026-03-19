@@ -3105,3 +3105,161 @@ class TestRegistryCompleteness:
             f"Entries in _KNOWN_UNTESTED_MODEL_TYPES that are no longer "
             f"registered: {sorted(stale)}. Remove them."
         )
+
+
+class TestBuildStaticCacheGraph:
+    """Verify StaticCacheCausalLMTask builds a valid graph."""
+
+    MAX_SEQ_LEN = 128
+
+    def _build_static_cache_model(self, model_type: str = "qwen2", **config_overrides):
+        """Build a model with StaticCacheCausalLMTask and return (model, config)."""
+        from mobius.tasks import StaticCacheCausalLMTask
+
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = StaticCacheCausalLMTask(max_seq_len=self.MAX_SEQ_LEN)
+        pkg = task.build(module, config)
+        return pkg["model"], config
+
+    def test_static_cache_graph_builds(self):
+        """Build a Qwen2 model with StaticCacheCausalLMTask."""
+        model, _ = self._build_static_cache_model()
+
+        assert model.graph is not None
+        assert len(model.graph.inputs) > 0
+        assert len(model.graph.outputs) > 0
+
+    def test_static_cache_graph_inputs(self):
+        """Verify expected inputs: standard + per-layer caches + shared."""
+        model, config = self._build_static_cache_model()
+        input_names = {inp.name for inp in model.graph.inputs}
+        num_layers = config.num_hidden_layers
+
+        # Standard inputs
+        assert "input_ids" in input_names
+        assert "position_ids" in input_names
+
+        # No attention_mask in static cache mode — causal masking is
+        # handled by is_causal=1 on the Attention op.
+        assert "attention_mask" not in input_names
+
+        # Per-layer static cache inputs
+        for i in range(num_layers):
+            assert f"key_cache.{i}" in input_names, f"Missing key_cache.{i}"
+            assert f"value_cache.{i}" in input_names, f"Missing value_cache.{i}"
+
+        # Shared cache management inputs
+        assert "write_indices" in input_names
+        assert "nonpad_kv_seqlen" in input_names
+
+        # Exact count: 2 standard + 2*num_layers caches + 2 shared
+        expected_count = 2 + 2 * num_layers + 2
+        assert len(model.graph.inputs) == expected_count, (
+            f"Expected {expected_count} inputs, got {len(model.graph.inputs)}"
+        )
+
+    def test_static_cache_graph_outputs(self):
+        """Verify outputs: logits + updated caches per layer."""
+        model, config = self._build_static_cache_model()
+        output_names = {out.name for out in model.graph.outputs}
+        num_layers = config.num_hidden_layers
+
+        assert "logits" in output_names
+
+        # Updated caches per layer (not present.{i}.key/value)
+        for i in range(num_layers):
+            assert f"updated_key_cache.{i}" in output_names, f"Missing updated_key_cache.{i}"
+            assert f"updated_value_cache.{i}" in output_names, (
+                f"Missing updated_value_cache.{i}"
+            )
+
+        # Should NOT have dynamic cache outputs
+        assert not any(n.startswith("present.") for n in output_names), (
+            "Static cache graph should not have present.* outputs"
+        )
+
+        # Exact count: 1 logits + 2*num_layers updated caches
+        expected_count = 1 + 2 * num_layers
+        assert len(model.graph.outputs) == expected_count, (
+            f"Expected {expected_count} outputs, got {len(model.graph.outputs)}"
+        )
+
+    def test_static_cache_has_tensorscatter_and_attention(self):
+        """Verify graph contains TensorScatter and Attention ops."""
+        model, _ = self._build_static_cache_model()
+
+        op_types = {n.op_type for n in model.graph}
+        assert "TensorScatter" in op_types, "Static cache graph should use TensorScatter"
+        assert "Attention" in op_types, "Static cache graph should use Attention"
+
+    def test_static_cache_has_initializers(self):
+        """Verify the graph has model parameters."""
+        model, _ = self._build_static_cache_model()
+
+        init_names = list(model.graph.initializers)
+        assert len(init_names) > 0
+        assert any("embed_tokens" in n for n in init_names)
+        assert any("self_attn" in n for n in init_names)
+        assert any("mlp" in n for n in init_names)
+
+    def test_static_cache_graph_validates(self):
+        """Verify the graph survives a serialization round-trip."""
+        model, _config = self._build_static_cache_model()
+        proto = ir.serde.serialize_model(model)
+        assert len(proto.SerializeToString()) > 0
+
+    def test_static_cache_attention_is_causal(self):
+        """Verify Attention ops use is_causal=1 in static cache mode."""
+        model, config = self._build_static_cache_model()
+
+        attention_nodes = [n for n in model.graph if n.op_type == "Attention"]
+        assert len(attention_nodes) == config.num_hidden_layers
+
+        for node in attention_nodes:
+            is_causal = node.attributes.get("is_causal")
+            assert is_causal is not None, (
+                f"Attention node {node.name} missing is_causal attribute"
+            )
+            assert is_causal.as_int() == 1, (
+                f"Attention node {node.name} should have is_causal=1"
+            )
+
+    def test_static_cache_attention_no_attn_mask_input(self):
+        """Verify Attention ops do NOT receive attn_mask in static cache mode."""
+        model, config = self._build_static_cache_model()
+
+        attention_nodes = [n for n in model.graph if n.op_type == "Attention"]
+        assert len(attention_nodes) == config.num_hidden_layers
+
+        for node in attention_nodes:
+            # Input 3 (0-indexed) is attn_mask — should be empty/None
+            attn_mask_input = node.inputs[3]
+            assert attn_mask_input is None or attn_mask_input.name == "", (
+                f"Attention node {node.name} should not have attn_mask "
+                f"connected, but got input: {attn_mask_input}"
+            )
+
+    def test_static_cache_moe_graph_builds(self):
+        """Build a MoE model (qwen2_moe) with StaticCacheCausalLMTask."""
+        model, _config = self._build_static_cache_model(
+            model_type="qwen2_moe",
+            num_local_experts=4,
+            num_experts_per_tok=2,
+            attn_qkv_bias=True,
+        )
+
+        assert model.graph is not None
+        assert len(model.graph.inputs) > 0
+        assert len(model.graph.outputs) > 0
+
+        input_names = {inp.name for inp in model.graph.inputs}
+        assert "input_ids" in input_names
+        assert "position_ids" in input_names
+        assert "attention_mask" not in input_names
+
+        # Verify TensorScatter and Attention ops are present
+        op_types = {n.op_type for n in model.graph}
+        assert "TensorScatter" in op_types
+        assert "Attention" in op_types
