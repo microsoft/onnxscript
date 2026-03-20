@@ -77,7 +77,7 @@ def _check_expand_removable(
     expand_input_shape = expand_input.shape
     other_shape = other_input.shape
     if expand_input_shape is None or other_shape is None:
-        return check_result.fail("Input shapes are not statically known.")
+        return check_result.fail("Input shapes are not known.")
 
     # The Expand target shape must be a compile-time constant.
     expand_shape_val = get_numpy_value(shape)
