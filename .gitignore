@@ -216,5 +216,7 @@ __marimo__/
 output/**
 cache_dir/**
 
+.vscode/settings.json
+
 .flightdeck/shared/**
 .worktrees/
