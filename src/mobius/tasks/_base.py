@@ -380,7 +380,11 @@ def _register_linear_attention_functions(
         kernel_size=dims.conv_kernel,
         activation="silu",
     )
-    attn_func = linear_attention(update_rule="gated_delta")
+    attn_func = linear_attention(
+        num_k_heads=dims.num_k_heads,
+        num_v_heads=dims.num_v_heads,
+        update_rule="gated_delta",
+    )
 
     model.functions[conv_func.identifier()] = conv_func
     model.functions[attn_func.identifier()] = attn_func

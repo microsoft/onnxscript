@@ -29,6 +29,9 @@ Usage::
 
     # Save the ONNX model to disk without running inference:
     python examples/qwen35_text_generation.py --save-to output/qwen35/
+
+    # Run on GPU:
+    python examples/qwen35_text_generation.py --device cuda
 """
 
 from __future__ import annotations
@@ -431,6 +434,7 @@ def generate_hf(
     model_id: str,
     prompt: str,
     max_new_tokens: int,
+    device: str = "cpu",
 ) -> str:
     """Run text-only generation with HuggingFace transformers."""
     import torch
@@ -439,10 +443,10 @@ def generate_hf(
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_id,
         dtype=torch.float32,
-    ).to("cpu")
+    ).to(device)
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_id)
 
-    inputs = tokenizer(prompt, return_tensors="pt").to("cpu")
+    inputs = tokenizer(prompt, return_tensors="pt").to(device)
 
     print(f"\n[HF] Prompt: {prompt}")
     print("-" * 40)
@@ -464,6 +468,7 @@ def generate_with_image_hf(
     prompt: str,
     image_path: str,
     max_new_tokens: int,
+    device: str = "cpu",
 ) -> str:
     """Run multimodal generation with HuggingFace transformers."""
     import torch
@@ -473,7 +478,7 @@ def generate_with_image_hf(
     model = transformers.AutoModelForImageTextToText.from_pretrained(
         model_id,
         dtype=torch.float32,
-    ).to("cpu")
+    ).to(device)
     processor = transformers.AutoProcessor.from_pretrained(model_id)
 
     image = Image.open(image_path).convert("RGB")
@@ -495,7 +500,7 @@ def generate_with_image_hf(
         text=[text],
         images=[image],
         return_tensors="pt",
-    ).to("cpu")
+    ).to(device)
 
     print(f"\n[HF] Prompt: {prompt}")
     print(f"[HF] Image:  {image_path}")
@@ -556,6 +561,12 @@ def main():
         action="store_true",
         help="Also run with HuggingFace transformers and compare outputs.",
     )
+    parser.add_argument(
+        "--device",
+        choices=["cpu", "cuda"],
+        default="cpu",
+        help="Device for ONNX Runtime and PyTorch inference (default: %(default)s).",
+    )
     args = parser.parse_args()
 
     if args.image:
@@ -572,9 +583,9 @@ def main():
             print(f"Saved to {args.save_to}")
             return
 
-        decoder_session = OnnxModelSession(pkg["decoder"])
-        vision_session = OnnxModelSession(pkg["vision"])
-        embed_session = OnnxModelSession(pkg["embedding"])
+        decoder_session = OnnxModelSession(pkg["decoder"], device=args.device)
+        vision_session = OnnxModelSession(pkg["vision"], device=args.device)
+        embed_session = OnnxModelSession(pkg["embedding"], device=args.device)
         processor = transformers.AutoProcessor.from_pretrained(args.model)
 
         print(f"\nPrompt: {prompt}")
@@ -601,6 +612,7 @@ def main():
                 prompt,
                 args.image,
                 args.max_new_tokens,
+                device=args.device,
             )
             if onnx_output == hf_output:
                 print("\n✓ Outputs match exactly!")
@@ -630,7 +642,7 @@ def main():
             print(f"Saved to {args.save_to}")
             return
 
-        session = OnnxModelSession(pkg["model"])
+        session = OnnxModelSession(pkg["model"], device=args.device)
         tokenizer = transformers.AutoTokenizer.from_pretrained(args.model)
 
         print(f"\nPrompt: {prompt}")
@@ -652,6 +664,7 @@ def main():
                 args.model,
                 prompt,
                 args.max_new_tokens,
+                device=args.device,
             )
             if onnx_output == hf_output:
                 print("\n✓ Outputs match exactly!")

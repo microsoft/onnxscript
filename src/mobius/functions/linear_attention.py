@@ -36,6 +36,8 @@ DOMAIN = "com.microsoft"
 
 def linear_attention(
     *,
+    num_k_heads: int,
+    num_v_heads: int,
     update_rule: str = "gated_delta",
 ) -> ir.Function:
     """Build an ir.Function for LinearAttention.
@@ -53,8 +55,10 @@ def linear_attention(
         output:        (B, H, T, d_v) — attention output
         present_state: (B, H, d_k, d_v) — updated recurrent state
 
-    Attributes:
-        update_rule: One of "linear", "gated", "delta", "gated_delta"
+    Args:
+        num_k_heads: Number of key/query heads (H_kv).
+        num_v_heads: Number of value heads (H). Must be >= num_k_heads.
+        update_rule: One of "linear", "gated", "delta", "gated_delta".
 
     The function body handles GQA expansion and uses an ONNX Scan op
     for the sequential recurrence.  A fused kernel can replace the
@@ -117,7 +121,12 @@ def linear_attention(
     op = gb.op
 
     # --- GQA: expand Q/K heads to match V head count ---
-    query_expanded, key_expanded = _expand_kv_heads(op, query, key, value)
+    if num_v_heads % num_k_heads != 0:
+        raise ValueError(
+            f"num_v_heads ({num_v_heads}) must be divisible by num_k_heads ({num_k_heads})"
+        )
+    gqa_ratio = num_v_heads // num_k_heads
+    query_expanded, key_expanded = _expand_kv_heads(op, query, key, gqa_ratio=gqa_ratio)
 
     # --- Build Scan for sequential recurrence ---
     scan_body = _build_recurrence_body(uses_decay, uses_beta)
@@ -269,50 +278,52 @@ def _build_recurrence_body(
     return body_graph
 
 
-def _expand_kv_heads(op, query, key, value):
+def _expand_kv_heads(op, query, key, *, gqa_ratio: int):
     """Expand Q/K heads to match V head count for GQA.
 
-    When H_kv < H, each Q/K head is repeated ratio = H / H_kv times.
-    When H_kv == H, this is a no-op (Tile by 1, Reshape to same shape).
+    When gqa_ratio > 1, each Q/K head is tiled ``gqa_ratio`` times along
+    a new dim and then reshaped to merge heads.
+    When gqa_ratio == 1, this is a no-op (returns inputs unchanged).
+
+    The expansion ratio is computed at graph-build time so the Tile
+    repeats are a static Constant — this avoids Shape→Gather→Div ops
+    whose int64 outputs cause CUDA EP memory placement issues.
 
     Args:
         op: ONNX op builder.
         query: (B, H_kv, T, d_k)
         key: (B, H_kv, T, d_k)
-        value: (B, H, T, d_v) — used only to read H.
+        gqa_ratio: ``num_v_heads // num_k_heads`` (computed at build time).
 
     Returns:
         query: (B, H, T, d_k)
         key: (B, H, T, d_k)
     """
-    h_kv = op.Gather(op.Shape(query), op.Constant(value_int=1), axis=0)
-    h = op.Gather(op.Shape(value), op.Constant(value_int=1), axis=0)
-    ratio = op.Div(h, h_kv)
+    if gqa_ratio == 1:
+        return query, key
 
     # (B, H_kv, T, d_k) -> (B, H_kv, 1, T, d_k)
     axes_2 = op.Constant(value_ints=[2])
     q_5d = op.Unsqueeze(query, axes_2)
     k_5d = op.Unsqueeze(key, axes_2)
 
-    # Tile along dim 2 by ratio
-    repeat_vec = op.Concat(
-        op.Constant(value_ints=[1, 1]),
-        op.Reshape(ratio, op.Constant(value_ints=[1])),
-        op.Constant(value_ints=[1, 1]),
-        axis=0,
-    )
+    # Tile along dim 2 by the static ratio
+    repeat_vec = op.Constant(value_ints=[1, 1, gqa_ratio, 1, 1])
     q_tiled = op.Tile(q_5d, repeat_vec)
     k_tiled = op.Tile(k_5d, repeat_vec)
 
-    # Reshape: (B, H_kv, ratio, T, d_k) -> (B, H, T, d_k)
+    # Reshape: (B, H_kv, ratio, T, d_k) -> (B, H_kv*ratio, T, d_k)
+    # Extract B, T, d_k from the original 4D query to build the target shape.
+    # We cannot use '0' sentinels because ONNX Reshape copies from the same
+    # positional index, and the 5D→4D dimension mapping doesn't align.
     b_dim = op.Shape(query, start=0, end=1)
     t_dim = op.Shape(query, start=2, end=3)
-    d_k_dim = op.Shape(query, start=3, end=4)
+    dk_dim = op.Shape(query, start=3, end=4)
     expanded_shape = op.Concat(
         b_dim,
-        op.Reshape(h, op.Constant(value_ints=[1])),
+        op.Constant(value_ints=[-1]),
         t_dim,
-        d_k_dim,
+        dk_dim,
         axis=0,
     )
     return op.Reshape(q_tiled, expanded_shape), op.Reshape(k_tiled, expanded_shape)
