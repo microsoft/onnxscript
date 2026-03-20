@@ -207,13 +207,35 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
         count = mod.expand_before_binary_op_rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
-    def test_expand_unknown_input_shape_not_removed(self):
-        """Expand cannot be removed when the input shape is not statically known."""
-        # No shape annotation on 'x'
+    def test_expand_removed_with_symbolic_x_static_y(self):
+        """Expand with a symbolic x dim can be removed when y statically covers the expansion.
+
+        x=[N], expand_shape=[3, 4], y=[3, 4]: since y provides all expand dimensions
+        as known integers, the expand is redundant regardless of N's runtime value.
+        """
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x, float[3, 4] y) => (float[3, 4] output)
             <int64[2] shape = {3, 4}>
+            {
+                expanded = Expand(x, shape)
+                output = Add(expanded, y)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = mod.expand_before_binary_op_rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+
+    def test_expand_with_symbolic_y_dim_not_removed(self):
+        """Expand cannot be removed when y has a symbolic dim in a position where the
+        expand is doing work and that symbolic dim cannot be verified to equal expand_d.
+        """
+        # x=[3], expand_shape=[4, 3], y=[M, 3].
+        # At dim 0 (expand adds dim 4): x_d=1 (virtual), y_d=M (symbolic) -> can't verify.
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[3] x, float[M, 3] y) => (float[4, 3] output)
+            <int64[2] shape = {4, 3}>
             {
                 expanded = Expand(x, shape)
                 output = Add(expanded, y)
