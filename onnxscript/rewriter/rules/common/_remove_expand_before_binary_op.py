@@ -13,8 +13,6 @@ the same output shape as first expanding the input and then applying the op.
 
 from __future__ import annotations
 
-import numpy as np
-
 from onnxscript import ir
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._ir_utils import get_numpy_value
@@ -51,8 +49,19 @@ def _check_expand_removable(
 ) -> MatchResult:
     """Check if an Expand node can be safely removed before a binary op.
 
-    The Expand is removable if the binary op's broadcasting produces the same
-    output shape when using the original (pre-expand) tensor directly.
+    The Expand node ``expanded_x = Expand(x, expand_shape)`` before a binary op
+    ``out = BinaryOp(expanded_x, y)`` can be removed when the binary op's
+    own broadcasting produces the same output shape as the explicit expand.
+
+    The condition at each dimension ``i`` (right-aligned) is::
+
+        max(expand_shape[i], y[i]) == max(x[i], y[i])
+
+    which simplifies to: either ``x[i] == expand_shape[i]`` (expand is a no-op
+    here) or ``y[i] == expand_shape[i]`` (y already covers the expansion).
+
+    This check works with dynamic (symbolic) dimensions in x or y as long as
+    the expand target shape is a compile-time constant.
 
     Args:
         expand_input: The value fed into the Expand node.
@@ -64,15 +73,11 @@ def _check_expand_removable(
     """
     check_result = MatchResult()
 
-    # Need static shape info for both inputs.
+    # Need at least the rank of both inputs.
     expand_input_shape = expand_input.shape
     other_shape = other_input.shape
     if expand_input_shape is None or other_shape is None:
         return check_result.fail("Input shapes are not statically known.")
-
-    # Require fully static (integer-only) shapes to avoid symbolic dim issues.
-    if not expand_input_shape.is_static() or not other_shape.is_static():
-        return check_result.fail("Input shapes are not fully static.")
 
     # The Expand target shape must be a compile-time constant.
     expand_shape_val = get_numpy_value(shape)
@@ -80,20 +85,46 @@ def _check_expand_removable(
         return check_result.fail("Expand target shape is not a constant.")
 
     expand_shape = tuple(int(v) for v in expand_shape_val.tolist())
-    x_shape = tuple(int(d) for d in expand_input_shape)
-    y_shape = tuple(int(d) for d in other_shape)
+    expand_rank = len(expand_shape)
+    x_rank = expand_input_shape.rank()
+    y_rank = other_shape.rank()
 
-    # Verify that removing the Expand does not change the binary op's output shape.
-    try:
-        result_with_expand = np.broadcast_shapes(expand_shape, y_shape)
-        result_without_expand = np.broadcast_shapes(x_shape, y_shape)
-    except ValueError:
-        return check_result.fail("Shapes are not broadcastable.")
+    # Check each dimension of expand_shape (right-aligned).
+    # For the expand to be removable at position i, we need:
+    #   max(e_d, y_d) == max(x_d, y_d)
+    # which requires: e_d <= max(x_d, y_d).
+    # Since a valid Expand can only broadcast from 1 (not shrink), if e_d > 1
+    # then x_d is either 1 or e_d. The condition then reduces to:
+    #   x_d == e_d  OR  y_d == e_d.
+    for rev_i in range(expand_rank):
+        i = expand_rank - 1 - rev_i
+        e_d = expand_shape[i]  # always a known integer
 
-    if result_with_expand != result_without_expand:
+        # If expand target is 1 at this dim, expand cannot shrink a dimension, so
+        # x_d must also be 1. The output is max(1, y_d) = y_d in both cases.
+        if e_d == 1:
+            continue
+
+        # Get x dimension (virtually 1 if x has fewer dims than expand_shape).
+        x_idx = x_rank - 1 - rev_i
+        x_d = expand_input_shape[x_idx] if x_idx >= 0 else 1
+
+        # If x's dimension already equals the expand target, expand is a no-op here.
+        if isinstance(x_d, int) and x_d == e_d:
+            continue
+
+        # The expand is changing this dimension (x_d is 1 or symbolic).
+        # For the binary op to yield the same output, y must supply this dimension.
+        # Get y dimension (virtually 1 if y has fewer dims than expand_shape).
+        y_idx = y_rank - 1 - rev_i
+        y_d = other_shape[y_idx] if y_idx >= 0 else 1
+
+        if isinstance(y_d, int) and y_d == e_d:
+            continue  # y covers the expansion at this dimension
+
         return check_result.fail(
-            f"Removing Expand would change output shape from "
-            f"{result_with_expand} to {result_without_expand}."
+            f"Cannot verify that removing Expand is safe at dimension {i}: "
+            f"x_d={x_d!r}, expand_d={e_d}, y_d={y_d!r}."
         )
 
     return check_result
