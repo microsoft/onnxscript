@@ -74,9 +74,10 @@ class _DepthwiseConv1d(nn.Module):
             output: (B, D, T) — convolution output with SiLU.
             present_state: (B, D, K-1) — updated carry state.
         """
-        # Zero bias — model has no conv bias; the function requires it
+        # Zero bias — model has no conv bias; the function requires it.
+        # CastLike ensures the bias matches the weight dtype (e.g. f16).
         conv_bias = op.Expand(
-            op.Constant(value_float=0.0),
+            op.CastLike(op.Constant(value_float=0.0), self.weight),
             op.Constant(value_ints=[self._channels]),
         )
         return op.CausalConv1DWithState(
@@ -211,7 +212,10 @@ class GatedDeltaNet(nn.Module):
         # === L2 normalize Q and K ===
         query = _l2_normalize(op, query)
         key = _l2_normalize(op, key)
-        scale = op.Constant(value_float=1.0 / (self.head_k_dim**0.5))
+        scale = op.CastLike(
+            op.Constant(value_float=1.0 / (self.head_k_dim**0.5)),
+            query,
+        )
         query = op.Mul(query, scale)
 
         # === Compute gating parameters ===
@@ -272,6 +276,6 @@ def _l2_normalize(op: builder.OpBuilder, x, eps: float = 1e-6):
     """L2 normalize along the last dimension."""
     sq = op.Mul(x, x)
     sq_sum = op.ReduceSum(sq, [-1], keepdims=True)
-    eps_val = op.Constant(value_float=eps)
+    eps_val = op.CastLike(op.Constant(value_float=eps), x)
     inv_norm = op.Reciprocal(op.Sqrt(op.Add(sq_sum, eps_val)))
     return op.Mul(x, inv_norm)

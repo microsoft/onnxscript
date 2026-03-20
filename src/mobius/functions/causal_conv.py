@@ -124,10 +124,13 @@ def causal_conv1d_with_state(
     # --- Build the ir.Function ---
     # Function signature declares attributes normally.
     # Inner Conv node references 'group' via ir.RefAttr.
+    # NOTE: Do not set ``overload`` here — the call sites
+    # (op.CausalConv1DWithState) do not set an overload on the
+    # node, so setting one on the function would prevent the
+    # serializer from matching nodes to this function definition.
     return ir.Function(
         domain=DOMAIN,
         name="CausalConv1DWithState",
-        overload=activation,
         graph=graph,
         attributes={
             "activation": ir.Attr(

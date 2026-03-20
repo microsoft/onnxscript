@@ -557,6 +557,12 @@ def main():
         help="Save the ONNX model package to DIR and exit (no inference).",
     )
     parser.add_argument(
+        "--dtype",
+        default="f32",
+        choices=["f16", "f32"],
+        help="Precision type for the ONNX model (default: %(default)s).",
+    )
+    parser.add_argument(
         "--compare-hf",
         action="store_true",
         help="Also run with HuggingFace transformers and compare outputs.",
@@ -575,7 +581,7 @@ def main():
         # ---------------------------------------------------------------
         prompt = args.prompt or "Describe this image in detail."
         print(f"Building 3-model VL pipeline for {args.model!r} ...")
-        pkg = build(args.model, dtype="f32", load_weights=True)
+        pkg = build(args.model, dtype=args.dtype, load_weights=True)
         config = pkg.config
 
         if args.save_to:
@@ -632,7 +638,7 @@ def main():
             args.model,
             task="hybrid-text-generation",
             module_class=Qwen35CausalLMModel,
-            dtype="f32",
+            dtype=args.dtype,
             load_weights=True,
         )
         config = pkg.config
