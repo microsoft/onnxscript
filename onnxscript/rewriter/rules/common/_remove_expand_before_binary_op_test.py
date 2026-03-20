@@ -223,6 +223,42 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
         count = mod.expand_before_binary_op_rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
+    def test_full_optimization(self):
+        import onnx.helper as oh
+
+        model_proto = oh.make_model(
+            oh.make_graph(
+                [
+                    oh.make_node("Shape", ["x"], ["n"], start=0, end=1),
+                    oh.make_node("Shape", ["x"], ["b"], start=1, end=2),
+                    oh.make_node("Concat", ["n", "b"], ["shape"], axis=0),
+                    oh.make_node("Expand", ["x", "shape"], ["expanded"]),
+                    oh.make_node("Add", ["expanded", "y1"], ["z1"]),
+                    oh.make_node("Add", ["expanded", "y2"], ["z2"]),
+                    oh.make_node("Add", ["expanded", "y3"], ["z3"]),
+                    oh.make_node("Add", ["z1", "z2"], ["z12"]),
+                    oh.make_node("Add", ["z12", "z3"], ["z"]),
+                ],
+                "test",
+                [
+                    oh.make_tensor_value_info("x", onnx.TensorProto.FLOAT, ["N", 1]),
+                    oh.make_tensor_value_info("y1", onnx.TensorProto.FLOAT, [1, "B"]),
+                    oh.make_tensor_value_info("y2", onnx.TensorProto.FLOAT, [1, "B"]),
+                    oh.make_tensor_value_info("y3", onnx.TensorProto.FLOAT, [1, "B"]),
+                ],
+                [
+                    oh.make_tensor_value_info("z", onnx.TensorProto.FLOAT, ["N", "B"]),
+                ],
+            ),
+            ir_version=11,
+            opset_imports=[oh.make_opsetid("", 20)],
+        )
+        onnx.checker.check_model(model_proto)
+        model = ir.serde.deserialize_model(model_proto)
+        count = mod.expand_before_binary_op_rules.apply_to_model(model)
+        self.assertEqual(count, 3)
+        self.assertEqual(len(model.graph), 5)
+
 
 if __name__ == "__main__":
     unittest.main()
