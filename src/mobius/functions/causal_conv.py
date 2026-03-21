@@ -26,22 +26,21 @@ DOMAIN = "com.microsoft"
 def causal_conv1d_with_state(
     *,
     kernel_size: int,
+    channels: int,
     activation: str = "silu",
 ) -> ir.Function:
     """Build an ir.Function for CausalConv1DWithState.
 
-    A single function definition works for all channel sizes because the
-    Conv ``group`` attribute is declared as a function-level attribute via
-    ``ref_attr_name`` and supplied by the caller at each call site.
+    The convolution is always depthwise (group = channels).  The group
+    count is derived from the ``channels`` build-time parameter so
+    callers never need to supply it as a function attribute.
 
     Args:
         kernel_size: Convolution kernel size (K).
+        channels: Number of input channels (D).  Used as the Conv
+            ``group`` attribute for depthwise convolution.
         activation: Fused activation — ``"silu"``, ``"swish"``, or
             ``"none"``.
-
-    Function attributes:
-        group: INT — number of groups for depthwise Conv (= channels D).
-            Passed by the caller and forwarded to the inner Conv node.
 
     Inputs:
         input:      (B, D, T)   — channels-first input
@@ -56,7 +55,7 @@ def causal_conv1d_with_state(
     The function body implements:
         1. Prepend conv_state to input along the time axis
         2. Slice out the new carry state (last K-1 positions)
-        3. Apply depthwise Conv1d (group from function attr, no padding)
+        3. Apply depthwise Conv1d (group = channels D, no padding)
         4. Add bias
         5. Apply activation (SiLU by default)
     """
@@ -94,13 +93,11 @@ def causal_conv1d_with_state(
     )
     present_state.name = "present_state"
 
-    # Step 3: Depthwise Conv1d (group forwarded from function attribute)
-    # ir.RefAttr makes the Conv node's ``group`` reference the
-    # function-level ``group`` attribute supplied by each caller.
+    # Step 3: Depthwise Conv1d (group = channels, always depthwise)
     conv_out = op.Conv(
         conv_input,
         weight_val,
-        group=ir.RefAttr("group", "group", ir.AttributeType.INT),
+        group=channels,
         pads=[0, 0],
     )
 
@@ -122,8 +119,6 @@ def causal_conv1d_with_state(
     graph.outputs.extend([output, present_state])
 
     # --- Build the ir.Function ---
-    # Function signature declares attributes normally.
-    # Inner Conv node references 'group' via ir.RefAttr.
     # NOTE: Do not set ``overload`` here — the call sites
     # (op.CausalConv1DWithState) do not set an overload on the
     # node, so setting one on the function would prevent the
@@ -137,11 +132,6 @@ def causal_conv1d_with_state(
                 "activation",
                 ir.AttributeType.STRING,
                 activation,
-            ),
-            "group": ir.Attr(
-                "group",
-                ir.AttributeType.INT,
-                0,
             ),
         },
     )

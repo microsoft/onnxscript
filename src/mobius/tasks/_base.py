@@ -378,6 +378,7 @@ def _register_linear_attention_functions(
 
     conv_func = causal_conv1d_with_state(
         kernel_size=dims.conv_kernel,
+        channels=dims.conv_dim,
         activation="silu",
     )
     attn_func = linear_attention(
