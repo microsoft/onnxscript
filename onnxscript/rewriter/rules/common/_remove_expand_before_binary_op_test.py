@@ -7,7 +7,11 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
+import onnx
+import onnx.helper
+import onnx.numpy_helper
 import onnx.reference
+import onnx.shape_inference
 import parameterized
 
 import onnxscript.ir as ir
@@ -193,8 +197,15 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
         count = mod.expand_before_binary_op_rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
-    def test_expand_target_shape_not_constant_not_removed(self):
-        """Expand with a dynamic (non-constant) shape cannot be removed."""
+    def test_expand_target_shape_not_constant_removed_via_output_shape(self):
+        """Expand with a dynamic shape is removed when the binary op output shape
+        confirms the expansion is redundant.
+
+        x=[3, 4] has no dimension equal to 1, so Expand can only output [3, 4].
+        With y=[3, 4] the binary op output shape is also [3, 4], and
+        broadcast([3, 4], [3, 4]) = [3, 4] matches, so the expand is provably a
+        no-op and is safely removed.
+        """
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[3, 4] x, float[3, 4] y, int64[2] shape) => (float[3, 4] output)
@@ -205,9 +216,7 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
         """
         model = ir.from_onnx_text(model_text)
         count = mod.expand_before_binary_op_rules.apply_to_model(model)
-        self.assertEqual(count, 0)
-
-    def test_expand_removed_with_symbolic_x_static_y(self):
+        self.assertEqual(count, 1)
         """Expand with a symbolic x dim can be removed when y statically covers the expansion.
 
         x=[N], expand_shape=[3, 4], y=[3, 4]: since y provides all expand dimensions
@@ -246,8 +255,7 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
         self.assertEqual(count, 0)
 
     def test_full_optimization(self):
-        import onnx.helper as oh
-
+        oh = onnx.helper
         model_proto = oh.make_model(
             oh.make_graph(
                 [
@@ -276,14 +284,18 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
             opset_imports=[oh.make_opsetid("", 20)],
         )
         onnx.checker.check_model(model_proto)
-        model = ir.serde.deserialize_model(model_proto)
+        # Shape inference is required so that the Expand output carries its
+        # shape annotation ([N, 1]).  Without it the rule cannot verify that
+        # the expansion is redundant.
+        inferred_proto = onnx.shape_inference.infer_shapes(model_proto, data_prop=True)
+        model = ir.serde.deserialize_model(inferred_proto)
         count = mod.expand_before_binary_op_rules.apply_to_model(model)
         self.assertEqual(count, 3)
         self.assertEqual(len(model.graph), 5)
 
     def test_full_optimization_more_complex(self):
-        import onnx.helper as oh
-        import onnx.numpy_helper as onh
+        oh = onnx.helper
+        onh = onnx.numpy_helper
 
         model_proto = oh.make_model(
             oh.make_graph(
@@ -310,7 +322,17 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
                 [
                     oh.make_tensor_value_info("z", onnx.TensorProto.FLOAT, ["N", "B"]),
                 ],
-                [onh.from_array(np.array([1], dtype=np.int64), "one")]
+                [onh.from_array(np.array([1], dtype=np.int64), "one")],
+                # Explicit shape annotations on intermediate values (as produced by
+                # shape inference or by the model creator).  These allow the rule to
+                # verify that the Expand is redundant without tracing the exact
+                # computation that produced the shape tensor.
+                value_info=[
+                    oh.make_tensor_value_info("expanded", onnx.TensorProto.FLOAT, ["N", 1]),
+                    oh.make_tensor_value_info("z1", onnx.TensorProto.FLOAT, ["N", "B"]),
+                    oh.make_tensor_value_info("z2", onnx.TensorProto.FLOAT, ["N", "B"]),
+                    oh.make_tensor_value_info("z3", onnx.TensorProto.FLOAT, ["N", "B"]),
+                ],
             ),
             ir_version=11,
             opset_imports=[oh.make_opsetid("", 20)],

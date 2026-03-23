@@ -42,156 +42,150 @@ _BROADCAST_BINARY_OPS: tuple[str, ...] = (
 )
 
 
-def _get_shape_tensor_length(shape_value: ir.Value) -> int | None:
-    """Try to determine the number of elements in a 1-D shape tensor.
+def _compute_broadcast_dim(d1, d2):
+    """Return the numpy broadcast of two dimension values.
 
-    Returns the length as an int, or ``None`` if it cannot be determined.
+    Each dimension value may be an ``int`` or an ``onnx_ir.SymbolicDim``.
+    Returns ``None`` when the result cannot be determined statically (e.g. two
+    distinct symbolic values neither of which is known to be 1).
     """
-    const = get_numpy_value(shape_value)
-    if const is not None:
-        return len(const)
-
-    # Use the tensor's own shape annotation (should be 1-D).
-    tensor_shape = shape_value.shape
-    if tensor_shape is not None and tensor_shape.rank() == 1:
-        dim = tensor_shape[0]
-        if isinstance(dim, int):
-            return dim
-
-    # Trace through Concat and Shape nodes.
-    producer = shape_value.producer()
-    if producer is None:
-        return None
-
-    if producer.op_type == "Concat":
-        total = 0
-        for inp in producer.inputs:
-            if inp is None:
-                return None
-            seg_len = _get_shape_tensor_length(inp)
-            if seg_len is None:
-                return None
-            total += seg_len
-        return total
-
-    if producer.op_type == "Shape":
-        x_input = producer.inputs[0] if producer.inputs else None
-        if x_input is None:
-            return None
-        start_attr = producer.attributes.get("start")
-        end_attr = producer.attributes.get("end")
-        start = start_attr.value if start_attr is not None else 0
-        if end_attr is not None:
-            return end_attr.value - start
-        # end defaults to rank of x
-        if x_input.shape is not None:
-            x_rank = x_input.shape.rank()
-            if x_rank is not None:
-                return x_rank - start
-        return None
-
+    if d1 == 1:
+        return d2
+    if d2 == 1:
+        return d1
+    if d1 == d2:
+        return d1
     return None
 
 
-def _get_dim_from_shape_value(shape_value: ir.Value, index: int):
-    """Try to extract the ``index``-th element from a 1-D shape tensor.
+def _compute_broadcast_shape(shape1: ir.Shape, shape2: ir.Shape) -> list | None:
+    """Compute numpy-style broadcast shape symbolically.
 
-    This traces the computation graph through ``Concat`` and ``Shape`` nodes
-    to resolve individual elements without requiring the whole tensor to be a
-    compile-time constant.
-
-    Returns an ``int``, a ``SymbolicDim``, or ``None`` if the element cannot
-    be determined.
+    Returns the broadcast shape as a list of dimension values (``int`` or
+    ``SymbolicDim``), or ``None`` when the result cannot be determined (e.g.
+    unknown ranks or incompatible static dims).
     """
-    const = get_numpy_value(shape_value)
-    if const is not None:
-        if 0 <= index < len(const):
-            return int(const[index])
+    rank1 = shape1.rank()
+    rank2 = shape2.rank()
+    if rank1 is None or rank2 is None:
         return None
-
-    producer = shape_value.producer()
-    if producer is None:
-        return None  # graph input or initializer, can't trace
-
-    if producer.op_type == "Concat":
-        offset = 0
-        for inp in producer.inputs:
-            if inp is None:
-                return None
-            seg_len = _get_shape_tensor_length(inp)
-            if seg_len is None:
-                return None
-            if offset <= index < offset + seg_len:
-                return _get_dim_from_shape_value(inp, index - offset)
-            offset += seg_len
-        return None
-
-    if producer.op_type == "Shape":
-        x_input = producer.inputs[0] if producer.inputs else None
-        if x_input is None:
+    rank = max(rank1, rank2)
+    result = []
+    for i in range(rank):
+        idx1 = rank1 - rank + i
+        d1 = shape1[idx1] if idx1 >= 0 else 1
+        idx2 = rank2 - rank + i
+        d2 = shape2[idx2] if idx2 >= 0 else 1
+        d = _compute_broadcast_dim(d1, d2)
+        if d is None:
             return None
-        x_shape = x_input.shape
-        if x_shape is None:
-            return None
-        start_attr = producer.attributes.get("start")
-        start = start_attr.value if start_attr is not None else 0
-        actual_idx = start + index
-        x_rank = x_shape.rank()
-        if x_rank is not None and 0 <= actual_idx < x_rank:
-            return x_shape[actual_idx]  # int or SymbolicDim
-        return None
+        result.append(d)
+    return result
 
-    return None
+
+def _check_dims_sufficient(
+    expand_shape: ir.Shape,
+    x_shape: ir.Shape,
+    y_shape: ir.Shape,
+) -> MatchResult:
+    """Check that x and y together cover every dimension of the expand target.
+
+    For each dimension ``i`` of *expand_shape* (right-aligned) the expand is
+    considered redundant when at least one of the following holds:
+
+    - ``expand_shape[i] == 1`` - expand cannot shrink a dim, so ``x_d`` must
+      also be 1 and both with and without expand produce ``y_d``.
+    - ``x_d == expand_shape[i]`` - the expand is a no-op at this dim.
+    - ``y_d == expand_shape[i]`` - ``y`` already supplies this expansion.
+
+    Comparisons work for both ``int`` and ``SymbolicDim`` values.
+    """
+    check_result = MatchResult()
+    e_rank = expand_shape.rank()
+    x_rank = x_shape.rank()
+    y_rank = y_shape.rank()
+    if e_rank is None:
+        return check_result.fail("Expand output rank is unknown.")
+
+    for rev_i in range(e_rank):
+        i = e_rank - 1 - rev_i
+        e_d = expand_shape[i]
+
+        if isinstance(e_d, int) and e_d == 1:
+            continue  # expand cannot shrink; x_d is also 1, no-op
+
+        x_idx = x_rank - 1 - rev_i
+        x_d = x_shape[x_idx] if x_idx >= 0 else 1
+        if x_d == e_d:
+            continue  # expand is a no-op at this dimension
+
+        y_idx = y_rank - 1 - rev_i
+        y_d = y_shape[y_idx] if y_idx >= 0 else 1
+        if y_d == e_d:
+            continue  # y already supplies this dimension
+
+        return check_result.fail(
+            f"Cannot verify that removing Expand is safe at dimension {i}: "
+            f"x_d={x_d!r}, expand_d={e_d!r}, y_d={y_d!r}."
+        )
+
+    return check_result
 
 
 def _check_expand_removable(
     expand_input: ir.Value,
     shape: ir.Value,
     other_input: ir.Value,
+    expand_output: ir.Value | None = None,
+    binary_op_output: ir.Value | None = None,
 ) -> MatchResult:
     """Check if an Expand node can be safely removed before a binary op.
 
-    The Expand node ``expanded_x = Expand(x, expand_shape)`` before a binary op
-    ``out = BinaryOp(expanded_x, y)`` can be removed when the binary op's
-    own broadcasting produces the same output shape as the explicit expand.
+    The Expand ``expanded_x = Expand(x, expand_shape)`` before a binary op
+    ``out = BinaryOp(expanded_x, y)`` is redundant when the binary op's own
+    broadcasting produces the same output as if the expand had been applied.
 
-    Two strategies are tried in order:
+    Three strategies are tried in order:
 
-    1. **Constant expand shape**: When the expand target shape is a compile-time
-       constant, each dimension is checked individually (right-aligned).  At
-       dimension ``i`` the expand is safe to remove if any of the following hold:
+    1. **Constant expand shape** - When ``shape`` is a compile-time constant,
+       the dimension values are extracted from it and the check is performed
+       directly.
 
-       - ``expand_shape[i] == 1`` - expand can never shrink a dim, so x_d is
-         also 1 and both paths produce ``y_d``.
-       - ``x_d == expand_shape[i]`` - expand is a no-op here.
-       - ``y_d == expand_shape[i]`` - y already covers the expansion.
+    2. **Expand output shape annotation** - When ``shape`` is dynamic but the
+       Expand node's output value already carries a shape annotation (e.g.
+       after ONNX shape inference has been applied to the model), those
+       dimension values are used for the check.
 
-    2. **Dynamic expand shape**: When the target shape is not a compile-time
-       constant, the rule traces through ``Shape`` and ``Concat`` nodes to
-       extract individual dimension values from the shape tensor.  The same
-       dimension-by-dimension safety check is then applied.  This handles
-       patterns such as ``Expand(x, Concat(Shape(x, 0, 1), Shape(x, 1, 2)))``
-       where the expand is provably a no-op.
+    3. **Binary op output shape** - When neither of the above is available,
+       the rule verifies that ``broadcast(x.shape, y.shape)`` symbolically
+       equals the binary op's output shape.  If they agree, the binary op's
+       own broadcasting already accounts for all the expansion and the
+       Expand is redundant.
 
     Args:
         expand_input: The value fed into the Expand node (``x``).
         shape: The target shape operand of the Expand node.
         other_input: The other operand of the binary op (``y``).
+        expand_output: The output value of the Expand node.  Required for
+            strategy 2.
+        binary_op_output: The output value of the binary op.  Required for
+            strategy 3.
 
     Returns:
-        A MatchResult that is successful when the Expand can be removed.
+        A :class:`MatchResult` that is successful when the Expand can be
+        removed.
     """
     check_result = MatchResult()
 
-    expand_input_shape = expand_input.shape
-    other_shape = other_input.shape
-    if expand_input_shape is None or other_shape is None:
+    x_shape = expand_input.shape
+    y_shape = other_input.shape
+    if x_shape is None or y_shape is None:
         return check_result.fail("Input shapes are not known.")
 
-    x_rank = expand_input_shape.rank()
-    y_rank = other_shape.rank()
+    x_rank = x_shape.rank()
+    y_rank = y_shape.rank()
 
-    # --- Path 1: expand target shape is a compile-time constant ---
+    # --- Strategy 1: expand target shape is a compile-time constant ---
     expand_shape_val = get_numpy_value(shape)
     if expand_shape_val is not None:
         expand_shape = tuple(int(v) for v in expand_shape_val.tolist())
@@ -199,21 +193,19 @@ def _check_expand_removable(
 
         for rev_i in range(expand_rank):
             i = expand_rank - 1 - rev_i
-            e_d = expand_shape[i]  # always a known integer
+            e_d = expand_shape[i]  # always a known integer from numpy
 
-            # expand cannot shrink a dim, so x_d must also be 1 here;
-            # both with and without expand the output is y_d.
             if e_d == 1:
-                continue
+                continue  # expand cannot shrink; x_d is also 1, no-op
 
             x_idx = x_rank - 1 - rev_i
-            x_d = expand_input_shape[x_idx] if x_idx >= 0 else 1
+            x_d = x_shape[x_idx] if x_idx >= 0 else 1
 
             if isinstance(x_d, int) and x_d == e_d:
                 continue  # expand is a no-op at this dimension
 
             y_idx = y_rank - 1 - rev_i
-            y_d = other_shape[y_idx] if y_idx >= 0 else 1
+            y_d = y_shape[y_idx] if y_idx >= 0 else 1
 
             if isinstance(y_d, int) and y_d == e_d:
                 continue  # y already supplies this dimension
@@ -225,44 +217,28 @@ def _check_expand_removable(
 
         return check_result
 
-    # --- Path 2: expand target shape is dynamic ---
-    # Trace through Shape/Concat nodes to extract individual elements of the
-    # shape tensor, then apply the same dimension-by-dimension check.
-    expand_rank = _get_shape_tensor_length(shape)
-    if expand_rank is None:
+    # --- Strategy 2: Expand output shape is known (e.g. from shape inference) ---
+    if expand_output is not None and expand_output.shape is not None:
+        return _check_dims_sufficient(expand_output.shape, x_shape, y_shape)
+
+    # --- Strategy 3: use the binary op's output shape ---
+    # broadcast(x.shape, y.shape) must equal the binary op's output shape.
+    # If it does, the binary op's own broadcasting already produces the same
+    # result as first expanding x and then broadcasting.
+    if binary_op_output is not None and binary_op_output.shape is not None:
+        op_output_shape = binary_op_output.shape
+        if op_output_shape.rank() is not None:
+            computed = _compute_broadcast_shape(x_shape, y_shape)
+            if computed is not None and len(computed) == op_output_shape.rank():
+                if all(c == a for c, a in zip(computed, op_output_shape)):
+                    return check_result
         return check_result.fail(
-            "Expand target shape is dynamic and its length cannot be determined."
+            "broadcast(x.shape, y.shape) does not match the binary op output shape."
         )
 
-    for i in range(expand_rank):
-        e_d = _get_dim_from_shape_value(shape, i)
-        if e_d is None:
-            return check_result.fail(
-                f"Cannot determine expand shape at dimension {i}."
-            )
-
-        if isinstance(e_d, int) and e_d == 1:
-            continue  # expand is a no-op at this dimension
-
-        x_idx = x_rank - expand_rank + i
-        x_d = expand_input_shape[x_idx] if x_idx >= 0 else 1
-
-        # e_d == x_d works for both int and SymbolicDim (same symbolic name).
-        if x_d == e_d:
-            continue  # expand is a no-op at this dimension
-
-        y_idx = y_rank - expand_rank + i
-        y_d = other_shape[y_idx] if y_idx >= 0 else 1
-
-        if y_d == e_d:
-            continue  # y already supplies this dimension
-
-        return check_result.fail(
-            f"Cannot verify that removing Expand is safe at dimension {i}: "
-            f"x_d={x_d!r}, expand_d={e_d!r}, y_d={y_d!r}."
-        )
-
-    return check_result
+    return check_result.fail(
+        "Expand target shape is not a constant and no shape annotations are available."
+    )
 
 
 class _ExpandFirstInput(RewriteRuleClassBase):
@@ -276,8 +252,11 @@ class _ExpandFirstInput(RewriteRuleClassBase):
         return getattr(op, self._op_type)(op.Expand(x, shape), y)
 
     def check(self, context, x: ir.Value, shape: ir.Value, y: ir.Value) -> MatchResult:
-        del context  # Unused
-        return _check_expand_removable(x, shape, y)
+        expand_output = context.root.inputs[0] if context.root.inputs else None
+        binary_op_output = context.root.outputs[0] if context.root.outputs else None
+        return _check_expand_removable(
+            x, shape, y, expand_output=expand_output, binary_op_output=binary_op_output
+        )
 
     def rewrite(self, op, x: ir.Value, shape: ir.Value, y: ir.Value) -> ir.Value:
         return getattr(op, self._op_type)(x, y)
@@ -294,8 +273,11 @@ class _ExpandSecondInput(RewriteRuleClassBase):
         return getattr(op, self._op_type)(x, op.Expand(y, shape))
 
     def check(self, context, x: ir.Value, y: ir.Value, shape: ir.Value) -> MatchResult:
-        del context  # Unused
-        return _check_expand_removable(y, shape, x)
+        expand_output = context.root.inputs[1] if context.root.inputs else None
+        binary_op_output = context.root.outputs[0] if context.root.outputs else None
+        return _check_expand_removable(
+            y, shape, x, expand_output=expand_output, binary_op_output=binary_op_output
+        )
 
     def rewrite(self, op, x: ir.Value, y: ir.Value, shape: ir.Value) -> ir.Value:
         return getattr(op, self._op_type)(x, y)
