@@ -280,7 +280,7 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
                     oh.make_tensor_value_info("z", onnx.TensorProto.FLOAT, ["N", "B"]),
                 ],
             ),
-            ir_version=11,
+            ir_version=10,
             opset_imports=[oh.make_opsetid("", 20)],
         )
         onnx.checker.check_model(model_proto)
@@ -334,7 +334,7 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
                     oh.make_tensor_value_info("z3", onnx.TensorProto.FLOAT, ["N", "B"]),
                 ],
             ),
-            ir_version=11,
+            ir_version=10,
             opset_imports=[oh.make_opsetid("", 20)],
         )
         onnx.checker.check_model(model_proto)
