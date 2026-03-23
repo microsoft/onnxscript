@@ -169,7 +169,7 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
         model = self._apply_and_check(model_text, 1, ["Div"])
 
         x = np.random.randn(4, 3, 4).astype(np.float32)
-        y = (np.random.randn(3, 4).astype(np.float32) + 2.0)  # avoid division by zero
+        y = np.random.randn(3, 4).astype(np.float32) + 2.0  # avoid division by zero
         original = ir.from_onnx_text(model_text)
         expected = _run_model(original, {"x": x, "y": y})
         got = _run_model(model, {"x": x, "y": y})
