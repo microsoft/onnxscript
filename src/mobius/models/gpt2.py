@@ -17,12 +17,12 @@ from onnxscript._internal import builder
 
 from mobius._configs import ArchitectureConfig
 from mobius.components import (
+    FCMLP,
     Embedding,
     LayerNorm,
     Linear,
     create_attention_bias,
 )
-from mobius.components._activations import ACT2FN
 from mobius.components._attention import Attention
 from mobius.models.base import CausalLMModel
 
@@ -107,9 +107,20 @@ class GPT2CausalLMModel(CausalLMModel):
                 new_state_dict[name.replace("c_proj.", "o_proj.")] = tensor
                 continue
 
-            # MLP Conv1D weights need transposing (names already match)
-            if name.endswith(".weight") and (".c_fc." in name or ".c_proj." in name):
-                new_state_dict[name] = tensor.t()
+            # MLP Conv1D weights need transposing + rename to FCMLP naming
+            # c_fc → up_proj, c_proj → down_proj (only in mlp.* context)
+            if name.endswith(".weight") and ".mlp.c_fc." in name:
+                new_state_dict[name.replace(".c_fc.", ".up_proj.")] = tensor.t()
+                continue
+            if name.endswith(".weight") and ".mlp.c_proj." in name:
+                new_state_dict[name.replace(".c_proj.", ".down_proj.")] = tensor.t()
+                continue
+            # MLP biases also need renaming
+            if name.endswith(".bias") and ".mlp.c_fc." in name:
+                new_state_dict[name.replace(".c_fc.", ".up_proj.")] = tensor
+                continue
+            if name.endswith(".bias") and ".mlp.c_proj." in name:
+                new_state_dict[name.replace(".c_proj.", ".down_proj.")] = tensor
                 continue
 
             new_state_dict[name] = tensor
@@ -190,7 +201,12 @@ class _GPT2DecoderLayer(nn.Module):
         self.ln_1 = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.attn = Attention(config)
         self.ln_2 = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.mlp = _GPT2MLP(config)
+        self.mlp = FCMLP(
+            config.hidden_size,
+            config.intermediate_size,
+            activation=config.hidden_act,
+            bias=True,
+        )
 
     def forward(
         self,
@@ -212,22 +228,3 @@ class _GPT2DecoderLayer(nn.Module):
         hidden_states = op.Add(residual, hidden_states)
 
         return hidden_states, present_kv
-
-
-class _GPT2MLP(nn.Module):
-    """GPT-2 MLP: Linear → act → Linear (not SwiGLU).
-
-    Attribute names match HF GPT-2 naming (c_fc, c_proj).
-    """
-
-    def __init__(self, config: ArchitectureConfig):
-        super().__init__()
-        intermediate_size = config.intermediate_size
-        self.c_fc = Linear(config.hidden_size, intermediate_size, bias=True)
-        self.c_proj = Linear(intermediate_size, config.hidden_size, bias=True)
-        self._act_fn = ACT2FN[config.hidden_act]
-
-    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
-        hidden_states = self.c_fc(op, hidden_states)
-        hidden_states = self._act_fn(op, hidden_states)
-        return self.c_proj(op, hidden_states)

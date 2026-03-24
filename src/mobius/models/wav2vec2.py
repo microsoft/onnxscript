@@ -25,6 +25,7 @@ from onnxscript import nn
 from onnxscript._internal import builder
 
 from mobius._configs import ArchitectureConfig
+from mobius.components import FCMLP
 from mobius.components._common import LayerNorm, Linear
 
 if TYPE_CHECKING:
@@ -110,7 +111,7 @@ class _Wav2Vec2EncoderLayer(nn.Module):
         self.layer_norm = LayerNorm(hidden_size, eps=eps)
         head_dim = hidden_size // num_heads
         self.attention = _Wav2Vec2Attention(hidden_size, num_heads, head_dim)
-        self.feed_forward = _Wav2Vec2FFN(hidden_size, intermediate_size)
+        self.feed_forward = FCMLP(hidden_size, intermediate_size, activation="gelu", bias=True)
         self.final_layer_norm = LayerNorm(hidden_size, eps=eps)
 
     def forward(
@@ -162,21 +163,6 @@ class _Wav2Vec2Attention(nn.Module):
             scale=float(self.head_dim**-0.5),
         )
         return self.out_proj(op, attn_out)
-
-
-class _Wav2Vec2FFN(nn.Module):
-    """Feed-forward network: Linear → GELU → Linear."""
-
-    def __init__(self, hidden_size: int, intermediate_size: int):
-        super().__init__()
-        self.intermediate_dense = Linear(hidden_size, intermediate_size, bias=True)
-        self.output_dense = Linear(intermediate_size, hidden_size, bias=True)
-
-    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
-        hidden_states = self.intermediate_dense(op, hidden_states)
-        hidden_states = op.Gelu(hidden_states)
-        hidden_states = self.output_dense(op, hidden_states)
-        return hidden_states
 
 
 class _Wav2Vec2Encoder(nn.Module):
@@ -276,6 +262,7 @@ class Wav2Vec2Model(nn.Module):
 
         HF prefix: wav2vec2.* → strip it.
         Attribute names are aligned with HF (out_proj, encoder.layers).
+        FFN renames: intermediate_dense → up_proj, output_dense → down_proj (FCMLP naming).
         """
         new_state_dict = {}
         for key, value in state_dict.items():
@@ -285,5 +272,9 @@ class Wav2Vec2Model(nn.Module):
                 if new_key.startswith(prefix):
                     new_key = new_key[len(prefix) :]
                     break
+            # FFN: intermediate_dense → up_proj, output_dense → down_proj
+            new_key = new_key.replace(".intermediate_dense.", ".up_proj.").replace(
+                ".output_dense.", ".down_proj."
+            )
             new_state_dict[new_key] = value
         return new_state_dict

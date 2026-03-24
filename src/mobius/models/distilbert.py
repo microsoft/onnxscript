@@ -12,8 +12,8 @@ from onnxscript import nn
 from onnxscript._internal import builder
 
 from mobius._configs import ArchitectureConfig
-from mobius.components._activations import ACT2FN
-from mobius.components._common import Embedding, LayerNorm, Linear
+from mobius.components import FCMLP
+from mobius.components._common import Embedding, LayerNorm
 from mobius.components._encoder import EncoderAttention
 
 if TYPE_CHECKING:
@@ -55,7 +55,11 @@ class _DistilBertEncoderLayer(nn.Module):
         super().__init__()
         self.attention = EncoderAttention(config.hidden_size, config.num_attention_heads)
         self.sa_layer_norm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.ffn = _DistilBertFFN(config)
+        self.ffn = FCMLP(
+            config.hidden_size,
+            config.intermediate_size,
+            activation=config.hidden_act,
+        )
         self.output_layer_norm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
 
     def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
@@ -68,21 +72,6 @@ class _DistilBertEncoderLayer(nn.Module):
         hidden_states = self.output_layer_norm(op, op.Add(hidden_states, ffn_output))
 
         return hidden_states
-
-
-class _DistilBertFFN(nn.Module):
-    """DistilBERT feed-forward: lin1 → act → lin2."""
-
-    def __init__(self, config: ArchitectureConfig):
-        super().__init__()
-        self.lin1 = Linear(config.hidden_size, config.intermediate_size)
-        self.lin2 = Linear(config.intermediate_size, config.hidden_size)
-        self._act_fn = ACT2FN[config.hidden_act]
-
-    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
-        hidden_states = self.lin1(op, hidden_states)
-        hidden_states = self._act_fn(op, hidden_states)
-        return self.lin2(op, hidden_states)
 
 
 class DistilBertModel(nn.Module):
@@ -179,6 +168,9 @@ def _rename_distilbert_weight(name: str) -> str | None:
                 return f"transformer.layer.{layer_idx}.{new}{suffix}"
 
         # ffn, sa_layer_norm, output_layer_norm pass through
-        return name
+        # FFN: lin1 → up_proj, lin2 → down_proj (FCMLP naming)
+        new_name = name.replace("ffn.lin1.", "ffn.up_proj.")
+        new_name = new_name.replace("ffn.lin2.", "ffn.down_proj.")
+        return new_name
 
     return None

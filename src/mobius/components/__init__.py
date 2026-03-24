@@ -36,6 +36,7 @@ __all__ = [
     "Linear",
     "LoRALinear",
     "LinearMultiModalProjector",
+    "FCMLP",
     "MLP",
     "MLPMultiModalProjector",
     "MoELayer",
@@ -160,7 +161,7 @@ from mobius.components._encoder_decoder_attention import (
 from mobius.components._gated_deltanet import GatedDeltaNet
 from mobius.components._lora import LoRALinear
 from mobius.components._mamba_block import Mamba2Block, MambaBlock
-from mobius.components._mlp import MLP
+from mobius.components._mlp import FCMLP, MLP
 from mobius.components._moe import (
     MoELayer,
     SoftmaxTopKGate,

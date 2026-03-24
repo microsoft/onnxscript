@@ -28,6 +28,7 @@ from onnxscript import nn
 from mobius._configs import ArchitectureConfig
 from mobius._weight_utils import split_fused_qkv
 from mobius.components import (
+    FCMLP,
     Attention,
     create_attention_bias,
     initialize_rope,
@@ -97,28 +98,6 @@ class _ALiBiAttention(nn.Module):
         return attn_out, (present_key, present_value)
 
 
-class _FalconMLP(nn.Module):
-    """Simple 2-layer MLP with GELU activation (no gating).
-
-    Matches HF FalconMLP: dense_h_to_4h → GELU → dense_4h_to_h.
-    """
-
-    def __init__(
-        self,
-        hidden_size: int,
-        intermediate_size: int,
-        bias: bool = False,
-    ):
-        super().__init__()
-        self.dense_h_to_4h = Linear(hidden_size, intermediate_size, bias=bias)
-        self.dense_4h_to_h = Linear(intermediate_size, hidden_size, bias=bias)
-
-    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
-        hidden_states = self.dense_h_to_4h(op, hidden_states)
-        hidden_states = op.Gelu(hidden_states)
-        return self.dense_4h_to_h(op, hidden_states)
-
-
 class _ALiBiDecoderLayer(nn.Module):
     """Decoder layer with ALiBi attention and parallel/sequential support.
 
@@ -141,9 +120,10 @@ class _ALiBiDecoderLayer(nn.Module):
         if not parallel_attn or dual_ln:
             self.ln_mlp = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.self_attention = _ALiBiAttention(config)
-        self.mlp = _FalconMLP(
+        self.mlp = FCMLP(
             config.hidden_size,
             config.intermediate_size,
+            activation="gelu",
             bias=config.mlp_bias,
         )
 
@@ -205,9 +185,10 @@ class _FalconDecoderLayer(nn.Module):
         if not parallel_attn or dual_ln:
             self.ln_mlp = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.self_attention = Attention(config)
-        self.mlp = _FalconMLP(
+        self.mlp = FCMLP(
             config.hidden_size,
             config.intermediate_size,
+            activation="gelu",
             bias=config.mlp_bias,
         )
 
@@ -476,6 +457,9 @@ class FalconCausalLMModel(nn.Module):
 
             # Output proj: HF uses "dense", Attention component uses "o_proj"
             new_key = key.replace("self_attention.dense.", "self_attention.o_proj.")
+            # MLP: HF uses dense_h_to_4h/dense_4h_to_h, FCMLP uses up_proj/down_proj
+            new_key = new_key.replace(".mlp.dense_h_to_4h.", ".mlp.up_proj.")
+            new_key = new_key.replace(".mlp.dense_4h_to_h.", ".mlp.down_proj.")
             new_state_dict[new_key] = value
 
         # Handle weight tying

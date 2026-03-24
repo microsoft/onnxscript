@@ -3,37 +3,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from onnxscript import nn
-from onnxscript._internal import builder
-
 from mobius._configs import ArchitectureConfig
-from mobius.components import LayerNorm, Linear, get_activation
+from mobius.components import FCMLP, LayerNorm
 from mobius.models.base import CausalLMModel
-
-if TYPE_CHECKING:
-    import onnx_ir as ir
-
-
-class NemotronMLP(nn.Module):
-    """Nemotron MLP: up_proj → activation → down_proj (no gating)."""
-
-    def __init__(self, config: ArchitectureConfig):
-        super().__init__()
-
-        self.up_proj = Linear(
-            config.hidden_size, config.intermediate_size, bias=config.mlp_bias
-        )
-        self.down_proj = Linear(
-            config.intermediate_size, config.hidden_size, bias=config.mlp_bias
-        )
-        self.act_fn = get_activation(config.hidden_act)
-
-    def forward(self, op: builder.OpBuilder, x: ir.Value):
-        x = self.up_proj(op, x)
-        x = self.act_fn(op, x)
-        return self.down_proj(op, x)
 
 
 class NemotronCausalLMModel(CausalLMModel):
@@ -48,7 +20,12 @@ class NemotronCausalLMModel(CausalLMModel):
         # Nemotron uses full LayerNorm (with bias), not RMSNorm
         self.model.norm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
         for layer in self.model.layers:
-            layer.mlp = NemotronMLP(config)
+            layer.mlp = FCMLP(
+                config.hidden_size,
+                config.intermediate_size,
+                activation=config.hidden_act,
+                bias=config.mlp_bias,
+            )
             layer.input_layernorm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
             layer.post_attention_layernorm = LayerNorm(
                 config.hidden_size, eps=config.rms_norm_eps

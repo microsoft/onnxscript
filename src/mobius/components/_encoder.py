@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 from onnxscript import nn
 from onnxscript._internal import builder
 
-from mobius.components._activations import ACT2FN
 from mobius.components._common import Embedding, LayerNorm, Linear
+from mobius.components._mlp import FCMLP
 
 if TYPE_CHECKING:
     import onnx_ir as ir
@@ -86,10 +86,10 @@ class EncoderLayer(nn.Module):
             bias=bias,
         )
         self.post_attention_layernorm = LayerNorm(hidden_size, eps=layer_norm_eps)
-        self.mlp = _EncoderMLP(
+        self.mlp = FCMLP(
             hidden_size=hidden_size,
             intermediate_size=intermediate_size,
-            hidden_act=hidden_act,
+            activation=hidden_act,
             bias=bias,
         )
         self.post_mlp_layernorm = LayerNorm(hidden_size, eps=layer_norm_eps)
@@ -109,30 +109,6 @@ class EncoderLayer(nn.Module):
         hidden_states = self.post_mlp_layernorm(op, op.Add(hidden_states, mlp_output))
 
         return hidden_states
-
-
-class _EncoderMLP(nn.Module):
-    """Standard MLP for encoder models (not SwiGLU).
-
-    Structure: Linear(hidden→intermediate) → act → Linear(intermediate→hidden)
-    """
-
-    def __init__(
-        self,
-        hidden_size: int,
-        intermediate_size: int,
-        hidden_act: str = "gelu",
-        bias: bool = True,
-    ):
-        super().__init__()
-        self.up_proj = Linear(hidden_size, intermediate_size, bias=bias)
-        self.down_proj = Linear(intermediate_size, hidden_size, bias=bias)
-        self._act_fn = ACT2FN[hidden_act]
-
-    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
-        hidden_states = self.up_proj(op, hidden_states)
-        hidden_states = self._act_fn(op, hidden_states)
-        return self.down_proj(op, hidden_states)
 
 
 class BertEmbeddings(nn.Module):

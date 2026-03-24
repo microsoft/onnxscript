@@ -12,8 +12,8 @@ from onnxscript import nn
 from onnxscript._internal import builder
 
 from mobius._configs import ArchitectureConfig
-from mobius.components._activations import ACT2FN
-from mobius.components._common import Embedding, LayerNorm, Linear
+from mobius.components import FCMLP
+from mobius.components._common import Embedding, LayerNorm
 from mobius.components._conv import Conv2d
 from mobius.components._encoder import EncoderAttention
 
@@ -91,7 +91,11 @@ class _CLIPVisionEncoderLayer(nn.Module):
         super().__init__()
         self.self_attn = EncoderAttention(config.hidden_size, config.num_attention_heads)
         self.layer_norm1 = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.mlp = _CLIPMLP(config)
+        self.mlp = FCMLP(
+            config.hidden_size,
+            config.intermediate_size,
+            activation=config.hidden_act or "quick_gelu",
+        )
         self.layer_norm2 = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
 
     def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
@@ -105,21 +109,6 @@ class _CLIPVisionEncoderLayer(nn.Module):
         hidden_states = self.mlp(op, hidden_states)
         hidden_states = op.Add(residual, hidden_states)
         return hidden_states
-
-
-class _CLIPMLP(nn.Module):
-    """CLIP MLP: fc1 → act → fc2."""
-
-    def __init__(self, config: ArchitectureConfig):
-        super().__init__()
-        self.fc1 = Linear(config.hidden_size, config.intermediate_size)
-        self.fc2 = Linear(config.intermediate_size, config.hidden_size)
-        self._act_fn = ACT2FN[config.hidden_act or "quick_gelu"]
-
-    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
-        hidden_states = self.fc1(op, hidden_states)
-        hidden_states = self._act_fn(op, hidden_states)
-        return self.fc2(op, hidden_states)
 
 
 class CLIPVisionModel(nn.Module):
@@ -208,9 +197,12 @@ def _rename_clip_vision_weight(name: str) -> str | None:
                 suffix = remainder[len(old) :]
                 return f"encoder.{layer_idx}.{new}{suffix}"
 
+        # MLP: fc1 → up_proj, fc2 → down_proj (FCMLP naming)
+        remainder = remainder.replace("mlp.fc1.", "mlp.up_proj.")
+        remainder = remainder.replace("mlp.fc2.", "mlp.down_proj.")
+
         # layer_norm1, layer_norm2, mlp pass through
-        remainder_new = remainder
-        return f"encoder.{layer_idx}.{remainder_new}"
+        return f"encoder.{layer_idx}.{remainder}"
 
     return None
 
@@ -249,7 +241,11 @@ class _CLIPTextEncoderLayer(nn.Module):
         super().__init__()
         self.self_attn = EncoderAttention(config.hidden_size, config.num_attention_heads)
         self.layer_norm1 = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.mlp = _CLIPMLP(config)
+        self.mlp = FCMLP(
+            config.hidden_size,
+            config.intermediate_size,
+            activation=config.hidden_act or "quick_gelu",
+        )
         self.layer_norm2 = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
 
     def forward(
@@ -372,6 +368,10 @@ def _rename_clip_text_weight(name: str) -> str | None:
             if remainder.startswith(old):
                 suffix = remainder[len(old) :]
                 return f"encoder.{layer_idx}.{new}{suffix}"
+
+        # MLP: fc1 → up_proj, fc2 → down_proj (FCMLP naming)
+        remainder = remainder.replace("mlp.fc1.", "mlp.up_proj.")
+        remainder = remainder.replace("mlp.fc2.", "mlp.down_proj.")
 
         # layer_norm1, layer_norm2, mlp pass through
         return f"encoder.{layer_idx}.{remainder}"

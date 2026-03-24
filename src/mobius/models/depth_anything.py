@@ -21,12 +21,12 @@ from onnxscript._internal import builder
 
 from mobius._configs import ArchitectureConfig, DepthAnythingConfig
 from mobius.components import (
+    FCMLP,
     Conv2d,
     Conv2dNoBias,
     ConvTranspose2d,
     EncoderAttention,
     LayerNorm,
-    Linear,
 )
 
 # ---------------------------------------------------------------------------
@@ -111,7 +111,11 @@ class _ViTEncoderLayer(nn.Module):
             bias=True,
         )
         self.layernorm_after = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.mlp = _ViTMLP(config)
+        self.mlp = FCMLP(
+            config.hidden_size,
+            config.intermediate_size,
+            activation=config.hidden_act,
+        )
 
     def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
         residual = hidden_states
@@ -124,23 +128,6 @@ class _ViTEncoderLayer(nn.Module):
         hidden_states = self.mlp(op, hidden_states)
         hidden_states = op.Add(residual, hidden_states)
         return hidden_states
-
-
-class _ViTMLP(nn.Module):
-    """ViT MLP: Linear → GELU → Linear."""
-
-    def __init__(self, config: ArchitectureConfig):
-        super().__init__()
-        from mobius.components._activations import ACT2FN
-
-        self.up_proj = Linear(config.hidden_size, config.intermediate_size, bias=True)
-        self.down_proj = Linear(config.intermediate_size, config.hidden_size, bias=True)
-        self._act_fn = ACT2FN[config.hidden_act]
-
-    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
-        hidden_states = self.up_proj(op, hidden_states)
-        hidden_states = self._act_fn(op, hidden_states)
-        return self.down_proj(op, hidden_states)
 
 
 # ---------------------------------------------------------------------------

@@ -19,9 +19,11 @@ from onnxscript._internal import builder
 from mobius._configs import ArchitectureConfig
 from mobius._weight_utils import split_fused_qkv, split_gate_up_proj
 from mobius.components import (
+    FCMLP,
     ConformerEncoder,
     Embedding,
     InputMixer,
+    LayerNorm,
     Linear,
     PatchEmbedding,
     RMSNorm,
@@ -38,12 +40,41 @@ from mobius.models.phi3 import Phi3CausalLMModel
 class PhiCausalLMModel(Phi3CausalLMModel):
     """Phi model (original) with FC-style MLP.
 
-    Uses fully-connected MLP style (up + activation + down, no gating)
-    instead of the gated projection style. Also uses full LayerNorm
-    instead of simplified RMS.
+    Uses fully-connected MLP (up → activation → down, no gating)
+    instead of the gated projection style used by Phi-3. Also uses
+    full LayerNorm instead of simplified RMSNorm.
 
     Replicates HuggingFace's ``PhiForCausalLM``.
     """
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__(config)
+        # Phi-1/2 uses full LayerNorm and 2-matrix FC MLP, not
+        # the gated 3-matrix MLP inherited from Phi3/Llama.
+        self.model.norm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
+        for layer in self.model.layers:
+            layer.mlp = FCMLP(
+                config.hidden_size,
+                config.intermediate_size,
+                activation=config.hidden_act,
+                bias=config.mlp_bias,
+            )
+            layer.input_layernorm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
+            layer.post_attention_layernorm = LayerNorm(
+                config.hidden_size, eps=config.rms_norm_eps
+            )
+
+    def preprocess_weights(
+        self, state_dict: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
+        state_dict = super().preprocess_weights(state_dict)
+        # HF Phi uses fc1/fc2 for the FC MLP; our FCMLP uses up_proj/down_proj
+        for key in list(state_dict.keys()):
+            if ".mlp.fc1." in key:
+                state_dict[key.replace(".mlp.fc1.", ".mlp.up_proj.")] = state_dict.pop(key)
+            elif ".mlp.fc2." in key:
+                state_dict[key.replace(".mlp.fc2.", ".mlp.down_proj.")] = state_dict.pop(key)
+        return state_dict
 
 
 def _parse_lora_adapters(
