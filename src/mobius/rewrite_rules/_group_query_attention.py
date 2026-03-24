@@ -10,6 +10,14 @@ embedding into the attention kernel and replaces the explicit attention
 bias with ``seqlens_k`` / ``total_sequence_length`` inputs computed
 from the ``attention_mask`` graph input.
 
+A second rule (``PackQKVForGQA``) runs after the GQA fusion and
+consolidates separate Q, K, V projection MatMuls into a single packed
+MatMul when they share the same hidden_states input.  The packed QKV
+tensor is passed in the ``query`` slot of ``GroupQueryAttention`` with
+``key`` and ``value`` set to ``None``.  Models with QK norm (e.g.
+Qwen3) are unaffected because the Q/K projections are followed by a
+normalization op, so the pattern does not match.
+
 These rules are **not applied by default**.  Apply them post-export::
 
     from mobius.rewrite_rules import group_query_attention_rules
@@ -21,6 +29,8 @@ These rules are **not applied by default**.  Apply them post-export::
 
 from __future__ import annotations
 
+import numpy as np
+import onnx_ir as ir
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._rewrite_rule import (
     RewriteRuleClassBase,
@@ -209,15 +219,217 @@ class RotaryAttentionToGQA(RewriteRuleClassBase):
         return outputs[0], outputs[1], outputs[2]
 
 
+# ====================================================================
+# PackQKVForGQA — consolidates 3 separate MatMuls into 1 packed MatMul
+# ====================================================================
+
+
+def _get_weight_tensor(proj_node):
+    """Extract the constant weight tensor from a MatMul projection node.
+
+    Handles two patterns:
+
+    1. ``Transpose(weight, perm=[1,0]) → MatMul(x, w_t)``
+       — weight shape is ``(out_features, hidden_size)``, transposed=True
+    2. ``MatMul(x, weight)``  (no transpose)
+       — weight shape is ``(hidden_size, out_features)``, transposed=False
+
+    Returns:
+        ``(numpy_array, is_transposed)`` on success, or ``(None, False)``
+        if the weight cannot be extracted as a constant.
+    """
+    weight_input = proj_node.inputs[1]
+    producer = weight_input.producer()
+    if producer is not None and producer.op_type == "Transpose":
+        perm = producer.attributes.get("perm", None)
+        if perm is not None and list(perm.value) == [1, 0]:
+            tensor = ir.convenience.get_const_tensor(producer.inputs[0])
+            if tensor is None:
+                return None, False
+            return tensor.numpy(), True
+
+    tensor = ir.convenience.get_const_tensor(weight_input)
+    if tensor is None:
+        return None, False
+    return tensor.numpy(), False
+
+
+class PackQKVForGQA(RewriteRuleClassBase):
+    """Pack separate Q/K/V projections into a single MatMul for GQA.
+
+    This rule runs **after** ``RotaryAttentionToGQA`` and looks for
+    ``GroupQueryAttention`` nodes whose Q, K, V inputs each come from a
+    separate ``MatMul`` projection that shares the same ``hidden_states``
+    input.  The ``fused_matmul`` rewrite must run **after** this rule
+    so that projections are still plain ``MatMul`` nodes when this rule
+    matches.
+
+    **Matched pattern:**
+
+    .. code-block:: text
+
+        q = MatMul(hidden, W_q)
+        k = MatMul(hidden, W_k)
+        v = MatMul(hidden, W_v)
+        out, pkey, pval = GroupQueryAttention(q, k, v, ...)
+
+    **Replacement:**
+
+    .. code-block:: text
+
+        W_qkv = concatenate([W_q, W_k, W_v])  # normalized to (out, hidden)
+        packed = MatMul(hidden, Transpose(W_qkv))
+        out, pkey, pval = GroupQueryAttention(packed, None, None, ...)
+
+    Each weight is independently normalized to ``(out_features,
+    hidden_size)`` before concatenation, so mixed transpose patterns
+    across Q/K/V are handled correctly.  The packed weight is stored as
+    a graph initializer (not a ``Constant`` node attribute) so it can
+    be serialised to external data files for large models.
+    """
+
+    _pack_counter: int
+
+    def __init__(self):
+        super().__init__()
+        self._pack_counter = 0
+
+    # ------------------------------------------------------------------ pattern
+
+    def pattern(
+        self,
+        op,
+        hidden,
+        q_w,
+        k_w,
+        v_w,
+        past_key,
+        past_value,
+        seqlens_k,
+        total_seq_len,
+        cos_cache,
+        sin_cache,
+    ):
+        q = op.MatMul(hidden, q_w)
+        k = op.MatMul(hidden, k_w)
+        v = op.MatMul(hidden, v_w)
+
+        return op.GroupQueryAttention(
+            q,
+            k,
+            v,
+            past_key,
+            past_value,
+            seqlens_k,
+            total_seq_len,
+            cos_cache,
+            sin_cache,
+            _domain="com.microsoft",
+            _allow_other_attributes=True,
+            _outputs=["gqa_out", "present_key", "present_value"],
+        )
+
+    # ------------------------------------------------------------------ check
+
+    def check(self, context, gqa_out, **_):
+        result = MatchResult()
+
+        gqa_node = gqa_out.producer()
+        for i, name in enumerate(("q", "k", "v")):
+            proj = gqa_node.inputs[i].producer()
+            if proj is None:
+                return result.fail(f"{name} projection missing")
+            w_np, _ = _get_weight_tensor(proj)
+            if w_np is None:
+                return result.fail(f"{name} weight not constant")
+
+        return result
+
+    # ------------------------------------------------------------------ rewrite
+
+    def rewrite(
+        self,
+        op,
+        hidden,
+        past_key,
+        past_value,
+        seqlens_k,
+        total_seq_len,
+        cos_cache,
+        sin_cache,
+        gqa_out,
+        present_key,
+        present_value,
+        **_,
+    ):
+        gqa_node = gqa_out.producer()
+        graph = gqa_node.graph
+
+        # Extract weights, normalizing each to (out_features, hidden_size)
+        weights = []
+        for i in range(3):
+            proj = gqa_node.inputs[i].producer()
+            w_np, transposed = _get_weight_tensor(proj)
+            if not transposed:
+                w_np = w_np.T
+            weights.append(w_np)
+
+        # Concatenate along axis=0: all weights are (out, hidden)
+        w_qkv_np = np.concatenate(weights, axis=0)
+
+        # Store packed weight as a graph initializer
+        self._pack_counter += 1
+        w_name = f"packed_qkv_weight_{self._pack_counter}"
+        packed_w = ir.Value(
+            name=w_name,
+            const_value=ir.Tensor(w_qkv_np, name=w_name),
+        )
+        graph.register_initializer(packed_w)
+
+        # Transpose + MatMul for the packed projection
+        packed_w_t = op.Transpose(packed_w, perm=[1, 0])
+        packed_qkv = op.MatMul(hidden, packed_w_t)
+
+        # Forward all original GQA attributes
+        attrs = {key: gqa_node.attributes[key].value for key in gqa_node.attributes}
+
+        outputs = op.op_multi_out(
+            "GroupQueryAttention",
+            inputs=[
+                packed_qkv,
+                None,
+                None,
+                past_key,
+                past_value,
+                seqlens_k,
+                total_seq_len,
+                cos_cache,
+                sin_cache,
+            ],
+            domain="com.microsoft",
+            attributes=attrs,
+            num_outputs=3,
+        )
+
+        return outputs[0], outputs[1], outputs[2]
+
+
 def group_query_attention_rules() -> RewriteRuleSet:
     """Return rules that fuse RotaryEmbedding + Attention into GQA.
 
-    These rules match the RotaryEmbedding -> Attention pattern common
-    in decoder layers and replace it with the Microsoft
-    ``GroupQueryAttention`` custom op with ``do_rotary=1``.
+    The rule set contains two rules applied in order:
+
+    1. ``RotaryAttentionToGQA`` -- fuses RotaryEmbedding + Attention into
+       ``GroupQueryAttention`` with separate Q, K, V inputs.
+    2. ``PackQKVForGQA`` -- consolidates the three separate Q/K/V
+       projection MatMuls into a single packed MatMul when possible.
 
     Returns:
-        :class:`RewriteRuleSet` containing the RotaryEmbedding+Attention
-        fusion rule.
+        :class:`RewriteRuleSet` containing both rules.
     """
-    return RewriteRuleSet([RotaryAttentionToGQA().rule()])
+    return RewriteRuleSet(
+        [
+            RotaryAttentionToGQA().rule(),
+            PackQKVForGQA().rule(),
+        ]
+    )

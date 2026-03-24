@@ -88,8 +88,11 @@ def _apply_optimize(model: ir.Model, optimize: str | None) -> None:
 
     rule_map = {
         "bias_gelu": bias_gelu_rules,
-        "fused_matmul": fused_matmul_rules,
+        # group_query_attention (incl. QKV packing) must run before
+        # fused_matmul so that projections are still plain MatMul nodes
+        # when the packing pattern matches.
         "group_query_attention": group_query_attention_rules,
+        "fused_matmul": fused_matmul_rules,
         "packed_attention": packed_attention_rules,
         "skip_layer_norm": skip_layer_norm_rules,
         "skip_norm": skip_norm_rules,
