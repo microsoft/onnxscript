@@ -721,11 +721,12 @@ class OpBuilder:
         return self._version
 
     def _call_op(self, op_type: str, inputs: Sequence[Any], kwargs: dict[str, Any]):
-        if "_domain" not in kwargs:
-            kwargs["_domain"] = self._domain
-        if self._version is not None and "_version" not in kwargs:
-            kwargs["_version"] = self._version
-        return self._builder.call_op(op_type, inputs, kwargs)
+        domain = kwargs.pop("_domain", self._domain)
+        version = kwargs.pop("_version", self._version)
+        outputs = kwargs.pop("_outputs", 1)
+        return self._builder.call_op(
+            op_type, inputs, kwargs, domain=domain, version=version, outputs=outputs
+        )
 
     def __getattr__(self, op_type: str) -> Callable:
         return lambda *args, **kwargs: self._call_op(op_type, args, kwargs)

@@ -925,8 +925,8 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertEqual(len(nodes), 1)
         self.assertEqual(nodes[0].op_type, "add_mul")
 
-    def test_call_with_prefix_option(self):
-        """Test that GraphBuilder.call respects the _prefix option for hierarchical naming."""
+    def test_call_with_push_module_prefix(self):
+        """Test that GraphBuilder.call respects push_module for hierarchical naming."""
         op, x, y = _create_builder_with_inputs()
 
         @script(default_opset=op)
@@ -935,7 +935,9 @@ class GraphBuilderTest(unittest.TestCase):
             tmp = tmp + X
             return op.Relu(tmp)
 
-        result = op.call(mul_add_relu, x, y, _prefix="layer1")
+        op.builder.push_module("layer1")
+        result = op.call(mul_add_relu, x, y)
+        op.builder.pop_module()
 
         nodes = list(op.builder.graph)
         self.assertEqual(len(nodes), 1)
