@@ -511,13 +511,13 @@ class GraphBuilder:
         self,
         op_type: str,
         inputs: Sequence[ir.Value | ir.TensorProtocol],
-        kwargs: dict[str, Any],
+        kwargs: dict[str, ir.Value | ir.TensorProtocol],
+        /,
+        domain: str = "",
+        version: int | None = None,
+        outputs: int | Sequence[str | ir.Value] = 1,
     ):
         """Create an ONNX node and add it to the graph, returning its output value(s)."""
-        domain = kwargs.pop("_domain", "")
-        version = kwargs.pop("_version", None)
-        outputs = kwargs.pop("_outputs", 1)
-
         count = self.graph.num_nodes()
         node_name = self._qualify_node_name(f"{op_type}_node_{count}")
 
@@ -551,9 +551,46 @@ class GraphBuilder:
         self,
         function: ir.Function | onnxscript.OnnxFunction,
         *args,
+        _outputs: int | Sequence[str | ir.Value] | None = None,
+        **kwargs,
+    ):
+        """Call a function as a single function node."""
+        if isinstance(function, ir.Function):
+            graph = function.graph
+        elif isinstance(function, onnxscript.OnnxFunction):
+            graph = function.graph()
+            function = function.function_ir
+        else:
+            raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
+
+        if _outputs is None:
+            _outputs = len(graph.outputs)
+        output_values = self._adapt_outputs(_outputs, function.name)
+
+        node = ir.node(
+            op_type=function.name,
+            inputs=args,
+            attributes=kwargs or None,
+            outputs=output_values,
+            domain=function.domain,
+            name=self._qualify_node_name(function.name),
+        )
+        # Attach scope metadata to the node
+        node.metadata_props["namespace"] = self._build_namespace()
+        node.metadata_props["pkg.onnxscript.class_hierarchy"] = repr(self._scope_classes())
+        node.metadata_props["pkg.onnxscript.name_scopes"] = repr(self._scope_names())
+
+        self.add_node(node)
+        self._functions[function.identifier()] = function
+
+        return node.outputs if len(node.outputs) > 1 else node.outputs[0]
+
+    def call_inline(
+        self,
+        function: ir.Function | onnxscript.OnnxFunction,
+        *args,
         _outputs: Sequence[str] | None = None,
         _prefix: str = "",
-        _inline: bool = True,
         **kwargs,
     ):
         if isinstance(function, ir.Function):
@@ -575,35 +612,21 @@ class GraphBuilder:
         else:
             for output in graph.outputs:
                 output_renaming[output.name] = self._qualify_value_name(output.name)
+
+        nodes, outputs = _inliner.instantiate(graph, args, kwargs)
+
         if _prefix:
             self.push_module(_prefix)
 
-        if _inline:
-            nodes, outputs = _inliner.instantiate(graph, args, kwargs)
-
-            for node in nodes:
-                node.name = self._qualify_node_name(node.name)
-                for output in node.outputs:
-                    if output.name:
-                        if output.name in output_renaming:
-                            output.name = output_renaming[output.name]
-                        else:
-                            output.name = self._qualify_value_name(output.name)
-                self.add_node(node)
-        else:
-            node = ir.node(
-                op_type=function.name,
-                inputs=args,
-                attributes=kwargs or None,
-                outputs=[
-                    ir.Value(name=output_renaming[output.name]) for output in graph.outputs
-                ],
-                domain=function.domain,
-                name=self._qualify_node_name(function.name),
-            )
-            outputs = node.outputs
+        for node in nodes:
+            node.name = self._qualify_node_name(node.name)
+            for output in node.outputs:
+                if output.name:
+                    if output.name in output_renaming:
+                        output.name = output_renaming[output.name]
+                    else:
+                        output.name = self._qualify_value_name(output.name)
             self.add_node(node)
-            self._functions[function.identifier()] = function
 
         if _prefix:
             self.pop_module()
@@ -717,12 +740,31 @@ class OpBuilder:
         self,
         function,
         *args,
-        _outputs: Sequence[str] | None = None,
-        _prefix: str = "",
-        _inline: bool = True,
+        _outputs: Sequence[str] | int | None = None,
         **kwargs,
     ):
-        """Call a function and optionally inline it into the graph.
+        """Call a function as a single function node.
+
+        Args:
+            function: The function to call (ir.Function or onnxscript.OnnxFunction).
+            *args: Positional arguments to pass to the function.
+            _outputs: Optional sequence of output names, or an integer specifying the number of outputs.
+            **kwargs: Keyword arguments to pass to the function.
+
+        Returns:
+            The output value(s) from the function call.
+        """
+        return self._builder.call(function, *args, _outputs=_outputs, **kwargs)
+
+    def call_inline(
+        self,
+        function,
+        *args,
+        _outputs: Sequence[str] | None = None,
+        _prefix: str = "",
+        **kwargs,
+    ):
+        """Inline a function body into the current graph.
 
         Args:
             function: The function to call (ir.Function or onnxscript.OnnxFunction).
@@ -730,14 +772,11 @@ class OpBuilder:
             _outputs: Optional sequence of output names. If provided, must match the
                 number of function outputs.
             _prefix: Optional prefix for module scoping (e.g., "layers.0").
-            _inline: If True, the function body is inlined into the caller graph instead of being
-                called as a separate node. When False, the function will be added
-                to the ``.functions`` dictionary. Defaults to True.
             **kwargs: Keyword arguments to pass to the function.
 
         Returns:
-            The output value(s) from the function call.
+            The output value(s) from the inlined function body.
         """
-        return self._builder.call(
-            function, *args, _outputs=_outputs, _prefix=_prefix, _inline=_inline, **kwargs
+        return self._builder.call_inline(
+            function, *args, _outputs=_outputs, _prefix=_prefix, **kwargs
         )
