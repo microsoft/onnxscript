@@ -507,6 +507,27 @@ class TestRenderMarkdown:
         # No details sections
         assert "<details>" not in md
 
+    def test_commit_shas_displayed(self) -> None:
+        """Passing base_ref and head_ref shows comparison line without links."""
+        md = render_markdown({}, base_ref="abc1234", head_ref="def5678")
+        assert "Comparing `abc1234` → `def5678`" in md
+
+    def test_commit_shas_as_links_when_repo_url_provided(self) -> None:
+        """Passing repo_url renders SHAs as clickable GitHub links."""
+        md = render_markdown(
+            {},
+            base_ref="abc1234",
+            head_ref="def5678",
+            repo_url="https://github.com/onnxruntime/mobius",
+        )
+        assert "[`abc1234`](https://github.com/onnxruntime/mobius/commit/abc1234)" in md
+        assert "[`def5678`](https://github.com/onnxruntime/mobius/commit/def5678)" in md
+
+    def test_commit_shas_omitted_when_not_provided(self) -> None:
+        """Without refs, no comparison line appears."""
+        md = render_markdown({})
+        assert "Comparing" not in md
+
     def test_multiple_models(self) -> None:
         """Multiple model types are each rendered in the summary table."""
         diffs = {

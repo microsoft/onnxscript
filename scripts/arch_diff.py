@@ -31,6 +31,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 sys.path.insert(0, str(_PROJECT_ROOT / "tests"))
 
+_GITHUB_REPO_URL = "https://github.com/onnxruntime/mobius"
+
 
 # ------------------------------------------------------------------
 # Model build configs — mirrors the benchmark / test infrastructure
@@ -220,6 +222,22 @@ def _display_key(model_type: str, task_name: str) -> str:
 # ------------------------------------------------------------------
 # Detect affected model types from git diff
 # ------------------------------------------------------------------
+
+
+def _resolve_sha(ref: str) -> str:
+    """Return the short SHA for *ref*, or *ref* itself if resolution fails.
+
+    Falls back to the raw string on shallow clones, typos, or other git errors
+    so the rest of the script can continue rather than crashing.
+    """
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", ref],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except subprocess.CalledProcessError:
+        return ref
 
 
 def _changed_files(base_ref: str, head_ref: str) -> list[str]:
@@ -572,6 +590,10 @@ def main() -> None:
         render_markdown,
     )
 
+    # Resolve refs to short SHAs for display in the markdown output
+    base_sha = _resolve_sha(args.base_ref)
+    head_sha = _resolve_sha(args.head_ref)
+
     # 1. Detect affected models
     if args.all:
         affected = {m[0] for m in _DIFF_MODELS}
@@ -581,7 +603,9 @@ def main() -> None:
         if not affected:
             print("No model source files changed — nothing to diff.")
             # Write a minimal report
-            md = render_markdown({})
+            md = render_markdown(
+                {}, base_ref=base_sha, head_ref=head_sha, repo_url=_GITHUB_REPO_URL
+            )
             Path(args.output).write_text(md, encoding="utf-8")
             return
 
@@ -645,7 +669,9 @@ def main() -> None:
         all_diffs[display] = sub_models
 
     # 3. Render and write
-    md = render_markdown(all_diffs)
+    md = render_markdown(
+        all_diffs, base_ref=base_sha, head_ref=head_sha, repo_url=_GITHUB_REPO_URL
+    )
     Path(args.output).write_text(md, encoding="utf-8")
     print(f"Wrote {args.output}")
 

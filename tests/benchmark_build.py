@@ -150,6 +150,41 @@ BENCHMARK_MODELS: list[_BenchEntry] = [
     ),
     _BenchEntry("whisper", {}, "speech-to-text", "custom"),
     _BenchEntry("mamba", {}, "ssm-text-generation", "custom"),
+    _BenchEntry(
+        "qwen3_5_text",
+        {
+            "partial_rotary_factor": 0.5,
+            "layer_types": ["linear_attention", "full_attention"],
+            "linear_num_value_heads": 4,
+            "linear_num_key_heads": 2,
+            "linear_key_head_dim": 16,
+            "linear_value_head_dim": 16,
+            "linear_conv_kernel_dim": 4,
+        },
+        "hybrid-text-generation",
+        "standard",
+    ),
+    _BenchEntry(
+        "qwen3_5_moe",
+        {
+            "hidden_act": "silu",
+            "layer_types": ["linear_attention", "full_attention"],
+            "partial_rotary_factor": 0.25,
+            "mrope_interleaved": True,
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "moe_intermediate_size": 32,
+            "shared_expert_intermediate_size": 32,
+            "linear_num_value_heads": 4,
+            "linear_num_key_heads": 2,
+            "linear_key_head_dim": 16,
+            "linear_value_head_dim": 16,
+            "linear_conv_kernel_dim": 4,
+        },
+        "hybrid-text-generation",
+        "standard",
+    ),
+    _BenchEntry("qwen3_5_vl", {}, "hybrid-qwen-vl", "custom"),
 ]
 
 
@@ -336,12 +371,72 @@ def _build_mamba() -> _BuildResult:
     )
 
 
+def _build_qwen3_5_vl() -> _BuildResult:
+    """Build Qwen3.5-VL using its VisionConfig and hybrid task."""
+    from mobius._configs import VisionConfig
+    from mobius._registry import registry
+    from mobius.tasks import get_task
+
+    config = _base_config(
+        attn_qk_norm=True,
+        partial_rotary_factor=0.5,
+        layer_types=["linear_attention", "full_attention"],
+        linear_num_value_heads=4,
+        linear_num_key_heads=2,
+        linear_key_head_dim=16,
+        linear_value_head_dim=16,
+        linear_conv_kernel_dim=4,
+        vision=VisionConfig(
+            hidden_size=32,
+            intermediate_size=64,
+            num_hidden_layers=2,
+            num_attention_heads=4,
+            patch_size=16,
+            in_channels=3,
+            out_hidden_size=64,
+            num_position_embeddings=16,
+        ),
+        temporal_patch_size=2,
+        spatial_merge_size=2,
+        deepstack_visual_indexes=[0],
+        image_token_id=248056,
+        mrope_section=[8, 12, 12],
+    )
+    model_cls = registry.get("qwen3_5_vl")
+    module = model_cls(config)
+    task = get_task("hybrid-qwen-vl")
+
+    tracemalloc.start()
+    t0 = time.perf_counter()
+    pkg = task.build(module, config)
+    elapsed = time.perf_counter() - t0
+    _current, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    total_nodes = 0
+    for model in pkg.values():
+        total_nodes += len(list(model.graph))
+
+    model_size = _measure_model_size(pkg)
+
+    return _BuildResult(
+        model_type="qwen3_5_vl",
+        elapsed_s=elapsed,
+        num_nodes=total_nodes,
+        num_models=len(pkg),
+        peak_memory_mb=peak / 1024 / 1024,
+        model_size_bytes=model_size,
+    )
+
+
 def _run_single(entry: _BenchEntry) -> _BuildResult:
     """Dispatch to the right build function."""
     if entry.model_type == "whisper":
         return _build_whisper()
     if entry.model_type == "mamba":
         return _build_mamba()
+    if entry.model_type == "qwen3_5_vl":
+        return _build_qwen3_5_vl()
     return _build_standard(entry)
 
 

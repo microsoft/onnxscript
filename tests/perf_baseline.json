@@ -68,6 +68,21 @@
       "num_nodes": 109,
       "num_models": 1,
       "model_size_bytes": 368440
+    },
+    "qwen3_5_text (hybrid-text-generation)": {
+      "num_nodes": 148,
+      "num_models": 1,
+      "model_size_bytes": 468588
+    },
+    "qwen3_5_moe (hybrid-text-generation)": {
+      "num_nodes": 294,
+      "num_models": 1,
+      "model_size_bytes": 518252
+    },
+    "qwen3_5_vl (hybrid-qwen-vl)": {
+      "num_nodes": 428,
+      "num_models": 3,
+      "model_size_bytes": 1000924
     }
   }
 }

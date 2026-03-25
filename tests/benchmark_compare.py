@@ -29,6 +29,8 @@ THRESHOLDS: dict[str, tuple[float, float]] = {
     "num_nodes": (0.05, 0.10),
 }
 
+_GITHUB_REPO_URL = "https://github.com/onnxruntime/mobius"
+
 
 def compare(current_path: str, baseline_path: str) -> tuple[str, bool]:
     """Compare current vs baseline. Returns (markdown, has_blocker)."""
@@ -39,6 +41,9 @@ def compare(current_path: str, baseline_path: str) -> tuple[str, bool]:
 
     rows: list[tuple[str, str, str, str, str, str]] = []
     has_blocker = False
+
+    base_sha = baseline.get("_metadata", {}).get("commit", "unknown")
+    head_sha = current.get("_metadata", {}).get("commit", "unknown")
 
     for model, metrics in sorted(current["models"].items()):
         base = baseline.get("models", {}).get(model, {})
@@ -69,7 +74,11 @@ def compare(current_path: str, baseline_path: str) -> tuple[str, bool]:
                 )
             )
 
+    def _sha_link(sha: str) -> str:
+        return f"[`{sha}`]({_GITHUB_REPO_URL}/commit/{sha})"
+
     md = "## Performance Comparison\n\n"
+    md += f"Comparing {_sha_link(base_sha)} → {_sha_link(head_sha)}\n\n"
     md += "| Model | Metric | Baseline | Current | Delta | |\n"
     md += "|---|---|---:|---:|---:|---|\n"
     for model, metric, base_s, curr_s, delta_s, status in rows:
