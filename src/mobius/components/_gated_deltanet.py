@@ -214,23 +214,23 @@ class GatedDeltaNet(nn.Module):
         # === L2 normalize Q and K ===
         query = _l2_normalize(op, query)
         key = _l2_normalize(op, key)
-        scale = op.CastLike(
-            op.Constant(value_float=1.0 / (self.head_k_dim**0.5)),
-            query,
-        )
-        query = op.Mul(query, scale)
 
         # === Compute gating parameters ===
         # beta: (B, S, num_v_heads)
         beta = op.Sigmoid(b)
-        # decay: (B, S, num_v_heads)
-        a_plus_dt = op.Add(a, self.dt_bias)
-        softplus_val = op.Softplus(a_plus_dt)
-        neg_a = op.Neg(op.Exp(op.Cast(self.A_log, to=1)))
-        g = op.Mul(neg_a, softplus_val)
+        # Compute decay in float32 for numerical stability — mirrors HF:
+        #   g = -self.A_log.float().exp() * F.softplus(a.float() + self.dt_bias)
+        # Without .float(), exp() on fp16 A_log can produce -inf.
+        a_f32 = op.Cast(a, to=ir.DataType.FLOAT)
+        dt_bias_f32 = op.Cast(self.dt_bias, to=ir.DataType.FLOAT)
+        a_log_f32 = op.Cast(self.A_log, to=ir.DataType.FLOAT)
+        softplus_val = op.Softplus(op.Add(a_f32, dt_bias_f32))
+        neg_a = op.Neg(op.Exp(a_log_f32))
+        g = op.Mul(neg_a, softplus_val)  # (B, S, num_v_heads), float32
 
         # === LinearAttention ===
-        # Transpose from (B, S, H, D) to (B, H, S, D)
+        # The LinearAttention function handles float32 casting internally.
+        # Transpose from (B, S, H, D) to (B, H, S, D).
         # Q/K keep native num_k_heads; V uses num_v_heads.
         # GQA expansion happens inside the function.
         query_bhsd = op.Transpose(query, perm=[0, 2, 1, 3])
@@ -239,16 +239,17 @@ class GatedDeltaNet(nn.Module):
 
         # beta/decay: (B, S, H) -> (B, H, S)
         beta_bhs = op.Transpose(beta, perm=[0, 2, 1])
-        g_bhs = op.Transpose(g, perm=[0, 2, 1])
+        g_bhs = op.Transpose(g, perm=[0, 2, 1])  # float32 from decay computation
 
         output_4d, new_recurrent_state = op.LinearAttention(
             query_bhsd,  # (B, H_kv, S, d_k)
             key_bhsd,  # (B, H_kv, S, d_k)
             value_bhsd,  # (B, H, S, d_v)
             recurrent_state,  # (B, H, d_k, d_v)
-            g_bhs,  # (B, H, S) — decay in log-space
+            g_bhs,  # (B, H, S) — decay in log-space, float32
             beta_bhs,  # (B, H, S) — update rate
             update_rule="gated_delta",
+            scale=1.0 / (self.head_k_dim**0.5),
             _domain="com.microsoft",
             _outputs=2,
         )

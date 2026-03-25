@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 
+import ml_dtypes
 import numpy as np
 import transformers
 
@@ -52,13 +53,15 @@ MODEL_ID = "Qwen/Qwen3.5-0.8B"
 DEFAULT_PROMPT = "The capital of France is"
 MAX_NEW_TOKENS = 32
 
+DTYPE_MAP = {"f16": np.float16, "f32": np.float32, "bf16": ml_dtypes.bfloat16}
+
 
 # ---------------------------------------------------------------------------
 # Hybrid state initialization
 # ---------------------------------------------------------------------------
 
 
-def init_hybrid_states(config) -> dict[str, np.ndarray]:
+def init_hybrid_states(config, dtype: np.dtype = np.float32) -> dict[str, np.ndarray]:
     """Initialize per-layer states for the hybrid architecture.
 
     Full-attention layers get empty KV caches (past_seq_len=0).
@@ -85,21 +88,21 @@ def init_hybrid_states(config) -> dict[str, np.ndarray]:
         if ltype == "linear_attention":
             # DeltaNet: fixed-size conv_state and recurrent_state
             states[f"past_key_values.{i}.conv_state"] = np.zeros(
-                (batch_size, conv_dim, conv_kernel - 1), dtype=np.float32
+                (batch_size, conv_dim, conv_kernel - 1), dtype=dtype
             )
             states[f"past_key_values.{i}.recurrent_state"] = np.zeros(
                 (batch_size, num_v_heads, head_k_dim, head_v_dim),
-                dtype=np.float32,
+                dtype=dtype,
             )
         else:
             # Full attention: empty KV cache (grows with each step)
             states[f"past_key_values.{i}.key"] = np.zeros(
                 (batch_size, config.num_key_value_heads, 0, config.head_dim),
-                dtype=np.float32,
+                dtype=dtype,
             )
             states[f"past_key_values.{i}.value"] = np.zeros(
                 (batch_size, config.num_key_value_heads, 0, config.head_dim),
-                dtype=np.float32,
+                dtype=dtype,
             )
 
     return states
@@ -140,6 +143,7 @@ def generate(
     prompt: str,
     config,
     *,
+    dtype: np.dtype = np.float32,
     max_new_tokens: int = MAX_NEW_TOKENS,
 ) -> str:
     """Greedy autoregressive generation with the hybrid architecture.
@@ -155,7 +159,7 @@ def generate(
     batch_size = 1
     prompt_len = input_ids.shape[1]
 
-    states = init_hybrid_states(config)
+    states = init_hybrid_states(config, dtype=dtype)
     past_seq_len = 0
     generated_ids: list[int] = []
 
@@ -283,6 +287,7 @@ def generate_with_image(
     image_path: str,
     config,
     *,
+    dtype: np.dtype = np.float32,
     max_new_tokens: int = MAX_NEW_TOKENS,
 ) -> str:
     """Greedy generation with the 3-model VL pipeline.
@@ -316,7 +321,7 @@ def generate_with_image(
     inputs = processor(text=[text], images=[image], return_tensors="pt")
 
     input_ids = inputs["input_ids"].numpy().astype(np.int64)
-    pixel_values = inputs["pixel_values"].numpy().astype(np.float32)
+    pixel_values = inputs["pixel_values"].numpy().astype(dtype)
     image_grid_thw = inputs["image_grid_thw"].numpy().astype(np.int64)
     batch_size = 1
 
@@ -350,7 +355,7 @@ def generate_with_image(
 
     # Step 4: Decoder prefill — process one token at a time
     # (DeltaNet layers only support seq_len=1)
-    states = init_hybrid_states(config)
+    states = init_hybrid_states(config, dtype=dtype)
     seq_len = inputs_embeds.shape[1]
     past_seq_len = 0
 
@@ -392,7 +397,7 @@ def generate_with_image(
         embed_out = embed_session.run(
             {
                 "input_ids": cur_input_ids,
-                "image_features": np.zeros((0, image_features.shape[-1]), dtype=np.float32),
+                "image_features": np.zeros((0, image_features.shape[-1]), dtype=dtype),
             }
         )
         cur_embeds = embed_out["inputs_embeds"]
@@ -440,8 +445,17 @@ def generate_hf(
     import torch
 
     print(f"[HF] Loading {model_id} ...")
+    hf_config = transformers.AutoConfig.from_pretrained(model_id)
+
+    # transformers ≥5.x uses a composite config for Qwen3.5 where
+    # vocab_size lives under text_config. Pass text_config so the
+    # modeling code can find it.
+    if hasattr(hf_config, "text_config"):
+        hf_config = hf_config.text_config
+
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_id,
+        config=hf_config,
         dtype=torch.float32,
     ).to(device)
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_id)
@@ -559,7 +573,7 @@ def main():
     parser.add_argument(
         "--dtype",
         default="f32",
-        choices=["f16", "f32"],
+        choices=["f16", "bf16", "f32"],
         help="Precision type for the ONNX model (default: %(default)s).",
     )
     parser.add_argument(
@@ -605,6 +619,7 @@ def main():
             prompt,
             args.image,
             config,
+            dtype=DTYPE_MAP[args.dtype],
             max_new_tokens=args.max_new_tokens,
         )
         print("-" * 40)
@@ -658,6 +673,7 @@ def main():
             tokenizer,
             prompt,
             config,
+            dtype=DTYPE_MAP[args.dtype],
             max_new_tokens=args.max_new_tokens,
         )
         print("-" * 40)

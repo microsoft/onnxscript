@@ -385,6 +385,7 @@ def _register_linear_attention_functions(
         num_k_heads=dims.num_k_heads,
         num_v_heads=dims.num_v_heads,
         update_rule="gated_delta",
+        scale=1.0 / (dims.head_k_dim**0.5),
     )
 
     model.functions[conv_func.identifier()] = conv_func
