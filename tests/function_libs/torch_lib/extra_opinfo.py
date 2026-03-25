@@ -44,6 +44,7 @@ def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
         # Test without bias
         yield opinfo_core.SampleInput(self_t, args=(mat2_t,))
 
+
 def _mock_grouped_mm(self, mat2, offs=None, bias=None, out_dtype=None):
     res = torch.matmul(self, mat2)
     if bias is not None:
