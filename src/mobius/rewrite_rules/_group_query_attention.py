@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import numpy as np
 import onnx_ir as ir
-from onnxscript.rewriter._basics import MatchResult
+from onnxscript.rewriter._basics import MatchFailureError, MatchResult
 from onnxscript.rewriter._rewrite_rule import (
     RewriteRuleClassBase,
     RewriteRuleSet,
@@ -224,34 +224,33 @@ class RotaryAttentionToGQA(RewriteRuleClassBase):
 # ====================================================================
 
 
-def _get_weight_tensor(proj_node):
-    """Extract the constant weight tensor from a MatMul projection node.
+def _get_weight_tensor(weight: ir.Value) -> np.ndarray:
+    """Return a weight as a numpy array with shape ``(out_features, hidden_size)``.
 
     Handles two patterns:
 
-    1. ``Transpose(weight, perm=[1,0]) → MatMul(x, w_t)``
-       — weight shape is ``(out_features, hidden_size)``, transposed=True
-    2. ``MatMul(x, weight)``  (no transpose)
-       — weight shape is ``(hidden_size, out_features)``, transposed=False
+    1. ``Transpose(constant, perm=[1,0])`` — the constant already has
+       shape ``(out_features, hidden_size)``, returned as-is.
+    2. Plain constant — shape ``(hidden_size, out_features)``, transposed
+       before returning.
 
-    Returns:
-        ``(numpy_array, is_transposed)`` on success, or ``(None, False)``
-        if the weight cannot be extracted as a constant.
+    Raises:
+        ``MatchFailureError`` if *weight* is not a constant (possibly
+        behind a Transpose).
     """
-    weight_input = proj_node.inputs[1]
-    producer = weight_input.producer()
+    producer = weight.producer()
     if producer is not None and producer.op_type == "Transpose":
         perm = producer.attributes.get("perm", None)
         if perm is not None and list(perm.value) == [1, 0]:
             tensor = ir.convenience.get_const_tensor(producer.inputs[0])
-            if tensor is None:
-                return None, False
-            return tensor.numpy(), True
+            if tensor is not None:
+                return tensor.numpy()
 
-    tensor = ir.convenience.get_const_tensor(weight_input)
-    if tensor is None:
-        return None, False
-    return tensor.numpy(), False
+    tensor = ir.convenience.get_const_tensor(weight)
+    if tensor is not None:
+        return tensor.numpy().T
+
+    raise MatchFailureError(f"weight {weight.name} is not a constant")
 
 
 class PackQKVForGQA(RewriteRuleClassBase):
@@ -289,27 +288,16 @@ class PackQKVForGQA(RewriteRuleClassBase):
     """
 
     _pack_counter: int
+    _qkv_wt_transposed: np.ndarray | None
 
     def __init__(self):
         super().__init__()
         self._pack_counter = 0
+        self._qkv_wt_transposed = None
 
     # ------------------------------------------------------------------ pattern
 
-    def pattern(
-        self,
-        op,
-        hidden,
-        q_w,
-        k_w,
-        v_w,
-        past_key,
-        past_value,
-        seqlens_k,
-        total_seq_len,
-        cos_cache,
-        sin_cache,
-    ):
+    def pattern(self, op, hidden, q_w, k_w, v_w):
         q = op.MatMul(hidden, q_w)
         k = op.MatMul(hidden, k_w)
         v = op.MatMul(hidden, v_w)
@@ -318,32 +306,24 @@ class PackQKVForGQA(RewriteRuleClassBase):
             q,
             k,
             v,
-            past_key,
-            past_value,
-            seqlens_k,
-            total_seq_len,
-            cos_cache,
-            sin_cache,
             _domain="com.microsoft",
             _allow_other_attributes=True,
+            _allow_other_inputs=True,
             _outputs=["gqa_out", "present_key", "present_value"],
         )
 
     # ------------------------------------------------------------------ check
 
-    def check(self, context, gqa_out, **_):
-        result = MatchResult()
+    def check(self, context, q_w, k_w, v_w, **_):
+        # Extract weights normalized to (out_features, hidden_size).
+        # Raises MatchFailureError if any weight is not a constant.
+        q_np = _get_weight_tensor(q_w)
+        k_np = _get_weight_tensor(k_w)
+        v_np = _get_weight_tensor(v_w)
 
-        gqa_node = gqa_out.producer()
-        for i, name in enumerate(("q", "k", "v")):
-            proj = gqa_node.inputs[i].producer()
-            if proj is None:
-                return result.fail(f"{name} projection missing")
-            w_np, _ = _get_weight_tensor(proj)
-            if w_np is None:
-                return result.fail(f"{name} weight not constant")
-
-        return result
+        # Concatenate along axis=0: all weights are (out, hidden)
+        self._qkv_wt_transposed = np.concatenate([q_np, k_np, v_np], axis=0)
+        return True
 
     # ------------------------------------------------------------------ rewrite
 
@@ -351,46 +331,23 @@ class PackQKVForGQA(RewriteRuleClassBase):
         self,
         op,
         hidden,
-        past_key,
-        past_value,
-        seqlens_k,
-        total_seq_len,
-        cos_cache,
-        sin_cache,
         gqa_out,
         present_key,
         present_value,
         **_,
     ):
-        gqa_node = gqa_out.producer()
-        graph = gqa_node.graph
-
-        # Extract weights, normalizing each to (out_features, hidden_size)
-        weights = []
-        for i in range(3):
-            proj = gqa_node.inputs[i].producer()
-            w_np, transposed = _get_weight_tensor(proj)
-            if not transposed:
-                w_np = w_np.T
-            weights.append(w_np)
-
-        # Concatenate along axis=0: all weights are (out, hidden)
-        w_qkv_np = np.concatenate(weights, axis=0)
-
         # Store packed weight as a graph initializer
         self._pack_counter += 1
         w_name = f"packed_qkv_weight_{self._pack_counter}"
-        packed_w = ir.Value(
-            name=w_name,
-            const_value=ir.Tensor(w_qkv_np, name=w_name),
-        )
-        graph.register_initializer(packed_w)
+        packed_w = op.initializer(ir.Tensor(self._qkv_wt_transposed, name=w_name), name=w_name)
+        self._qkv_wt_transposed = None
 
         # Transpose + MatMul for the packed projection
         packed_w_t = op.Transpose(packed_w, perm=[1, 0])
         packed_qkv = op.MatMul(hidden, packed_w_t)
 
-        # Forward all original GQA attributes
+        # Recover remaining GQA inputs and attributes from the matched node
+        gqa_node = gqa_out.producer()
         attrs = {key: gqa_node.attributes[key].value for key in gqa_node.attributes}
 
         outputs = op.op_multi_out(
@@ -399,12 +356,7 @@ class PackQKVForGQA(RewriteRuleClassBase):
                 packed_qkv,
                 None,
                 None,
-                past_key,
-                past_value,
-                seqlens_k,
-                total_seq_len,
-                cos_cache,
-                sin_cache,
+                *gqa_node.inputs[3:],
             ],
             domain="com.microsoft",
             attributes=attrs,
