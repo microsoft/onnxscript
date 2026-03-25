@@ -322,8 +322,7 @@ class RewriteFailureConventionsTest(unittest.TestCase):
 
         # Use a non-self-referential pattern to avoid infinite rewrite loops
         def add_zero_pattern(op, x):
-            zero = pattern.Constant(0.0)
-            return op.Add(x, zero)
+            return op.Add(x, 0.0)
 
         def identity_replacement(op, x):
             return op.Identity(x)

@@ -223,8 +223,9 @@ class ReplacementPatternFunction:
             match.fail(e.reason, list(e.failure_sources))
             return None
         # Support the same failure conventions as check functions for uniformity:
-        # - None or False: simple failure indicator (deprecated for False, but supported)
-        # - Falsy MatchResult: failure with reason/source info
+        # - None or False: indicates failure without a reason (not recommended)
+        # - Falsy MatchResult: failure with reason/source info (recommended)
+        # - MatchFailureError exception: failure with reason/source info (recommended)
         if new_outputs is None or new_outputs is False:
             return None
         if isinstance(new_outputs, _basics.MatchResult):
