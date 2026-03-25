@@ -6,6 +6,7 @@ import unittest
 
 from onnxscript import ir
 from onnxscript.rewriter import pattern
+from onnxscript.rewriter._basics import MatchFailureError
 
 
 class PatternTest(unittest.TestCase):
@@ -247,6 +248,99 @@ class RewriteRuleInheritanceTest(unittest.TestCase):
 
         self.assertIsInstance(rule, pattern.RewriteRule)
         self.assertEqual(rule.name, "SimpleIdentityRule")
+
+
+class RewriteFailureConventionsTest(unittest.TestCase):
+    """Test that rewrite functions support the same failure conventions as check functions.
+
+    The check side supports three failure conventions:
+    - Return a falsy MatchResult (via .fail())
+    - Raise MatchFailureError
+    - Return None or False
+
+    The rewrite side should support all three as well, for uniformity.
+    """
+
+    _IDENTITY_MODEL_TEXT = """
+        <ir_version: 7, opset_import: [ "" : 17]>
+        agraph (float[N] x) => (float[N] z)
+        {
+            z = Identity(x)
+        }
+    """
+
+    def _apply_rewrite_rule(self, rewrite_fn):
+        """Helper that builds a RewriteRule with the given rewrite function and applies it."""
+
+        def identity_pattern(op, x):
+            return op.Identity(x)
+
+        rule = pattern.RewriteRule(identity_pattern, rewrite_fn, name="TestRule")
+        model = ir.from_onnx_text(self._IDENTITY_MODEL_TEXT)
+        count = rule.apply_to_model(model)
+        return count
+
+    def test_rewrite_returning_none_is_treated_as_failure(self):
+        """Returning None from rewrite indicates failure (no replacement made)."""
+
+        def rewrite_returns_none(op, x):
+            return None
+
+        count = self._apply_rewrite_rule(rewrite_returns_none)
+        self.assertEqual(count, 0)
+
+    def test_rewrite_returning_false_is_treated_as_failure(self):
+        """Returning False from rewrite indicates failure (deprecated but supported)."""
+
+        def rewrite_returns_false(op, x):
+            return False
+
+        count = self._apply_rewrite_rule(rewrite_returns_false)
+        self.assertEqual(count, 0)
+
+    def test_rewrite_raising_match_failure_error_is_treated_as_failure(self):
+        """Raising MatchFailureError from rewrite indicates failure."""
+
+        def rewrite_raises_error(op, x):
+            raise MatchFailureError("Cannot rewrite this node")
+
+        count = self._apply_rewrite_rule(rewrite_raises_error)
+        self.assertEqual(count, 0)
+
+    def test_rewrite_returning_falsy_match_result_is_treated_as_failure(self):
+        """Returning a falsy MatchResult from rewrite indicates failure."""
+
+        def rewrite_returns_failed_match_result(op, x):
+            result = pattern.MatchResult()
+            return result.fail("Rewrite not applicable")
+
+        count = self._apply_rewrite_rule(rewrite_returns_failed_match_result)
+        self.assertEqual(count, 0)
+
+    def test_rewrite_returning_ir_value_succeeds(self):
+        """Returning an ir.Value from rewrite is success (the normal case)."""
+
+        # Use a non-self-referential pattern to avoid infinite rewrite loops
+        def add_zero_pattern(op, x):
+            zero = pattern.Constant(0.0)
+            return op.Add(x, zero)
+
+        def identity_replacement(op, x):
+            return op.Identity(x)
+
+        rule = pattern.RewriteRule(add_zero_pattern, identity_replacement, name="TestRule")
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[N] z)
+            {
+                c0 = Constant<value_float = 0.0>()
+                z = Add(x, c0)
+            }
+            """
+        )
+        count = rule.apply_to_model(model)
+        self.assertGreaterEqual(count, 1)
 
 
 if __name__ == "__main__":
