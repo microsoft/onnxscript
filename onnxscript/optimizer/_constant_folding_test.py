@@ -689,6 +689,36 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
             np.ones((42, 42), dtype=np.int64),
         )
 
+    def test_quantize_linear_is_not_folded(self):
+        model_text = """
+            <ir_version: 10, opset_import: [ "" : 20]>
+            agraph () => (uint8[4] z)
+            <float[4] x = {1.0, 2.0, 3.0, 4.0}, float[1] scale = {1.0}, uint8[1] zero_point = {0}>
+            {
+                z = QuantizeLinear (x, scale, zero_point)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        optimized = self._fold(model)
+        ops = [node.op_type for node in optimized.graph]
+        # QuantizeLinear should not be folded even when all inputs are constants
+        self.assertEqual(ops, ["QuantizeLinear"])
+
+    def test_dequantize_linear_is_not_folded(self):
+        model_text = """
+            <ir_version: 10, opset_import: [ "" : 20]>
+            agraph () => (float[4] z)
+            <uint8[4] x = {1, 2, 3, 4}, float[1] scale = {1.0}, uint8[1] zero_point = {0}>
+            {
+                z = DequantizeLinear (x, scale, zero_point)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        optimized = self._fold(model)
+        ops = [node.op_type for node in optimized.graph]
+        # DequantizeLinear should not be folded even when all inputs are constants
+        self.assertEqual(ops, ["DequantizeLinear"])
+
     def test_multi_graph_identity_output_preserves_output_name(self):
         model = """
             <ir_version: 10, opset_import: ["" : 20]>
