@@ -13,11 +13,12 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 dependencies = [
-    "onnxscript>=0.6.0.dev",
-    "onnx_ir>=0.1.0",
-    "numpy>=1.24.0",
-    "torch>=2.1.0",
     "huggingface_hub",
+    "numpy>=1.24.0",
+    "onnx_ir>=0.1.0",
+    "onnx-shape-inference>=0.1.7",
+    "onnxscript>=0.6.0.dev",
+    "torch>=2.1.0",
     "tqdm",
 ]
 

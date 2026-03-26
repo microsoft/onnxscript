@@ -23,6 +23,8 @@ __all__ = [
 import logging
 
 import onnx_ir as ir
+import onnx_shape_inference
+import onnxscript.optimizer._constant_folding  # TODO(justinchuby): Expose the FoldConstantsPass from onnxscript
 import torch
 from onnx_ir import tensor_adapters
 from onnx_ir.passes import common as common_passes
@@ -43,13 +45,47 @@ logger = logging.getLogger(__name__)
 # Public build API
 # ---------------------------------------------------------------------------
 
+
+class SymbolicShapeInferencePass(ir.passes.InPlacePass):
+    """ONNX IR pass that applies symbolic shape inference to all nodes."""
+
+    def __init__(self, policy: onnx_shape_inference.ShapeMergePolicy = "refine"):
+        super().__init__()
+        self.policy = policy
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        onnx_shape_inference.infer_symbolic_shapes(model, policy=self.policy)
+        return ir.passes.PassResult(model, modified=True)
+
+
+class CleanupMetadataPass(ir.passes.InPlacePass):
+    """ONNX IR pass that removes redundant metadata from all nodes."""
+
+    def __init__(self):
+        self.keys_to_remove = ["pkg.onnxscript.shape_inference_error"]
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        modified = False
+        for node in model.graph.all_nodes():
+            for key in self.keys_to_remove:
+                if key in node.metadata_props:
+                    modified = True
+                    del node.metadata_props[key]
+        return ir.passes.PassResult(model, modified=modified)
+
+
 _DEFAULT_PASSES = [
     common_passes.IdentityEliminationPass(),
     common_passes.LiftConstantsToInitializersPass(),
-    # common_passes.DeduplicateInitializersPass(),
+    common_passes.DeduplicateInitializersPass(),
     common_passes.CommonSubexpressionEliminationPass(),
     common_passes.RemoveUnusedNodesPass(),
     common_passes.RemoveUnusedOpsetsPass(),
+    SymbolicShapeInferencePass(),
+    onnxscript.optimizer._constant_folding.FoldConstantsPass(
+        shape_inference=False, input_size_limit=8192, output_size_limit=512 * 512
+    ),
+    CleanupMetadataPass(),
 ]
 
 
