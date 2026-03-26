@@ -17,13 +17,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: gpu-tests
+  group: gpu-tests-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   golden-tests:
     name: L4/L5 Golden Tests
-    runs-on: gpu
+    runs-on:
+      - self-hosted
+      - "1ES.Pool=onnxruntime-github-linux-a10"
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6

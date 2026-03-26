@@ -32,7 +32,7 @@ concurrency:
 jobs:
   regenerate:
     name: Regenerate Golden Files
-    runs-on: ${{ inputs.device == 'cuda' && 'gpu' || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.device == 'cuda' && fromJSON('["self-hosted", "1ES.Pool=onnxruntime-github-linux-a10"]') || 'ubuntu-latest' }}
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
