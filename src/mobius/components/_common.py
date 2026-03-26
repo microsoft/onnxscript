@@ -167,3 +167,50 @@ def create_attention_bias(
 
     # Unsqueeze to (batch_size, 1, query_length, total_length)
     return op.Unsqueeze(attention_bias, [1])
+
+
+def create_padding_mask(
+    op: builder.OpBuilder,
+    input_ids,
+    attention_mask,
+):
+    """Create a bool padding mask for the ONNX Attention op.
+
+    When used with ``is_causal=1`` on the Attention op, this provides a
+    minimal mask that encodes only padding information. Causal masking is
+    handled natively by the Attention op, avoiding the overhead of the
+    CumSum/GreaterOrEqual/Where chain in ``create_attention_bias()``.
+
+    Using a bool mask (instead of float additive bias) also unlocks Flash
+    Attention eligibility in ORT, since Flash requires ``attn_mask`` to be
+    either ``nullptr`` or ``bool`` type.
+
+    The output is a 3D ``(batch_size, q_len, total_length)`` bool tensor.
+    The ORT Attention op requires ``mask_dim[-2] == q_sequence_length``
+    (validated in ``attention_helper.h:ComputeOutputShapeForAttention``),
+    so the padding mask is broadcast-expanded along the query dimension.
+
+    Args:
+        op: The OpBuilder.
+        input_ids: Input tensor of shape ``(batch_size, q_length)`` or
+            ``(batch_size, q_length, hidden_size)``, used to derive the
+            query sequence length for mask expansion. Only dims 0 and 1
+            are read, so 3D hidden_states (inputs_embeds path) are safe.
+        attention_mask: Attention mask of shape ``(batch_size, total_length)``.
+            INT64 tensor with ``1`` = valid token, ``0`` = padding.
+
+    Returns:
+        Bool mask of shape ``(batch_size, q_length, total_length)``.
+        ``True`` = attend, ``False`` = mask out.
+    """
+    bool_mask = op.Cast(attention_mask, to=ir.DataType.BOOL)
+    # Unsqueeze to [B, 1, total_len] for broadcasting across q_len.
+    mask_3d = op.Unsqueeze(bool_mask, [1])
+    # Build target shape [B, q_len, total_len] using explicit slices.
+    # input_ids may be 2D (input_ids) or 3D (hidden_states when
+    # inputs_embeds is used), so we extract dims individually.
+    batch_size = op.Shape(input_ids, start=0, end=1)
+    q_len = op.Shape(input_ids, start=1, end=2)
+    total_len = op.Shape(attention_mask, start=1, end=2)
+    target_shape = op.Concat(batch_size, q_len, total_len, axis=0)
+    return op.Expand(mask_3d, target_shape)

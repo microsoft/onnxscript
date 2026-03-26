@@ -92,6 +92,7 @@ __all__ = [
     "WhisperEncoderLayer",
     "apply_rms_norm",
     "create_attention_bias",
+    "create_padding_mask",
     "get_activation",
     "initialize_rope",
     "DeepSeekMLA",
@@ -128,6 +129,7 @@ from mobius.components._common import (
     LayerNormNoAffine,
     Linear,
     create_attention_bias,
+    create_padding_mask,
 )
 from mobius.components._conv import (
     BatchNorm2d,
