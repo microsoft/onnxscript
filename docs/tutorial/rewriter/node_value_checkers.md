@@ -183,7 +183,7 @@ Both check functions (including condition functions and node/value-level checker
 rewrite functions support the same conventions for indicating failure:
 
 - **`MatchResult` with `.fail()`** *(recommended)*: Return `MatchResult().fail("reason", source)` to indicate failure with a descriptive reason and optional source node/value. This provides the most useful diagnostic information for debugging.
-- **Raise `MatchFailureError`** *(recommended)*: Raise `MatchFailureError("reason", source_node_or_value)` to indicate failure. This is especially convenient in utility functions called from a check or rewrite, since it avoids having to explicitly propagate failure status through the call chain.
+- **Raise `MatchFailureError`** *(recommended)*: Import it as `from onnxscript.rewriter.rewriter import MatchFailureError` and raise `MatchFailureError("reason", source1, source2, ...)` to indicate failure associated with one or more `ir.Node` or `ir.Value` objects. Each source should be passed as a separate positional argument (do not pass a list as a single argument). This is especially convenient in utility functions called from a check or rewrite, since it avoids having to explicitly propagate failure status through the call chain.
 - **Return `None` or `False`**: These indicate failure without providing a reason. They are supported but not recommended, since a failure reason is valuable for debugging why a rule did not apply.
 
 Including a descriptive failure reason is strongly encouraged. The rewriter's tracing infrastructure
