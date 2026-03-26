@@ -230,11 +230,21 @@ class ReplacementPatternFunction:
             return None
         if isinstance(new_outputs, _basics.MatchResult):
             if not new_outputs:
+                # A falsy MatchResult is the recommended way to signal failure with
+                # reason/source information from a replacement function.
                 match.fail(
                     new_outputs.reason,
                     new_outputs.failure_nodes_and_values,
                 )
-            return None
+                return None
+            # A truthy MatchResult should never be returned from a replacement
+            # function. Treat this as a programmer error to avoid silent failures.
+            raise TypeError(
+                "Replacement function returned a truthy MatchResult. "
+                "Replacement functions should either return None/False for a "
+                "generic failure, return a *falsy* MatchResult to provide "
+                "failure details, or raise MatchFailureError."
+            )
         if not isinstance(new_outputs, Sequence):
             new_outputs = [new_outputs]
         return ReplacementSubgraph(
