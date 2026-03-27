@@ -31,6 +31,7 @@ VALUE_LIKE = Union[
     Sequence[float],
     Sequence[bool],
     Sequence[str],
+    None,
 ]
 
 # Mapping from Python scalar types to their default ONNX DataType,
@@ -264,7 +265,7 @@ class GraphBuilder:
 
     def _input_to_ir_value(
         self, value: VALUE_LIKE, like_type: ir.Value | None = None
-    ) -> ir.Value:
+    ) -> ir.Value | None:
         """Convert a permissible input (for a call to an op) into an ir.Value.
 
         Permissible values include ir.Value as well as python constants that can be converted
@@ -272,6 +273,8 @@ class GraphBuilder:
         target onnx type.
         """
         if isinstance(value, ir.Value):
+            return value
+        if value is None:
             return value
         dtype = (
             like_type.type.dtype
@@ -362,7 +365,7 @@ class GraphBuilder:
     def _partition_inputs_attributes(
         self,
         schema: onnx.defs.OpSchema | None,
-        inputs: Sequence[ir.Value | ir.TensorProtocol],
+        inputs: Sequence[ir.Value | ir.TensorProtocol | None],
         kwargs: dict[str, Any],
     ) -> tuple[Sequence[ir.Value | ir.TensorProtocol], dict[str, Any]]:
         if schema is None:
@@ -510,7 +513,7 @@ class GraphBuilder:
     def call_op(
         self,
         op_type: str,
-        inputs: Sequence[ir.Value | ir.TensorProtocol],
+        inputs: Sequence[ir.Value | ir.TensorProtocol | None],
         kwargs: dict[str, ir.Value | ir.TensorProtocol],
         /,
         domain: str = "",
