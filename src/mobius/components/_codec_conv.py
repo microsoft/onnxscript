@@ -82,6 +82,118 @@ class CausalConv1d(nn.Module):
         return self.conv(op, x)
 
 
+class CausalConvNd(nn.Module):
+    """N-d causal convolution with left-padding on the last (temporal) dimension.
+
+    Generalises :class:`CausalConv1d` to 1-D, 2-D, and 3-D inputs:
+
+    * 1-D — input ``(B, C, T)``        — causal pad on T
+    * 2-D — input ``(B, C, H, W)``     — causal pad on W only
+    * 3-D — input ``(B, C, D1, D2, T)``— causal pad on T only
+
+    "Causal" means left-only padding of ``(kernel_size - 1) * dilation``
+    on the last spatial dimension so each output position depends only
+    on current and past inputs along that axis.  All other spatial
+    dimensions receive no padding.
+
+    The ONNX ``Conv`` kernel spans all spatial dimensions equally
+    (``kernel_size`` repeated ``ndim`` times), which is the standard
+    depthwise-causal pattern used by audio codecs.
+
+    Parameters:
+        in_channels: Number of input channels.
+        out_channels: Number of output channels.
+        kernel_size: Convolution kernel size (applied to every spatial dim).
+        ndim: Number of spatial dimensions — 1, 2, or 3.
+        dilation: Dilation factor for the last (causal) dimension.
+            Non-causal dimensions always use dilation=1.
+        groups: Number of convolution groups.
+        bias: Whether to include a bias term.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        ndim: int = 1,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+    ):
+        if ndim not in (1, 2, 3):
+            raise ValueError(f"ndim must be 1, 2, or 3; got {ndim}")
+        if groups <= 0:
+            raise ValueError(f"groups must be > 0; got {groups}")
+        if in_channels % groups != 0:
+            raise ValueError(
+                f"in_channels ({in_channels}) must be divisible by groups ({groups})"
+            )
+        super().__init__()
+        self._kernel_size = kernel_size
+        self._ndim = ndim
+        self._dilation = dilation
+        self._groups = groups
+        # Weight: (out_ch, in_ch // groups, *[kernel_size] * ndim)
+        weight_shape = [out_channels, in_channels // groups] + [kernel_size] * ndim
+        self.weight = nn.Parameter(weight_shape)
+        self.bias = nn.Parameter([out_channels]) if bias else None
+
+    def forward(self, op: builder.OpBuilder, x: ir.Value):
+        """Apply N-d causal convolution.
+
+        Args:
+            x: ``(B, C, *spatial)`` channels-first input tensor where
+               ``len(spatial) == ndim``.
+
+        Returns:
+            Output tensor with the same shape as the input for ndim=1.
+            For ndim>1, only the temporal (last) spatial dimension is
+            preserved; all other spatial dimensions shrink by
+            ``(kernel_size - 1)`` due to the kernel spanning all spatial
+            dims with no padding on non-temporal axes.
+        """
+        pad_left = (self._kernel_size - 1) * self._dilation
+        if pad_left > 0:
+            # ONNX Pad pads format: [begin_0, begin_1, ..., end_0, end_1, ...]
+            # Total tensor dims = 2 (batch + channels) + ndim spatial dims.
+            total_dims = 2 + self._ndim
+            begins = [0] * total_dims
+            ends = [0] * total_dims
+            # Causal padding on the last dimension only.
+            begins[-1] = pad_left
+            x = op.Pad(x, op.Constant(value_ints=begins + ends), mode="constant")
+
+        # Dilation on last spatial dim only; all other dims use dilation=1.
+        dilations = [1] * self._ndim
+        dilations[-1] = self._dilation
+
+        kernel_shape = [self._kernel_size] * self._ndim
+        strides = [1] * self._ndim
+        pads_conv = [0] * (2 * self._ndim)  # no extra Conv padding needed
+
+        if self.bias is not None:
+            return op.Conv(
+                x,
+                self.weight,
+                self.bias,
+                kernel_shape=kernel_shape,
+                strides=strides,
+                dilations=dilations,
+                pads=pads_conv,
+                group=self._groups,
+            )
+        return op.Conv(
+            x,
+            self.weight,
+            kernel_shape=kernel_shape,
+            strides=strides,
+            dilations=dilations,
+            pads=pads_conv,
+            group=self._groups,
+        )
+
+
 class CausalTransConv1d(nn.Module):
     """1-D causal transposed convolution (upsampling).
 

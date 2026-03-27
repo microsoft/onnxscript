@@ -360,3 +360,134 @@ model prefill logits look correct, isolate each model boundary:
 4. **Embedding weight vs lookup mismatch** — if embedding weights are
    identical but lookups differ, the issue is usually which code index
    or embedding table is being used (off-by-one errors).
+
+## QA pitfalls: lessons from Qwen3.5 / hybrid-attention models
+
+These lessons come from debugging a hybrid DeltaNet + full-attention model
+(Qwen3.5). They apply to any model that uses ONNX custom functions, Scan
+ops, or non-standard dtypes.
+
+### Build graph tests are necessary but not sufficient
+
+Build graph tests (Tier 0) verify graph construction — I/O shapes,
+initializer existence, no obvious op errors. They do **not** execute the
+graph with real data. A Scan body MatMul shape mismatch that would crash at
+runtime can still pass all Tier 0 tests. **Always write an integration test
+alongside any new custom function or Scan op.**
+
+### Integration tests must exercise all code paths
+
+- **Text-only first** — verify generation and logit parity before adding
+  other modalities
+- **Vision with real pixel values** — passing empty features (zeros) doesn't
+  exercise the vision encoder; use `processor(images=image)` outputs
+- **All dtypes**: f32, f16, bf16. Each can expose different bugs:
+  - f16/bf16 have different overflow points and precision characteristics
+  - Kernel dispatch is dtype-specific (some kernels only exist for f16)
+- **GPU when available** — different kernels activate on CUDA; a model
+  correct on CPU may diverge on GPU due to different reduction order
+
+### Test feed creation: symbolic dimensions need real values
+
+ONNX models export symbolic batch/sequence dimensions. When feeding the
+model for ORT inference:
+
+- **Recurrent state batch dim must match input batch dim** — unlike KV
+  cache (which initialises to zeros and grows), recurrent state tensors
+  have a fixed `(B, ...)` shape. Feeding batch=0 produces a zero-sized
+  carry state that collapses the Scan output.
+- **Scan carry state is not KV cache** — do not copy the KV cache
+  zero-initialisation pattern for recurrent state; the batch dimension
+  must be the actual inference batch size.
+
+```python
+# WRONG — batch=0 zeros out Scan carry
+past_state = np.zeros((0, num_heads, d_k, d_v), dtype=np.float32)
+
+# CORRECT — must match actual batch size
+batch_size = input_ids.shape[0]
+past_state = np.zeros((batch_size, num_heads, d_k, d_v), dtype=np.float32)
+```
+
+### ONNX function registration
+
+When renaming a custom function's `op_type` (e.g. `CausalConvNdWithState`
+→ `CausalConvWithState`), the function must be re-registered under the new
+name in ORT's function decomposition list. ORT needs the function embedded
+in `model.functions` to decompose the custom op before execution.
+
+**Checklist when renaming a custom function:**
+1. Rename the Python factory function and the `ir.Function.name`
+2. Update all call sites that reference the old op_type string
+3. Update any integration tests that check the op_type name
+4. Verify the function appears in `onnx_model.functions` after build
+
+### Dtype-specific bugs to watch for
+
+**fp16 Exp overflow:** `exp(x)` overflows to `inf` for `x > ~11.09` in
+fp16. The Softplus activation (`log(1 + exp(x))`) and decay computation
+`exp(-softplus(x))` are common overflow sites. Always upcast to float32
+for Exp/Softplus in fp16 models. bf16 has the same 8-bit exponent range as fp32 and does NOT need the upcast:
+```python
+x_f32 = op.Cast(x, to=ir.DataType.FLOAT)
+result = op.Exp(x_f32)
+result = op.Cast(result, to=x.dtype)  # cast back
+```
+
+**bf16 vs fp16:** bf16 has the same exponent range as fp32 (no overflow
+at 11.09) but much less precision (7-bit mantissa vs 10-bit). If a
+computation works in bf16 but not fp16, check for Exp overflow first.
+
+### Examples as QA tools
+
+The `--compare-hf` flag in example scripts is the gold-standard correctness
+check for a model. Run it as part of every significant change:
+
+```bash
+# Primary correctness check
+python examples/qwen35_text_generation.py --compare-hf
+
+# Test all supported dtypes
+python examples/qwen35_text_generation.py --compare-hf --dtype f16
+python examples/qwen35_text_generation.py --compare-hf --dtype bf16
+
+# Test on GPU (if available)
+python examples/qwen35_text_generation.py --compare-hf --device cuda
+```
+
+Target: **100% token match** in fp32 greedy generation. fp16/bf16 may
+diverge after the first few tokens due to floating-point accumulation, which
+is acceptable if logit parity holds at `atol=rtol=1e-2`.
+
+### Parity testing methodology
+
+Compare full logit tensors, not just generated tokens. Generated tokens
+hide logit divergence (two very-different logit vectors can agree on the
+top-1 token):
+
+```python
+# Always compare full logits at every position
+assert_logits_close(onnx_logits, hf_logits, atol=1e-3, rtol=1e-3)  # fp32
+assert_logits_close(onnx_logits, hf_logits, atol=1e-2, rtol=1e-2)  # fp16/bf16
+
+# Also check last-position argmax matches (quick sanity check)
+assert onnx_logits[0, -1].argmax() == hf_logits[0, -1].argmax()
+```
+
+If argmax matches but full logit tolerance fails, the model is numerically
+correct but some intermediate accumulation differs — this is usually
+acceptable for fp16/bf16 and worth a brief comment in the test.
+
+### Automated code review catches real bugs
+
+Enable Copilot/automated review on every PR that modifies model or component
+code. During Qwen3.5 development, automated review found:
+
+- The fp16 Exp overflow risk in decay computation (a real runtime bug on fp16
+  hardware that would not be caught by fp32 tests)
+- Missing input validation (`kernel_size < 1`, `channels <= 0`) that would
+  cause ZeroDivisionError or silent wrong output
+
+These were not caught by the 514 build graph tests. Code review + integration
+tests together cover the gaps that unit tests cannot.
+

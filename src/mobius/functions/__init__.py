@@ -13,18 +13,28 @@ They serve as:
 
 Each function returns an ``ir.Function`` that can be attached to an
 ``ir.Model`` or used as a rewrite target.
+
+Naming convention:
+    Python factory functions are snake_case (e.g. ``causal_conv_nd_with_state``,
+    ``linear_attention``) while the ir.Function op type strings are PascalCase
+    (``"CausalConvWithState"``, ``"LinearAttention"``).  PascalCase aliases
+    (``CausalConvWithState``) are provided for discoverability.
 """
 
 from __future__ import annotations
 
 from mobius.functions.causal_conv import (
+    CausalConvWithState,
     causal_conv1d_with_state,
+    causal_conv_nd_with_state,
 )
 from mobius.functions.linear_attention import (
     linear_attention,
 )
 
 __all__ = [
+    "CausalConvWithState",
     "causal_conv1d_with_state",
+    "causal_conv_nd_with_state",
     "linear_attention",
 ]

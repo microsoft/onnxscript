@@ -54,7 +54,7 @@ import onnxruntime_genai as og
 # Model export helpers
 # ---------------------------------------------------------------------------
 
-MODEL_ID = "Qwen/Qwen3.5-27B"
+MODEL_ID = "Qwen/Qwen3.5-2B"
 DEFAULT_PROMPT = "The capital of France is"
 MAX_NEW_TOKENS = 50
 

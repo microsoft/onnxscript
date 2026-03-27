@@ -1726,12 +1726,21 @@ def _build_and_compare_qwen35(hf_model, text_config, onnx_module_cls):
     }
     # Create zero-initialized state feeds for all graph inputs
     # (KV cache for full_attention, conv/recurrent state for DeltaNet)
+    batch_size = input_ids.shape[0]
     for inp in onnx_model.graph.inputs:
         name = inp.name
         if name in feeds:
             continue
         if "past_key_values" in name:
-            shape = tuple(d if isinstance(d, int) else 0 for d in inp.shape)
+            # Map symbolic dims → 0 (e.g. past_sequence_len), but the
+            # batch dim (dim 0) must match the actual batch size —
+            # recurrent_state has all-concrete dims except batch, so
+            # batch=0 would create a 0-element tensor that mismatches
+            # the B=batch_size tensors computed from input_ids.
+            shape = tuple(
+                d if isinstance(d, int) else batch_size if i == 0 else 0
+                for i, d in enumerate(inp.shape)
+            )
             feeds[name] = np.zeros(shape, dtype=np.float32)
 
     session = OnnxModelSession(onnx_model)
@@ -1841,7 +1850,12 @@ def _build_and_compare_qwen3_next(hf_model, config, onnx_module_cls):
         "attention_mask": attention_mask,
         "position_ids": position_ids,
     }
-    kv_shape = (1, arch_config.num_key_value_heads, 0, arch_config.head_dim)
+    kv_shape = (
+        input_ids.shape[0],
+        arch_config.num_key_value_heads,
+        0,
+        arch_config.head_dim,
+    )
     for inp in onnx_model.graph.inputs:
         name = inp.name
         if name in feeds:
@@ -1849,8 +1863,14 @@ def _build_and_compare_qwen3_next(hf_model, config, onnx_module_cls):
         if name.endswith((".key", ".value")):
             feeds[name] = np.zeros(kv_shape, dtype=np.float32)
         elif name.endswith((".conv_state", ".recurrent_state")):
-            # Hybrid cache: use shape from the graph input
-            shape = tuple(d if isinstance(d, int) else 0 for d in inp.shape)
+            # Hybrid cache: use shape from the graph input.
+            # Batch dim (dim 0) must match actual batch size — see
+            # _build_and_compare_qwen35 for the full explanation.
+            batch_size = input_ids.shape[0]
+            shape = tuple(
+                d if isinstance(d, int) else batch_size if i == 0 else 0
+                for i, d in enumerate(inp.shape)
+            )
             feeds[name] = np.zeros(shape, dtype=np.float32)
 
     session = OnnxModelSession(onnx_model)
@@ -2752,10 +2772,16 @@ def test_qwen35_vl_3model_builds_and_runs():
         max_position_embeddings=128,
         hidden_act="silu",
         rms_norm_eps=1e-6,
-        rope_type="default",
         rope_theta=10_000.0,
         attn_qk_norm=True,
         partial_rotary_factor=0.5,
+        # InterleavedMRope: decoder receives 3D position_ids (3, batch, seq).
+        # Without mrope_section, initialize_rope falls back to DefaultRope, and
+        # Gather(cos_cache, (3,B,S)) produces 4D cos which ORT rejects.
+        # rotary_dim = head_dim * partial_rotary_factor / 2 = 4; any mrope_section
+        # values work because InterleavedMRope guards with `if i < rotary_dim`.
+        mrope_section=[1, 1, 1],
+        mrope_interleaved=True,
         # Hybrid: 3 DeltaNet + 1 full attention (matches real 27B pattern)
         layer_types=[
             "linear_attention",
@@ -3256,6 +3282,131 @@ def test_qwen35_vl_3model_text_only_parity():
 
 
 @pytest.mark.integration
+def test_qwen35_vl_vision_features_match():
+    """Qwen3.5-VL vision encoder: ONNX features match HuggingFace.
+
+    Processes a real image (testdata/pipeline-cat-chonk.jpeg) through
+    both the HF and ONNX vision encoders built from a tiny random-weight
+    config.  Verifies shape parity and cosine similarity > 0.999.
+
+    This guards against regressions in:
+    - Patch embedding (Conv3d → hidden_size)
+    - Positional embedding interpolation
+    - Rotary position embedding for vision
+    - Spatial merge (pooling patches)
+    """
+    import onnx_ir as ir
+    from transformers.models.qwen3_5.modeling_qwen3_5 import (
+        Qwen3_5ForConditionalGeneration,
+    )
+
+    from mobius import build_from_module
+    from mobius._weight_loading import apply_weights
+
+    hf_config = _make_tiny_qwen35_vl_config()
+
+    # Build ONNX 3-model package
+    arch_config = ArchitectureConfig.from_transformers(
+        hf_config.text_config,
+        parent_config=hf_config,
+    )
+    arch_config.dtype = ir.DataType.FLOAT
+    onnx_module = models.Qwen35VL3ModelCausalLMModel(arch_config)
+    pkg = build_from_module(
+        onnx_module,
+        arch_config,
+        task="hybrid-qwen-vl",
+    )
+    assert "vision" in pkg
+
+    # Build HF model with random weights and transfer to ONNX
+    hf_model = (
+        Qwen3_5ForConditionalGeneration._from_config(
+            hf_config,
+            dtype=torch.float32,
+        )
+        .float()
+        .eval()
+    )
+    preprocessed = onnx_module.preprocess_weights(
+        dict(hf_model.state_dict()),
+    )
+    for onnx_model in pkg.values():
+        apply_weights(onnx_model, preprocessed)
+
+    # Process real image (resized small for speed — 256 patches)
+    processor = transformers.AutoProcessor.from_pretrained(
+        "Qwen/Qwen3.5-27B",
+    )
+    image = Image.open("testdata/pipeline-cat-chonk.jpeg").resize(
+        (64, 64),
+    )
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": image},
+                {"type": "text", "text": "Describe"},
+            ],
+        }
+    ]
+    hf_inputs = processor.apply_chat_template(
+        messages,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_dict=True,
+        return_tensors="pt",
+    )
+
+    pixel_values = hf_inputs["pixel_values"]
+    grid_thw = hf_inputs["image_grid_thw"]
+
+    # HF vision forward
+    with torch.no_grad():
+        hf_visual_out = hf_model.model.visual(
+            pixel_values,
+            grid_thw=grid_thw,
+        )
+    hf_features = hf_visual_out.pooler_output.numpy()
+
+    # ONNX vision forward
+    vision_session = OnnxModelSession(pkg["vision"])
+    vision_out = vision_session.run(
+        {
+            "pixel_values": pixel_values.numpy().astype(np.float32),
+            "image_grid_thw": grid_thw.numpy().astype(np.int64),
+        }
+    )
+    vision_session.close()
+    onnx_features = vision_out["image_features"]
+
+    # Shape must match
+    assert onnx_features.shape == hf_features.shape, (
+        f"Shape mismatch: ONNX {onnx_features.shape} vs HF {hf_features.shape}"
+    )
+
+    # Cosine similarity — must be nearly identical
+    dot = np.sum(onnx_features * hf_features)
+    norm_a = np.sqrt(np.sum(onnx_features**2))
+    norm_b = np.sqrt(np.sum(hf_features**2))
+    cos_sim = dot / (norm_a * norm_b + 1e-12)
+    max_diff = np.max(np.abs(onnx_features - hf_features))
+
+    print(
+        f"\n[Qwen3.5-VL vision] cos={cos_sim:.6f} "
+        f"max_diff={max_diff:.6f} "
+        f"patches={onnx_features.shape[0]}"
+    )
+
+    assert cos_sim > 0.999, (
+        f"Vision features diverged: cos={cos_sim:.6f} "
+        f"(expected > 0.999). Check patch_embed, rotary, "
+        f"or spatial merge."
+    )
+    assert max_diff < 0.01, f"Vision features max_diff={max_diff:.6f} (expected < 0.01)"
+
+
+@pytest.mark.integration
 @pytest.mark.integration_fast
 def test_qwen35_deltanet_single_layer_parity():
     """Single GatedDeltaNet layer: ONNX matches HuggingFace.
@@ -3351,6 +3502,31 @@ def test_qwen35_deltanet_single_layer_parity():
         graph.register_initializer(param)
 
     onnx_model = ir.Model(graph, ir_version=10)
+
+    # Register CausalConvWithState and LinearAttention function definitions.
+    # Building a bare component graph omits these; ORT needs the ONNX local
+    # function definitions embedded in the model to decompose the nodes.
+    from mobius.functions import (
+        causal_conv_nd_with_state,
+    )
+    from mobius.functions import (
+        linear_attention as linear_attention_fn,
+    )
+
+    conv_func = causal_conv_nd_with_state(
+        kernel_size=conv_kernel,
+        channels=conv_dim,
+        ndim=1,
+        activation="silu",
+    )
+    attn_func = linear_attention_fn(
+        q_num_heads=num_k_heads,
+        kv_num_heads=num_v_heads,
+        update_rule="gated_delta",
+        scale=1.0 / (head_k_dim**0.5),
+    )
+    onnx_model.functions[conv_func.identifier()] = conv_func
+    onnx_model.functions[attn_func.identifier()] = attn_func
 
     # Build HF DeltaNet layer with random weights
     hf_dn = Qwen3_5GatedDeltaNet(tc, layer_idx=0)

@@ -81,7 +81,7 @@ class TestGatedDeltaNet:
         builder._adapt_outputs([output, new_conv, new_rec])
         assert graph.num_nodes() > 0
         # Function ops called by name
-        assert count_op_type(graph, "CausalConv1DWithState") >= 1
+        assert count_op_type(graph, "CausalConvWithState") >= 1
         assert count_op_type(graph, "LinearAttention") >= 1
         # No Scan/Conv in parent graph — all inside functions
         assert count_op_type(graph, "Scan") == 0
