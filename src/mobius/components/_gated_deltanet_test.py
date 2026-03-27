@@ -148,3 +148,28 @@ class TestGatedDeltaNet:
         # No Tile in parent — GQA is inside the function
         assert count_op_type(graph, "Tile") == 0
         assert count_op_type(graph, "LinearAttention") >= 1
+
+    def test_l2_norm_uses_decomposed_ops(self):
+        """L2 normalization uses ReduceSumSquare/Sqrt decomposition.
+
+        LpNormalization is not yet supported by ORT (<1.25), so
+        the graph must contain the decomposed form instead.
+        """
+        config = self._make_deltanet_config()
+        dn = GatedDeltaNet(config)
+        builder, op, graph = create_test_builder()
+
+        key_dim = 2 * 16
+        value_dim = 4 * 16
+        conv_dim = key_dim * 2 + value_dim
+
+        hidden = create_test_input(builder, "hidden", [1, 1, 64])
+        conv_state = create_test_input(builder, "conv_state", [1, conv_dim, 3])
+        rec_state = create_test_input(builder, "rec_state", [1, 4, 16, 16])
+
+        dn(op, hidden, conv_state, rec_state)
+        # Decomposed L2 norm: Sqrt(Max(ReduceSumSquare(...), eps))
+        assert count_op_type(graph, "ReduceSumSquare") >= 2
+        assert count_op_type(graph, "Sqrt") >= 2
+        # LpNormalization must NOT appear (unsupported by ORT <1.25)
+        assert count_op_type(graph, "LpNormalization") == 0

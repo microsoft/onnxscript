@@ -11,7 +11,7 @@ memory per token during decoding.
 Architecture per layer:
     1. Linear projections -> Q, K, V, z (gate), b (forget), a (decay)
     2. CausalConvWithState — depthwise Conv1D + SiLU + carry state
-    3. L2-normalize Q and K
+    3. L2-normalize Q and K (Sqrt/ReduceSumSquare/Div decomposition)
     4. Compute decay: g = -exp(A_log) * softplus(a + dt_bias)
     5. Compute forget: beta = sigmoid(b)
     6. LinearAttention — gated delta-rule recurrence
@@ -207,15 +207,20 @@ class GatedDeltaNet(nn.Module):
             op.Constant(value_ints=[self.key_dim]),
             axis=0,
         )
-        # L2-normalize query and key along head_dim
-        query = op.Reshape(
-            op.LpNormalization(op.Reshape(query, qk_4d_shape), axis=-1, p=2),
-            qk_3d_shape,
-        )
-        key = op.Reshape(
-            op.LpNormalization(op.Reshape(key, qk_4d_shape), axis=-1, p=2),
-            qk_3d_shape,
-        )
+        # L2-normalize query and key per head along head_k_dim (axis=-1).
+        # Decomposed form of op.LpNormalization(x, axis=-1, p=2).
+        # TODO: Use op.LpNormalization directly once ORT >=1.25 supports it.
+        q_4d = op.Reshape(query, qk_4d_shape)  # (B, T, num_k_heads, head_k_dim)
+        q_l2 = op.Sqrt(
+            op.ReduceSumSquare(q_4d, axes=[-1], keepdims=1)
+        )  # (B, T, num_k_heads, 1) — L2 norm per head
+        query = op.Reshape(op.Div(q_4d, q_l2), qk_3d_shape)  # (B, T, key_dim)
+
+        k_4d = op.Reshape(key, qk_4d_shape)  # (B, T, num_k_heads, head_k_dim)
+        k_l2 = op.Sqrt(
+            op.ReduceSumSquare(k_4d, axes=[-1], keepdims=1)
+        )  # (B, T, num_k_heads, 1) — L2 norm per head
+        key = op.Reshape(op.Div(k_4d, k_l2), qk_3d_shape)  # (B, T, key_dim)
 
         # === Compute gating parameters ===
         # beta: (B, T, num_v_heads)
