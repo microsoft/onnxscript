@@ -32,10 +32,7 @@ concurrency:
 jobs:
   regenerate:
     name: Regenerate Golden Files
-    runs-on:
-      - self-hosted
-      - "1ES.Pool=onnxruntime-ep-mobius-github-linux-a10"
-      - "JobId=gpu-golden-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"
+    runs-on: ${{ inputs.device == 'cuda' && fromJSON('["self-hosted", "1ES.Pool=onnxruntime-ep-mobius-github-linux-a10", "JobId=golden-regen-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}"]') || 'ubuntu-latest' }}
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
