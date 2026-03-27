@@ -86,8 +86,7 @@ module = [
 ignore_errors = true
 
 [tool.pylint.messages_control]
-# NOTE: This list is for vscode. Add new disables in pyproject_pylint.toml for lintrunner
-# Exclude patterns should be modified in .lintrunner.toml
+# NOTE: This list is for vscode. Pylint is removed from CI
 disable = [
   "consider-using-from-import",
   "format",
