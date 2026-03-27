@@ -3,21 +3,44 @@ name: Benchmark
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base git ref to benchmark (default: PR base / main)"
+        required: false
+        default: "main"
+      head_ref:
+        description: "Head git ref to benchmark (default: PR head / main)"
+        required: false
+        default: "main"
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
-  group: benchmark-${{ github.ref }}
+  group: benchmark-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
+# Resolve base/head refs once; used by both benchmark jobs.
+# For PRs: uses the PR base and head SHAs for exact reproducibility.
+# For workflow_dispatch: uses the input values or falls back to main.
+env:
+  BASE_REF: ${{ github.event.pull_request.base.sha || github.event.inputs.base_ref || 'main' }}
+  HEAD_REF: ${{ github.event.pull_request.head.sha || github.event.inputs.head_ref || 'main' }}
+
 jobs:
-  benchmark:
-    name: Performance Benchmarks
+  # --------------------------------------------------------------------------
+  # Job 1: benchmark the base commit (main / PR target branch)
+  # --------------------------------------------------------------------------
+  benchmark-base:
+    name: Benchmark base (${{ github.event.pull_request.base.label || 'main' }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.BASE_REF }}
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -29,28 +52,111 @@ jobs:
         with:
           path: ~/.cache/pip
           key: pip-bench-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-bench-
 
       - name: Install PyTorch CPU
         run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
       - name: Install dependencies
         run: |
           pip install -r requirements/ci/requirements.txt
           pip install -e '.[testing]'
 
-      - name: Run benchmarks
-        run: |
-          python tests/benchmark_build.py --json results.json
+      - name: Run benchmark
+        run: python tests/benchmark_build.py --json baseline.json
 
-      - name: Compare against baseline
-        id: compare
+      - name: Upload baseline
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-baseline
+          path: baseline.json
+
+  # --------------------------------------------------------------------------
+  # Job 2: benchmark the head commit (PR branch)
+  # --------------------------------------------------------------------------
+  benchmark-head:
+    name: Benchmark head
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.HEAD_REF }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: pip-bench-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-bench-
+
+      - name: Install PyTorch CPU
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements/ci/requirements.txt
+          pip install -e '.[testing]'
+
+      - name: Run benchmark
+        run: python tests/benchmark_build.py --json current.json
+
+      - name: Upload current
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-current
+          path: current.json
+
+  # --------------------------------------------------------------------------
+  # Job 3: compare results and post PR comment
+  # --------------------------------------------------------------------------
+  compare:
+    name: Compare results
+    runs-on: ubuntu-latest
+    needs: [benchmark-base, benchmark-head]
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Download baseline
+        uses: actions/download-artifact@v7
+        with:
+          name: benchmark-baseline
+
+      - name: Download current
+        uses: actions/download-artifact@v7
+        with:
+          name: benchmark-current
+
+      - name: Compare results
         run: |
           python tests/benchmark_compare.py \
-            --current results.json \
-            --baseline tests/perf_baseline.json \
+            --baseline baseline.json \
+            --current current.json \
             --output comparison.md
 
+      - name: Write to job summary
+        run: cat comparison.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Comment on PR
-        if: github.event_name == 'pull_request'
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
         uses: actions/github-script@v8
         with:
           script: |
@@ -78,10 +184,11 @@ jobs:
               });
             }
 
-      - name: Upload results artifact
+      - name: Upload comparison
         uses: actions/upload-artifact@v7
         with:
-          name: benchmark-results
+          name: benchmark-comparison
           path: |
-            results.json
+            baseline.json
+            current.json
             comparison.md
