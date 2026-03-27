@@ -1,6 +1,6 @@
 # Multi-Tier Testing Strategy
 
-**Status:** Design proposal — ready for review
+**Status:** Current architecture (updated 2026-03-27)
 **Date:** 2026-03-10
 
 ---
@@ -125,10 +125,11 @@ this gap.
 | **Question** | Does a real HuggingFace `config.json` produce a valid full-size graph? |
 | **What runs** | Download `config.json` (not weights) from HF Hub; build full-size graph; validate structure |
 | **Speed** | ~5s per model (network for config only) |
-| **Coverage** | All registered models with a `test_model_id` |
+| **Coverage** | All registered models with a `test_model_id` in their YAML test case |
 | **Failure mode** | Config field mismatch, missing field extraction, shape incompatibility at full scale |
 | **File** | `tests/arch_validation_test.py` |
 | **Marker** | `@pytest.mark.arch_validation` |
+| **Dashboard detection** | Presence of `test_model_id` field in `testdata/cases/<cat>/<model>.yaml` |
 
 L2 catches bugs that L1 misses because L1 uses synthetic tiny configs.
 A model might build at hidden=64 but fail at hidden=4096 because of
@@ -207,9 +208,20 @@ from the skip list.
 | **Marker** | `@pytest.mark.golden` + `@pytest.mark.integration` |
 
 L4 is **data-driven**: each test case is a YAML file in
-`testdata/cases/`, and golden reference data is stored as `.npz` files
-in `testdata/golden/`.  Adding test coverage = adding a YAML + `.npz`
+`testdata/cases/`, and golden reference data is stored as `.json` files
+in `testdata/golden/`.  Adding test coverage = adding a YAML + `.json`
 file.  No code changes needed.
+
+**L4 golden file format** (`testdata/golden/<cat>/<model>.json`):
+```json
+{
+  "model_id": "openai-community/gpt2",
+  "top1_id": 1234,
+  "top2_id": 5678,
+  "top10_ids": [1234, 5678, ...],
+  "top10_logits": [12.3, 11.1, ...],
+  "logits_summary": {"mean": 0.01, "std": 4.2, "min": -8.1, "max": 14.5}
+}
 
 #### Gate criterion
 
@@ -252,12 +264,25 @@ bugs that only manifest across multiple decode steps, such as:
 - Attention mask not growing with generated tokens
 - Accumulated floating-point drift causing token divergence
 
+**L5 generation file format** (`testdata/golden/<cat>/<model>_generation.json`):
+```json
+{
+  "model_id": "openai-community/gpt2",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [1234, 5678, 910, ...],
+  "generated_text": "Here is my poem: Roses are red..."
+}
+```
+
+This file is the authoritative source for L5 tests — the main L4 golden
+JSON does **not** contain generation data (the two files are separate).
+
 #### Gate criterion
 
-- **float32**: All generated tokens must match exactly
-- **float16**: ≥90% token match ratio (allows ≤2 mismatches per 20 tokens)
-- **bfloat16**: ≥80% token match ratio
-- **int4**: ≥70% token match ratio
+- **float32**: All generated tokens must match exactly (or `min_token_match_ratio` if set)
+- **float16 / bfloat16**: Use `min_token_match_ratio` in the YAML case (default ≥0.9)
+- **VL/audio pipelines**: Set `min_token_match_ratio` explicitly (e.g. 0.25) since
+  multi-model pipelines accumulate float32 rounding differences over decode steps
 
 ---
 
@@ -419,17 +444,19 @@ Rather than a single `atol`/`rtol` check, comparisons use a
 ```
 testdata/
 ├── cases/                    # YAML test case definitions (L4/L5)
+│   ├── schema.json           # JSON Schema for YAML validation
 │   ├── causal-lm/
 │   ├── vision-language/
 │   ├── encoder/
 │   ├── seq2seq/
 │   ├── audio/
 │   └── vision/
-├── golden/                   # Pre-computed HF reference outputs (.npz)
+├── golden/                   # Pre-computed HF reference outputs (.json)
 │   ├── causal-lm/
+│   │   ├── gpt2.json             # L4 prefill logits
+│   │   └── gpt2_generation.json  # L5 generation tokens
 │   ├── vision-language/
 │   └── ...
-├── default_tolerances.yaml   # L3/L4/L5 comparison thresholds
 └── ...                       # Audio/image fixtures
 ```
 
@@ -441,13 +468,13 @@ test coverage = adding a YAML file**.
 1. Create a YAML file in `testdata/cases/<task-type>/` describing the
    model, inputs, and expected level
 2. Run `python scripts/generate_golden.py --case <path>` to produce
-   the `.npz` reference
+   the `.json` golden reference
 3. Commit both files
 4. `tests/e2e_golden_test.py` auto-discovers and parametrizes
 
 Missing golden files produce pytest SKIP, not FAIL — enabling a
 YAML-first workflow where intent (YAML) can be committed before data
-(`.npz`).
+(`.json`).
 
 ### Tolerance configuration
 
@@ -463,18 +490,22 @@ characteristics.
 ### Adding a new model
 
 ```
-1. Create model class → L1 passes automatically
-2. Add config entry in _test_configs.py
-3. Run:  pytest tests/build_graph_test.py -k "my_model"        → L1
-4. Run:  pytest tests/synthetic_parity_test.py -k "my_model"   → L3
-5. Register test_model_id → L2 passes on nightly
-6. Add YAML + generate golden → L4/L5 follow
+1. Create model class + register in _registry.py
+2. Add config entry in tests/_test_configs.py  → L1
+3. Run:  python -m pytest tests/build_graph_test.py -k "my_model"        → L1
+4. Add to integration_test.py parametrized list                          → L3
+5. Run:  python -m pytest tests/integration_test.py -m integration -k "my_model"
+6. Create testdata/cases/<cat>/my-model.yaml with test_model_id          → L2
+7. Run:  python scripts/generate_golden.py --filter 'my-model*'          → L4/L5
+8. Commit testdata/golden/<cat>/my-model.json + my-model_generation.json
 ```
 
-L3 synthetic parity is the **primary development-loop test** — the
-test contributors run repeatedly while debugging.  It requires no
-network access, no golden files, no weight downloads, and completes
-in < 10 seconds.
+**Default prompt for L4/L5:** `"Here is my poem:"` — use this in YAML
+`inputs.prompts` unless the model requires task-specific input.
+
+L3 synthetic parity is the **primary development-loop test** — it
+requires no network access, no golden files, no weight downloads, and
+completes in < 10 seconds.
 
 ### Debugging numerical mismatches
 
@@ -534,15 +565,19 @@ See [Performance Benchmarking](perf-benchmarking.md) for full details.
 
 ### What exists today
 
-| Tier | Status | File |
-|------|--------|------|
-| L0 | ✅ Implicit via registry | `_registry.py` |
-| L1 | ✅ Full coverage (270+) | `build_graph_test.py` |
-| L2 | ✅ Nightly CI | `arch_validation_test.py` |
-| L3 | ✅ Causal LM (~200 types) | `synthetic_parity_test.py` |
-| L4 | ✅ ~50 checkpoints | `e2e_golden_test.py` |
-| L5 | ✅ ~20 checkpoints | `e2e_golden_test.py` |
-| Perf | ⚠️ Script exists, CI not wired | `benchmark_build.py` |
+| Tier | Status | Coverage | File |
+|------|--------|----------|------|
+| L0 | ✅ Implicit via registry | 273 types | `_registry.py` |
+| L1 | ✅ Full coverage (273) | 273 types | `build_graph_test.py` + `_SPECIALIZED_TEST_MODEL_TYPES` |
+| L2 | ✅ YAML-driven | ~105 types (YAML cases with `test_model_id`) | `arch_validation_test.py` |
+| L3 | ✅ Causal LM + integration tests | ~116 types | `integration_test.py` + `*_integration_test.py` |
+| L4 | ✅ ~45 checkpoints | 45 golden JSON files | `e2e_golden_test.py` |
+| L5 | ✅ ~32 checkpoints | 32 generation JSON files | `e2e_golden_test.py` |
+| Perf | ⚠️ Script exists, CI not wired | — | `benchmark_build.py` |
+
+Note: Dashboard counts are **per-flag** (independent), not hierarchical.
+A model counted in L3 may or may not be counted in L1 or L2 — each level
+is detected from its own data source.
 
 ### Known gaps
 
@@ -556,7 +591,49 @@ See [Performance Benchmarking](perf-benchmarking.md) for full details.
 
 ---
 
-## 9. Quick Reference Commands
+## 9. Dashboard and Level Counting
+
+The confidence dashboard at `onnxruntime.github.io/mobius/` is generated
+by `scripts/generate_dashboard.py` and rendered via the Jinja2 template
+`scripts/templates/dashboard.html.j2`.
+
+### Per-flag independent counts
+
+Dashboard level counts are **per-flag**, not exclusive or hierarchical:
+
+- **L1 count** = models with `l1_graph_build=True`
+- **L2 count** = models with `l2_arch_validation=True`
+- **L3 count** = models with `l3_synthetic_parity=True`
+- **L4 count** = models with `l4_golden_files=True`
+- **L5 count** = models with `l5_generation_golden=True`
+
+A model is counted at every level it passes.  Because every registered
+model type has either a parametrized config entry or a `_SPECIALIZED_TEST_MODEL_TYPES`
+entry, L1 equals the total number of registered models.
+
+### Detection sources
+
+| Level | Dashboard scanner | Data source |
+|-------|------------------|-------------|
+| L1 | `_scan_l1_configs` | `tests/_test_configs.py::ALL_CONFIGS` + `tests/build_graph_test.py::_SPECIALIZED_TEST_MODEL_TYPES` |
+| L2 | `_scan_l2_arch_tests` | `test_model_id` field in `testdata/cases/**/*.yaml` |
+| L3 | `_scan_l3_synthetic_parity` | Model type presence in `tests/integration_test.py` and related files |
+| L4 | `_scan_l4_golden_files` | `testdata/golden/<cat>/<model>.json` existence |
+| L5 | `_scan_l5_generation_golden` | `testdata/golden/<cat>/<model>_generation.json` existence |
+
+### Generating the dashboard
+
+```bash
+python scripts/generate_dashboard.py --output docs/dashboard/index.html \
+  --commit $(git rev-parse --short HEAD)
+```
+
+The dashboard is automatically deployed to GitHub Pages via
+`.github/workflows/pages.yml` on every push to `main`.
+
+---
+
+## 10. Quick Reference Commands
 
 ```bash
 # L1: Smoke (all models, ~30s)
@@ -595,7 +672,7 @@ python scripts/generate_golden.py --force
 
 ---
 
-## 10. Distributed GPU Testing & Sharding
+## 11. Distributed GPU Testing & Sharding
 
 ### Problem
 
@@ -685,7 +762,7 @@ extends:
 
 ---
 
-## 11. End-to-End Testing with ONNX Runtime GenAI
+## 12. End-to-End Testing with ONNX Runtime GenAI
 
 ### Motivation
 

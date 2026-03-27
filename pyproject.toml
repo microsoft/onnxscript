@@ -16,7 +16,7 @@ dependencies = [
     "huggingface_hub",
     "numpy>=1.24.0",
     "onnx_ir>=0.1.0",
-    "onnx-shape-inference>=0.1.7",
+    "onnx-shape-inference==0.1.7",
     "onnxscript>=0.6.0.dev",
     "torch>=2.1.0",
     "tqdm",

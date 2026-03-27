@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ONNX GenAI Models — Testing Confidence Dashboard</title>
+<style>
+:root, [data-theme="light"] {
+  --bg: #ffffff;
+  --surface: #f6f8fa;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --text-muted: #656d76;
+  --accent: #0969da;
+  --l0: #cf222e; --l1: #9a6700; --l2: #bf8700;
+  --l3: #1a7f37; --l4: #116329; --l5: #0969da;
+}
+[data-theme="dark"] {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --accent: #58a6ff;
+  --l0: #f85149; --l1: #d29922; --l2: #e3b341;
+  --l3: #3fb950; --l4: #2ea043; --l5: #58a6ff;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5;
+  padding: 16px; max-width: 1600px; margin: 0 auto;
+}
+h1 { font-size: 1.5em; margin-bottom: 4px; }
+.subtitle { color: var(--text-muted); font-size: 0.85em; margin-bottom: 16px; }
+.summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.summary-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 16px; min-width: 120px; text-align: center;
+}
+.summary-card .number { font-size: 1.8em; font-weight: 700; }
+.summary-card .label { color: var(--text-muted); font-size: 0.8em; }
+.summary-card .card-annotation { color: var(--text-muted); font-size: 0.75em; margin-top: 2px; }
+.summary-card.level-0 .number { color: var(--l0); }
+.summary-card.level-1 .number { color: var(--l1); }
+.summary-card.level-2 .number { color: var(--l2); }
+.summary-card.level-3 .number { color: var(--l3); }
+.summary-card.level-4 .number { color: var(--l4); }
+.summary-card.level-5 .number { color: var(--l5); }
+.filters {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 16px; background: var(--surface);
+  padding: 12px; border-radius: 8px; border: 1px solid var(--border);
+}
+.filters label { color: var(--text-muted); font-size: 0.85em; }
+.filters input, .filters select {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px; font-size: 0.85em;
+}
+.filters input[type="text"] { width: 200px; }
+.toggle-group { display: flex; gap: 4px; }
+.toggle-group button {
+  background: var(--bg); color: var(--text-muted); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 8px; font-size: 0.8em; cursor: pointer;
+}
+.toggle-group button.active {
+  background: var(--accent); color: var(--bg); border-color: var(--accent);
+}
+.table-container { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: collapse;
+  background: var(--surface); border-radius: 8px; overflow: hidden;
+}
+th, td {
+  padding: 8px 12px; text-align: left;
+  border-bottom: 1px solid var(--border); font-size: 0.85em;
+}
+th {
+  background: var(--bg); color: var(--text-muted); font-weight: 600;
+  position: sticky; top: 0; z-index: 1; cursor: pointer; user-select: none;
+}
+th:hover { color: var(--text); }
+tr:hover { background: rgba(88, 166, 255, 0.05); }
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 12px;
+  font-size: 0.75em; font-weight: 600; white-space: nowrap;
+}
+.badge-0 { background: rgba(248,81,73,0.2); color: var(--l0); }
+.badge-1 { background: rgba(210,153,34,0.2); color: var(--l1); }
+.badge-2 { background: rgba(227,179,65,0.2); color: var(--l2); }
+.badge-3 { background: rgba(63,185,80,0.2); color: var(--l3); }
+.badge-4 { background: rgba(46,160,67,0.2); color: var(--l4); }
+.badge-5 { background: rgba(88,166,255,0.2); color: var(--l5); }
+.level-dots { display: flex; gap: 4px; align-items: center; }
+.dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 1px solid var(--border);
+}
+.dot.active-1 { background: var(--l1); border-color: var(--l1); }
+.dot.active-2 { background: var(--l2); border-color: var(--l2); }
+.dot.active-3 { background: var(--l3); border-color: var(--l3); }
+.dot.active-4 { background: var(--l4); border-color: var(--l4); }
+.dot.active-5 { background: var(--l5); border-color: var(--l5); }
+.dot.failed { background: var(--l0); border-color: var(--l0); }
+.dot.xfail {
+  /* test runs but is expected to fail — amber solid fill */
+  background: rgba(210,153,34,0.35); border-color: var(--l1);
+  border-style: solid; border-width: 2px;
+}
+.dot.skipped {
+  /* test has skip_reason — not run, reason documented */
+  background: transparent; border-color: var(--text-muted);
+  border-style: dotted; border-width: 2px;
+}
+.dot.pending {
+  /* YAML test case exists but no golden data generated yet — awaiting data */
+  background: transparent; border-color: var(--accent);
+  border-style: dashed; border-width: 2px;
+}
+.dot.untested { background: transparent; border-color: var(--border); }
+.tag {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  font-size: 0.7em; margin: 1px; background: rgba(88,166,255,0.15);
+  color: var(--accent);
+}
+.detail-row td { padding: 12px 20px; background: var(--bg); }
+.detail-row { display: none; }
+.detail-row.open { display: table-row; }
+.expand-btn {
+  cursor: pointer; color: var(--accent); font-size: 0.9em;
+  background: none; border: none;
+}
+.config-block {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 8px; font-family: monospace;
+  font-size: 0.8em; white-space: pre; overflow-x: auto;
+  margin: 4px 0; max-height: 200px; position: relative;
+}
+.copy-btn {
+  position: absolute; top: 4px; right: 4px;
+  background: var(--border); color: var(--text); border: none;
+  border-radius: 4px; padding: 2px 8px; font-size: 0.75em; cursor: pointer;
+}
+.copy-btn:hover { background: var(--accent); color: var(--bg); }
+.family-row { background: rgba(88,166,255,0.05) !important; cursor: pointer; }
+.family-row td { font-weight: 600; }
+.family-toggle { margin-right: 8px; }
+.family-paths { font-weight: 400; }
+/* Series histogram: small level badges in family header */
+.series-hist { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.series-hist .hist-badge {
+  font-size: 0.7em; font-weight: 600; padding: 1px 5px; border-radius: 4px;
+  white-space: nowrap;
+}
+.l3-status { font-size: 0.75em; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
+.l3-pass { background: rgba(63,185,80,0.2); color: var(--l3); }
+.l3-xfail { background: rgba(210,153,34,0.2); color: var(--l1); }
+.l3-skip { background: rgba(139,148,158,0.2); color: var(--text-muted); }
+.ratio-badge { font-size: 0.75em; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
+.ratio-high { background: rgba(63,185,80,0.2); color: var(--l3); }
+.ratio-medium { background: rgba(210,153,34,0.2); color: var(--l1); }
+.ratio-low { background: rgba(248,81,73,0.2); color: var(--l0); }
+.golden-status { margin-top: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; font-size: 0.85em; }
+.golden-status .status-row { display: flex; gap: 16px; align-items: center; margin: 2px 0; }
+.golden-status .status-icon { width: 20px; text-align: center; }
+.component-section {
+  margin-top: 24px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; padding: 16px;
+}
+.component-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px; margin-top: 12px;
+}
+.component-card {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px;
+}
+.component-card h4 { font-size: 0.9em; margin-bottom: 4px; }
+.component-card .desc { color: var(--text-muted); font-size: 0.8em; }
+.component-card .coverage { font-size: 0.85em; margin-top: 4px; }
+/* Component coverage heatmap matrix */
+.matrix-scroll { overflow-x: auto; margin-top: 12px; }
+.component-matrix { border-collapse: collapse; font-size: 0.78em; white-space: nowrap; }
+.component-matrix th, .component-matrix td { border: 1px solid var(--border); }
+.feat-label-cell {
+  padding: 6px 10px; text-align: left; font-weight: 600;
+  background: var(--surface); position: sticky; left: 0; z-index: 2;
+  min-width: 120px; max-width: 160px;
+}
+.feat-label-cell code { font-size: 0.9em; }
+.fam-header-cell {
+  padding: 0; vertical-align: bottom; width: 36px; max-width: 36px;
+}
+.fam-header-text {
+  writing-mode: vertical-lr; transform: rotate(180deg);
+  padding: 6px 4px; white-space: nowrap; font-weight: 500;
+  max-height: 120px; overflow: hidden; text-overflow: ellipsis;
+  display: block;
+}
+.matrix-cell {
+  width: 36px; max-width: 36px; height: 28px; text-align: center;
+  vertical-align: middle; cursor: default; transition: filter 0.15s;
+}
+.matrix-cell:hover { filter: brightness(0.85); }
+.matrix-total-cell {
+  padding: 4px 8px; text-align: center; font-size: 0.8em;
+  color: var(--text-muted); white-space: nowrap;
+  background: var(--surface); position: sticky; right: 0; z-index: 2;
+}
+/* Level color scale — rgba keeps it readable in both light and dark themes */
+.cell-l1 { background: rgba(76,175,80,0.15); }
+.cell-l2 { background: rgba(76,175,80,0.32); }
+.cell-l3 { background: rgba(76,175,80,0.52); }
+.cell-l4 { background: rgba(76,175,80,0.72); }
+.cell-l5 { background: rgba(76,175,80,0.92); }
+.matrix-legend {
+  display: flex; align-items: center; gap: 12px; margin-top: 8px;
+  font-size: 0.8em; color: var(--text-muted); flex-wrap: wrap;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot {
+  display: inline-block; width: 14px; height: 14px;
+  border-radius: 3px; border: 1px solid var(--border);
+}
+.progress {
+  height: 6px; background: var(--border); border-radius: 3px;
+  margin-top: 4px; overflow: hidden;
+}
+.progress-fill { height: 100%; border-radius: 3px; }
+.footer {
+  margin-top: 24px; padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted); font-size: 0.8em;
+  display: flex; justify-content: space-between;
+}
+body, .summary-card, .filters, .filters input, .filters select,
+table, th, .detail-row td, .config-block, .component-section,
+.component-card, .toggle-group button, .copy-btn, .footer {
+  transition: background-color 0.25s ease, color 0.25s ease,
+              border-color 0.25s ease;
+}
+.header-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+.theme-toggle {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; cursor: pointer;
+  font-size: 1.2em; line-height: 1; color: var(--text);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+.theme-toggle:hover { background: var(--border); }
+.dot-legend {
+  display: flex; gap: 12px; align-items: center;
+  margin-left: auto; font-size: 0.8em; color: var(--text-muted);
+}
+.dot-legend-item { display: flex; gap: 4px; align-items: center; }
+</style>
+</head>
+<body>
+<script>
+(function(){var t=localStorage.getItem('dashboard-theme')||'light';
+document.documentElement.setAttribute('data-theme',t);}())
+</script>
+<noscript><p style="color:#e6edf3;padding:2em">This dashboard requires JavaScript to render.</p></noscript>
+<div class="header-row">
+  <h1>&#x1F9EA; Testing Confidence Dashboard</h1>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">&#x1F319;</button>
+</div>
+<p class="subtitle">
+  Generated {{ timestamp }} &middot; Commit <code>{{ commit }}</code> &middot; {{ total_models }} registered model types
+</p>
+<div class="summary" role="region" aria-label="Coverage summary" id="summary-bar"></div>
+
+<div class="filters">
+  <label>Search:</label>
+  <input type="text" id="search" placeholder="Filter by model type...">
+  <label>Category:</label>
+  <select id="category-filter"><option value="">All</option></select>
+  <label>Min Level:</label>
+  <select id="level-filter">
+    <option value="0">Any</option>
+    <option value="1">L1+</option>
+    <option value="2">L2+</option>
+    <option value="3">L3+</option>
+    <option value="4">L4+</option>
+    <option value="5">L5</option>
+  </select>
+  <label>Group by:</label>
+  <div class="toggle-group" id="group-toggle" role="group" aria-label="Grouping mode">
+    <button class="active" data-group="family" aria-pressed="true">Family</button>
+    <button data-group="flat" aria-pressed="false">Flat</button>
+  </div>
+  <div class="dot-legend">
+    <span class="dot-legend-item"><span class="dot active-3" style="display:inline-block;vertical-align:middle"></span> Tested</span>
+    <span class="dot-legend-item"><span class="dot failed" style="display:inline-block;vertical-align:middle"></span> Failed</span>
+    <span class="dot-legend-item"><span class="dot xfail" style="display:inline-block;vertical-align:middle"></span> Expected failure</span>
+    <span class="dot-legend-item"><span class="dot skipped" style="display:inline-block;vertical-align:middle"></span> Skipped</span>
+    <span class="dot-legend-item"><span class="dot pending" style="display:inline-block;vertical-align:middle"></span> Awaiting data</span>
+    <span class="dot-legend-item"><span class="dot untested" style="display:inline-block;vertical-align:middle"></span> No test</span>
+  </div>
+</div>
+
+<div class="table-container">
+  <table id="model-table" role="grid">
+    <thead>
+      <tr>
+        <th data-sort="model_type" style="width:20%" aria-sort="none">Model Type</th>
+        <th data-sort="category" style="width:10%" aria-sort="none">Category</th>
+        <th data-sort="module_class" style="width:15%" aria-sort="none">Module Class</th>
+        <th data-sort="confidence_level" style="width:8%" aria-sort="none">Confidence</th>
+        <th style="width:12%" title="Each dot represents a testing level (L1&#x2013;L5)">Coverage (L1&#x2013;L5)</th>
+        <th style="width:15%">Components</th>
+        <th style="width:5%"></th>
+      </tr>
+    </thead>
+    <tbody id="model-tbody"></tbody>
+  </table>
+</div>
+
+<div class="component-section">
+  <h2>Component Coverage</h2>
+  <p class="subtitle">Which architectural components are exercised — and at what test level (darker = higher)</p>
+  <div class="matrix-scroll"><div id="component-matrix-container"></div></div>
+  <details style="margin-top:16px">
+    <summary style="cursor:pointer;font-size:0.9em;color:var(--text-muted)">Component details &amp; example configs</summary>
+    <div class="component-grid" id="component-grid"></div>
+  </details>
+</div>
+
+<div class="component-section" style="margin-top:16px">
+  <h2>Missing Coverage</h2>
+  <p class="subtitle">Models without any test config &mdash; copy-paste these to add coverage</p>
+  <div id="missing-coverage"></div>
+</div>
+
+<div class="footer">
+  <span>mobius confidence dashboard</span>
+  <span>Data from static analysis &mdash; no test execution required</span>
+</div>
+
+<script>
+// Data injected from Python — must come before raw JS block.
+// These variables contain pre-serialized JSON and are marked |safe in the
+// template to bypass Jinja2 autoescape (json.dumps output is already safe
+// for <script> injection; the </  → <\/ replacement prevents tag closure).
+const MODEL_DATA = {{ model_data_json | safe }};
+const CODE_PATH_INFO = {{ code_path_json | safe }};
+const COMPONENT_MATRIX = {{ component_matrix_json | safe }};
+const SUMMARY = {{ summary_json | safe }};
+const LEVEL_LABELS = {{ labels_json | safe }};
+</script>
+<script>
+{# {% raw %} is required because JS template literals use ${...} which
+   conflicts with Jinja2's {{ }} syntax. All JS logic lives inside this
+   block so Jinja2 leaves it untouched. #}
+{% raw %}
+// Escape HTML entities to prevent XSS when inserting into innerHTML.
+function esc(s) {
+  const el = document.createElement('span');
+  el.textContent = s;
+  return el.innerHTML;
+}
+
+// --- Summary bar ---
+const LEVEL_DESCRIPTIONS = {
+  0: "Models with no test coverage at all",
+  1: "Models where the ONNX graph builds from a tiny config (L1 flag set)",
+  2: "Models where the full-size HuggingFace config produces a valid graph (L2 flag set)",
+  3: "Models where random-weight forward pass matches HuggingFace output (L3 flag set)",
+  4: "Models where real-weight logits match golden reference (L4 flag set)",
+  5: "Models where full generation output matches golden reference (L5 flag set)"
+};
+
+(function renderSummary() {
+  const bar = document.getElementById('summary-bar');
+  const totalCard = `<div class="summary-card">
+    <div class="number">${SUMMARY.total}</div>
+    <div class="label">Total models</div>
+  </div>`;
+  bar.innerHTML = totalCard;
+  for (let i = 0; i <= 5; i++) {
+    const count = SUMMARY.by_level[i] || 0;
+    // Annotate L4 and L5 cards with skipped + awaiting-data counts so the full
+    // picture is visible without a separate redundant card.
+    let annotation = '';
+    if (i === 4 || i === 5) {
+      const skipped = i === 4 ? (SUMMARY.l4_skipped_count || 0) : (SUMMARY.l5_skipped_count || 0);
+      const caseKey = i === 4 ? 'l4_case' : 'l5_case';
+      const levelKey = 'l' + i;
+      const awaiting = MODEL_DATA.filter(m => m[caseKey] && !m[levelKey]).length;
+      const parts = [];
+      if (skipped) parts.push(`${skipped} skipped`);
+      if (awaiting) parts.push(`${awaiting} awaiting data`);
+      if (parts.length) annotation = `<div class="card-annotation">${parts.join(' \u00B7 ')}</div>`;
+    }
+    bar.innerHTML += `<div class="summary-card level-${i}" title="${LEVEL_DESCRIPTIONS[i]}">
+      <div class="number">${count}</div>
+      <div class="label">${LEVEL_LABELS[i]}</div>
+      ${annotation}
+    </div>`;
+  }
+  // L3 parity breakdown
+  const l3s = SUMMARY.l3_status_counts || {};
+  if (l3s.pass || l3s.xfail || l3s.skip) {
+    bar.innerHTML += `<div class="summary-card" title="L3 parity status breakdown">
+      <div class="number" style="font-size:1em;line-height:1.4">
+        <span style="color:var(--l3)">${l3s.pass || 0}\u2713</span>
+        <span style="color:var(--l1)">${l3s.xfail || 0}\u26A0</span>
+        <span style="color:var(--text-muted)">${l3s.skip || 0}\u23ED</span>
+      </div>
+      <div class="label">L3 Parity Status</div>
+    </div>`;
+  }
+  // (L4/L5 skipped counts are shown as annotations on the L4/L5 level cards above.)
+})();
+
+// --- Category filter ---
+(function populateCategoryFilter() {
+  const sel = document.getElementById('category-filter');
+  const cats = [...new Set(MODEL_DATA.map(m => m.category))].sort();
+  cats.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+})();
+
+// --- State ---
+let currentSort = { key: 'model_type', asc: true };
+let groupByFamily = true;
+let expandedFamilies = new Set();
+let expandedDetails = new Set();
+
+// --- Series histogram helpers ---
+// Build a colored L1:N L2:N ... histogram for a family row.
+// Levels are INDEPENDENT — a model can pass L3 while failing L2.
+function seriesHistogram(models) {
+  const levelColors = ['var(--l0)', 'var(--l1)', 'var(--l2)', 'var(--l3)', 'var(--l4)', 'var(--l5)'];
+  const levelKeys = ['l1', 'l2', 'l3', 'l4', 'l5'];
+  const levelBgs = [
+    'rgba(248,81,73,0.2)', 'rgba(210,153,34,0.2)', 'rgba(227,179,65,0.2)',
+    'rgba(63,185,80,0.2)', 'rgba(46,160,67,0.2)', 'rgba(88,166,255,0.2)'
+  ];
+  let html = '<div class="series-hist">';
+  levelKeys.forEach((key, idx) => {
+    const level = idx + 1;
+    // L3 requires l3_status === 'pass' to count as passing
+    const count = models.filter(m =>
+      level === 3 ? (m.l3 && m.l3_status === 'pass') : m[key]
+    ).length;
+    if (count > 0) {
+      html += `<span class="hist-badge" style="background:${levelBgs[level]};color:${levelColors[level]}">L${level}:${count}</span>`;
+    }
+  });
+  html += '</div>';
+  return html;
+}
+
+// --- Rendering ---
+function renderTable() {
+  const tbody = document.getElementById('model-tbody');
+  const search = document.getElementById('search').value.toLowerCase();
+  const catFilter = document.getElementById('category-filter').value;
+  const levelFilter = parseInt(document.getElementById('level-filter').value);
+
+  let filtered = MODEL_DATA.filter(m => {
+    if (search && !m.model_type.toLowerCase().includes(search)
+        && !m.module_class.toLowerCase().includes(search)) return false;
+    if (catFilter && m.category !== catFilter) return false;
+    if (m.confidence_level < levelFilter) return false;
+    return true;
+  });
+
+  // Sort
+  filtered.sort((a, b) => {
+    let va = a[currentSort.key], vb = b[currentSort.key];
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return currentSort.asc ? -1 : 1;
+    if (va > vb) return currentSort.asc ? 1 : -1;
+    return 0;
+  });
+
+  let html = '';
+  if (groupByFamily) {
+    const groups = {};
+    filtered.forEach(m => {
+      if (!groups[m.family]) groups[m.family] = [];
+      groups[m.family].push(m);
+    });
+    const sortedFamilies = Object.keys(groups).sort();
+    sortedFamilies.forEach(fam => {
+      const models = groups[fam];
+      const expanded = expandedFamilies.has(fam);
+      const arrow = expanded ? '\u25BC' : '\u25B6';
+      const famPaths = [...new Set(models.flatMap(m => m.code_paths))].sort();
+      const pathTags = famPaths.map(p => `<span class="tag">${p}</span>`).join('');
+      const hist = seriesHistogram(models);
+      html += `<tr class="family-row" onclick="toggleFamily('${esc(fam)}')">
+        <td><span class="family-toggle">${arrow}</span>${esc(fam)} <span style="color:var(--text-muted)">(x${models.length})</span></td>
+        <td></td><td></td>
+        <td>${hist}</td>
+        <td></td>
+        <td class="family-paths">${pathTags}</td>
+        <td></td>
+      </tr>`;
+      if (expanded) {
+        models.forEach(m => { html += renderModelRow(m); });
+      }
+    });
+  } else {
+    filtered.forEach(m => { html += renderModelRow(m); });
+  }
+  tbody.innerHTML = html;
+}
+
+function renderModelRow(m) {
+  const dotLabels = ['L1: Graph', 'L2: Config', 'L3: Parity', 'L4: Golden', 'L5: Generation'];
+  const dots = [1,2,3,4,5].map(i => {
+    const levelKey = 'l' + i;
+    const active = (i === 3) ? (m.l3 && m.l3_status === 'pass') : m[levelKey];
+    const hasTest = (i === 1 && m.config_overrides.length > 0)
+      || (i === 2 && m.test_model_id)
+      || (i === 3 && m.l3_status != null)
+      || (i === 4 && m.l4_case)
+      || (i === 5 && m.l5_case);
+    // xfail: test RUNS but is expected to fail (known failure).
+    const isXfail = i === 3 && m.l3_status === 'xfail';
+    // isSkipped: test has a skip_reason — not run, reason documented.
+    const isL3Skip = i === 3 && m.l3_status === 'skip';
+    const isSkipped = (i === 4 && m.l4_skipped) || (i === 5 && m.l5_skipped) || isL3Skip;
+    // isPending: YAML test case defined but no golden data generated yet (awaiting data).
+    const isPending = hasTest && !active && !isXfail && !isL3Skip &&
+      ((i === 4 && m.l4_case) || (i === 5 && m.l5_case));
+    let cls = 'dot';
+    let label = dotLabels[i-1];
+    if (active) {
+      cls += ' active-' + i;
+      label += ' (passed)';
+    } else if (isXfail) {
+      cls += ' xfail';
+      label += ` (expected failure: ${esc(m.l3_reason || 'xfail')})`;
+    } else if (isSkipped) {
+      cls += ' skipped';
+      if (isL3Skip) label += ` (skipped: ${esc(m.l3_reason || '')})`;
+      else label += ` (skipped: ${esc(m.yaml_skip_reason || 'known issue')})`;
+    } else if (isPending) {
+      cls += ' pending';
+      label += ' (test case defined, awaiting golden data)';
+    } else if (hasTest) {
+      cls += ' failed';
+      label += ' (test exists, not passing)';
+    } else {
+      cls += ' untested';
+      label += ' (no test)';
+    }
+    return `<div class="${cls}" title="${label}" role="img" aria-label="${label}"></div>`;
+  }).join('');
+
+  // L3 status badge
+  let l3Badge = '';
+  if (m.l3_status === 'pass') {
+    l3Badge = ' <span class="l3-status l3-pass" title="L3 synthetic parity passes">\u2713</span>';
+  } else if (m.l3_status === 'xfail') {
+    l3Badge = ` <span class="l3-status l3-xfail" title="L3 known failure: ${esc(m.l3_reason || '')}">xfail</span>`;
+  } else if (m.l3_status === 'skip') {
+    l3Badge = ` <span class="l3-status l3-skip" title="L3 skipped / not run: ${esc(m.l3_reason || '')}">skip</span>`;
+  }
+
+  // min_token_match_ratio badge
+  let ratioBadge = '';
+  if (m.min_token_match_ratio != null) {
+    const r = m.min_token_match_ratio;
+    const ratioClass = r >= 0.9 ? 'ratio-high' : r >= 0.5 ? 'ratio-medium' : 'ratio-low';
+    const pct = Math.round(r * 100);
+    ratioBadge = ` <span class="ratio-badge ${ratioClass}" title="L5 min_token_match_ratio: ${r} (per-case override)">${pct}%</span>`;
+  }
+
+  const tags = m.code_paths.map(p => `<span class="tag">${esc(p)}</span>`).join('');
+  const expanded = expandedDetails.has(m.model_type);
+
+  // Entire row is clickable; button uses stopPropagation to avoid double-toggle.
+  // Use single-quoted HTML attributes so JSON.stringify's double quotes don't
+  // break attribute parsing when this string is set via innerHTML.
+  let row = `<tr style="cursor:pointer" onclick='toggleDetail(${JSON.stringify(m.model_type)})'>
+    <td style="padding-left: ${groupByFamily ? '32px' : '12px'}">${esc(m.model_type)}${l3Badge}${ratioBadge}</td>
+    <td>${esc(m.category)}</td>
+    <td><code style="font-size:0.8em">${esc(m.module_class)}</code></td>
+    <td><span class="badge badge-${m.confidence_level}">${LEVEL_LABELS[m.confidence_level]}</span></td>
+    <td><div class="level-dots" role="img" aria-label="Coverage: ${LEVEL_LABELS[m.confidence_level]}">${dots}</div></td>
+    <td>${tags || '<span style="color:var(--text-muted)">none</span>'}</td>
+    <td><button class="expand-btn" aria-expanded="${expanded}" aria-label="Expand details for ${m.model_type}" onclick='event.stopPropagation();toggleDetail(${JSON.stringify(m.model_type)})'>${expanded ? '\u2212' : '+'}</button></td>
+  </tr>`;
+
+  if (expanded) {
+    row += renderDetailRow(m);
+  }
+  return row;
+}
+
+function renderDetailRow(m) {
+  const l3Active = m.l3 && m.l3_status === 'pass';
+  // xfail = test runs but expected to fail; skip = test not run at all.
+  const l3IconOverride = l3Active ? null
+    : m.l3_status === 'xfail' ? '\u26A0\uFE0F'  // ⚠️ known failure
+    : m.l3_status === 'skip'  ? '\u23ED'         // ⏭ not run
+    : null;
+  const levels = [
+    ['L1: Graph Build', m.l1, 'Model builds a valid ONNX graph from tiny config', m.config_overrides.length > 0, null],
+    ['L2: Config Compatible', m.l2, 'Full-size HF config produces valid graph', !!m.test_model_id, null],
+    ['L3: Synthetic Parity', l3Active, 'Random-weight forward pass matches HF (atol)', m.l3_status != null, l3IconOverride],
+    ['L4: Golden Match', m.l4, 'Real-weight logits match golden reference', m.l4_case && !m.l4_skipped, (m.l4_case && !m.l4 && !m.l4_skipped) ? '\u23F3' : null],
+    ['L5: Generation', m.l5, 'Full generation matches golden output', m.l5_case && !m.l5_skipped, (m.l5_case && !m.l5 && !m.l5_skipped) ? '\u23F3' : null],
+  ];
+
+  let levelHtml = '<table style="width:100%;margin-bottom:8px;border:none">';
+  levels.forEach(([name, active, desc, hasTest, iconOverride]) => {
+    let icon;
+    if (active) icon = '\u2705';
+    else if (iconOverride) icon = iconOverride;
+    else if (hasTest) icon = '\u274C';
+    else icon = '\u2796';
+    levelHtml += `<tr><td style="border:none;padding:2px 8px;width:30px">${icon}</td>
+      <td style="border:none;padding:2px 8px;font-weight:600">${name}</td>
+      <td style="border:none;padding:2px 8px;color:var(--text-muted)">${desc}</td></tr>`;
+  });
+  levelHtml += '</table>';
+
+  // Golden test case status
+  let goldenHtml = '<div class="golden-status"><strong>Golden Test Status:</strong>';
+  if (m.yaml_case) {
+    if (m.yaml_skip_reason) {
+      goldenHtml += `<div class="status-row"><span class="status-icon">\u23ED</span> Test case: <code>${esc(m.yaml_case)}</code> <span style="color:var(--text-muted)">\u2014 skipped: ${esc(m.yaml_skip_reason)}</span></div>`;
+    } else {
+      goldenHtml += `<div class="status-row"><span class="status-icon">\u2705</span> Test case: <code>${esc(m.yaml_case)}</code></div>`;
+    }
+  } else {
+    goldenHtml += '<div class="status-row"><span class="status-icon">\u274C</span> No YAML test case defined</div>';
+  }
+  goldenHtml += `<div class="status-row"><span class="status-icon">${m.l4 ? '\u2705' : m.l4_skipped ? '\u23ED' : m.l4_case ? '\u274C' : '\u2796'}</span> L4 golden data: ${m.l4 ? 'available' : m.l4_skipped ? `skipped (${esc(m.yaml_skip_reason || 'known issue')})` : m.l4_case ? 'test case exists, run generate_golden.py' : 'none'}</div>`;
+  goldenHtml += `<div class="status-row"><span class="status-icon">${m.l5 ? '\u2705' : m.l5_skipped ? '\u23ED' : m.l5_case ? '\u274C' : '\u2796'}</span> L5 golden data: ${m.l5 ? 'available' : m.l5_skipped ? `skipped (${esc(m.yaml_skip_reason || 'known issue')})` : m.l5_case ? 'test case exists, run generate_golden.py' : 'none'}</div>`;
+
+  if (m.min_token_match_ratio != null) {
+    const r = m.min_token_match_ratio;
+    const ratioClass = r >= 0.9 ? 'ratio-high' : r >= 0.5 ? 'ratio-medium' : 'ratio-low';
+    const pct = Math.round(r * 100);
+    const msg = r < 0.5 ? ' \u26A0\uFE0F low \u2014 test may not be meaningful'
+              : r < 0.9 ? ' \u26A0\uFE0F below recommended threshold (0.9)'
+              : '';
+    goldenHtml += `<div class="status-row"><span class="status-icon">\uD83C\uDFAF</span> L5 token match threshold: <span class="ratio-badge ${ratioClass}">${pct}%</span><span style="color:var(--text-muted)">${msg}</span></div>`;
+  }
+
+  if (m.l3_status) {
+    const statusColor = m.l3_status === 'pass' ? 'var(--l3)' : m.l3_status === 'xfail' ? 'var(--l1)' : 'var(--text-muted)';
+    const statusLabel = m.l3_status === 'pass' ? 'pass'
+      : m.l3_status === 'xfail' ? 'known failure (xfail)'
+      : m.l3_status === 'skip'  ? 'skipped / not run'
+      : m.l3_status;
+    goldenHtml += `<div class="status-row"><span class="status-icon" style="color:${statusColor}">\u25CF</span> L3 parity: <strong>${statusLabel}</strong>`;
+    if (m.l3_reason) goldenHtml += ` <span style="color:var(--text-muted)">\u2014 ${esc(m.l3_reason)}</span>`;
+    goldenHtml += '</div>';
+  }
+  goldenHtml += '</div>';
+
+  let configHtml = '';
+  if (m.config_overrides.length > 0) {
+    configHtml = '<strong>Test configs:</strong>';
+    m.config_overrides.forEach((cfg, i) => {
+      const cfgStr = JSON.stringify(cfg, null, 2);
+      configHtml += `<div class="config-block" id="cfg-${m.model_type}-${i}">` +
+        `<button class="copy-btn" onclick="copyConfig('cfg-${m.model_type}-${i}')">Copy</button>` +
+        cfgStr + '</div>';
+    });
+  } else {
+    configHtml = '<span style="color:var(--text-muted)">No test configs \u2014 add to tests/_test_configs.py</span>';
+  }
+
+  let metaHtml = `<div style="display:flex;gap:24px;margin-top:8px;font-size:0.85em">
+    <div><strong>Task:</strong> ${esc(m.task)}</div>
+    <div><strong>Module:</strong> ${esc(m.module_class)}</div>`;
+  if (m.test_model_id) metaHtml += `<div><strong>Test model:</strong> ${esc(m.test_model_id)}</div>`;
+  if (m.has_integration_test) metaHtml += '<div>\u2705 Has integration test</div>';
+  metaHtml += '</div>';
+
+  return `<tr class="detail-row open"><td colspan="7">
+    ${levelHtml}${goldenHtml}${configHtml}${metaHtml}
+  </td></tr>`;
+}
+
+// --- Interactions ---
+function toggleFamily(fam) {
+  if (expandedFamilies.has(fam)) expandedFamilies.delete(fam);
+  else expandedFamilies.add(fam);
+  renderTable();
+}
+
+function toggleDetail(mt) {
+  if (expandedDetails.has(mt)) expandedDetails.delete(mt);
+  else expandedDetails.add(mt);
+  renderTable();
+}
+
+function copyConfig(id) {
+  const el = document.getElementById(id);
+  const text = el.textContent.replace('Copy', '').trim();
+  navigator.clipboard.writeText(text);
+  const btn = el.querySelector('.copy-btn');
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+
+// --- Sorting ---
+document.querySelectorAll('th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (currentSort.key === key) currentSort.asc = !currentSort.asc;
+    else { currentSort.key = key; currentSort.asc = true; }
+    renderTable();
+  });
+});
+
+// --- Filters ---
+document.getElementById('search').addEventListener('input', renderTable);
+document.getElementById('category-filter').addEventListener('change', renderTable);
+document.getElementById('level-filter').addEventListener('change', renderTable);
+
+// --- Group toggle ---
+document.querySelectorAll('#group-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#group-toggle button').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
+    btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
+    groupByFamily = btn.dataset.group === 'family';
+    renderTable();
+  });
+});
+
+// --- Component coverage matrix heatmap ---
+(function renderComponentMatrix() {
+  const container = document.getElementById('component-matrix-container');
+  if (!container || !COMPONENT_MATRIX || !COMPONENT_MATRIX.rows.length) return;
+
+  const fams = COMPONENT_MATRIX.families;
+  // Map confidence level (0–5) to a CSS class for the cell background.
+  const levelClass = l => l <= 0 ? '' : `cell-l${Math.min(l, 5)}`;
+  const levelTitle = l => {
+    const labels = ['No test', 'L1: Graph builds', 'L2: Config compat',
+                    'L3: Synthetic parity', 'L4: Golden match', 'L5: Generation'];
+    return labels[Math.max(0, Math.min(l, 5))];
+  };
+
+  let html = '<table class="component-matrix" role="grid" aria-label="Component × family coverage matrix">';
+
+  // Header row: one column per family, rotated text to save horizontal space.
+  html += '<thead><tr>';
+  html += '<th class="feat-label-cell" scope="col">Component</th>';
+  fams.forEach(fam => {
+    html += `<th class="fam-header-cell" scope="col" title="${esc(fam)}">` +
+            `<div class="fam-header-text">${esc(fam)}</div></th>`;
+  });
+  html += '<th class="matrix-total-cell" scope="col" title="Models / families exercising this component">Models</th>';
+  html += '</tr></thead><tbody>';
+
+  // Data rows: one per component/feature.
+  COMPONENT_MATRIX.rows.forEach(row => {
+    html += `<tr>`;
+    html += `<td class="feat-label-cell" title="${esc(row.description)}"><code>${esc(row.label)}</code></td>`;
+    row.cells.forEach((level, i) => {
+      if (level < 0) {
+        // Family doesn't exercise this component.
+        html += `<td class="matrix-cell" title="${esc(fams[i])}: not used"></td>`;
+      } else {
+        const cls = levelClass(level);
+        const tip = `${esc(fams[i])}: ${levelTitle(level)}`;
+        html += `<td class="matrix-cell ${cls}" title="${tip}"></td>`;
+      }
+    });
+    // Summary: model count + best level indicator.
+    html += `<td class="matrix-total-cell">${row.model_count}m / ${row.family_count}f</td>`;
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+
+  // Colour legend.
+  html += '<div class="matrix-legend">';
+  html += '<span>Level key:</span>';
+  [['', 'Not used'], ['cell-l1', 'L1'], ['cell-l2', 'L2'],
+   ['cell-l3', 'L3'], ['cell-l4', 'L4'], ['cell-l5', 'L5']].forEach(([cls, lbl]) => {
+    const extra = cls ? '' : 'border:1px solid var(--border)';
+    html += `<span class="legend-item"><span class="legend-dot ${cls}" style="${extra}"></span>${lbl}</span>`;
+  });
+  html += '</div>';
+
+  container.innerHTML = html;
+})();
+
+// --- Component details grid (inside <details>) ---
+(function renderComponentCards() {
+  const grid = document.getElementById('component-grid');
+  if (!grid) return;
+  const total = MODEL_DATA.filter(m => m.l1).length;
+  CODE_PATH_INFO.forEach(cp => {
+    const count = SUMMARY.code_path_coverage[cp.label] || 0;
+    const pct = total > 0 ? Math.round(count / total * 100) : 0;
+    const color = pct > 50 ? 'var(--l3)' : pct > 20 ? 'var(--l2)' : 'var(--l0)';
+    grid.innerHTML += `<div class="component-card">
+      <h4><span class="tag">${esc(cp.label)}</span> ${esc(cp.description)}</h4>
+      <div class="coverage">${count} / ${total} models (${pct}%)</div>
+      <div class="progress"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="config-block" style="margin-top:8px;max-height:100px;font-size:0.75em">${JSON.stringify(cp.example_config, null, 2)}</div>
+    </div>`;
+  });
+})();
+
+// --- Missing coverage ---
+(function renderMissing() {
+  const el = document.getElementById('missing-coverage');
+  // A model has coverage if it has an L1 test config OR any YAML test case.
+  const missing = MODEL_DATA.filter(m =>
+    !m.l1 && !m.l4_case && !m.l5_case && !m.l4_skipped && !m.l5_skipped
+  );
+  if (missing.length === 0) {
+    el.innerHTML = '<p style="color:var(--l3)">\u2705 All models have at least some test coverage!</p>';
+    return;
+  }
+  const groups = {};
+  missing.forEach(m => {
+    if (!groups[m.category]) groups[m.category] = [];
+    groups[m.category].push(m);
+  });
+  let html = `<p style="color:var(--l0)">${missing.length} models have no test coverage</p>`;
+  Object.keys(groups).sort().forEach(cat => {
+    html += `<h4 style="margin-top:12px">${cat}</h4><ul style="list-style:none;padding-left:8px">`;
+    groups[cat].forEach(m => {
+      html += `<li style="margin:2px 0"><code style="font-size:0.85em">` +
+        `("${m.model_type}", {}, True),  # TODO: add to ${cat} configs</code></li>`;
+    });
+    html += '</ul>';
+  });
+  el.innerHTML = html;
+})();
+
+// Initial render
+renderTable();
+
+// --- Theme toggle ---
+(function initThemeToggle() {
+  const btn = document.getElementById('theme-toggle');
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('dashboard-theme', theme);
+    btn.textContent = theme === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
+    btn.setAttribute('aria-label',
+      theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+  applyTheme(localStorage.getItem('dashboard-theme') || 'light');
+  btn.addEventListener('click', function() {
+    var cur = document.documentElement.getAttribute('data-theme') || 'light';
+    applyTheme(cur === 'dark' ? 'light' : 'dark');
+  });
+})();
+{% endraw %}
+</script>
+</body>
+</html>

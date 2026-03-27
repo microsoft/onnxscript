@@ -43,6 +43,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements/ci/requirements.txt
+          pip install -r docs/requirements.txt
           pip install -e '.[testing]'
 
       - name: Generate dashboard
@@ -54,7 +55,6 @@ jobs:
 
       - name: Build Sphinx docs
         run: |
-          pip install -r docs/requirements.txt
           python docs/_generate_models.py
           sphinx-build docs _site/docs
 

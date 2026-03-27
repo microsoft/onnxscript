@@ -12,5 +12,6 @@ getting-started
 cli
 models/index
 design
+test-architecture
 ai-model-support-strategy
 ```

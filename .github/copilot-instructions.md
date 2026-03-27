@@ -140,6 +140,14 @@ See the `adding-a-new-model` skill for the full guide.
   Tolerance: `atol=1e-4` for float32.
 - Test files must end in `_test.py`.
 
+### Debugging and diagnosis
+
+- **Root-cause before remedy.** When data looks wrong, diagnose WHY it's
+  wrong before prescribing a fix. Never mask symptoms by adding compensating
+  logic — if two independent signals contradict each other, at least one
+  signal is broken. Find which one and fix the source. Delegating a "quick
+  fix" that papers over inconsistency is a quality failure.
+
 ### Git commits
 
 Linear commit history. Always signoff commits with --signoff.

@@ -19,12 +19,13 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import html
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+import jinja2
 
 
 def _json_safe(obj: Any) -> Any:
@@ -214,7 +215,11 @@ def _scan_registry() -> dict[str, ModelInfo]:
 
 
 def _scan_l1_configs(models: dict[str, ModelInfo]) -> None:
-    """Mark L1 coverage from test config presence in _test_configs.py."""
+    """Mark L1 coverage from test config presence in _test_configs.py.
+
+    Also marks models in ``_SPECIALIZED_TEST_MODEL_TYPES`` (VLM/audio models
+    tested via dedicated test methods rather than the parametrized config loop).
+    """
     from mobius._testing.code_paths import (
         detect_code_paths,
     )
@@ -234,6 +239,17 @@ def _scan_l1_configs(models: dict[str, ModelInfo]) -> None:
             models[model_type].config_overrides.append(config_overrides)
             paths = detect_code_paths(config_overrides)
             models[model_type].code_paths.update(paths)
+
+    # Specialized VLM/audio models have dedicated test methods in
+    # build_graph_test.py but are not in ALL_CONFIGS. They still build a graph.
+    try:
+        from build_graph_test import _SPECIALIZED_TEST_MODEL_TYPES
+    except ImportError:
+        return
+
+    for model_type in _SPECIALIZED_TEST_MODEL_TYPES:
+        if model_type in models:
+            models[model_type].l1_graph_build = True
 
 
 def _scan_l2_arch_tests(models: dict[str, ModelInfo]) -> None:
@@ -285,28 +301,63 @@ def _scan_l3_synthetic_parity(models: dict[str, ModelInfo]) -> None:
 
 
 def _scan_l4_golden_files(models: dict[str, ModelInfo]) -> None:
-    """Mark L4 coverage from testdata/golden/ directory."""
+    """Mark L4 coverage from testdata/golden/ directory.
+
+    Two matching strategies:
+    1. Direct: ``golden/<category>/<model_type>.json`` — works when the golden
+       file stem equals the registry model_type.
+    2. Indirect: when a model has a YAML test case, derive the expected golden
+       path from the case_id (the YAML file stem).  This handles cases like
+       ``golden/vision-language/qwen2_5-vl-3b.json`` → model_type ``qwen2_5_vl``.
+    """
     golden_dir = _REPO_ROOT / "testdata" / "golden"
     if not golden_dir.exists():
         return
 
-    # Walk golden directories for model-type-named files
+    # Strategy 1: direct stem → model_type match
     for golden_file in golden_dir.rglob("*.json"):
-        # Convention: golden/<category>/<model_type>.json
+        if "_generation" in golden_file.name:
+            continue
         model_type = golden_file.stem
         if model_type in models:
             models[model_type].l4_golden_files = True
 
+    # Strategy 2: YAML-derived path (case_id may differ from model_type)
+    for model_type, info in models.items():
+        if info.l4_golden_files or not info.yaml_test_case_file:
+            continue
+        case_path = _REPO_ROOT / info.yaml_test_case_file
+        case_id = case_path.stem
+        task_dir = case_path.parent.name
+        golden_path = golden_dir / task_dir / f"{case_id}.json"
+        if golden_path.exists():
+            models[model_type].l4_golden_files = True
+
 
 def _scan_l5_generation_golden(models: dict[str, ModelInfo]) -> None:
-    """Mark L5 coverage from generation golden files."""
+    """Mark L5 coverage from generation golden files.
+
+    Uses the same two-strategy matching as :func:`_scan_l4_golden_files`.
+    """
     golden_dir = _REPO_ROOT / "testdata" / "golden"
     if not golden_dir.exists():
         return
 
+    # Strategy 1: direct stem → model_type match
     for golden_file in golden_dir.rglob("*_generation.json"):
         model_type = golden_file.stem.removesuffix("_generation")
         if model_type in models:
+            models[model_type].l5_generation_golden = True
+
+    # Strategy 2: YAML-derived path (case_id may differ from model_type)
+    for model_type, info in models.items():
+        if info.l5_generation_golden or not info.yaml_test_case_file:
+            continue
+        case_path = _REPO_ROOT / info.yaml_test_case_file
+        case_id = case_path.stem
+        task_dir = case_path.parent.name
+        gen_path = golden_dir / task_dir / f"{case_id}_generation.json"
+        if gen_path.exists():
             models[model_type].l5_generation_golden = True
 
 
@@ -467,9 +518,11 @@ def collect_all_model_info() -> dict[str, ModelInfo]:
     _scan_l2_arch_tests(models)
     _scan_l3_synthetic_parity(models)
     _scan_l3_parity_status(models)
+    # YAML test cases must be scanned before golden files so that the
+    # YAML-derived golden paths can be used for indirect model_type matching.
+    _scan_yaml_test_cases(models)
     _scan_l4_golden_files(models)
     _scan_l5_generation_golden(models)
-    _scan_yaml_test_cases(models)
     _scan_integration_tests(models)
     return models
 
@@ -505,7 +558,29 @@ def _compute_summary(
     l5_skipped_count = 0
 
     for info in models.values():
-        by_level[info.confidence_level] += 1
+        # Per-flag counts: how many models have each level flag set, independently.
+        # These are NOT exclusive (a model counted in L3 may also be in L1/L2).
+        # by_level[0] = not-tested (no flags set at all).
+        if not any(
+            [
+                info.l1_graph_build,
+                info.l2_arch_validation,
+                info.l3_synthetic_parity,
+                info.l4_golden_files,
+                info.l5_generation_golden,
+            ]
+        ):
+            by_level[0] += 1
+        if info.l1_graph_build:
+            by_level[1] += 1
+        if info.l2_arch_validation:
+            by_level[2] += 1
+        if info.l3_synthetic_parity and info.l3_status == "pass":
+            by_level[3] += 1
+        if info.l4_golden_files:
+            by_level[4] += 1
+        if info.l5_generation_golden:
+            by_level[5] += 1
         by_category[info.category] = by_category.get(info.category, 0) + 1
         all_code_paths.update(info.code_paths)
         for cp in info.code_paths:
@@ -539,16 +614,79 @@ def _compute_summary(
     }
 
 
-def _generate_html(
+def _build_component_matrix(
+    models: dict[str, ModelInfo],
+) -> dict[str, Any]:
+    """Build component x family matrix for the heatmap visualization.
+
+    Returns a dict suitable for JSON serialization with:
+    - ``families``: sorted list of family names that have at least one component.
+    - ``rows``: one entry per component, with per-family max confidence levels.
+    """
+    from mobius._testing.code_paths import CODE_PATH_INDICATORS
+
+    # Gather only families that exercise at least one component.
+    families_with_paths: set[str] = set()
+    for info in models.values():
+        if info.code_paths:
+            families_with_paths.add(info.family)
+    sorted_families = sorted(families_with_paths)
+
+    # matrix[feature_label][family] = max confidence level among all models
+    # in that family that exercise this feature.
+    matrix: dict[str, dict[str, int]] = {ind.label: {} for ind in CODE_PATH_INDICATORS}
+    for info in models.values():
+        if not info.code_paths:
+            continue
+        for path in info.code_paths:
+            if path in matrix:
+                cur = matrix[path].get(info.family, -1)
+                matrix[path][info.family] = max(cur, info.confidence_level)
+
+    # Build rows — one per indicator, with a cell value per family.
+    rows = []
+    for ind in CODE_PATH_INDICATORS:
+        fam_cells = matrix[ind.label]
+        cells = [fam_cells.get(fam, -1) for fam in sorted_families]
+        family_count = sum(1 for c in cells if c >= 0)
+        # Total individual model count from summary (recomputed here for simplicity).
+        model_count = sum(1 for info in models.values() if ind.label in info.code_paths)
+        best_level = max((c for c in cells if c >= 0), default=-1)
+        rows.append(
+            {
+                "label": ind.label,
+                "description": ind.description,
+                "model_count": model_count,
+                "family_count": family_count,
+                "best_level": best_level,
+                "cells": cells,
+            }
+        )
+
+    return {"families": sorted_families, "rows": rows}
+
+
+_TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+def _to_js_json(obj: Any) -> str:
+    """Serialize obj to JSON safe for inline <script> injection.
+
+    The ``</`` replacement prevents the string from accidentally closing
+    a ``<script>`` tag when embedded in HTML.
+    """
+    return json.dumps(obj, separators=(",", ":")).replace("</", "<\\/")
+
+
+def _render_html(
     models: dict[str, ModelInfo],
     commit: str | None = None,
 ) -> str:
-    """Generate the self-contained HTML dashboard."""
-    families = _group_by_family(models)
+    """Render the self-contained HTML dashboard via Jinja2 template."""
     summary = _compute_summary(models)
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    # Build model data as JSON for JavaScript
+    # Build model data as JSON for JavaScript consumption.
     model_data = []
     for info in models.values():
         model_data.append(
@@ -581,785 +719,45 @@ def _generate_html(
             }
         )
 
-    model_data_json = json.dumps(
-        sorted(model_data, key=lambda m: m["model_type"]),
-        indent=None,
-    ).replace("</", "<\\/")  # Escape </script> injection in JSON
+    model_data_json = _to_js_json(sorted(model_data, key=lambda m: m["model_type"]))
 
-    from mobius._testing.code_paths import (
-        CODE_PATH_INDICATORS,
-    )
+    from mobius._testing.code_paths import CODE_PATH_INDICATORS
 
-    code_path_info = []
-    for ind in CODE_PATH_INDICATORS:
-        code_path_info.append(
-            {
-                "label": ind.label,
-                "description": ind.description,
-                "example_config": ind.example_config,
-            }
-        )
-    code_path_json = json.dumps(code_path_info, indent=None).replace("</", "<\\/")
-
-    summary_json = json.dumps(summary, indent=None).replace("</", "<\\/")
-
-    # Family data for grouping
-    family_data = {}
-    for fam_name, fam_models in families.items():
-        min_level = min(m.confidence_level for m in fam_models)
-        # Aggregate code paths across all variants in the family
-        family_code_paths: set[str] = set()
-        for m in fam_models:
-            family_code_paths.update(m.code_paths)
-        family_data[fam_name] = {
-            "count": len(fam_models),
-            "min_level": min_level,
-            "models": [m.model_type for m in fam_models],
-            "code_paths": sorted(family_code_paths),
+    code_path_info = [
+        {
+            "label": ind.label,
+            "description": ind.description,
+            "example_config": ind.example_config,
         }
-    family_json = json.dumps(family_data, indent=None).replace("</", "<\\/")
+        for ind in CODE_PATH_INDICATORS
+    ]
 
-    commit_display = html.escape(commit) if commit else "unknown"
-    labels_json = json.dumps(_CONFIDENCE_LABELS, indent=None)
-
-    # Use manual replacement instead of .format() because the HTML
-    # template contains JavaScript with curly braces and unicode escapes
-    result = _HTML_TEMPLATE
-    result = result.replace("{{TIMESTAMP}}", timestamp)
-    result = result.replace("{{COMMIT}}", commit_display)
-    result = result.replace("{{TOTAL_MODELS}}", str(summary["total"]))
-    result = result.replace("{{MODEL_DATA_JSON}}", model_data_json)
-    result = result.replace("{{CODE_PATH_JSON}}", code_path_json)
-    result = result.replace("{{SUMMARY_JSON}}", summary_json)
-    result = result.replace("{{FAMILY_JSON}}", family_json)
-    result = result.replace("{{LABELS_JSON}}", labels_json)
-    return result
-
-
-# --- HTML building blocks (raw strings to avoid brace escaping issues) ---
-
-_CSS_BLOCK = """\
-:root, [data-theme="dark"] {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --border: #30363d;
-  --text: #e6edf3;
-  --text-muted: #8b949e;
-  --accent: #58a6ff;
-  --l0: #f85149; --l1: #d29922; --l2: #e3b341;
-  --l3: #3fb950; --l4: #2ea043; --l5: #58a6ff;
-}
-[data-theme="light"] {
-  --bg: #ffffff;
-  --surface: #f6f8fa;
-  --border: #d0d7de;
-  --text: #1f2328;
-  --text-muted: #656d76;
-  --accent: #0969da;
-  --l0: #cf222e; --l1: #9a6700; --l2: #bf8700;
-  --l3: #1a7f37; --l4: #116329; --l5: #0969da;
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  background: var(--bg); color: var(--text); line-height: 1.5;
-  padding: 16px; max-width: 1600px; margin: 0 auto;
-}
-h1 { font-size: 1.5em; margin-bottom: 4px; }
-.subtitle { color: var(--text-muted); font-size: 0.85em; margin-bottom: 16px; }
-.summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-.summary-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; padding: 12px 16px; min-width: 120px; text-align: center;
-}
-.summary-card .number { font-size: 1.8em; font-weight: 700; }
-.summary-card .label { color: var(--text-muted); font-size: 0.8em; }
-.summary-card.level-0 .number { color: var(--l0); }
-.summary-card.level-1 .number { color: var(--l1); }
-.summary-card.level-2 .number { color: var(--l2); }
-.summary-card.level-3 .number { color: var(--l3); }
-.summary-card.level-4 .number { color: var(--l4); }
-.summary-card.level-5 .number { color: var(--l5); }
-.filters {
-  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
-  margin-bottom: 16px; background: var(--surface);
-  padding: 12px; border-radius: 8px; border: 1px solid var(--border);
-}
-.filters label { color: var(--text-muted); font-size: 0.85em; }
-.filters input, .filters select {
-  background: var(--bg); color: var(--text); border: 1px solid var(--border);
-  border-radius: 4px; padding: 4px 8px; font-size: 0.85em;
-}
-.filters input[type="text"] { width: 200px; }
-.toggle-group { display: flex; gap: 4px; }
-.toggle-group button {
-  background: var(--bg); color: var(--text-muted); border: 1px solid var(--border);
-  border-radius: 4px; padding: 2px 8px; font-size: 0.8em; cursor: pointer;
-}
-.toggle-group button.active {
-  background: var(--accent); color: var(--bg); border-color: var(--accent);
-}
-.table-container { overflow-x: auto; }
-table {
-  width: 100%; border-collapse: collapse;
-  background: var(--surface); border-radius: 8px; overflow: hidden;
-}
-th, td {
-  padding: 8px 12px; text-align: left;
-  border-bottom: 1px solid var(--border); font-size: 0.85em;
-}
-th {
-  background: var(--bg); color: var(--text-muted); font-weight: 600;
-  position: sticky; top: 0; z-index: 1; cursor: pointer; user-select: none;
-}
-th:hover { color: var(--text); }
-tr:hover { background: rgba(88, 166, 255, 0.05); }
-.badge {
-  display: inline-block; padding: 2px 8px; border-radius: 12px;
-  font-size: 0.75em; font-weight: 600; white-space: nowrap;
-}
-.badge-0 { background: rgba(248,81,73,0.2); color: var(--l0); }
-.badge-1 { background: rgba(210,153,34,0.2); color: var(--l1); }
-.badge-2 { background: rgba(227,179,65,0.2); color: var(--l2); }
-.badge-3 { background: rgba(63,185,80,0.2); color: var(--l3); }
-.badge-4 { background: rgba(46,160,67,0.2); color: var(--l4); }
-.badge-5 { background: rgba(88,166,255,0.2); color: var(--l5); }
-.level-dots { display: flex; gap: 4px; align-items: center; }
-.dot {
-  width: 12px; height: 12px; border-radius: 50%;
-  border: 1px solid var(--border);
-}
-.dot.active-1 { background: var(--l1); border-color: var(--l1); }
-.dot.active-2 { background: var(--l2); border-color: var(--l2); }
-.dot.active-3 { background: var(--l3); border-color: var(--l3); }
-.dot.active-4 { background: var(--l4); border-color: var(--l4); }
-.dot.active-5 { background: var(--l5); border-color: var(--l5); }
-.dot.failed { background: var(--l0); border-color: var(--l0); }
-.dot.pending {
-  background: transparent; border-color: var(--l1);
-  border-style: dashed; border-width: 2px;
-}
-.dot.skipped {
-  background: transparent; border-color: var(--text-muted);
-  border-style: dotted; border-width: 2px;
-}
-.dot.untested { background: transparent; border-color: var(--border); }
-.tag {
-  display: inline-block; padding: 1px 6px; border-radius: 4px;
-  font-size: 0.7em; margin: 1px; background: rgba(88,166,255,0.15);
-  color: var(--accent);
-}
-.detail-row td { padding: 12px 20px; background: var(--bg); }
-.detail-row { display: none; }
-.detail-row.open { display: table-row; }
-.expand-btn {
-  cursor: pointer; color: var(--accent); font-size: 0.9em;
-  background: none; border: none;
-}
-.config-block {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 4px; padding: 8px; font-family: monospace;
-  font-size: 0.8em; white-space: pre; overflow-x: auto;
-  margin: 4px 0; max-height: 200px; position: relative;
-}
-.copy-btn {
-  position: absolute; top: 4px; right: 4px;
-  background: var(--border); color: var(--text); border: none;
-  border-radius: 4px; padding: 2px 8px; font-size: 0.75em; cursor: pointer;
-}
-.copy-btn:hover { background: var(--accent); color: var(--bg); }
-.family-row { background: rgba(88,166,255,0.05) !important; cursor: pointer; }
-.family-row td { font-weight: 600; }
-.family-toggle { margin-right: 8px; }
-.family-paths { font-weight: 400; }
-.l3-status { font-size: 0.75em; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
-.l3-pass { background: rgba(63,185,80,0.2); color: var(--l3); }
-.l3-xfail { background: rgba(210,153,34,0.2); color: var(--l1); }
-.l3-skip { background: rgba(139,148,158,0.2); color: var(--text-muted); }
-.ratio-badge { font-size: 0.75em; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
-.ratio-high { background: rgba(63,185,80,0.2); color: var(--l3); }
-.ratio-medium { background: rgba(210,153,34,0.2); color: var(--l1); }
-.ratio-low { background: rgba(248,81,73,0.2); color: var(--l0); }
-.golden-status { margin-top: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; font-size: 0.85em; }
-.golden-status .status-row { display: flex; gap: 16px; align-items: center; margin: 2px 0; }
-.golden-status .status-icon { width: 20px; text-align: center; }
-.code-path-section {
-  margin-top: 24px; background: var(--surface);
-  border: 1px solid var(--border); border-radius: 8px; padding: 16px;
-}
-.code-path-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px; margin-top: 12px;
-}
-.code-path-card {
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 6px; padding: 10px;
-}
-.code-path-card h4 { font-size: 0.9em; margin-bottom: 4px; }
-.code-path-card .desc { color: var(--text-muted); font-size: 0.8em; }
-.code-path-card .coverage { font-size: 0.85em; margin-top: 4px; }
-.progress {
-  height: 6px; background: var(--border); border-radius: 3px;
-  margin-top: 4px; overflow: hidden;
-}
-.progress-fill { height: 100%; border-radius: 3px; }
-.footer {
-  margin-top: 24px; padding-top: 12px;
-  border-top: 1px solid var(--border);
-  color: var(--text-muted); font-size: 0.8em;
-  display: flex; justify-content: space-between;
-}
-body, .summary-card, .filters, .filters input, .filters select,
-table, th, .detail-row td, .config-block, .code-path-section,
-.code-path-card, .toggle-group button, .copy-btn, .footer {
-  transition: background-color 0.25s ease, color 0.25s ease,
-              border-color 0.25s ease;
-}
-.header-row {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 4px;
-}
-.theme-toggle {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; padding: 6px 10px; cursor: pointer;
-  font-size: 1.2em; line-height: 1; color: var(--text);
-  transition: background-color 0.25s ease, border-color 0.25s ease;
-}
-.theme-toggle:hover { background: var(--border); }
-.dot-legend {
-  display: flex; gap: 12px; align-items: center;
-  margin-left: auto; font-size: 0.8em; color: var(--text-muted);
-}
-.dot-legend-item { display: flex; gap: 4px; align-items: center; }
-"""
-
-_FILTERS_BLOCK = """\
-<div class="filters">
-  <label>Search:</label>
-  <input type="text" id="search" placeholder="Filter by model type...">
-  <label>Category:</label>
-  <select id="category-filter"><option value="">All</option></select>
-  <label>Min Level:</label>
-  <select id="level-filter">
-    <option value="0">Any</option>
-    <option value="1">L1+</option>
-    <option value="2">L2+</option>
-    <option value="3">L3+</option>
-    <option value="4">L4+</option>
-    <option value="5">L5</option>
-  </select>
-  <label>Group by:</label>
-  <div class="toggle-group" id="group-toggle" role="group" aria-label="Grouping mode">
-    <button class="active" data-group="family" aria-pressed="true">Family</button>
-    <button data-group="flat" aria-pressed="false">Flat</button>
-  </div>
-  <div class="dot-legend">
-    <span class="dot-legend-item"><span class="dot active-3" style="display:inline-block;vertical-align:middle"></span> Passed</span>
-    <span class="dot-legend-item"><span class="dot failed" style="display:inline-block;vertical-align:middle"></span> Failed</span>
-    <span class="dot-legend-item"><span class="dot pending" style="display:inline-block;vertical-align:middle"></span> Has test, not run</span>
-    <span class="dot-legend-item"><span class="dot untested" style="display:inline-block;vertical-align:middle"></span> No test</span>
-  </div>
-</div>
-"""
-
-_TABLE_BLOCK = """\
-<div class="table-container">
-  <table id="model-table" role="grid">
-    <thead>
-      <tr>
-        <th data-sort="model_type" style="width: 20%" aria-sort="none">Model Type</th>
-        <th data-sort="category" style="width: 10%" aria-sort="none">Category</th>
-        <th data-sort="module_class" style="width: 15%" aria-sort="none">Module Class</th>
-        <th data-sort="confidence_level" style="width: 8%" aria-sort="none">Confidence</th>
-        <th style="width: 12%" title="Each dot represents a testing level (L1\u2013L5)">Coverage (L1\u2013L5)</th>
-        <th style="width: 15%">Code Paths</th>
-        <th style="width: 5%"></th>
-      </tr>
-    </thead>
-    <tbody id="model-tbody"></tbody>
-  </table>
-</div>
-"""
-
-_CODE_PATH_SECTION = """\
-<div class="code-path-section">
-  <h2>Code Path Coverage</h2>
-  <p class="subtitle">Which architectural code paths are exercised by test configs</p>
-  <div class="code-path-grid" id="code-path-grid"></div>
-</div>
-"""
-
-_MISSING_SECTION = """\
-<div class="code-path-section" style="margin-top: 16px;">
-  <h2>Missing Coverage</h2>
-  <p class="subtitle">Models without any test config &mdash; copy-paste these to add coverage</p>
-  <div id="missing-coverage"></div>
-</div>
-"""
-
-_FOOTER_BLOCK = """\
-<div class="footer">
-  <span>mobius confidence dashboard</span>
-  <span>Data from static analysis &mdash; no test execution required</span>
-</div>
-"""
-
-_JS_BLOCK = r"""
-// Escape HTML entities to prevent XSS when inserting into innerHTML.
-function esc(s) {
-  const el = document.createElement('span');
-  el.textContent = s;
-  return el.innerHTML;
-}
-
-// LEVEL_LABELS is injected from Python as {{LABELS_JSON}}
-
-// --- Summary bar ---
-const LEVEL_DESCRIPTIONS = {
-  0: "No test coverage at all",
-  1: "ONNX graph builds from tiny config",
-  2: "Full-size HuggingFace config produces valid graph",
-  3: "Random-weight forward pass matches HuggingFace (atol)",
-  4: "Real-weight logits match golden reference",
-  5: "Full generation output matches golden reference"
-};
-
-(function renderSummary() {
-  const bar = document.getElementById('summary-bar');
-  const totalCard = `<div class="summary-card">
-    <div class="number">${SUMMARY.total}</div>
-    <div class="label">Total models</div>
-  </div>`;
-  bar.innerHTML = totalCard;
-  for (let i = 0; i <= 5; i++) {
-    const count = SUMMARY.by_level[i] || 0;
-    bar.innerHTML += `<div class="summary-card level-${i}" title="${LEVEL_DESCRIPTIONS[i]}">
-      <div class="number">${count}</div>
-      <div class="label">${LEVEL_LABELS[i]}</div>
-    </div>`;
-  }
-  // L3 parity breakdown
-  const l3s = SUMMARY.l3_status_counts || {};
-  if (l3s.pass || l3s.xfail || l3s.skip) {
-    bar.innerHTML += `<div class="summary-card" title="L3 parity status breakdown">
-      <div class="number" style="font-size:1em;line-height:1.4">
-        <span style="color:var(--l3)">${l3s.pass || 0}\u2713</span>
-        <span style="color:var(--l1)">${l3s.xfail || 0}\u26A0</span>
-        <span style="color:var(--text-muted)">${l3s.skip || 0}\u23ED</span>
-      </div>
-      <div class="label">L3 Parity Status</div>
-    </div>`;
-  }
-  // Golden case coverage
-  bar.innerHTML += `<div class="summary-card" title="YAML test cases defined for golden testing (skipped = known issues)">
-    <div class="number" style="font-size:1.2em">
-      <span style="color:var(--l4)">${SUMMARY.l4_case_count || 0}</span> /
-      <span style="color:var(--l5)">${SUMMARY.l5_case_count || 0}</span>
-      <span style="color:var(--text-muted); font-size:0.75em"> (+${SUMMARY.l4_skipped_count || 0}/${SUMMARY.l5_skipped_count || 0} skipped)</span>
-    </div>
-    <div class="label">L4/L5 Cases</div>
-  </div>`;
-})();
-
-// --- Category filter ---
-(function populateCategoryFilter() {
-  const sel = document.getElementById('category-filter');
-  const cats = [...new Set(MODEL_DATA.map(m => m.category))].sort();
-  cats.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c; opt.textContent = c;
-    sel.appendChild(opt);
-  });
-})();
-
-// --- State ---
-let currentSort = { key: 'model_type', asc: true };
-let groupByFamily = true;
-let expandedFamilies = new Set();
-let expandedDetails = new Set();
-
-// --- Rendering ---
-function renderTable() {
-  const tbody = document.getElementById('model-tbody');
-  const search = document.getElementById('search').value.toLowerCase();
-  const catFilter = document.getElementById('category-filter').value;
-  const levelFilter = parseInt(document.getElementById('level-filter').value);
-
-  let filtered = MODEL_DATA.filter(m => {
-    if (search && !m.model_type.toLowerCase().includes(search)
-        && !m.module_class.toLowerCase().includes(search)) return false;
-    if (catFilter && m.category !== catFilter) return false;
-    if (m.confidence_level < levelFilter) return false;
-    return true;
-  });
-
-  // Sort
-  filtered.sort((a, b) => {
-    let va = a[currentSort.key], vb = b[currentSort.key];
-    if (typeof va === 'string') va = va.toLowerCase();
-    if (typeof vb === 'string') vb = vb.toLowerCase();
-    if (va < vb) return currentSort.asc ? -1 : 1;
-    if (va > vb) return currentSort.asc ? 1 : -1;
-    return 0;
-  });
-
-  let html = '';
-  if (groupByFamily) {
-    const groups = {};
-    filtered.forEach(m => {
-      if (!groups[m.family]) groups[m.family] = [];
-      groups[m.family].push(m);
-    });
-    const sortedFamilies = Object.keys(groups).sort();
-    sortedFamilies.forEach(fam => {
-      const models = groups[fam];
-      const minLevel = Math.min(...models.map(m => m.confidence_level));
-      const expanded = expandedFamilies.has(fam);
-      const arrow = expanded ? '\u25BC' : '\u25B6';
-      // Aggregate code paths for the family
-      const famPaths = [...new Set(models.flatMap(m => m.code_paths))].sort();
-      const pathTags = famPaths.map(p => `<span class="tag">${p}</span>`).join('');
-      html += `<tr class="family-row" onclick="toggleFamily('${esc(fam)}')">
-        <td><span class="family-toggle">${arrow}</span>${esc(fam)} <span style="color:var(--text-muted)">(x${models.length})</span></td>
-        <td></td><td></td>
-        <td><span class="badge badge-${minLevel}">${LEVEL_LABELS[minLevel]}</span></td>
-        <td></td>
-        <td class="family-paths">${pathTags}</td>
-        <td></td>
-      </tr>`;
-      if (expanded) {
-        models.forEach(m => { html += renderModelRow(m); });
-      }
-    });
-  } else {
-    filtered.forEach(m => { html += renderModelRow(m); });
-  }
-  tbody.innerHTML = html;
-}
-
-function renderModelRow(m) {
-  const dotLabels = ['L1: Graph', 'L2: Config', 'L3: Parity', 'L4: Golden', 'L5: Generation'];
-  const dots = [1,2,3,4,5].map(i => {
-    const levelKey = 'l' + i;
-    // For L3, only consider it "active" (passing) if l3_status is 'pass'
-    const active = (i === 3) ? (m.l3 && m.l3_status === 'pass') : m[levelKey];
-    // Determine whether a test exists for this level
-    const hasTest = (i === 1 && m.config_overrides.length > 0)
-      || (i === 2 && m.test_model_id)
-      || (i === 3 && m.l3_status != null)
-      || (i === 4 && m.l4_case)
-      || (i === 5 && m.l5_case);
-    const isSkipped = (i === 4 && m.l4_skipped) || (i === 5 && m.l5_skipped);
-    // Determine whether the test is in a "pending" state:
-    // test infrastructure exists but hasn't been run or is expected to fail
-    const isPending = hasTest && !active && (
-      (i === 3 && (m.l3_status === 'xfail' || m.l3_status === 'skip'))
-      || (i === 4 && m.l4_case)
-      || (i === 5 && m.l5_case)
-    );
-    let cls = 'dot';
-    let label = dotLabels[i-1];
-    if (active) {
-      cls += ' active-' + i;
-      label += ' (passed)';
-    } else if (isSkipped) {
-      cls += ' skipped';
-      label += ` (skipped: ${esc(m.yaml_skip_reason || 'known issue')})`;
-    } else if (isPending) {
-      cls += ' pending';
-      if (i === 3) label += ` (${m.l3_status}: ${esc(m.l3_reason || 'known issue')})`;
-      else label += ' (test case exists, no golden file)';
-    } else if (hasTest) {
-      cls += ' failed';
-      label += ' (test exists, not passing)';
-    } else {
-      cls += ' untested';
-      label += ' (no test)';
+    # Commit string is plain text; Jinja2 autoescape handles HTML encoding.
+    component_matrix = _build_component_matrix(models)
+    context = {
+        "timestamp": timestamp,
+        "commit": commit if commit else "unknown",
+        "total_models": summary["total"],
+        # JSON blobs injected into <script> tags: marked |safe in the template
+        # because json.dumps already produces valid JS values and the </
+        # replacement prevents premature script-tag closure.
+        "model_data_json": model_data_json,
+        "code_path_json": _to_js_json(code_path_info),
+        "component_matrix_json": _to_js_json(component_matrix),
+        "summary_json": _to_js_json(summary),
+        "labels_json": _to_js_json(_CONFIDENCE_LABELS),
     }
-    return `<div class="${cls}" title="${label}" role="img" aria-label="${label}"></div>`;
-  }).join('');
 
-  // L3 status badge
-  let l3Badge = '';
-  if (m.l3_status === 'pass') {
-    l3Badge = ' <span class="l3-status l3-pass" title="L3 synthetic parity passes">\u2713</span>';
-  } else if (m.l3_status === 'xfail') {
-    l3Badge = ` <span class="l3-status l3-xfail" title="L3 xfail: ${esc(m.l3_reason || '')}">xfail</span>`;
-  } else if (m.l3_status === 'skip') {
-    l3Badge = ` <span class="l3-status l3-skip" title="L3 skip: ${esc(m.l3_reason || '')}">skip</span>`;
-  }
-
-  let ratioBadge = '';
-  if (m.min_token_match_ratio != null) {
-    const r = m.min_token_match_ratio;
-    const cls = r >= 0.9 ? 'ratio-high' : r >= 0.5 ? 'ratio-medium' : 'ratio-low';
-    const pct = Math.round(r * 100);
-    ratioBadge = ` <span class="ratio-badge ${cls}" title="L5 min_token_match_ratio: ${r} (per-case override)">${pct}%</span>`;
-  }
-
-  const tags = m.code_paths.map(p =>
-    `<span class="tag">${esc(p)}</span>`
-  ).join('');
-  const expanded = expandedDetails.has(m.model_type);
-
-  let row = `<tr>
-    <td style="padding-left: ${groupByFamily ? '32px' : '12px'}">${esc(m.model_type)}${l3Badge}${ratioBadge}</td>
-    <td>${esc(m.category)}</td>
-    <td><code style="font-size:0.8em">${esc(m.module_class)}</code></td>
-    <td><span class="badge badge-${m.confidence_level}">${LEVEL_LABELS[m.confidence_level]}</span></td>
-    <td><div class="level-dots" role="img" aria-label="Coverage: ${LEVEL_LABELS[m.confidence_level]}">${dots}</div></td>
-    <td>${tags || '<span style="color:var(--text-muted)">none</span>'}</td>
-    <td><button class="expand-btn" aria-expanded="${expanded}" aria-label="Expand details for ${m.model_type}" onclick="toggleDetail('${m.model_type}')">${expanded ? '\u2212' : '+'}</button></td>
-  </tr>`;
-
-  if (expanded) {
-    row += renderDetailRow(m);
-  }
-  return row;
-}
-
-function renderDetailRow(m) {
-  const l3Active = m.l3 && m.l3_status === 'pass';
-  const l3Pending = !l3Active && (m.l3_status === 'xfail' || m.l3_status === 'skip');
-  const levels = [
-    ['L1: Graph Build', m.l1, 'Model builds a valid ONNX graph from tiny config', m.config_overrides.length > 0, false],
-    ['L2: Config Compatible', m.l2, 'Full-size HF config produces valid graph', !!m.test_model_id, false],
-    ['L3: Synthetic Parity', l3Active, 'Random-weight forward pass matches HF (atol)', m.l3_status != null, l3Pending],
-    ['L4: Golden Match', m.l4, 'Real-weight logits match golden reference', m.l4_case && !m.l4_skipped, (m.l4_case && !m.l4) && !m.l4_skipped],
-    ['L5: Generation', m.l5, 'Full generation matches golden output', m.l5_case && !m.l5_skipped, (m.l5_case && !m.l5) && !m.l5_skipped],
-  ];
-
-  let levelHtml = '<table style="width:100%;margin-bottom:8px;border:none">';
-  levels.forEach(([name, active, desc, hasTest, pending]) => {
-    let icon;
-    if (active) icon = '\u2705';
-    else if (pending) icon = '\u25D4';
-    else if (hasTest) icon = '\u274C';
-    else icon = '\u2796';
-    levelHtml += `<tr><td style="border:none;padding:2px 8px;width:30px">${icon}</td>
-      <td style="border:none;padding:2px 8px;font-weight:600">${name}</td>
-      <td style="border:none;padding:2px 8px;color:var(--text-muted)">${desc}</td></tr>`;
-  });
-  levelHtml += '</table>';
-
-  // Golden test case status
-  let goldenHtml = '<div class="golden-status">';
-  goldenHtml += '<strong>Golden Test Status:</strong>';
-  if (m.yaml_case) {
-    if (m.yaml_skip_reason) {
-      goldenHtml += `<div class="status-row"><span class="status-icon">\u23ED</span> Test case: <code>${esc(m.yaml_case)}</code> <span style="color:var(--text-muted)">\u2014 skipped: ${esc(m.yaml_skip_reason)}</span></div>`;
-    } else {
-      goldenHtml += `<div class="status-row"><span class="status-icon">\u2705</span> Test case: <code>${esc(m.yaml_case)}</code></div>`;
-    }
-  } else {
-    goldenHtml += '<div class="status-row"><span class="status-icon">\u274C</span> No YAML test case defined</div>';
-  }
-  goldenHtml += `<div class="status-row"><span class="status-icon">${m.l4 ? '\u2705' : m.l4_skipped ? '\u23ED' : m.l4_case ? '\u274C' : '\u2796'}</span> L4 golden data: ${m.l4 ? 'available' : m.l4_skipped ? `skipped (${esc(m.yaml_skip_reason || 'known issue')})` : m.l4_case ? 'test case exists, run generate_golden.py' : 'none'}</div>`;
-  goldenHtml += `<div class="status-row"><span class="status-icon">${m.l5 ? '\u2705' : m.l5_skipped ? '\u23ED' : m.l5_case ? '\u274C' : '\u2796'}</span> L5 golden data: ${m.l5 ? 'available' : m.l5_skipped ? `skipped (${esc(m.yaml_skip_reason || 'known issue')})` : m.l5_case ? 'test case exists, run generate_golden.py' : 'none'}</div>`;
-
-  if (m.min_token_match_ratio != null) {
-    const r = m.min_token_match_ratio;
-    const cls = r >= 0.9 ? 'ratio-high' : r >= 0.5 ? 'ratio-medium' : 'ratio-low';
-    const pct = Math.round(r * 100);
-    const msg = r < 0.5 ? ' \u26A0\uFE0F low \u2014 test may not be meaningful'
-              : r < 0.9 ? ' \u26A0\uFE0F below recommended threshold (0.9)'
-              : '';
-    goldenHtml += `<div class="status-row"><span class="status-icon">\uD83C\uDFAF</span> L5 token match threshold: <span class="ratio-badge ${cls}">${pct}%</span><span style="color:var(--text-muted)">${msg}</span></div>`;
-  }
-
-  // L3 parity status
-  if (m.l3_status) {
-    const statusColor = m.l3_status === 'pass' ? 'var(--l3)' : m.l3_status === 'xfail' ? 'var(--l1)' : 'var(--text-muted)';
-    goldenHtml += `<div class="status-row"><span class="status-icon" style="color:${statusColor}">\u25CF</span> L3 parity: <strong>${m.l3_status}</strong>`;
-    if (m.l3_reason) {
-      goldenHtml += ` <span style="color:var(--text-muted)">\u2014 ${esc(m.l3_reason)}</span>`;
-    }
-    goldenHtml += '</div>';
-  }
-  goldenHtml += '</div>';
-
-  let configHtml = '';
-  if (m.config_overrides.length > 0) {
-    configHtml = '<strong>Test configs:</strong>';
-    m.config_overrides.forEach((cfg, i) => {
-      const cfgStr = JSON.stringify(cfg, null, 2);
-      configHtml += `<div class="config-block" id="cfg-${m.model_type}-${i}">` +
-        `<button class="copy-btn" onclick="copyConfig('cfg-${m.model_type}-${i}')">Copy</button>` +
-        cfgStr + '</div>';
-    });
-  } else {
-    configHtml = '<span style="color:var(--text-muted)">No test configs \u2014 add to tests/_test_configs.py</span>';
-  }
-
-  let metaHtml = `<div style="display:flex;gap:24px;margin-top:8px;font-size:0.85em">
-    <div><strong>Task:</strong> ${esc(m.task)}</div>
-    <div><strong>Module:</strong> ${esc(m.module_class)}</div>`;
-  if (m.test_model_id) {
-    metaHtml += `<div><strong>Test model:</strong> ${esc(m.test_model_id)}</div>`;
-  }
-  if (m.has_integration_test) {
-    metaHtml += '<div>\u2705 Has integration test</div>';
-  }
-  metaHtml += '</div>';
-
-  return `<tr class="detail-row open"><td colspan="7">
-    ${levelHtml}${goldenHtml}${configHtml}${metaHtml}
-  </td></tr>`;
-}
-
-// --- Interactions ---
-function toggleFamily(fam) {
-  if (expandedFamilies.has(fam)) expandedFamilies.delete(fam);
-  else expandedFamilies.add(fam);
-  renderTable();
-}
-
-function toggleDetail(mt) {
-  if (expandedDetails.has(mt)) expandedDetails.delete(mt);
-  else expandedDetails.add(mt);
-  renderTable();
-}
-
-function copyConfig(id) {
-  const el = document.getElementById(id);
-  const text = el.textContent.replace('Copy', '').trim();
-  navigator.clipboard.writeText(text);
-  const btn = el.querySelector('.copy-btn');
-  btn.textContent = 'Copied!';
-  setTimeout(() => btn.textContent = 'Copy', 1500);
-}
-
-// --- Sorting ---
-document.querySelectorAll('th[data-sort]').forEach(th => {
-  th.addEventListener('click', () => {
-    const key = th.dataset.sort;
-    if (currentSort.key === key) currentSort.asc = !currentSort.asc;
-    else { currentSort.key = key; currentSort.asc = true; }
-    renderTable();
-  });
-});
-
-// --- Filters ---
-document.getElementById('search').addEventListener('input', renderTable);
-document.getElementById('category-filter').addEventListener('change', renderTable);
-document.getElementById('level-filter').addEventListener('change', renderTable);
-
-// --- Group toggle ---
-document.querySelectorAll('#group-toggle button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#group-toggle button').forEach(b => {
-      b.classList.remove('active');
-      b.setAttribute('aria-pressed', 'false');
-    });
-    btn.classList.add('active');
-    btn.setAttribute('aria-pressed', 'true');
-    groupByFamily = btn.dataset.group === 'family';
-    renderTable();
-  });
-});
-
-// --- Code path coverage grid ---
-(function renderCodePaths() {
-  const grid = document.getElementById('code-path-grid');
-  const total = MODEL_DATA.filter(m => m.l1).length;
-  CODE_PATH_INFO.forEach(cp => {
-    const count = SUMMARY.code_path_coverage[cp.label] || 0;
-    const pct = total > 0 ? Math.round(count / total * 100) : 0;
-    const color = pct > 50 ? 'var(--l3)' : pct > 20 ? 'var(--l2)' : 'var(--l0)';
-    grid.innerHTML += `<div class="code-path-card">
-      <h4><span class="tag">${esc(cp.label)}</span> ${esc(cp.description)}</h4>
-      <div class="coverage">${count} / ${total} models (${pct}%)</div>
-      <div class="progress"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
-      <div class="config-block" style="margin-top:8px;max-height:100px;font-size:0.75em">${JSON.stringify(cp.example_config, null, 2)}</div>
-    </div>`;
-  });
-})();
-
-// --- Missing coverage ---
-(function renderMissing() {
-  const el = document.getElementById('missing-coverage');
-  const missing = MODEL_DATA.filter(m => !m.l1);
-  if (missing.length === 0) {
-    el.innerHTML = '<p style="color:var(--l3)">\u2705 All models have at least L1 coverage!</p>';
-    return;
-  }
-  const groups = {};
-  missing.forEach(m => {
-    if (!groups[m.category]) groups[m.category] = [];
-    groups[m.category].push(m);
-  });
-  let html = `<p style="color:var(--l0)">${missing.length} models have no test coverage</p>`;
-  Object.keys(groups).sort().forEach(cat => {
-    html += `<h4 style="margin-top:12px">${cat}</h4><ul style="list-style:none;padding-left:8px">`;
-    groups[cat].forEach(m => {
-      html += `<li style="margin:2px 0"><code style="font-size:0.85em">` +
-        `("${m.model_type}", {}, True),  # TODO: add to ${cat} configs</code></li>`;
-    });
-    html += '</ul>';
-  });
-  el.innerHTML = html;
-})();
-
-// Initial render
-renderTable();
-
-// --- Theme toggle ---
-(function initThemeToggle() {
-  const btn = document.getElementById('theme-toggle');
-  function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('dashboard-theme', theme);
-    btn.textContent = theme === 'dark' ? '\u{1F319}' : '\u{2600}\u{FE0F}';
-    btn.setAttribute('aria-label',
-      theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-  }
-  applyTheme(localStorage.getItem('dashboard-theme') || 'dark');
-  btn.addEventListener('click', function() {
-    var cur = document.documentElement.getAttribute('data-theme') || 'dark';
-    applyTheme(cur === 'dark' ? 'light' : 'dark');
-  });
-})();
-"""
-
-
-_HTML_TEMPLATE = (
-    '<!DOCTYPE html>\n<html lang="en">\n<head>\n'
-    '<meta charset="utf-8">\n'
-    '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-    "<title>ONNX GenAI Models — Testing Confidence Dashboard</title>\n"
-    "<style>\n" + _CSS_BLOCK + "</style>\n</head>\n<body>\n"
-    "<script>\n"
-    "(function(){var t=localStorage.getItem('dashboard-theme')||'dark';"
-    "document.documentElement.setAttribute('data-theme',t);})()\n"
-    "</script>\n"
-    '<noscript><p style="color:#e6edf3;padding:2em">'
-    "This dashboard requires JavaScript to render.</p></noscript>\n"
-    '<div class="header-row">\n'
-    '<h1><span aria-hidden="true">\U0001f9ea</span>'
-    " Testing Confidence Dashboard</h1>\n"
-    '<button class="theme-toggle" id="theme-toggle"'
-    ' aria-label="Toggle light/dark mode"'
-    ' title="Toggle light/dark mode">\U0001f319</button>\n'
-    "</div>\n"
-    '<p class="subtitle">\n'
-    "  Generated {{TIMESTAMP}} &middot; Commit <code>{{COMMIT}}</code>"
-    " &middot; {{TOTAL_MODELS}} registered model types\n</p>\n"
-    '<div class="summary" role="region" aria-label="Coverage summary"'
-    ' id="summary-bar"></div>\n'
-    + _FILTERS_BLOCK
-    + _TABLE_BLOCK
-    + _CODE_PATH_SECTION
-    + _MISSING_SECTION
-    + _FOOTER_BLOCK
-    + "<script>\n"
-    + "const MODEL_DATA = {{MODEL_DATA_JSON}};\n"
-    + "const CODE_PATH_INFO = {{CODE_PATH_JSON}};\n"
-    + "const SUMMARY = {{SUMMARY_JSON}};\n"
-    + "const FAMILY_DATA = {{FAMILY_JSON}};\n"
-    + "const LEVEL_LABELS = {{LABELS_JSON}};\n"
-    + _JS_BLOCK
-    + "</script>\n</body>\n</html>\n"
-)
+    # autoescape=True: Jinja2 HTML-escapes all {{ var }} by default.
+    # Variables containing pre-serialized JSON are marked |safe in the template
+    # to bypass escaping — they are already safe for <script> injection.
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(str(_TEMPLATES_DIR)),
+        autoescape=True,
+        keep_trailing_newline=True,
+    )
+    template = env.get_template("dashboard.html.j2")
+    return template.render(**context)
 
 
 def main() -> None:
@@ -1379,7 +777,7 @@ def main() -> None:
     args = parser.parse_args()
 
     models = collect_all_model_info()
-    html_content = _generate_html(models, commit=args.commit)
+    html_content = _render_html(models, commit=args.commit)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
