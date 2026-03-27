@@ -20,6 +20,7 @@ __all__ = [
     "resolve_dtype",
 ]
 
+import contextlib
 import logging
 
 import onnx_ir as ir
@@ -39,6 +40,34 @@ from mobius._weight_loading import _download_weights
 from mobius.tasks import ModelTask, get_task
 
 logger = logging.getLogger(__name__)
+
+
+class _SuppressNoConstValueWarning(logging.Filter):
+    """Filter out 'has no constant value' warnings from initializer dedup.
+
+    Mobius runs optimization passes before weight loading, so weight
+    initializers intentionally have no const_value at that point.
+    Other warnings from the pass (e.g. hash collisions) are preserved.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "has no constant value" not in record.getMessage()
+
+
+@contextlib.contextmanager
+def _suppress_dedup_empty_initializer_warnings():
+    """Temporarily suppress 'has no constant value' dedup warnings.
+
+    Scoped to the optimization pass invocation only — the filter is
+    removed when the context exits so it doesn't affect other code.
+    """
+    dedup_logger = logging.getLogger("onnx_ir.passes.common.initializer_deduplication")
+    log_filter = _SuppressNoConstValueWarning()
+    dedup_logger.addFilter(log_filter)
+    try:
+        yield
+    finally:
+        dedup_logger.removeFilter(log_filter)
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +121,8 @@ _DEFAULT_PASSES = [
 def _optimize(model: ir.Model) -> None:
     """Apply default optimization passes to a model in-place."""
     pass_ = ir.passes.PassManager(_DEFAULT_PASSES, steps=2)
-    pass_(model)
+    with _suppress_dedup_empty_initializer_warnings():
+        pass_(model)
 
 
 # Mapping of short dtype names to ONNX IR dtypes
