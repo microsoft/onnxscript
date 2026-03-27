@@ -1,0 +1,14 @@
+{
+  "model_id": "google-t5/t5-small",
+  "prompt": "translate English to German: The house is wonderful.",
+  "generated_tokens": [
+    0,
+    644,
+    4598,
+    229,
+    19250,
+    5,
+    1
+  ],
+  "generated_text": "Das Haus ist wunderbar."
+}

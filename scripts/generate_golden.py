@@ -45,7 +45,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from mobius._testing.golden import TestCase
+    from mobius._testing.golden import GoldenTestCase as TestCase
 
 import numpy as np
 
@@ -160,7 +160,7 @@ def _extract_logits_golden(
 
 def _generate_causal_lm(case: TestCase, json_path: Path, device: str) -> None:
     """Generate golden data for a causal-lm (text-generation) model."""
-    from mobius._testing.golden import save_golden_ref
+    from mobius._testing.golden import save_generation_json, save_golden_ref
     from mobius._testing.torch_reference import (
         load_torch_model,
         torch_forward,
@@ -200,8 +200,19 @@ def _generate_causal_lm(case: TestCase, json_path: Path, device: str) -> None:
         top10_logits=golden["top10_logits"],
         logits_summary=golden["logits_summary"],
         input_ids=input_ids,
-        generated_ids=generated_ids,
     )
+
+    # Save a separate *_generation.json marker for L5 dashboard detection.
+    if generated_ids is not None:
+        generated_text = tokenizer.decode(generated_ids.tolist(), skip_special_tokens=True)
+        gen_path = json_path.with_name(json_path.stem + "_generation.json")
+        save_generation_json(
+            gen_path,
+            model_id=case.model_id,
+            prompt=case.prompts[0],
+            generated_tokens=generated_ids.tolist(),
+            generated_text=generated_text,
+        )
 
 
 def _generate_encoder(case: TestCase, json_path: Path, device: str) -> None:
@@ -245,7 +256,7 @@ def _generate_seq2seq(case: TestCase, json_path: Path, device: str) -> None:
     """Generate golden data for a seq2seq (encoder-decoder) model."""
     import torch
 
-    from mobius._testing.golden import save_golden_ref
+    from mobius._testing.golden import save_generation_json, save_golden_ref
     from mobius._testing.torch_reference import (
         load_torch_seq2seq_model,
     )
@@ -287,8 +298,18 @@ def _generate_seq2seq(case: TestCase, json_path: Path, device: str) -> None:
         top10_logits=golden["top10_logits"],
         logits_summary=golden["logits_summary"],
         input_ids=input_ids,
-        generated_ids=generated_ids,
     )
+
+    if generated_ids is not None:
+        generated_text = tokenizer.decode(generated_ids.tolist(), skip_special_tokens=True)
+        gen_path = json_path.with_name(json_path.stem + "_generation.json")
+        save_generation_json(
+            gen_path,
+            model_id=case.model_id,
+            prompt=case.prompts[0],
+            generated_tokens=generated_ids.tolist(),
+            generated_text=generated_text,
+        )
 
 
 def _generate_vision_language(case: TestCase, json_path: Path, device: str) -> None:
@@ -300,7 +321,7 @@ def _generate_vision_language(case: TestCase, json_path: Path, device: str) -> N
     import torch
     from PIL import Image
 
-    from mobius._testing.golden import save_golden_ref
+    from mobius._testing.golden import save_generation_json, save_golden_ref
     from mobius._testing.torch_reference import (
         load_torch_multimodal_model,
     )
@@ -310,9 +331,22 @@ def _generate_vision_language(case: TestCase, json_path: Path, device: str) -> N
     # Load images from testdata/
     images = [Image.open(Path("testdata") / img_path) for img_path in case.images]
 
+    # Build chat-formatted prompt with image placeholders if the
+    # processor supports apply_chat_template (Qwen-VL, Gemma-3, etc.)
+    prompt_text = case.prompts[0]
+    if hasattr(processor, "apply_chat_template"):
+        content: list[dict[str, str]] = []
+        for img_path in case.images:
+            content.append({"type": "image", "image": str(Path("testdata") / img_path)})
+        content.append({"type": "text", "text": prompt_text})
+        messages = [{"role": "user", "content": content}]
+        prompt_text = processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+
     # Process multimodal inputs through the HF processor
     processed = processor(
-        text=case.prompts[0],
+        text=prompt_text,
         images=images if images else None,
         return_tensors="pt",
     ).to(device)
@@ -345,8 +379,23 @@ def _generate_vision_language(case: TestCase, json_path: Path, device: str) -> N
         top10_logits=golden["top10_logits"],
         logits_summary=golden["logits_summary"],
         input_ids=input_ids_np,
-        generated_ids=generated_ids,
     )
+
+    if generated_ids is not None:
+        tokenizer = processor.tokenizer if hasattr(processor, "tokenizer") else None
+        generated_text = (
+            tokenizer.decode(generated_ids.tolist(), skip_special_tokens=True)
+            if tokenizer is not None
+            else None
+        )
+        gen_path = json_path.with_name(json_path.stem + "_generation.json")
+        save_generation_json(
+            gen_path,
+            model_id=case.model_id,
+            prompt=case.prompts[0],
+            generated_tokens=generated_ids.tolist(),
+            generated_text=generated_text,
+        )
 
 
 def _generate_speech_to_text(case: TestCase, json_path: Path, device: str) -> None:
@@ -354,7 +403,7 @@ def _generate_speech_to_text(case: TestCase, json_path: Path, device: str) -> No
     import librosa
     import torch
 
-    from mobius._testing.golden import save_golden_ref
+    from mobius._testing.golden import save_generation_json, save_golden_ref
     from mobius._testing.torch_reference import (
         load_torch_whisper_model,
     )
@@ -402,8 +451,18 @@ def _generate_speech_to_text(case: TestCase, json_path: Path, device: str) -> No
         top10_logits=golden["top10_logits"],
         logits_summary=golden["logits_summary"],
         input_ids=input_ids_np,
-        generated_ids=generated_ids,
     )
+
+    if generated_ids is not None:
+        generated_text = processor.decode(generated_ids.tolist(), skip_special_tokens=True)
+        gen_path = json_path.with_name(json_path.stem + "_generation.json")
+        save_generation_json(
+            gen_path,
+            model_id=case.model_id,
+            prompt=case.audio[0],
+            generated_tokens=generated_ids.tolist(),
+            generated_text=generated_text,
+        )
 
 
 def _generate_audio_feature_extraction(case: TestCase, json_path: Path, device: str) -> None:
@@ -420,7 +479,9 @@ def _generate_audio_feature_extraction(case: TestCase, json_path: Path, device: 
         torch_audio_forward,
     )
 
-    model, processor = load_torch_audio_model(case.model_id, device=device)
+    model, processor = load_torch_audio_model(
+        case.model_id, device=device, trust_remote_code=case.trust_remote_code
+    )
 
     # Load and preprocess audio
     audio_path = Path("testdata") / case.audio[0]
@@ -450,6 +511,50 @@ def _generate_audio_feature_extraction(case: TestCase, json_path: Path, device: 
     )
 
 
+def _generate_image_classification(case: TestCase, json_path: Path, device: str) -> None:
+    """Generate golden data for image classification (ViT, CLIP, etc.).
+
+    Similar to encoder-only: last hidden state is used as the
+    "logit" vector for top-k extraction.
+    """
+    from PIL import Image
+
+    from mobius._testing.golden import save_golden_ref
+    from mobius._testing.torch_reference import (
+        load_torch_vision_model,
+        torch_vision_forward,
+    )
+
+    model, processor = load_torch_vision_model(
+        case.model_id, device=device, trust_remote_code=case.trust_remote_code
+    )
+
+    # Load and preprocess image
+    image = Image.open(Path("testdata") / case.images[0])
+    # Use PyTorch tensors then convert — some processors don't support np
+    processed = processor(images=image, return_tensors="pt")
+    pixel_values = processed["pixel_values"].numpy()
+
+    # Forward pass → last_hidden_state
+    hidden_states = torch_vision_forward(model, pixel_values)
+    # Use the last patch token rather than the CLS token (index 0) because
+    # patch-based ViT models aggregate spatial context into trailing tokens;
+    # the last token provides a stable, architecture-neutral summary vector.
+    last_hidden = hidden_states[0, -1, :]  # (hidden_size,)
+    golden = _extract_logits_golden(last_hidden)
+
+    # Image classification is L4-only (no generation)
+    save_golden_ref(
+        json_path,
+        top1_id=golden["top1_id"],
+        top2_id=golden["top2_id"],
+        top10_ids=golden["top10_ids"],
+        top10_logits=golden["top10_logits"],
+        logits_summary=golden["logits_summary"],
+        input_ids=np.array([[0]], dtype=np.int64),  # placeholder
+    )
+
+
 # ---- Dispatcher ----
 
 # Map task_type strings to generator functions.
@@ -458,6 +563,7 @@ _GENERATORS = {
     "feature-extraction": _generate_encoder,
     "seq2seq": _generate_seq2seq,
     "image-text-to-text": _generate_vision_language,
+    "image-classification": _generate_image_classification,
     "speech-to-text": _generate_speech_to_text,
     "audio-feature-extraction": _generate_audio_feature_extraction,
 }
@@ -494,6 +600,14 @@ def generate_golden_for_case(case: TestCase, json_path: Path, device: str) -> bo
 def main() -> int:
     """Entry point.  Returns 0 on success, 1 if any cases failed."""
     args = parse_args()
+
+    if args.device.startswith("cuda"):
+        import torch
+
+        # Disable cuDNN to avoid CUDNN_STATUS_NOT_INITIALIZED on
+        # systems where the cuDNN library version doesn't match the
+        # CUDA toolkit bundled with PyTorch.
+        torch.backends.cudnn.enabled = False
 
     from mobius._testing.golden import (
         discover_test_cases,

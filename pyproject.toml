@@ -39,6 +39,7 @@ testing = [
     "gguf>=0.10.0",
     "Pillow",
     "librosa",
+    "jsonschema>=4.0",
 ]
 ort-genai = ["onnxruntime-genai"]
 docs = ["furo", "myst-parser", "sphinx", "sphinx_copybutton"]

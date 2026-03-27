@@ -1,0 +1,27 @@
+{
+  "model_id": "bigcode/starcoder2-3b",
+  "prompt": "def fibonacci(n):",
+  "generated_tokens": [
+    303,
+    434,
+    329,
+    630,
+    244,
+    53,
+    63,
+    310,
+    461,
+    244,
+    53,
+    303,
+    4378,
+    329,
+    630,
+    244,
+    54,
+    63,
+    310,
+    461
+  ],
+  "generated_text": "\n    if n == 0:\n        return 0\n    elif n == 1:\n        return"
+}

@@ -1,0 +1,10 @@
+{
+  "model_id": "google/mt5-small",
+  "prompt": "translate English to German: The house is wonderful.",
+  "generated_tokens": [
+    0,
+    250099,
+    1
+  ],
+  "generated_text": ""
+}

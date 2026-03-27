@@ -1,0 +1,27 @@
+{
+  "model_id": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    4710,
+    40,
+    2776,
+    14589,
+    11,
+    714,
+    498,
+    614,
+    537,
+    3897,
+    264,
+    32794,
+    369,
+    752,
+    311,
+    42565,
+    13,
+    16503,
+    498,
+    4486
+  ],
+  "generated_text": " \n\nI'm sorry, but you have not provided a poem for me to critique. Could you please"
+}

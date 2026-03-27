@@ -1,0 +1,27 @@
+{
+  "model_id": "EleutherAI/pythia-70m",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    187,
+    187,
+    42,
+    717,
+    247,
+    3416,
+    13,
+    285,
+    309,
+    717,
+    247,
+    3416,
+    15,
+    187,
+    187,
+    42,
+    717,
+    247,
+    3416,
+    13
+  ],
+  "generated_text": "\n\nI am a woman, and I am a woman.\n\nI am a woman,"
+}

@@ -1,0 +1,27 @@
+{
+  "model_id": "stabilityai/stablelm-2-1_6b",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    578,
+    4060,
+    315,
+    279,
+    4435,
+    198,
+    791,
+    4060,
+    315,
+    279,
+    4435,
+    198,
+    791,
+    4060,
+    315,
+    279,
+    4435,
+    198,
+    791,
+    4060
+  ],
+  "generated_text": " The End of the World\nThe End of the World\nThe End of the World\nThe End"
+}

@@ -1,0 +1,27 @@
+{
+  "model_id": "allenai/OLMo-2-1124-7B",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    4194,
+    271,
+    791,
+    7160,
+    374,
+    49025,
+    198,
+    791,
+    20229,
+    527,
+    26139,
+    198,
+    791,
+    19837,
+    527,
+    14545,
+    18238,
+    198,
+    791,
+    40558
+  ],
+  "generated_text": "\u00a0\n\nThe sun is shining\nThe birds are singing\nThe flowers are blooming\nThe bees"
+}

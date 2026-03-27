@@ -1,0 +1,27 @@
+{
+  "model_id": "allenai/OLMo-1B-hf",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    510,
+    806,
+    2181,
+    368,
+    878,
+    281,
+    513,
+    310,
+    281,
+    1056,
+    2119,
+    326,
+    368,
+    452,
+    247,
+    1175,
+    4685,
+    273,
+    253,
+    1027
+  ],
+  "generated_text": "The first thing you need to do is to make sure that you have a good understanding of the different"
+}

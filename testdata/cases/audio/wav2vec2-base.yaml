@@ -10,3 +10,5 @@ inputs:
 level: "L4"
 
 notes: "Wav2Vec2 base. Self-supervised audio feature extraction."
+
+skip_reason: "HF repo has no safetensors (pytorch_model.bin only)"

@@ -1,0 +1,27 @@
+{
+  "model_id": "state-spaces/mamba-130m-hf",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    187,
+    187,
+    42,
+    717,
+    247,
+    637,
+    13,
+    309,
+    717,
+    247,
+    637,
+    13,
+    187,
+    187,
+    42,
+    717,
+    247,
+    637,
+    13,
+    309
+  ],
+  "generated_text": "\n\nI am a man, I am a man,\n\nI am a man, I"
+}

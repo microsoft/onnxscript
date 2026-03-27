@@ -1,0 +1,27 @@
+{
+  "model_id": "ibm-granite/granite-3.3-2b-instruct",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    203,
+    203,
+    383,
+    322,
+    909,
+    8332,
+    432,
+    45502,
+    101,
+    30,
+    2154,
+    11091,
+    101,
+    343,
+    723,
+    30,
+    203,
+    51,
+    456,
+    658
+  ],
+  "generated_text": "\n\nIn the valley of dreams, where shadows dance,\nA lone"
+}

@@ -100,6 +100,12 @@ class GoldenTestCase:
     skip_reason: str | None
     """If set, the test runner should skip with this message."""
 
+    min_token_match_ratio: float | None
+    """Per-case override for the L5 token match tolerance (0-1).
+    When ``None``, the global tolerance from ``default_tolerances.yaml`` is used.
+    Use when a model has known float32 precision divergence vs HF (e.g.
+    VL 3-model pipeline)."""
+
     yaml_path: Path
     """Absolute path to the source YAML file."""
 
@@ -134,10 +140,6 @@ class GoldenRef:
 
     input_ids: list[int]
     """Tokenized input used during golden generation."""
-
-    # L5 data — None if level == "L4"
-    generated_ids: list[int] | None
-    """Full generated token sequence (greedy, L5 only)."""
 
     # Multi-model diagnostics — empty dicts for single-model tasks
     component_norms: dict[str, float]
@@ -223,6 +225,7 @@ def load_test_case(yaml_path: Path) -> GoldenTestCase:
         generation_params=generation,
         trust_remote_code=data.get("trust_remote_code", False),
         skip_reason=data.get("skip_reason"),
+        min_token_match_ratio=data.get("min_token_match_ratio"),
         yaml_path=yaml_path,
     )
 
@@ -260,9 +263,6 @@ def load_golden_ref(json_path: Path) -> GoldenRef | None:
     }
     component_shapes: dict[str, list[int]] = data.get("component_shapes", {})
 
-    # L5 generated_ids may not be present (L4-only golden)
-    generated_ids = data.get("generated_ids")
-
     return GoldenRef(
         top1_id=int(data["top1_id"]),
         top2_id=int(data["top2_id"]),
@@ -270,7 +270,6 @@ def load_golden_ref(json_path: Path) -> GoldenRef | None:
         top10_logits=top10_logits,
         logits_summary=logits_summary,
         input_ids=[int(x) for x in data["input_ids"]],
-        generated_ids=generated_ids,
         component_norms=component_norms,
         component_shapes=component_shapes,
         json_path=json_path,
@@ -286,15 +285,17 @@ def save_golden_ref(
     top10_logits: list[float],
     logits_summary: np.ndarray | list[float],
     input_ids: np.ndarray | list[int],
-    generated_ids: np.ndarray | list[int] | None = None,
     component_norms: dict[str, float] | None = None,
     component_shapes: dict[str, tuple[int, ...]] | None = None,
 ) -> None:
-    """Save golden reference data to a ``.json`` file.
+    """Save golden reference data to a ``.json`` file (L4 only).
 
     Creates parent directories if they do not exist.  All keyword
-    arguments are required except ``generated_ids`` (L5 only) and
-    the ``component_*`` dicts (multi-model tasks only).
+    arguments are required except the ``component_*`` dicts (multi-model
+    tasks only).
+
+    Generation data (L5) is stored separately in a ``*_generation.json``
+    file via :func:`save_generation_json`.
 
     Float values are stored as hex strings (``float.hex()``) for
     lossless fp64 round-tripping.  This preserves full precision
@@ -309,7 +310,6 @@ def save_golden_ref(
         logits_summary: ``[max, min, mean, std]`` of the full logit
             vector.
         input_ids: Tokenized input array.
-        generated_ids: Full generated token sequence (L5 only).
         component_norms: L2 norms for multi-model component outputs.
         component_shapes: Output shapes for multi-model components.
     """
@@ -339,14 +339,6 @@ def save_golden_ref(
         "input_ids": [int(x) for x in input_ids_list],
     }
 
-    if generated_ids is not None:
-        gen_list = (
-            generated_ids.tolist()
-            if isinstance(generated_ids, np.ndarray)
-            else list(generated_ids)
-        )
-        data["generated_ids"] = [int(x) for x in gen_list]
-
     # Multi-model component data stored as nested dicts
     if component_norms:
         data["component_norms"] = {k: float(v).hex() for k, v in component_norms.items()}
@@ -355,9 +347,83 @@ def save_golden_ref(
             k: [int(x) for x in v] for k, v in component_shapes.items()
         }
 
-    with open(json_path, "w") as f:
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
         f.write("\n")  # trailing newline for POSIX compliance
+
+
+def save_generation_json(
+    json_path: Path,
+    *,
+    model_id: str,
+    prompt: str,
+    generated_tokens: list[int],
+    generated_text: str | None = None,
+) -> None:
+    """Save a ``*_generation.json`` L5 marker file alongside the main golden.
+
+    These lightweight files record the human-readable generation output so
+    the dashboard can detect L5 coverage via a ``*_generation.json`` glob.
+
+    Args:
+        json_path: Destination path (e.g. ``testdata/golden/causal-lm/gpt2_generation.json``).
+        model_id: HuggingFace model ID.
+        prompt: The text prompt used for generation.
+        generated_tokens: Token IDs produced by greedy generation (prompt excluded).
+        generated_text: Decoded string of ``generated_tokens``. ``None`` if
+            the tokenizer was not available at generation time.
+    """
+    json_path = Path(json_path)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+
+    data: dict = {
+        "model_id": model_id,
+        "prompt": prompt,
+        "generated_tokens": [int(t) for t in generated_tokens],
+    }
+    if generated_text is not None:
+        data["generated_text"] = generated_text
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+
+def generation_json_path_for_case(
+    case: GoldenTestCase,
+    golden_dir: Path = GOLDEN_DIR,
+) -> Path:
+    """Return the expected ``*_generation.json`` path for a test case.
+
+    Maps ``testdata/cases/<task>/<name>.yaml``
+    to  ``testdata/golden/<task>/<name>_generation.json``.
+    """
+    task_dir = case.yaml_path.parent.name
+    return golden_dir / task_dir / f"{case.case_id}_generation.json"
+
+
+def load_generation_golden(
+    case: GoldenTestCase,
+    golden_dir: Path = GOLDEN_DIR,
+) -> list[int] | None:
+    """Load generated token IDs from a ``*_generation.json`` file.
+
+    Returns the ``generated_tokens`` list from the L5 generation golden
+    file, or ``None`` if the file does not exist.
+
+    Args:
+        case: The test case whose generation golden to load.
+        golden_dir: Root directory for golden files.
+
+    Returns:
+        List of generated token IDs, or ``None`` if file is missing.
+    """
+    path = generation_json_path_for_case(case, golden_dir)
+    if not path.exists():
+        return None
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return [int(t) for t in data["generated_tokens"]]
 
 
 def discover_test_cases(

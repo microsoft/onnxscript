@@ -1,0 +1,27 @@
+{
+  "model_id": "allenai/OLMoE-1B-7B-0924",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    187,
+    187,
+    510,
+    5101,
+    310,
+    28115,
+    187,
+    510,
+    11260,
+    403,
+    16115,
+    187,
+    510,
+    12405,
+    403,
+    30601,
+    272,
+    187,
+    510,
+    10583
+  ],
+  "generated_text": "\n\nThe sun is shining\nThe birds are singing\nThe flowers are blooming\nThe grass"
+}

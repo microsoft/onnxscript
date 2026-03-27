@@ -491,3 +491,100 @@ code. During Qwen3.5 development, automated review found:
 These were not caught by the 514 build graph tests. Code review + integration
 tests together cover the gaps that unit tests cannot.
 
+
+## L4/L5 Golden Tests
+
+L4/L5 tests compare ONNX model outputs against HuggingFace reference outputs
+using pre-computed "golden" files. They are slower and require model weights.
+
+### Test case YAML format
+
+**Location:** `testdata/cases/<category>/<model>.yaml`
+
+Categories match task types: `causal-lm`, `encoder`, `seq2seq`, `audio`,
+`vision`, `vision-language`, `diffusion`.
+
+**Required fields:**
+
+```yaml
+model_id: "Qwen/Qwen2.5-1.5B-Instruct"   # HuggingFace model ID
+revision: "main"                            # Git revision / commit SHA
+task_type: "text-generation"               # Task type string
+dtype: "float32"                           # "float32", "float16", or "bfloat16"
+level: "L4+L5"                             # "L4", "L5", or "L4+L5"
+
+inputs:
+  prompts:
+    - "The capital of France is"           # Text prompt(s)
+```
+
+For image models, use `images:` instead of (or alongside) `prompts:`:
+
+```yaml
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"            # Path relative to testdata/
+```
+
+For audio models:
+
+```yaml
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+```
+
+**Optional fields:**
+
+```yaml
+skip_reason: "HF repo has no safetensors" # Skip this test case entirely
+trust_remote_code: true                    # Pass trust_remote_code=True to HF (default: false)
+notes: "Short description of the model."  # Human-readable notes
+
+generation:
+  max_new_tokens: 20                       # Override token generation limit
+  do_sample: false
+```
+
+**`skip_reason` vs `_SKIP_REASONS` dict:** Always use the YAML `skip_reason`
+field for new cases. The legacy `_SKIP_REASONS` dict in `e2e_golden_test.py`
+has been removed — YAML is the canonical location.
+
+### Golden file format
+
+**Location:** `testdata/golden/<category>/<model>.json`
+
+Generated automatically by `generate_golden.py`. Contains top-1/top-2
+token IDs (for generation tasks) or vector indices (for embedding tasks)
+that the ONNX model output must match.
+
+### Generating golden data
+
+```bash
+# Generate for all test cases at a given level
+python scripts/generate_golden.py --level L4
+
+# Generate for a specific task type
+python scripts/generate_golden.py --level L4 --task-type causal-lm
+
+# Generate for a specific model
+python scripts/generate_golden.py --level L4 --filter 'llama*'
+```
+
+Golden files must be committed alongside new test case YAML files.
+
+### Running L4/L5 tests
+
+```bash
+# L4 tests (single forward pass parity)
+python -m pytest tests/e2e_golden_test.py -m golden --level L4 -v
+
+# L5 tests (multi-token generation parity)
+python -m pytest tests/e2e_golden_test.py -m golden --level L5 -v
+```
+
+### Dashboard coverage
+
+The dashboard at `onnxruntime.github.io/mobius/` shows L4/L5 coverage per
+model. A model only shows as covered if its YAML test case file does **not**
+have a `skip_reason` field — skipped cases do not count as coverage.

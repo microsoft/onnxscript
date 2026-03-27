@@ -1,0 +1,27 @@
+{
+  "model_id": "openai-community/gpt2",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    198,
+    198,
+    40,
+    716,
+    257,
+    582,
+    286,
+    262,
+    995,
+    11,
+    198,
+    198,
+    40,
+    716,
+    257,
+    582,
+    286,
+    262,
+    995,
+    11
+  ],
+  "generated_text": "\n\nI am a man of the world,\n\nI am a man of the world,"
+}

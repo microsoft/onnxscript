@@ -5,7 +5,7 @@ dtype: "float32"
 
 inputs:
   prompts:
-    - "The capital of France is"
+    - "Here is my poem:"
 
 level: "L4+L5"
 

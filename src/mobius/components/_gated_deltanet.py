@@ -207,6 +207,7 @@ class GatedDeltaNet(nn.Module):
             op.Constant(value_ints=[self.key_dim]),
             axis=0,
         )
+        # L2-normalize query and key along head_dim
         query = op.Reshape(
             op.LpNormalization(op.Reshape(query, qk_4d_shape), axis=-1, p=2),
             qk_3d_shape,

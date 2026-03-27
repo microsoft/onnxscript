@@ -1,0 +1,13 @@
+{
+  "model_id": "Helsinki-NLP/opus-mt-en-de",
+  "prompt": "The house is wonderful.",
+  "generated_tokens": [
+    58100,
+    103,
+    795,
+    29,
+    17014,
+    3,
+    0
+  ]
+}

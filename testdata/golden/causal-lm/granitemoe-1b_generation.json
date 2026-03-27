@@ -1,0 +1,27 @@
+{
+  "model_id": "ibm-granite/granite-3.0-1b-a400m-instruct",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    203,
+    203,
+    914,
+    203,
+    1386,
+    267,
+    322,
+    9086,
+    432,
+    322,
+    19212,
+    30,
+    203,
+    51,
+    6514,
+    21930,
+    438,
+    47212,
+    30,
+    203
+  ],
+  "generated_text": "\n\n```\nUpon the canvas of the night,\nA masterpiece is born,\n"
+}

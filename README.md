@@ -14,7 +14,7 @@ Supports building ONNX models from HuggingFace model IDs with automatic weight
 downloading, dtype casting (including bfloat16 via `ir.LazyTensor`), and
 multi-component export for pipelines.
 
-📖 **[Documentation](https://mobius-ai.readthedocs.io)** · 📦 **[Supported Models](https://mobius-ai.readthedocs.io/en/latest/models/index.html)**
+📖 **[Documentation](https://onnxruntime.github.io/mobius/docs/)** · 📦 **[Supported Models](https://onnxruntime.github.io/mobius/docs/models/index.html)**
 
 ## Highlighted Models
 
@@ -34,7 +34,7 @@ multi-component export for pipelines.
 Supports **130 Transformers model types** and **5 Diffusers component types**
 across **14 task types** and **56+ reusable components**.
 
-See the [model documentation](https://mobius-ai.readthedocs.io/en/latest/models/index.html) for the complete list.
+See the [model documentation](https://onnxruntime.github.io/mobius/docs/models/index.html) for the complete list.
 
 ## Installation
 
@@ -79,7 +79,7 @@ mobius build --model openai/whisper-tiny output_dir/
 mobius build --model meta-llama/Llama-3.2-1B output_dir/ --dtype f16
 ```
 
-See the [CLI reference](https://mobius-ai.readthedocs.io/en/latest/cli.html) for all options.
+See the [CLI reference](https://onnxruntime.github.io/mobius/docs/cli.html) for all options.
 
 ### Examples
 
@@ -113,7 +113,7 @@ The package is organised into four layers:
 - **Tasks** — Define the ONNX graph I/O contract (inputs, outputs, KV cache)
 - **Registry** — Maps HuggingFace `model_type` strings to model classes
 
-See the [design document](https://mobius-ai.readthedocs.io/en/latest/design.html) for details.
+See the [design document](https://onnxruntime.github.io/mobius/docs/design.html) for details.
 
 ## Development
 
@@ -133,7 +133,7 @@ lintrunner f --all-files
 
 ### Adding a new model
 
-See the [AI-assisted model support strategy](https://mobius-ai.readthedocs.io/en/latest/ai-model-support-strategy.html)
+See the [AI-assisted model support strategy](https://onnxruntime.github.io/mobius/docs/ai-model-support-strategy.html)
 and the developer skills in `.github/skills/`:
 
 | Skill | Use when |

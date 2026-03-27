@@ -1894,6 +1894,9 @@ def test_qwen3_next_prefill_logits_match():
     c = transformers.AutoConfig.from_pretrained("Qwen/Qwen3-Coder-Next")
     # Reduce to 4 layers (3 DeltaNet + 1 full attention) with tiny MoE
     c.num_hidden_layers = 4
+    # Truncate layer_types to match the reduced layer count; without this
+    # the config still describes the full-size model's layer schedule.
+    c.layer_types = c.layer_types[: c.num_hidden_layers]
     c.num_experts = 4
     c.num_experts_per_tok = 2
 

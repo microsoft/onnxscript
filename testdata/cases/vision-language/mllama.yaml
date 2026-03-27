@@ -15,4 +15,5 @@ generation:
   max_new_tokens: 30
   do_sample: false
 
+skip_reason: "Gated repo (meta-llama/Llama-3.2-11B-Vision-Instruct requires authentication)."
 notes: "Llama 3.2 11B Vision. Cross-attention vision-language (MllamaCausalLMModel)."

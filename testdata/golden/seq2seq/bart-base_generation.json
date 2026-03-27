@@ -1,0 +1,28 @@
+{
+  "model_id": "facebook/bart-base",
+  "prompt": "summarize: The tower is 324 metres tall and is the tallest structure in Paris.",
+  "generated_tokens": [
+    2,
+    0,
+    18581,
+    3916,
+    2072,
+    35,
+    20,
+    9368,
+    16,
+    36593,
+    7472,
+    6764,
+    8,
+    16,
+    5,
+    28038,
+    3184,
+    11,
+    2201,
+    4,
+    2
+  ],
+  "generated_text": "summarize: The tower is 324 metres tall and is the tallest structure in Paris."
+}

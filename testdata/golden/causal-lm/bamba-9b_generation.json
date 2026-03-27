@@ -1,0 +1,27 @@
+{
+  "model_id": "ibm-fms/Bamba-9B",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    358,
+    1097,
+    264,
+    33894,
+    315,
+    279,
+    10160,
+    11,
+    358,
+    1097,
+    264,
+    33894,
+    315,
+    279,
+    9581,
+    11,
+    358,
+    1097,
+    264,
+    33894
+  ],
+  "generated_text": " I am a poem of the wind, I am a poem of the sea, I am a poem"
+}

@@ -1,0 +1,27 @@
+{
+  "model_id": "mistralai/Mistral-7B-v0.1",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    13,
+    13,
+    1014,
+    4376,
+    349,
+    26575,
+    28725,
+    13,
+    13,
+    1014,
+    12780,
+    460,
+    14493,
+    28725,
+    13,
+    13,
+    1014,
+    11888,
+    460,
+    3449
+  ],
+  "generated_text": "\n\nThe sun is shining,\n\nThe birds are singing,\n\nThe flowers are blo"
+}

@@ -1,0 +1,27 @@
+{
+  "model_id": "Qwen/Qwen3-0.6B",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    330,
+    785,
+    17788,
+    374,
+    264,
+    17846,
+    11,
+    264,
+    17846,
+    11,
+    358,
+    1490,
+    847,
+    1828,
+    21844,
+    13,
+    358,
+    1079,
+    264,
+    17846
+  ],
+  "generated_text": " \"The moon is a mirror, a mirror, I see my own reflection. I am a mirror"
+}

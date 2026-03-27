@@ -1,0 +1,27 @@
+{
+  "model_id": "Qwen/Qwen2.5-0.5B",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    4710,
+    29,
+    715,
+    29,
+    220,
+    358,
+    1079,
+    264,
+    883,
+    315,
+    279,
+    1879,
+    11,
+    2303,
+    29,
+    220,
+    358,
+    1079,
+    264,
+    883
+  ],
+  "generated_text": " \n\n> \n>  I am a man of the world,  \n>  I am a man"
+}

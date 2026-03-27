@@ -52,6 +52,12 @@ jobs:
             --output _site/index.html \
             --commit $(git rev-parse --short HEAD)
 
+      - name: Build Sphinx docs
+        run: |
+          pip install -r docs/requirements.txt
+          python docs/_generate_models.py
+          sphinx-build docs _site/docs
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
 

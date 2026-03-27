@@ -1,5 +1,5 @@
-model_id: "Qwen/Qwen3.5-VL-3B-Instruct"
-revision: "main"
+model_id: "Qwen/Qwen3.5-2B"
+revision: "15852e8c16360a2fea060d615a32b45270f8a8fc"
 task_type: "image-text-to-text"
 dtype: "float32"
 
@@ -15,4 +15,4 @@ generation:
   max_new_tokens: 30
   do_sample: false
 
-notes: "Qwen3.5-VL 3B. Hybrid attention vision-language (Qwen35VL3ModelCausalLMModel)."
+notes: "Qwen3.5-2B vision-language model. Hybrid attention VL with Qwen3.5 architecture."

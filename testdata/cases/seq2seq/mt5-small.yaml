@@ -15,3 +15,5 @@ generation:
   do_sample: false
 
 notes: "mT5 small. Multilingual T5 encoder-decoder."
+
+skip_reason: "HF repo has no safetensors (pytorch_model.bin only)"

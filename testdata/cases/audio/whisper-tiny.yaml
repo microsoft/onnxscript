@@ -14,3 +14,5 @@ generation:
 level: "L4+L5"
 
 notes: "Whisper tiny. Speech-to-text encoder-decoder."
+
+skip_reason: "Whisper encoder needs audio input_features (not text input_ids)"

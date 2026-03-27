@@ -1,0 +1,31 @@
+{
+  "model_id": "llava-hf/llava-1.5-7b-hf",
+  "prompt": "What is shown in this image?",
+  "generated_tokens": [
+    450,
+    1967,
+    3697,
+    263,
+    2919,
+    29892,
+    1652,
+    3096,
+    29891,
+    29892,
+    322,
+    3261,
+    719,
+    6635,
+    22049,
+    373,
+    263,
+    15007,
+    29899,
+    11911,
+    287,
+    5962,
+    29889,
+    2
+  ],
+  "generated_text": "The image shows a large, fluffy, and furry cat walking on a snow-covered ground."
+}

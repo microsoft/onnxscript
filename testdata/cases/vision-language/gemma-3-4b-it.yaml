@@ -15,4 +15,5 @@ generation:
   max_new_tokens: 30
   do_sample: false
 
+skip_reason: "Gated repo (google/gemma-3-4b-it requires authentication)."
 notes: "Gemma 3 4B IT multimodal. SigLIP vision encoder + Gemma 3 decoder."

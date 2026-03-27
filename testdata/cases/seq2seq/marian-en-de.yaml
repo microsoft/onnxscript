@@ -15,3 +15,5 @@ generation:
   do_sample: false
 
 notes: "Marian NMT en-de. Lightweight encoder-decoder translation model."
+
+skip_reason: "HF repo has no safetensors (pytorch_model.bin only)"

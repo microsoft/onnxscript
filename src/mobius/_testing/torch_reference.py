@@ -355,8 +355,12 @@ def load_torch_vision_model(
     model_id: str,
     dtype: torch.dtype = torch.float32,
     device: str = "cpu",
+    trust_remote_code: bool = False,
 ):
     """Load a HuggingFace vision model for reference inference.
+
+    For multi-modal models like CLIP, extracts just the vision sub-model
+    so that ``torch_vision_forward`` can run with only ``pixel_values``.
 
     Returns:
         Tuple of (model, processor).
@@ -364,15 +368,20 @@ def load_torch_vision_model(
     import transformers
 
     processor = transformers.AutoImageProcessor.from_pretrained(
-        model_id, trust_remote_code=True
+        model_id, trust_remote_code=trust_remote_code
     )
     model = transformers.AutoModel.from_pretrained(
         model_id,
         torch_dtype=dtype,
         device_map=device,
-        trust_remote_code=True,
+        trust_remote_code=trust_remote_code,
     )
     model.eval()
+
+    # Multi-modal models (CLIP, SigLIP) wrap a vision sub-model that
+    # can be called with pixel_values alone.
+    if hasattr(model, "vision_model"):
+        model = model.vision_model
 
     return model, processor
 
@@ -403,20 +412,34 @@ def load_torch_audio_model(
     model_id: str,
     dtype: torch.dtype = torch.float32,
     device: str = "cpu",
+    trust_remote_code: bool = False,
 ):
     """Load a HuggingFace audio model for reference inference.
+
+    Args:
+        trust_remote_code: Whether to allow executing remote code from the
+            model repository.  Defaults to False for safety.
 
     Returns:
         Tuple of (model, processor).
     """
     import transformers
 
-    processor = transformers.AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+    # Some audio models (e.g. HuBERT) only have a feature extractor,
+    # not a full processor with a tokenizer.  Fall back gracefully.
+    try:
+        processor = transformers.AutoProcessor.from_pretrained(
+            model_id, trust_remote_code=trust_remote_code
+        )
+    except (TypeError, OSError):
+        processor = transformers.AutoFeatureExtractor.from_pretrained(
+            model_id, trust_remote_code=trust_remote_code
+        )
     model = transformers.AutoModel.from_pretrained(
         model_id,
         torch_dtype=dtype,
         device_map=device,
-        trust_remote_code=True,
+        trust_remote_code=trust_remote_code,
     )
     model.eval()
 

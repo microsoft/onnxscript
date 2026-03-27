@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/onnxruntime/mobius/testdata/cases/schema.json",
+  "title": "GoldenTestCase",
+  "description": "Schema for YAML test case files in testdata/cases/. Each file describes one model + one input scenario for L4/L5 golden tests.",
+  "type": "object",
+  "required": ["model_id", "revision", "task_type", "dtype", "level"],
+  "additionalProperties": false,
+  "properties": {
+    "model_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "HuggingFace model ID (e.g. 'Qwen/Qwen2.5-0.5B').",
+      "examples": ["Qwen/Qwen2.5-0.5B", "google-bert/bert-base-uncased"]
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1,
+      "description": "HuggingFace model revision: a full commit SHA (preferred for reproducibility) or 'main'.",
+      "examples": ["060db6499f32faf8b98477b0a26969ef7d8b9987", "main"]
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "text-generation",
+        "image-text-to-text",
+        "speech-to-text",
+        "audio-feature-extraction",
+        "feature-extraction",
+        "seq2seq",
+        "image-classification",
+        "object-detection"
+      ],
+      "description": "Task type string matching the mobius registry."
+    },
+    "dtype": {
+      "type": "string",
+      "enum": ["float32", "float16", "bfloat16"],
+      "description": "Weight and activation dtype."
+    },
+    "level": {
+      "type": "string",
+      "enum": ["L4", "L5", "L4+L5"],
+      "description": "Test level(s) to run: L4 (checkpoint verified), L5 (generation E2E), or both."
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prompts": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 0,
+          "description": "Text prompts for text-generation, feature-extraction, seq2seq, and image-text-to-text tasks."
+        },
+        "images": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 0,
+          "description": "Image file paths relative to testdata/ (vision and vision-language tasks)."
+        },
+        "audio": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 0,
+          "description": "Audio file paths relative to testdata/ (speech tasks)."
+        },
+        "decoder_prompt": {
+          "type": "string",
+          "description": "Forced decoder prefix for seq2seq / encoder-decoder tasks. Empty string means no forced prefix."
+        }
+      },
+      "description": "Input data for the test case. All sub-fields are optional."
+    },
+    "generation": {
+      "type": "object",
+      "properties": {
+        "max_new_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum number of new tokens to generate."
+        },
+        "do_sample": {
+          "type": "boolean",
+          "description": "Whether to use sampling. false = greedy decoding (required for reproducible golden tests)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "HuggingFace GenerationConfig overrides. Only applicable for L5 generation tests."
+    },
+    "trust_remote_code": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the HuggingFace model requires trust_remote_code=True."
+    },
+    "skip_reason": {
+      "type": ["string", "null"],
+      "description": "If non-null/non-empty, the test is skipped with this message. Use for known failures or unimplemented features."
+    },
+    "min_token_match_ratio": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Per-case L5 tolerance override for token match ratio. Overrides the global value in default_tolerances.yaml. Use when the model has known float32 precision divergence vs HuggingFace (e.g. VL 3-model pipeline accumulates rounding error over decode steps)."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Human-readable description of the test case. Not parsed by the test runner."
+    }
+  }
+}

@@ -83,7 +83,7 @@ class TestSafetensorsPreference:
         """Weight loading files must not import pickle or shelve."""
         if not weight_file.exists():
             pytest.skip(f"{weight_file.name} does not exist yet")
-        source = weight_file.read_text()
+        source = weight_file.read_text(encoding="utf-8")
         tree = ast.parse(source)
         imported_modules: set[str] = set()
         for node in ast.walk(tree):
@@ -101,7 +101,7 @@ class TestSafetensorsPreference:
         """Weight loading files must not call torch.load (pickle-based)."""
         if not weight_file.exists():
             pytest.skip(f"{weight_file.name} does not exist yet")
-        source = weight_file.read_text()
+        source = weight_file.read_text(encoding="utf-8")
         tree = ast.parse(source)
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
@@ -119,7 +119,7 @@ class TestSafetensorsPreference:
         for weight_file in _WEIGHT_FILES:
             if not weight_file.exists():
                 continue
-            source = weight_file.read_text()
+            source = weight_file.read_text(encoding="utf-8")
             assert "safetensors" in source, f"No safetensors usage in {weight_file.name}"
             for dangerous_ext in [".bin", ".pkl", ".pickle", ".pt", ".pth"]:
                 assert dangerous_ext not in source, (
@@ -132,7 +132,7 @@ class TestSafetensorsPreference:
         for weight_file in _WEIGHT_FILES:
             if not weight_file.exists():
                 continue
-            source = weight_file.read_text()
+            source = weight_file.read_text(encoding="utf-8")
             tree = ast.parse(source)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):
@@ -157,7 +157,7 @@ class TestNoUnguardedTorchLoad:
         """Any torch.load call in the package MUST use weights_only=True."""
         violations: list[str] = []
         for path in _SOURCE_FILES:
-            source = path.read_text()
+            source = path.read_text(encoding="utf-8")
             try:
                 tree = ast.parse(source)
             except SyntaxError:
@@ -190,7 +190,7 @@ class TestNoUnguardedTorchLoad:
         """No source file should call pickle.load or pickle.loads."""
         violations: list[str] = []
         for path in _SOURCE_FILES:
-            source = path.read_text()
+            source = path.read_text(encoding="utf-8")
             try:
                 tree = ast.parse(source)
             except SyntaxError:
@@ -214,7 +214,7 @@ class TestNoUnguardedTorchLoad:
         """No source file should use eval() (excluding model.eval())."""
         violations: list[str] = []
         for path in _SOURCE_FILES:
-            source = path.read_text()
+            source = path.read_text(encoding="utf-8")
             try:
                 tree = ast.parse(source)
             except SyntaxError:
