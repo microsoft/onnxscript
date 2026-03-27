@@ -217,9 +217,34 @@ class ReplacementPatternFunction:
 
     def get_replacement(self, match: _basics.MatchResult) -> ReplacementSubgraph | None:
         context = RewriterContext()
-        new_outputs = self._function(context, **match.bindings)
-        if new_outputs is None:
-            return None  # Failed to create replacement subgraph
+        try:
+            new_outputs = self._function(context, **match.bindings)
+        except _basics.MatchFailureError as e:
+            match.fail(e.reason, list(e.failure_sources))
+            return None
+        # Support the same failure conventions as check functions for uniformity:
+        # - None or False: indicates failure without a reason (not recommended)
+        # - Falsy MatchResult: failure with reason/source info (recommended)
+        # - MatchFailureError exception: failure with reason/source info (recommended)
+        if new_outputs is None or new_outputs is False:
+            return None
+        if isinstance(new_outputs, _basics.MatchResult):
+            if not new_outputs:
+                # A falsy MatchResult is the recommended way to signal failure with
+                # reason/source information from a replacement function.
+                match.fail(
+                    new_outputs.reason,
+                    new_outputs.failure_nodes_and_values,
+                )
+                return None
+            # A truthy MatchResult should never be returned from a replacement
+            # function. Treat this as a programmer error to avoid silent failures.
+            raise TypeError(
+                "Replacement function returned a truthy MatchResult. "
+                "Replacement functions should either return None/False for a "
+                "generic failure, return a *falsy* MatchResult to provide "
+                "failure details, or raise MatchFailureError."
+            )
         if not isinstance(new_outputs, Sequence):
             new_outputs = [new_outputs]
         return ReplacementSubgraph(
