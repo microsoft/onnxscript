@@ -1,4 +1,4 @@
-name: Dashboard
+name: Documentation
 
 on:
   push:
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   build:
-    name: Generate Dashboard
+    name: Build Documentation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -33,9 +33,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.cache/pip
-          key: pip-dashboard-${{ hashFiles('pyproject.toml') }}
+          key: pip-docs-${{ hashFiles('pyproject.toml') }}
           restore-keys: |
-            pip-dashboard-
+            pip-docs-
 
       - name: Install PyTorch CPU
         run: pip install torch --index-url https://download.pytorch.org/whl/cpu
@@ -46,17 +46,8 @@ jobs:
           pip install -r docs/requirements.txt
           pip install -e '.[testing]'
 
-      - name: Generate dashboard
-        run: |
-          mkdir -p _site
-          python scripts/generate_dashboard.py \
-            --output _site/index.html \
-            --commit $(git rev-parse --short HEAD)
-
-      - name: Build Sphinx docs
-        run: |
-          python docs/_generate_models.py
-          sphinx-build docs _site/docs
+      - name: Build documentation
+        run: sphinx-build docs _site
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4

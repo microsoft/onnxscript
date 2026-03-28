@@ -34,6 +34,7 @@ from onnxscript import nn
 from mobius._configs import (
     BaseModelConfig,
 )
+from mobius._flags import flags
 from mobius._model_package import ModelPackage
 from mobius._registry import registry
 from mobius._weight_loading import _download_weights
@@ -121,7 +122,10 @@ _DEFAULT_PASSES = [
 def _optimize(model: ir.Model) -> None:
     """Apply default optimization passes to a model in-place."""
     pass_ = ir.passes.PassManager(_DEFAULT_PASSES, steps=2)
-    with _suppress_dedup_empty_initializer_warnings():
+    if flags.suppress_dedup_warning:
+        with _suppress_dedup_empty_initializer_warnings():
+            pass_(model)
+    else:
         pass_(model)
 
 

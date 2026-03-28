@@ -5,7 +5,11 @@ To build the documentation: python -m sphinx docs docs/_build/html
 
 from __future__ import annotations
 
+import os
 import sys
+
+# Make local extensions importable
+sys.path.insert(0, os.path.abspath("_ext"))
 
 # -- Project information -----------------------------------------------------
 
@@ -22,6 +26,10 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
+    # Local extensions that generate content during build
+    "models_gen",
+    "flags_gen",
+    "dashboard",
 ]
 
 myst_enable_extensions = [

@@ -265,7 +265,10 @@ document.documentElement.setAttribute('data-theme',t);}())
 <noscript><p style="color:#e6edf3;padding:2em">This dashboard requires JavaScript to render.</p></noscript>
 <div class="header-row">
   <h1>&#x1F9EA; Testing Confidence Dashboard</h1>
-  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">&#x1F319;</button>
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <a href="../" style="color: var(--accent); text-decoration: none; font-size: 0.9em;">&#x1F4D6; Docs</a>
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">&#x1F319;</button>
+  </div>
 </div>
 <p class="subtitle">
   Generated {{ timestamp }} &middot; Commit <code>{{ commit }}</code> &middot; {{ total_models }} registered model types

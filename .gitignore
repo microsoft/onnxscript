@@ -222,3 +222,4 @@ cache_dir/**
 .flightdeck/shared/**
 .worktrees/
 dashboard_preview.html
+docs/feature-flags.md
