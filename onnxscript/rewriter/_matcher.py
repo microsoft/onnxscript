@@ -310,9 +310,12 @@ class SimplePatternMatcher(PatternMatcher):
         if output_values is None:
             # TODO(rama): Is this a valid (useful) case?
             return match
-        if check_removable and not _valid_to_replace(match.nodes, output_values):
-            # TODO(rama): Match status should be updated to reflect failure reason.
-            return match.fail("Matched nodes have other uses preventing replacement.")
+        # Skip removability check for flexible output nodes since they may have
+        # additional outputs beyond those captured in the pattern
+        if check_removable and not pattern.output_node.allow_flexible_outputs:
+            if not _valid_to_replace(match.nodes, output_values):
+                # TODO(rama): Match status should be updated to reflect failure reason.
+                return match.fail("Matched nodes have other uses preventing replacement.")
 
         match.outputs.extend(output_values)
         return match
