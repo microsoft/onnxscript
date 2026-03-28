@@ -84,6 +84,7 @@ _XFAIL_REASONS: dict[str, str] = {
     "qwen3_5_moe": "MoE routing differences",
     "granitemoe": "MoE routing differences",
     "granitemoeshared": "MoE routing differences",
+    "granitemoehybrid": "MoE routing + linear attention differences",
     "olmoe": "MoE routing differences",
     "phimoe": "MoE routing differences",
     "jetmoe": "MoE routing differences",

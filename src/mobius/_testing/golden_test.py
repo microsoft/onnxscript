@@ -20,6 +20,7 @@ from mobius._testing.golden import (
     load_golden_ref,
     load_test_case,
     load_tolerances,
+    save_generation_json,
     save_golden_ref,
 )
 
@@ -179,29 +180,30 @@ class TestGoldenRefRoundTrip:
         assert golden.logits_summary == pytest.approx(logits_summary.tolist())
         # input_ids is flattened from (1, 3) to [1, 450, 3127]
         assert golden.input_ids == [1, 450, 3127]
-        assert golden.generated_ids is None
         assert golden.component_norms == {}
         assert golden.component_shapes == {}
 
     def test_l5_round_trip(self, tmp_path: Path):
-        """Save and reload L5 golden data with generated_ids."""
-        json_path = tmp_path / "test_l5.json"
-        generated = np.array([42, 7, 100, 55], dtype=np.int64)
+        """Save and reload L5 generation data via save_generation_json."""
+        json_path = tmp_path / "test_generation.json"
 
-        save_golden_ref(
+        save_generation_json(
             json_path,
-            top1_id=42,
-            top2_id=7,
-            top10_ids=list(range(10)),
-            top10_logits=[float(i) for i in range(10)],
-            logits_summary=np.array([1.0, -1.0, 0.0, 0.5]),
-            input_ids=np.array([[1, 2, 3]]),
-            generated_ids=generated,
+            model_id="test/model",
+            prompt="Hello world",
+            generated_tokens=[42, 7, 100, 55],
+            generated_text="test output",
         )
 
-        golden = load_golden_ref(json_path)
-        assert golden is not None
-        assert golden.generated_ids == generated.tolist()
+        assert json_path.exists()
+        import json
+
+        with open(json_path) as f:
+            data = json.load(f)
+        assert data["model_id"] == "test/model"
+        assert data["prompt"] == "Hello world"
+        assert data["generated_tokens"] == [42, 7, 100, 55]
+        assert data["generated_text"] == "test output"
 
     def test_multi_model_round_trip(self, tmp_path: Path):
         """Save and reload multi-model (VL) golden data."""
