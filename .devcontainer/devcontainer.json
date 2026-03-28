@@ -1,0 +1,14 @@
+{
+	"name": "onnxscript",
+	"image": "mcr.microsoft.com/devcontainers/python:1-3.13",
+	"features": {},
+	"postCreateCommand": "pip install -r requirements-dev.txt;pip install -e .",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"hbenl.vscode-test-explorer",
+				"ms-python.python"
+			]
+		}
+	}
+}
