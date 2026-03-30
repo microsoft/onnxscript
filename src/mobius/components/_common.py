@@ -94,6 +94,27 @@ class OffsetLayerNorm(nn.Module):
         )
 
 
+class LayerNormNoBias(nn.Module):
+    """Layer Normalization with weight-only affine (no bias).
+
+    Used by models like Cohere whose layer norms have only a ``weight``
+    parameter, matching ``nn.LayerNorm(elementwise_affine=True, bias=False)``.
+    """
+
+    def __init__(self, hidden_size: int, eps: float = 1e-6):
+        super().__init__()
+        self.weight = nn.Parameter([hidden_size])
+        self.eps = eps
+
+    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
+        return op.LayerNormalization(
+            hidden_states,
+            self.weight,
+            epsilon=self.eps,
+            axis=-1,
+        )
+
+
 class LayerNormNoAffine(nn.Module):
     """Layer Normalization without learnable affine parameters.
 

@@ -32,15 +32,101 @@ from mobius.components import (
     Attention,
     Embedding,
     Linear,
-    OffsetRMSNorm,
     RMSNorm,
     create_attention_bias,
     initialize_rope,
 )
+from mobius.components._activations import get_activation
+from mobius.components._attention import _apply_attention, apply_rotary_pos_emb
 from mobius.models.base import CausalLMModel
 
 if TYPE_CHECKING:
     import onnx_ir as ir
+
+
+class Gemma3nAttention(Attention):
+    """Gemma3n attention with per-head Q/K/V normalization.
+
+    Extends the base Attention by adding a parameterless V normalization
+    (``v_norm`` with ``with_scale=False`` in HF) applied after ``v_proj``.
+    Q and K use standard OffsetRMSNorm from the parent; V is divided by its
+    per-head RMS without any learnable scale parameter.
+    """
+
+    def __init__(self, config: Gemma3nConfig):
+        # HF Gemma3nTextAttention hardcodes self.scaling = 1.0 (not head_dim**-0.5)
+        super().__init__(config, rms_norm_class=RMSNorm, scale=1.0)
+        self._v_norm_eps = config.rms_norm_eps
+
+    def forward(
+        self,
+        op: builder.OpBuilder,
+        hidden_states,
+        attention_bias,
+        position_embeddings=None,
+        past_key_value=None,
+        static_cache=None,
+    ):
+        query_states = self.q_proj(op, hidden_states)
+        key_states = self.k_proj(op, hidden_states)
+        value_states = self.v_proj(op, hidden_states)
+
+        # Per-head Q/K normalization (same order as parent Attention)
+        if self.q_norm is not None and self.k_norm is not None:
+            query_states = op.Reshape(query_states, [0, 0, -1, self.head_dim])
+            key_states = op.Reshape(key_states, [0, 0, -1, self.head_dim])
+            query_states = self.q_norm(op, query_states)
+            key_states = self.k_norm(op, key_states)
+            query_states = op.Reshape(query_states, [0, 0, -1])
+            key_states = op.Reshape(key_states, [0, 0, -1])
+
+        # V normalization: parameterless RMS norm per head (with_scale=False in HF)
+        # Reshape to (B, T, num_kv_heads, head_dim), normalize over last dim, reshape back
+        value_states = op.Reshape(
+            value_states,
+            op.Constant(value_ints=[0, 0, self.num_key_value_heads, self.head_dim]),
+        )
+        sq = op.Mul(value_states, value_states)
+        mean_sq = op.ReduceMean(sq, [-1], keepdims=1)
+        rms = op.Sqrt(op.Add(mean_sq, self._v_norm_eps))
+        value_states = op.Div(value_states, rms)
+        value_states = op.Reshape(value_states, [0, 0, -1])
+
+        # Apply RoPE to Q and K (same as parent)
+        if position_embeddings is not None:
+            query_states = apply_rotary_pos_emb(
+                op,
+                x=query_states,
+                position_embeddings=position_embeddings,
+                num_heads=self.num_attention_heads,
+                rotary_embedding_dim=self.rotary_embedding_dim,
+                interleaved=self._rope_interleave,
+            )
+            key_states = apply_rotary_pos_emb(
+                op,
+                x=key_states,
+                position_embeddings=position_embeddings,
+                num_heads=self.num_key_value_heads,
+                rotary_embedding_dim=self.rotary_embedding_dim,
+                interleaved=self._rope_interleave,
+            )
+
+        attn_output, present_key, present_value = _apply_attention(
+            op,
+            query_states,
+            key_states,
+            value_states,
+            attention_bias,
+            past_key_value[0] if past_key_value is not None else None,
+            past_key_value[1] if past_key_value is not None else None,
+            num_attention_heads=self.num_attention_heads,
+            num_key_value_heads=self.num_key_value_heads,
+            scale=self.scaling,
+            static_cache=static_cache,
+        )
+
+        attn_output = self.o_proj(op, attn_output)
+        return attn_output, (present_key, present_value)
 
 
 class Gemma3nScaledWordEmbedding(Embedding):
@@ -191,18 +277,12 @@ class Gemma3nDecoderLayer(nn.Module):
 
     def __init__(self, config: Gemma3nConfig, layer_idx: int):
         super().__init__()
-        self.self_attn = Attention(config, rms_norm_class=OffsetRMSNorm)
+        self.self_attn = Gemma3nAttention(config)
         self.mlp = MLP(config)
-        self.input_layernorm = OffsetRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_attention_layernorm = OffsetRMSNorm(
-            config.hidden_size, eps=config.rms_norm_eps
-        )
-        self.pre_feedforward_layernorm = OffsetRMSNorm(
-            config.hidden_size, eps=config.rms_norm_eps
-        )
-        self.post_feedforward_layernorm = OffsetRMSNorm(
-            config.hidden_size, eps=config.rms_norm_eps
-        )
+        self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.pre_feedforward_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_feedforward_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
         self.altup = Gemma3nAltUp(config)
         self.laurel = Gemma3nLaurelBlock(
@@ -219,6 +299,8 @@ class Gemma3nDecoderLayer(nn.Module):
         self.post_per_layer_input_norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.altup_active_idx = config.altup_active_idx
         self.altup_correct_scale = config.altup_correct_scale
+        # per_layer_input_gate uses the same activation as the MLP gate projection
+        self.act_fn = get_activation(config.hidden_act)
 
         # Placed on DecoderLayer (not AltUp) so __call__ realizes it
         self.correct_output_scale = nn.Parameter([config.hidden_size])
@@ -270,6 +352,8 @@ class Gemma3nDecoderLayer(nn.Module):
             first = self.altup.scale_corrected_output(op, first, self.correct_output_scale)
 
         gated = self.per_layer_input_gate(op, first)
+        # Config activation (gelu_pytorch_tanh by default) matches HF's act_fn
+        gated = self.act_fn(op, gated)
         gated = op.Mul(gated, per_layer_input)
         projected = self.per_layer_projection(op, gated)
         projected = self.post_per_layer_input_norm(op, projected)
@@ -302,7 +386,7 @@ class Gemma3nTextModel(nn.Module):
         self.layer_types = config.layer_types
         self.sliding_window = config.sliding_window
 
-        self.norm = OffsetRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.rotary_emb = initialize_rope(config)
 
         # Local RoPE for sliding window layers
@@ -350,6 +434,8 @@ class Gemma3nTextModel(nn.Module):
         self.hidden_size_per_layer_input = config.hidden_size_per_layer_input
         self.per_layer_projection_scale = float(config.hidden_size**-0.5)
         self.per_layer_input_scale = float(1.0 / math.sqrt(2.0))
+        # Epsilon used when normalizing AltUp projection magnitudes
+        self._altup_eps = 1e-5
 
     def forward(
         self,
@@ -391,10 +477,20 @@ class Gemma3nTextModel(nn.Module):
             ),
         }
 
-        # Expand to AltUp inputs
+        # Expand to AltUp inputs with magnitude normalization.
+        # HF normalizes each projection's magnitude to match hidden_states_0's RMS,
+        # avoiding scale mismatches between the original embedding and its projections.
         hidden_states_list = [hidden_states_0]
+        # target_magnitude = sqrt(mean(x^2, dim=-1, keepdim)) — RMS of input embedding
+        tgt_sq = op.ReduceMean(op.Mul(hidden_states_0, hidden_states_0), [-1], keepdims=1)
+        target_mag = op.Sqrt(tgt_sq)  # (B, T, 1)
+        _altup_eps = self._altup_eps
         for proj in self.altup_projections:
             altup_proj = proj(op, hidden_states_0)
+            new_sq = op.ReduceMean(op.Mul(altup_proj, altup_proj), [-1], keepdims=1)
+            # Clip at epsilon to avoid division by zero, then scale to target magnitude
+            new_mag = op.Sqrt(op.Max(new_sq, _altup_eps))
+            altup_proj = op.Mul(altup_proj, op.Div(target_mag, new_mag))
             hidden_states_list.append(altup_proj)
 
         # Decoder layers
@@ -416,10 +512,19 @@ class Gemma3nTextModel(nn.Module):
             )
             present_key_values.append(present_kv)
 
-        # Collapse AltUp outputs back to single hidden state
+        # Collapse AltUp outputs back to single hidden state with magnitude normalization.
+        # HF normalizes each unembed projection's magnitude to match hidden_states_list[0]'s
+        # RMS before averaging, preserving the output scale.
+        tgt_sq = op.ReduceMean(
+            op.Mul(hidden_states_list[0], hidden_states_list[0]), [-1], keepdims=1
+        )
+        target_mag = op.Sqrt(tgt_sq)  # (B, T, 1)
         result_list = [hidden_states_list[0]]
         for i, proj in enumerate(self.altup_unembed_projections):
             unembed = proj(op, hidden_states_list[i + 1])
+            new_sq = op.ReduceMean(op.Mul(unembed, unembed), [-1], keepdims=1)
+            new_mag = op.Sqrt(op.Max(new_sq, self._altup_eps))
+            unembed = op.Mul(unembed, op.Div(target_mag, new_mag))
             result_list.append(unembed)
 
         # Average all AltUp outputs
@@ -503,10 +608,13 @@ class Gemma3nCausalLMModel(CausalLMModel):
             elif "audio_tower" in key:
                 state_dict.pop(key)
 
-        # correct_output_scale lives on DecoderLayer, not nested in altup
+        # AltUp submodules (correction_coefs, prediction_coefs, modality_router,
+        # router_norm, correct_output_scale) are called via plain methods rather than
+        # __call__, so onnxscript registers them on the parent DecoderLayer without the
+        # ".altup." prefix.  Strip ".altup." from all keys that contain it.
         for key in list(state_dict.keys()):
-            if ".altup.correct_output_scale" in key:
-                new_key = key.replace(".altup.correct_output_scale", ".correct_output_scale")
+            if ".altup." in key:
+                new_key = key.replace(".altup.", ".")
                 state_dict[new_key] = state_dict.pop(key)
 
         return super().preprocess_weights(state_dict)

@@ -1,0 +1,17 @@
+model_id: "allenai/Olmo-3-7B-Instruct"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "Model is 7B — too large for CI golden data generation."
+notes: "OLMo-3 7B Instruct. Uses OLMo2 architecture with RoPE and SwiGLU."

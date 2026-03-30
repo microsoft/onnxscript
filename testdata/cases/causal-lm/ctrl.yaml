@@ -1,0 +1,17 @@
+model_id: "Salesforce/ctrl"
+revision: "3ff4f697e86bb0b95f7a70e39822af96671727d9"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "Model only has pytorch_model.bin, no safetensors."
+notes: "CTRL 1.6B. Conditional generation with control codes and sinusoidal PE."

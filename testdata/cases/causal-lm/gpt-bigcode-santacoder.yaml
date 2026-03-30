@@ -1,0 +1,16 @@
+model_id: "bigcode/gpt_bigcode-santacoder"
+revision: "291931872cae83498cf984b16319f47f5e9e7a07"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "def hello_world():"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "GPTBigCode SantaCoder 1.1B. Multi-query attention (single kv head), code generation."

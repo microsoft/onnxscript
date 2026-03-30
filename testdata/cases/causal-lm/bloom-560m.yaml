@@ -13,5 +13,4 @@ generation:
   max_new_tokens: 20
   do_sample: false
 
-skip_reason: "Bloom word_embeddings_layernorm not yet implemented."
 notes: "BLOOM 560M. ALiBi positional encoding."

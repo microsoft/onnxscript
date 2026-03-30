@@ -382,12 +382,20 @@ def _rename_jamba_weight(
             key = key.replace(f".mamba.{param}", f".mamba.ssm.{param}")
             return key
 
+    # HF pre_ff_layernorm → our pre_moe_layernorm
+    key = key.replace(".pre_ff_layernorm.", ".pre_moe_layernorm.")
+
     # MoE expert weight renames
     if ".experts." in key:
         # Fused gate_up_proj: [num_experts, 2*intermediate, hidden]
         # → split into per-expert gate_proj + up_proj
         if ".gate_up_proj" in key:
             _split_fused_expert_gate_up(key, value, out)
+            return None  # handled inline
+        # Fused down_proj: [num_experts, hidden, intermediate]
+        # → split into per-expert down_proj
+        if key.endswith(".experts.down_proj") and value.dim() == 3:
+            _split_fused_expert_down(key, value, out)
             return None  # handled inline
         # w1 → gate_proj, w2 → down_proj, w3 → up_proj
         key = key.replace(".w1.", ".gate_proj.")
@@ -429,3 +437,22 @@ def _split_fused_expert_gate_up(
         up_w = expert_w[intermediate:]
         out[f"{base}.{e}.gate_proj.weight"] = gate_w
         out[f"{base}.{e}.up_proj.weight"] = up_w
+
+
+def _split_fused_expert_down(
+    key: str,
+    value: torch.Tensor,
+    out: dict[str, torch.Tensor],
+) -> None:
+    """Split fused expert down_proj into per-expert tensors.
+
+    HF stores: ``layers.{i}.feed_forward.experts.down_proj``
+        with shape ``[num_experts, hidden_size, intermediate_size]``
+
+    We need per-expert:
+        ``layers.{i}.feed_forward.experts.{e}.down_proj.weight``
+    """
+    num_experts = value.shape[0]
+    base = key.replace(".down_proj", "")
+    for e in range(num_experts):
+        out[f"{base}.{e}.down_proj.weight"] = value[e]

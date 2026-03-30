@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 from onnxscript import nn
@@ -66,6 +67,51 @@ class SoftmaxTopKGate(nn.Module):
             # Renormalize selected weights to sum to 1
             weight_sum = op.ReduceSum(routing_weights, [-1], keepdims=True)
             routing_weights = op.Div(routing_weights, weight_sum)
+        return routing_weights, selected_experts
+
+
+class SigmoidTopKGate(nn.Module):
+    """Sigmoid-first top-k expert routing gate (GLM4-MoE style).
+
+    Applies element-wise sigmoid over all expert logits, selects top-k,
+    and optionally renormalizes the selected weights to sum to 1.
+    Used by GLM4-MoE where group routing collapses to standard top-k
+    when n_group=1 (all experts in one group).
+    """
+
+    def __init__(
+        self,
+        hidden_size: int,
+        num_experts: int,
+        top_k: int,
+        *,
+        norm_topk_prob: bool = True,
+        routed_scaling_factor: float = 1.0,
+    ):
+        super().__init__()
+        self.num_experts = num_experts
+        self.top_k = top_k
+        self.norm_topk_prob = norm_topk_prob
+        self.routed_scaling_factor = routed_scaling_factor
+        self.weight = nn.Parameter([num_experts, hidden_size])
+
+    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
+        weight_t = op.Transpose(self.weight, perm=[1, 0])
+        router_logits = op.MatMul(hidden_states, weight_t)
+        # Sigmoid instead of softmax: each expert scored independently
+        routing_probs = op.Sigmoid(router_logits)
+        k = op.Constant(value_ints=[self.top_k])
+        routing_weights, selected_experts = op.TopK(routing_probs, k, axis=-1, _outputs=2)
+        if self.norm_topk_prob:
+            # Renormalize selected weights to sum to 1 (prevents vanishing gradients)
+            weight_sum = op.ReduceSum(routing_weights, [-1], keepdims=True)
+            eps = op.CastLike(op.Constant(value_float=1e-9), routing_weights)
+            routing_weights = op.Div(routing_weights, op.Add(weight_sum, eps))
+        if self.routed_scaling_factor != 1.0:  # noqa: RUF069
+            scale = op.CastLike(
+                op.Constant(value_float=self.routed_scaling_factor), routing_weights
+            )
+            routing_weights = op.Mul(routing_weights, scale)
         return routing_weights, selected_experts
 
 
@@ -156,7 +202,13 @@ class MoELayer(nn.Module):
             self.gate = gate
         else:
             self.gate = TopKGate(config.hidden_size, self.num_experts, self.top_k)
-        self.experts = nn.ModuleList([MLP(config) for _ in range(self.num_experts)])
+        # Use moe_intermediate_size for experts when specified (Qwen2-MoE, Qwen3-MoE).
+        expert_config = (
+            dataclasses.replace(config, intermediate_size=config.moe_intermediate_size)
+            if config.moe_intermediate_size is not None
+            else config
+        )
+        self.experts = nn.ModuleList([MLP(expert_config) for _ in range(self.num_experts)])
 
     def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
         routing_weights, selected_experts = self.gate(op, hidden_states)

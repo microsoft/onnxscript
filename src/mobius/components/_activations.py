@@ -69,6 +69,7 @@ def linear(op: builder.OpBuilder, x):
 # Each function takes (op: builder.OpBuilder, x) and returns the activated tensor.
 ACT2FN: OrderedDict[str, callable] = OrderedDict(
     {
+        "gegelu": gelu,
         "gelu": gelu,
         "gelu_fast": gelu_tanh,
         "gelu_new": gelu_tanh,

@@ -140,9 +140,21 @@ class CausalLMTask(ModelTask):
                 type=ir.TensorType(ir.DataType.INT64),
             )
             graph_inputs = [input_ids, attention_mask, position_ids]
+
+            # MLA attention: K/V heads equal q heads (no GQA reduction in
+            # latent space).  The ONNX Attention op is called with
+            # kv_num_heads=num_attention_heads, so the KV cache must use
+            # num_attention_heads (not num_key_value_heads).
+            use_mla = (
+                config.qk_nope_head_dim is not None and config.qk_nope_head_dim > 0
+            ) or (config.qk_rope_head_dim is not None and config.qk_rope_head_dim > 0)
+            num_kv_cache_heads = (
+                config.num_attention_heads if use_mla else config.num_key_value_heads
+            )
+
             cache_inputs, past_key_values = _make_kv_cache_inputs(
                 config.num_hidden_layers,
-                config.num_key_value_heads,
+                num_kv_cache_heads,
                 config.head_dim,
                 config.dtype,
                 batch,

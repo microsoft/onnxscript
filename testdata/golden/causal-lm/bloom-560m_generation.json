@@ -1,0 +1,27 @@
+{
+  "model_id": "bigscience/bloom-560m",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    189,
+    44,
+    912,
+    267,
+    1517,
+    5268,
+    1809,
+    3784,
+    267,
+    1517,
+    613,
+    267,
+    3829,
+    3509,
+    17,
+    473,
+    1542,
+    3784,
+    267,
+    1517
+  ],
+  "generated_text": "\nI am a man who has been a man for a long time. I have been a man"
+}

@@ -654,6 +654,9 @@ class ArchitectureConfig(BaseModelConfig):
     moe_intermediate_size: int | None = None
     shared_expert_intermediate_size: int | None = None
     norm_topk_prob: bool = True
+    # When True, the decoder layer uses post-norm style (FlexOLMo): norms are applied
+    # to sub-layer outputs instead of inputs, with an extra post_feedforward_layernorm.
+    post_feedforward_norm: bool = False
     n_group: int = 1
     topk_group: int = 1
     routed_scaling_factor: float = 1.0
@@ -715,12 +718,19 @@ class ArchitectureConfig(BaseModelConfig):
     # Falcon config
     alibi: bool = False
     parallel_attn: bool = False
+    dual_ln: bool = False  # True for models with two separate norms in parallel layers (MPT, GPT-NeoX-Falcon)
+
+    # Post-norm vs pre-norm architecture toggle (used by OpenAI-GPT vs standard GPT-2)
+    post_norm: bool = False
 
     # Granite scaling multipliers
     embedding_multiplier: float = 1.0
     attention_multiplier: float | None = None
     logits_scaling: float = 1.0
     residual_multiplier: float = 1.0
+
+    # Cohere logit scale: multiplied into the final logits before softmax
+    logit_scale: float = 1.0
 
     # YOLOS object detection config
     num_labels: int = 91
@@ -859,9 +869,12 @@ class ArchitectureConfig(BaseModelConfig):
                 model_type
                 in (
                     "gemma3_text",
+                    "flex_olmo",
+                    "olmoe",
                     "olmo2",
                     "olmo3",
                     "qwen3",
+                    "qwen3_moe",
                     "qwen3_tts_talker",
                     "qwen3_5_vl",
                     "qwen3_5_vl_text",
@@ -870,7 +883,7 @@ class ArchitectureConfig(BaseModelConfig):
                 )
                 or getattr(config, "use_qk_norm", False)
             ),
-            attn_qk_norm_full=(model_type in ("olmo2", "olmo3")),
+            attn_qk_norm_full=(model_type in ("flex_olmo", "olmoe", "olmo2", "olmo3")),
             mlp_bias=(getattr(config, "use_mlp_bias", False)),
             rope=rope_config,
             # Set flat rope fields for direct access by components
@@ -900,6 +913,7 @@ class ArchitectureConfig(BaseModelConfig):
                 getattr(config, "shared_expert_intermediate_size", None)
             ),
             norm_topk_prob=(getattr(config, "norm_topk_prob", True)),
+            post_feedforward_norm=(model_type in ("flex_olmo",)),
             n_group=getattr(config, "n_group", 1),
             topk_group=getattr(config, "topk_group", 1),
             routed_scaling_factor=getattr(config, "routed_scaling_factor", 1.0),
@@ -937,6 +951,8 @@ class ArchitectureConfig(BaseModelConfig):
             attention_multiplier=getattr(config, "attention_multiplier", None),
             logits_scaling=getattr(config, "logits_scaling", 1.0),
             residual_multiplier=getattr(config, "residual_multiplier", 1.0),
+            # Cohere logit scale
+            logit_scale=getattr(config, "logit_scale", 1.0),
             # Falcon config
             alibi=getattr(config, "alibi", False),
             parallel_attn=getattr(config, "parallel_attn", False),
@@ -1266,6 +1282,56 @@ class Gemma2Config(CausalLMConfig):
             attn_logit_softcapping=(getattr(config, "attn_logit_softcapping", 0.0) or 0.0),
             final_logit_softcapping=(getattr(config, "final_logit_softcapping", 0.0) or 0.0),
             query_pre_attn_scalar=getattr(config, "query_pre_attn_scalar", None),
+        )
+
+
+@dataclasses.dataclass
+class NanoChatConfig(CausalLMConfig):
+    """Configuration for NanoChat models with final logit soft-capping.
+
+    Adds ``final_logit_softcapping`` used by :mod:`models.nanochat`.
+    """
+
+    final_logit_softcapping: float = 0.0
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> NanoChatConfig:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+        return cls(
+            **_shallow_fields(base),
+            final_logit_softcapping=(getattr(config, "final_logit_softcapping", 0.0) or 0.0),
+        )
+
+
+@dataclasses.dataclass
+class LongcatFlashConfig(CausalLMConfig):
+    """Configuration for LongCat Flash dual-sublayer models.
+
+    Adds ``zero_expert_num`` for identity/pass-through MoE experts.
+    Unlike standard MoE, LongCat uses a fixed shortcut MoE block per
+    physical layer alongside two dense sub-attentions and two dense MLPs.
+    """
+
+    zero_expert_num: int = 0
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> LongcatFlashConfig:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+        # LongCat uses ffn_hidden_size for dense MLP (not the generic intermediate_size)
+        ffn_hidden_size = getattr(config, "ffn_hidden_size", None)
+        if ffn_hidden_size is not None:
+            base = dataclasses.replace(base, intermediate_size=ffn_hidden_size)
+        # LongCat uses moe_topk (not num_experts_per_tok)
+        moe_topk = getattr(config, "moe_topk", None)
+        if moe_topk is not None:
+            base = dataclasses.replace(base, num_experts_per_tok=moe_topk)
+        # LongCat uses expert_ffn_hidden_size (not moe_intermediate_size)
+        expert_ffn_hidden_size = getattr(config, "expert_ffn_hidden_size", None)
+        if expert_ffn_hidden_size is not None:
+            base = dataclasses.replace(base, moe_intermediate_size=expert_ffn_hidden_size)
+        return cls(
+            **_shallow_fields(base),
+            zero_expert_num=getattr(config, "zero_expert_num", 0),
         )
 
 
@@ -1686,6 +1752,28 @@ class BambaConfig(ArchitectureConfig):
 
 
 @dataclasses.dataclass
+class GraniteMoeHybridConfig(BambaConfig):
+    """Configuration for GraniteMoeHybrid: Mamba2+Attention hybrid with MoE on all layers.
+
+    Extends BambaConfig with ``shared_intermediate_size`` for the dense shared MLP
+    that runs alongside the routed MoE block on every layer.
+    """
+
+    shared_intermediate_size: int = 1024
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> GraniteMoeHybridConfig:
+        # Reuse BambaConfig.from_transformers for mamba fields + layer_types conversion
+        # (converts HF "mamba"→"mamba2" and "attention"→"full_attention")
+        bamba = BambaConfig.from_transformers(config, parent_config)
+        bamba_fields = _shallow_fields(bamba)
+        return cls(
+            **bamba_fields,
+            shared_intermediate_size=getattr(config, "shared_intermediate_size", 1024),
+        )
+
+
+@dataclasses.dataclass
 class NemotronHConfig(ArchitectureConfig):
     """Configuration for NemotronH hybrid Mamba2+Attention+MLP models.
 
@@ -1754,6 +1842,33 @@ class NemotronHConfig(ArchitectureConfig):
             mamba_conv_bias=getattr(config, "use_conv_bias", True),
             mamba_proj_bias=getattr(config, "mamba_proj_bias", False),
         )
+
+
+@dataclasses.dataclass
+class JetMoeConfig(CausalLMConfig):
+    """Configuration for JetMoE: Mixture-of-Attention + MoE FFN model.
+
+    JetMoE uses ``kv_channels`` as the per-head key/value dimension rather
+    than deriving it from ``hidden_size // num_attention_heads``.  The
+    standard formula gives the wrong answer because ``num_attention_heads``
+    is the *total* Q head count (``top_k * num_kv_heads``), not the KV head
+    count.  We therefore read ``kv_channels`` directly from the HF config
+    and store it as ``head_dim``.
+    """
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> JetMoeConfig:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+        # Override head_dim to use kv_channels directly, not hidden/num_heads.
+        kv_channels = getattr(config, "kv_channels", base.head_dim)
+        # Also map num_kv_heads → num_key_value_heads if present (HF JetMoE
+        # uses num_kv_heads instead of the standard num_key_value_heads).
+        num_kv = getattr(config, "num_kv_heads", None)
+        base_fields = _shallow_fields(base)
+        base_fields["head_dim"] = kv_channels
+        if num_kv is not None:
+            base_fields["num_key_value_heads"] = num_kv
+        return cls(**base_fields)
 
 
 @dataclasses.dataclass

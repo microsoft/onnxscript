@@ -1,0 +1,27 @@
+{
+  "model_id": "openai-community/openai-gpt",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    40477,
+    249,
+    1048,
+    246,
+    762,
+    498,
+    481,
+    995,
+    240,
+    40477,
+    246,
+    762,
+    498,
+    481,
+    995,
+    240,
+    40477,
+    246,
+    762,
+    498
+  ],
+  "generated_text": "\n i am a man of the night , \n a man of the night , \n a man of"
+}

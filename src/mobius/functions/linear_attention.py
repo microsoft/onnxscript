@@ -53,14 +53,13 @@ def linear_attention(
 ) -> ir.Function:
     """Build an ir.Function for LinearAttention.
 
-    Inputs (all required):
+    Inputs (conditional):
         query:      (B, T, q_num_heads * d_k)
         key:        (B, T, q_num_heads * d_k)
         value:      (B, T, kv_num_heads * d_v)
         past_state: (B, kv_num_heads, d_k, d_v) — recurrent state
-        decay:      (B, T, kv_num_heads * d_k) — per-key-dim decay (log-space);
-                    use (B, T, kv_num_heads) for per-head scalar (d_k=1, broadcasts)
-        beta:       (B, T, kv_num_heads) — update rate (sigmoid output)
+        decay:      (B, T, kv_num_heads * d_k) — required when update_rule in ("gated", "gated_delta")
+        beta:       (B, T, kv_num_heads) — required when update_rule in ("delta", "gated_delta")
 
     Outputs:
         output:        (B, T, kv_num_heads * d_v) — attention output (3D)
@@ -110,14 +109,20 @@ def linear_attention(
     uses_decay = update_rule in ("gated", "gated_delta")
     uses_beta = update_rule in ("delta", "gated_delta")
 
-    # --- Define function inputs (all required) ---
+    # --- Define function inputs (conditional on update_rule) ---
     query = ir.Value(name="query")  # (B, T, q_num_heads * d_k)
     key = ir.Value(name="key")  # (B, T, q_num_heads * d_k)
     value = ir.Value(name="value")  # (B, T, kv_num_heads * d_v)
     past_state = ir.Value(name="past_state")
-    decay = ir.Value(name="decay")
-    beta = ir.Value(name="beta")
-    inputs = [query, key, value, past_state, decay, beta]
+    inputs = [query, key, value, past_state]
+    decay: ir.Value | None = None
+    beta: ir.Value | None = None
+    if uses_decay:
+        decay = ir.Value(name="decay")
+        inputs.append(decay)
+    if uses_beta:
+        beta = ir.Value(name="beta")
+        inputs.append(beta)
 
     # --- Build function body graph ---
     graph = ir.Graph(
@@ -169,14 +174,16 @@ def linear_attention(
     gqa_ratio = kv_num_heads // q_num_heads
     query_expanded, key_expanded = _expand_kv_heads(op, query_4d, key_4d, gqa_ratio=gqa_ratio)
 
-    # --- Reshape decay/beta 3D → 4D ---
+    # --- Reshape decay/beta 3D → 4D (only when used) ---
     # decay: (B, T, kv_num_heads * d_k) → (B, T, kv_num_heads, d_k)
     #     → transpose to (B, kv_num_heads, T, d_k)
-    decay_4d = op.Transpose(
-        op.Reshape(decay, kv_4d_shape), perm=[0, 2, 1, 3]
-    )  # [B, kv_num_heads, T, d_k]
-    # beta: (B, T, kv_num_heads) → transpose to (B, kv_num_heads, T)
-    beta_3d = op.Transpose(beta, perm=[0, 2, 1])  # [B, kv_num_heads, T]
+    if uses_decay:
+        decay_4d = op.Transpose(
+            op.Reshape(decay, kv_4d_shape), perm=[0, 2, 1, 3]
+        )  # [B, kv_num_heads, T, d_k]
+    if uses_beta:
+        # beta: (B, T, kv_num_heads) → transpose to (B, kv_num_heads, T)
+        beta_3d = op.Transpose(beta, perm=[0, 2, 1])  # [B, kv_num_heads, T]
 
     # --- Apply query scale (matches op spec default of 1/sqrt(d_k)) ---
     # CastLike ensures scale constant matches the input dtype.
@@ -192,20 +199,20 @@ def linear_attention(
     q_t = op.Transpose(scaled_query, perm=[2, 0, 1, 3])
     k_t = op.Transpose(key_expanded, perm=[2, 0, 1, 3])
     v_t = op.Transpose(value_4d, perm=[2, 0, 1, 3])
-    # decay: (B, H, T, d_k) -> (T, B, H, d_k)
-    decay_t = op.Transpose(decay_4d, perm=[2, 0, 1, 3])
-    # beta: (B, H, T) -> (T, B, H)
-    beta_t = op.Transpose(beta_3d, perm=[2, 0, 1])
+
+    scan_inputs = [q_t, k_t, v_t]
+    if uses_decay:
+        decay_t = op.Transpose(decay_4d, perm=[2, 0, 1, 3])  # (T, B, H, d_k)
+        scan_inputs.append(decay_t)
+    if uses_beta:
+        beta_t = op.Transpose(beta_3d, perm=[2, 0, 1])  # (T, B, H)
+        scan_inputs.append(beta_t)
 
     present_state, output_t = op.Scan(
         past_state,  # carry: (B, H, d_k, d_v)
-        q_t,  # (T, B, H, d_k)
-        k_t,  # (T, B, H, d_k)
-        v_t,  # (T, B, H, d_v)
-        decay_t,  # (T, B, H, d_k)
-        beta_t,  # (T, B, H)
+        *scan_inputs,
         body=scan_body,
-        num_scan_inputs=5,
+        num_scan_inputs=len(scan_inputs),
         _outputs=2,
     )
     # present_state: (B, H, d_k, d_v)
@@ -308,20 +315,27 @@ def _build_recurrence_body(
         shape=ir.Shape([batch, "H", "d_v"]),
         type=dtype,
     )
-    decay_t = ir.Value(
-        name="decay_t",
-        shape=ir.Shape([batch, "H", "d_k"]),
-        type=dtype,
-    )
-    beta_t = ir.Value(
-        name="beta_t",
-        shape=ir.Shape([batch, "H"]),
-        type=dtype,
-    )
+    scan_in_vals = [q_t, k_t, v_t]
+    decay_t: ir.Value | None = None
+    beta_t: ir.Value | None = None
+    if uses_decay:
+        decay_t = ir.Value(
+            name="decay_t",
+            shape=ir.Shape([batch, "H", "d_k"]),
+            type=dtype,
+        )
+        scan_in_vals.append(decay_t)
+    if uses_beta:
+        beta_t = ir.Value(
+            name="beta_t",
+            shape=ir.Shape([batch, "H"]),
+            type=dtype,
+        )
+        scan_in_vals.append(beta_t)
 
     body_graph, body_builder = create_body_graph(
         state_inputs=[state_in],
-        scan_inputs=[q_t, k_t, v_t, decay_t, beta_t],
+        scan_inputs=scan_in_vals,
         name="delta_recurrence",
     )
     bop = body_builder.op

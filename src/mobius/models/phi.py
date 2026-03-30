@@ -31,50 +31,174 @@ from mobius.components import (
     create_attention_bias,
     initialize_rope,
 )
+from mobius.components._attention import Attention
 from mobius.components._decoder import DecoderLayer
 from mobius.components._lora import LoRALinear
-from mobius.models.base import TextModel
+from mobius.models.base import CausalLMModel, TextModel
 from mobius.models.phi3 import Phi3CausalLMModel
 
 
-class PhiCausalLMModel(Phi3CausalLMModel):
-    """Phi model (original) with FC-style MLP.
+class _PhiDecoderLayer(nn.Module):
+    """Phi-1/2 decoder layer with single-norm parallel residual.
 
-    Uses fully-connected MLP (up → activation → down, no gating)
-    instead of the gated projection style used by Phi-3. Also uses
-    full LayerNorm instead of simplified RMSNorm.
+    A single LayerNorm is applied to the hidden states, then both attention
+    and MLP receive the same normalized output. Their results are summed
+    with the residual in a single addition:
+
+        ln_out = input_layernorm(hidden)
+        out = hidden + attn(ln_out) + mlp(ln_out)
+
+    This is the same pattern as GPT-J/CodeGen. Unlike Phi-3 which is
+    sequential (with a separate ``post_attention_layernorm`` before the MLP),
+    Phi-1/2 shares one norm between both branches.
+
+    Attribute names match HF ``PhiDecoderLayer``:
+    - ``input_layernorm`` for the shared LayerNorm
+    - ``self_attn`` for the attention module
+    - ``mlp`` for the FCMLP module
+    """
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__()
+        # Single shared norm (no post_attention_layernorm in Phi-1/2)
+        self.input_layernorm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.self_attn = Attention(config)  # 'self_attn' matches HF attribute name
+        self.mlp = FCMLP(
+            config.hidden_size,
+            config.intermediate_size,
+            activation=config.hidden_act or "gelu",
+            bias=config.mlp_bias,
+        )
+
+    def forward(
+        self,
+        op: builder.OpBuilder,
+        hidden_states: ir.Value,
+        attention_bias: ir.Value | None,
+        position_embeddings: tuple,
+        past_key_value: tuple | None = None,
+    ) -> tuple[ir.Value, tuple]:
+        residual = hidden_states
+
+        # Single norm shared between attention and MLP
+        ln_out = self.input_layernorm(op, hidden_states)  # (B, S, H)
+        attn_out, present_kv = self.self_attn(
+            op, ln_out, attention_bias, position_embeddings, past_key_value
+        )
+        mlp_out = self.mlp(op, ln_out)  # same ln_out as attention
+
+        # Parallel residual: both branches added in one step
+        hidden_states = op.Add(residual, op.Add(attn_out, mlp_out))
+        return hidden_states, present_kv
+
+
+class _PhiTextModel(nn.Module):
+    """Phi-1/2 backbone with RoPE and full LayerNorm.
+
+    Attribute names match HF ``PhiModel``:
+    - ``embed_tokens`` for the token embedding
+    - ``layers`` for the decoder layer list
+    - ``final_layernorm`` for the output norm (HF uses this name, not ``norm``)
+    """
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__()
+        self._dtype = config.dtype
+        self.embed_tokens = Embedding(
+            config.vocab_size, config.hidden_size, config.pad_token_id
+        )
+        self.layers = nn.ModuleList(
+            [_PhiDecoderLayer(config) for _ in range(config.num_hidden_layers)]
+        )
+        # HF Phi names the final norm "final_layernorm" (not "norm" as in Llama)
+        self.final_layernorm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.rotary_emb = initialize_rope(config)
+
+    def forward(
+        self,
+        op: builder.OpBuilder,
+        input_ids: ir.Value,
+        attention_mask: ir.Value,
+        position_ids: ir.Value,
+        past_key_values: list | None = None,
+    ) -> tuple[ir.Value, list]:
+        hidden_states = self.embed_tokens(op, input_ids)
+        position_embeddings = self.rotary_emb(op, position_ids)
+        attention_bias = create_attention_bias(
+            op,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            dtype=self._dtype,
+        )
+
+        present_key_values = []
+        past_kvs = past_key_values or [None] * len(self.layers)
+        for layer, past_kv in zip(self.layers, past_kvs):
+            hidden_states, present_kv = layer(
+                op, hidden_states, attention_bias, position_embeddings, past_kv
+            )
+            present_key_values.append(present_kv)
+
+        hidden_states = self.final_layernorm(op, hidden_states)
+        return hidden_states, present_key_values
+
+
+class PhiCausalLMModel(CausalLMModel):
+    """Phi-1/2 causal language model with parallel attention.
+
+    Differences from the Llama-style ``CausalLMModel``:
+    - Single-norm parallel residual (like GPT-J, not sequential like Llama)
+    - Non-gated FCMLP instead of gated MLP
+    - Full LayerNorm throughout (not RMSNorm)
+    - LM head has a bias term (``lm_head.bias``)
+    - Final norm is ``model.final_layernorm`` (matches HF attribute)
 
     Replicates HuggingFace's ``PhiForCausalLM``.
     """
 
+    default_task: str = "text-generation"
+    category: str = "Text Generation"
+
     def __init__(self, config: ArchitectureConfig):
-        super().__init__(config)
-        # Phi-1/2 uses full LayerNorm and 2-matrix FC MLP, not
-        # the gated 3-matrix MLP inherited from Phi3/Llama.
-        self.model.norm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
-        for layer in self.model.layers:
-            layer.mlp = FCMLP(
-                config.hidden_size,
-                config.intermediate_size,
-                activation=config.hidden_act,
-                bias=config.mlp_bias,
-            )
-            layer.input_layernorm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
-            layer.post_attention_layernorm = LayerNorm(
-                config.hidden_size, eps=config.rms_norm_eps
-            )
+        nn.Module.__init__(self)
+        self.config = config
+        self.model = _PhiTextModel(config)
+        # Phi LM head has a bias term
+        self.lm_head = Linear(config.hidden_size, config.vocab_size, bias=True)
+
+    def forward(
+        self,
+        op: builder.OpBuilder,
+        input_ids: ir.Value,
+        attention_mask: ir.Value,
+        position_ids: ir.Value,
+        past_key_values: list | None = None,
+    ):
+        hidden_states, present_key_values = self.model(
+            op, input_ids, attention_mask, position_ids, past_key_values
+        )
+        logits = self.lm_head(op, hidden_states)
+        return logits, present_key_values
 
     def preprocess_weights(
         self, state_dict: dict[str, torch.Tensor]
     ) -> dict[str, torch.Tensor]:
-        state_dict = super().preprocess_weights(state_dict)
-        # HF Phi uses fc1/fc2 for the FC MLP; our FCMLP uses up_proj/down_proj
-        for key in list(state_dict.keys()):
-            if ".mlp.fc1." in key:
-                state_dict[key.replace(".mlp.fc1.", ".mlp.up_proj.")] = state_dict.pop(key)
-            elif ".mlp.fc2." in key:
-                state_dict[key.replace(".mlp.fc2.", ".mlp.down_proj.")] = state_dict.pop(key)
-        return state_dict
+        """Map HF Phi weight names to our ONNX attribute names.
+
+        Most paths match directly (model.embed_tokens, model.layers.N.*,
+        model.final_layernorm, lm_head, self_attn.q/k/v_proj). Three renames:
+
+        1. Output proj: ``self_attn.dense.*`` → ``self_attn.o_proj.*``
+        2. MLP up:   ``mlp.fc1.*`` → ``mlp.up_proj.*``
+        3. MLP down: ``mlp.fc2.*`` → ``mlp.down_proj.*``
+        """
+        new_state_dict: dict[str, torch.Tensor] = {}
+        for key, value in state_dict.items():
+            key = key.replace(".self_attn.dense.", ".self_attn.o_proj.")
+            key = key.replace(".mlp.fc1.", ".mlp.up_proj.")
+            key = key.replace(".mlp.fc2.", ".mlp.down_proj.")
+            new_state_dict[key] = value
+        return super().preprocess_weights(new_state_dict)
 
 
 def _parse_lora_adapters(

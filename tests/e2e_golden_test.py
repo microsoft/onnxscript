@@ -74,19 +74,12 @@ def _use_temp_hf_cache(tmp_path):
 # Key: "{task_type}/{case_id}" matching the pytest test ID.
 _XFAIL_REASONS: dict[str, str] = {
     # Weight loading bugs: preprocess_weights doesn't map all HF names
-    "text-generation/gpt2": "GPT-2 preprocess_weights incomplete (197/203 weights unmapped)",
-    "text-generation/pythia-70m": "GPT-NeoX preprocess_weights incomplete",
-    "text-generation/phi-1_5": "Phi-1.5 preprocess_weights incomplete",
-    "text-generation/starcoder2-3b": "StarCoder2 preprocess_weights incomplete",
     "text-generation/mamba-130m": "Mamba conv_state requires rank-3 tensors (not standard KV cache)",
     "text-generation/olmoe-1b-7b": "OLMoE MoE weight mapping incomplete",
     "text-generation/qwen1_5-moe": "Qwen1.5-MoE weight mapping incomplete",
-    "text-generation/bamba-9b": "Bamba conv_state requires rank-3 tensors (hybrid Mamba)",
     "feature-extraction/albert-base-v2": "ALBERT shared-parameter weight loading incomplete",
     "feature-extraction/modernbert-base": "ModernBERT preprocess_weights incomplete",
     # Real parity failures: weights load but argmax doesn't match
-    "text-generation/granitemoe-1b": "GraniteMoE parity failure (argmax mismatch, 0% Jaccard)",
-    "text-generation/stablelm-2-1_6b": "StableLM parity failure (argmax mismatch, 0% Jaccard)",
     "text-generation/gemma-2-2b": "Gemma-2 L5 generation diverges (10% token match ratio)",
     # VL multi-model inference: test infra needs model-specific position_ids
     "image-text-to-text/qwen3_5-2b": "LpNormalization(22) not supported in installed ORT version",

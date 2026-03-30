@@ -1,0 +1,27 @@
+{
+  "model_id": "microsoft/biogpt",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    112,
+    18,
+    112,
+    321,
+    3156,
+    1614,
+    21,
+    5,
+    6,
+    112,
+    321,
+    3156,
+    1614,
+    21,
+    5,
+    6,
+    112,
+    20,
+    18,
+    112
+  ],
+  "generated_text": "\"The\" Praxis of the \"Praxis of the\": The \""
+}

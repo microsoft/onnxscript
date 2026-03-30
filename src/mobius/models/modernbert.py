@@ -33,6 +33,7 @@ from mobius.components._rotary_embedding import (
     initialize_rope,
 )
 from mobius.models.base import CausalLMModel
+from mobius.models.base import TextModel as _TextModel
 
 if TYPE_CHECKING:
     import onnx_ir as ir
@@ -315,26 +316,103 @@ def _rename_modernbert_weight(
 # ---------------------------------------------------------------------------
 
 
+class _ModernBertDecoderTextModel(_TextModel):
+    """TextModel subclass that applies LayerNorm after the embedding lookup.
+
+    Used by ModernBertDecoderModel so that ``model.embeddings_norm.*``
+    params are correctly named under the ``model.`` namespace in the ONNX
+    graph (calling sub-modules through self.model.forward ensures the
+    module tree is walked correctly by onnxscript).
+    """
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__(config)
+        self.embeddings_norm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
+
+    def forward(
+        self,
+        op: builder.OpBuilder,
+        input_ids: ir.Value,
+        attention_mask: ir.Value | None,
+        position_ids: ir.Value,
+        past_key_values: list | None = None,
+        inputs_embeds: ir.Value | None = None,
+    ):
+        if inputs_embeds is None:
+            # Embedding lookup + LayerNorm (HF: model.embeddings.norm)
+            inputs_embeds = self.embeddings_norm(op, self.embed_tokens(op, input_ids))
+        return super().forward(
+            op,
+            input_ids=input_ids,  # Used by padding mask; embed_tokens skipped when inputs_embeds set
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+        )
+
+
+class _ModernBertDecoderLMHead(nn.Module):
+    """ModernBERT decoder LM head: dense → LayerNorm → decoder projection.
+
+    HF ModernBertForCausalLM uses a 3-component head:
+      lm_head.dense    (hidden→hidden, no bias)
+      lm_head.norm     (LayerNorm)
+      decoder.weight   (hidden→vocab, with bias, tied with embed_tokens)
+    """
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__()
+        self.dense = Linear(config.hidden_size, config.hidden_size, bias=False)
+        self.norm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.decoder = Linear(config.hidden_size, config.vocab_size, bias=True)
+
+    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value) -> ir.Value:
+        # dense → norm → decoder projection with vocab bias
+        hidden_states = self.dense(op, hidden_states)
+        hidden_states = self.norm(op, hidden_states)
+        return self.decoder(op, hidden_states)
+
+
 class ModernBertDecoderModel(CausalLMModel):
     """ModernBERT decoder (causal LM variant).
 
-    Architecturally identical to CausalLMModel; only weight renaming
-    differs to handle ModernBERT's fused QKV and Wi projections.
+    Extends CausalLMModel with:
+    - Embedding LayerNorm (via _ModernBertDecoderTextModel)
+    - Three-component LM head: dense → LayerNorm → decoder (with bias)
+
+    Replicates HuggingFace ``ModernBertForCausalLM``.
+
+    HF weight naming differences vs standard CausalLMModel:
+    - Separate q_proj/k_proj/v_proj (not fused Wqkv)
+    - Fused MLP Wi → split into gate_proj + up_proj
+    - Custom layer-norm names (attn_norm / mlp_norm / final_norm)
+    - Embedding LayerNorm at model.embeddings.norm
+    - Three-part LM head (lm_head.dense + lm_head.norm + decoder)
     """
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__(config)
+        # Replace TextModel with the subclass that injects embedding norm
+        self.model = _ModernBertDecoderTextModel(config)
+        # Replace simple Linear lm_head with the three-component head
+        self.lm_head = _ModernBertDecoderLMHead(config)
 
     def preprocess_weights(
         self, state_dict: dict[str, torch.Tensor]
     ) -> dict[str, torch.Tensor]:
-        new_state_dict = {}
+        new_state_dict: dict[str, torch.Tensor] = {}
         for name, tensor in state_dict.items():
             _rename_modernbert_decoder_weight(name, tensor, new_state_dict)
 
-        # Tie embeddings
+        # Tie embeddings: HF decoder.weight is tied with model.embeddings.tok_embeddings
         if self.config.tie_word_embeddings:
-            if "lm_head.weight" in new_state_dict:
-                new_state_dict["model.embed_tokens.weight"] = new_state_dict["lm_head.weight"]
-            elif "model.embed_tokens.weight" in new_state_dict:
-                new_state_dict["lm_head.weight"] = new_state_dict["model.embed_tokens.weight"]
+            dec_w = new_state_dict.get("lm_head.decoder.weight")
+            if dec_w is not None:
+                new_state_dict["model.embed_tokens.weight"] = dec_w
+            else:
+                emb_w = new_state_dict.get("model.embed_tokens.weight")
+                if emb_w is not None:
+                    new_state_dict["lm_head.decoder.weight"] = emb_w
 
         return new_state_dict
 
@@ -342,17 +420,30 @@ class ModernBertDecoderModel(CausalLMModel):
 def _rename_modernbert_decoder_weight(
     name: str, tensor: torch.Tensor, out: dict[str, torch.Tensor]
 ) -> None:
-    """Rename HF ModernBERT decoder weight and split fused projections.
+    """Rename HF ModernBERT decoder weights to our CausalLMModel naming.
 
-    Maps HF ModernBERT naming to CausalLMModel naming convention.
+    HF ModernBertForCausalLM weight structure (after stripping 'model.' prefix):
+      embeddings.tok_embeddings.*  → model.embed_tokens.*
+      embeddings.norm.*            → model.embeddings_norm.*
+      layers.N.attn.q_proj.*       → model.layers.N.self_attn.q_proj.*
+      layers.N.attn.k_proj.*       → model.layers.N.self_attn.k_proj.*
+      layers.N.attn.v_proj.*       → model.layers.N.self_attn.v_proj.*
+      layers.N.attn.Wo.*           → model.layers.N.self_attn.o_proj.*
+      layers.N.mlp.Wi.*            → split → model.layers.N.mlp.{gate,up}_proj.*
+      layers.N.mlp.Wo.*            → model.layers.N.mlp.down_proj.*
+      layers.N.attn_norm.*         → model.layers.N.input_layernorm.*
+      layers.N.mlp_norm.*          → model.layers.N.post_attention_layernorm.*
+      final_norm.*                 → model.norm.*
+    Top-level:
+      lm_head.dense.*              → lm_head.dense.*  (same)
+      lm_head.norm.*               → lm_head.norm.*   (same)
+      decoder.*                    → lm_head.decoder.*
     """
-    # Strip model. prefix
+    # Strip top-level 'model.' prefix (HF wraps transformer body under 'model.')
     if name.startswith("model."):
         name = name[len("model.") :]
 
-    # Skip classifier heads, rotary embeddings
-    if name.startswith(("classifier.", "head.")):
-        return
+    # Skip rotary embeddings (computed at runtime, not stored as weights)
     if "rotary_emb." in name:
         return
 
@@ -361,12 +452,8 @@ def _rename_modernbert_decoder_weight(
         out[name.replace("embeddings.tok_embeddings.", "model.embed_tokens.")] = tensor
         return
     if name.startswith("embeddings.norm."):
-        # ModernBERT embedding norm doesn't map to CausalLMModel (which has no emb norm)
-        return
-
-    # LM head / output projection
-    if name in ("lm_head.weight", "output.weight"):
-        out["lm_head.weight"] = tensor
+        # Embedding LayerNorm lives under model.embeddings_norm in ONNX
+        out[name.replace("embeddings.norm.", "model.embeddings_norm.")] = tensor
         return
 
     # Final norm → model.norm
@@ -374,7 +461,17 @@ def _rename_modernbert_decoder_weight(
         out[name.replace("final_norm.", "model.norm.")] = tensor
         return
 
-    # Encoder layers → model.layers
+    # LM head dense and norm (same names in HF and ONNX)
+    if name.startswith("lm_head."):
+        out[name] = tensor
+        return
+
+    # Top-level decoder projection (tied with embeddings in HF)
+    if name.startswith("decoder."):
+        out[f"lm_head.{name}"] = tensor
+        return
+
+    # Transformer layers
     if name.startswith("layers."):
         parts = name.split(".", 2)
         if len(parts) < 3:
@@ -383,22 +480,23 @@ def _rename_modernbert_decoder_weight(
         remainder = parts[2]
         prefix = f"model.layers.{layer_idx}"
 
-        # Fused QKV: attn.Wqkv → split into q/k/v
-        if remainder.startswith("attn.Wqkv."):
-            param_type = remainder[len("attn.Wqkv.") :]
-            dim = tensor.shape[0] // 3
-            q, k, v = tensor.split(dim, dim=0)
-            out[f"{prefix}.self_attn.q_proj.{param_type}"] = q
-            out[f"{prefix}.self_attn.k_proj.{param_type}"] = k
-            out[f"{prefix}.self_attn.v_proj.{param_type}"] = v
+        # Separate Q/K/V projections (HF decoder uses q_proj/k_proj/v_proj)
+        if remainder.startswith("attn.q_proj."):
+            out[f"{prefix}.self_attn.q_proj.{remainder[len('attn.q_proj.') :]}"] = tensor
+            return
+        if remainder.startswith("attn.k_proj."):
+            out[f"{prefix}.self_attn.k_proj.{remainder[len('attn.k_proj.') :]}"] = tensor
+            return
+        if remainder.startswith("attn.v_proj."):
+            out[f"{prefix}.self_attn.v_proj.{remainder[len('attn.v_proj.') :]}"] = tensor
             return
 
-        # Output proj: attn.Wo → self_attn.o_proj
+        # Output projection: attn.Wo → self_attn.o_proj
         if remainder.startswith("attn.Wo."):
             out[f"{prefix}.self_attn.o_proj.{remainder[len('attn.Wo.') :]}"] = tensor
             return
 
-        # Fused MLP Wi → split into gate/up
+        # Fused MLP gate+up: Wi → split into gate_proj + up_proj
         if remainder.startswith("mlp.Wi."):
             param_type = remainder[len("mlp.Wi.") :]
             dim = tensor.shape[0] // 2

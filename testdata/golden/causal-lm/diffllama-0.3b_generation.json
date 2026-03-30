@@ -1,0 +1,27 @@
+{
+  "model_id": "kajuma/DiffLlama-0.3B-handcut",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    220,
+    679,
+    21,
+    11,
+    220,
+    679,
+    21,
+    11,
+    220,
+    679,
+    21,
+    11,
+    220,
+    679,
+    21,
+    11,
+    220,
+    679,
+    21,
+    11
+  ],
+  "generated_text": " 2016, 2016, 2016, 2016, 2016,"
+}

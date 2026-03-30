@@ -1,0 +1,16 @@
+model_id: "microsoft/biogpt"
+revision: "eb0d815e95434dc9e3b78f464e52b899bee7d923"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "BioGPT 347M. Biomedical domain GPT-2 variant with standard causal attention."

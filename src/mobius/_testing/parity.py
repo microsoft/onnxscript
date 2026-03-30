@@ -81,23 +81,28 @@ def _compute_metrics(
 ) -> dict:
     """Compute all parity metrics between two logit tensors.
 
-    Both inputs should be the last-token logits with shape
-    ``(batch, vocab)`` or ``(vocab,)``.
+    Accepts either ``(batch, vocab)`` or ``(batch, seq, vocab)`` tensors.
+    ``max_abs_diff`` and ``mean_abs_diff`` are computed over the full tensor
+    (all sequence positions) so they are consistent with the ``allclose_pass``
+    gate in :func:`compare_synthetic`, which also spans all positions.
+    Argmax, cosine similarity, and near-tie detection use only the last-token
+    slice, which is what matters for next-token prediction quality.
     """
-    # Flatten to last token if 3-D (batch, seq, vocab) → take last token
+    # Absolute difference metrics over the FULL tensor (all sequence positions),
+    # computed in float64 to avoid catastrophic cancellation in f32 subtraction.
+    all_abs_diff = np.abs(onnx_logits.astype(np.float64) - hf_logits.astype(np.float64))
+    max_abs_diff = float(all_abs_diff.max())
+    mean_abs_diff = float(all_abs_diff.mean())
+
+    # Slice to last token for per-token quality metrics
     if onnx_logits.ndim == 3:
         onnx_logits = onnx_logits[:, -1, :]
     if hf_logits.ndim == 3:
         hf_logits = hf_logits[:, -1, :]
 
-    # Squeeze batch dim for single-sample comparison
+    # Squeeze batch dim for single-sample comparison (cosine uses flat vector)
     onnx_flat = onnx_logits.reshape(-1).astype(np.float64)
     hf_flat = hf_logits.reshape(-1).astype(np.float64)
-
-    # Absolute difference metrics
-    abs_diff = np.abs(onnx_flat - hf_flat)
-    max_abs_diff = float(np.max(abs_diff))
-    mean_abs_diff = float(np.mean(abs_diff))
 
     # Tolerance checks
     margin = NEAR_TIE_MARGINS.get(dtype, 0.01)
@@ -167,18 +172,20 @@ def compare_synthetic(
     )
     metrics = _compute_metrics(onnx_logits, hf_logits, dtype)
 
+    a64 = onnx_logits.astype(np.float64)
+    b64 = hf_logits.astype(np.float64)
     atol_pass = bool(
         np.allclose(
-            onnx_logits.astype(np.float64),
-            hf_logits.astype(np.float64),
+            a64,
+            b64,
             atol=atol,
             rtol=0,
         )
     )
     rtol_pass = bool(
         np.allclose(
-            onnx_logits.astype(np.float64),
-            hf_logits.astype(np.float64),
+            a64,
+            b64,
             atol=0,
             rtol=rtol,
         )
@@ -187,8 +194,8 @@ def compare_synthetic(
     # Gate: allclose (atol + rtol combined)
     allclose_pass = bool(
         np.allclose(
-            onnx_logits.astype(np.float64),
-            hf_logits.astype(np.float64),
+            a64,
+            b64,
             atol=atol,
             rtol=rtol,
         )

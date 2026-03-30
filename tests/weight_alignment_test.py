@@ -32,44 +32,17 @@ from _test_configs import (
     DETECTION_CONFIGS,
     ENCODER_CONFIGS,
     SEQ2SEQ_CONFIGS,
-    TINY_HEAD_DIM,
-    TINY_HEADS,
-    TINY_HIDDEN,
-    TINY_INTERMEDIATE,
-    TINY_KV_HEADS,
-    TINY_LAYERS,
-    TINY_VOCAB,
     VISION_CONFIGS,
+    _base_config,
 )
 
 from mobius._config_resolver import _default_task_for_model
-from mobius._configs import ArchitectureConfig
 from mobius._registry import registry
 from mobius.tasks import get_task
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def _base_config(**overrides) -> ArchitectureConfig:
-    config_cls = overrides.pop("_config_cls", ArchitectureConfig)
-    defaults = dict(
-        hidden_size=TINY_HIDDEN,
-        intermediate_size=TINY_INTERMEDIATE,
-        num_attention_heads=TINY_HEADS,
-        num_key_value_heads=TINY_KV_HEADS,
-        head_dim=TINY_HEAD_DIM,
-        num_hidden_layers=TINY_LAYERS,
-        vocab_size=TINY_VOCAB,
-        max_position_embeddings=128,
-        hidden_act="silu",
-        rms_norm_eps=1e-6,
-        rope_type="default",
-        rope_theta=10_000.0,
-        pad_token_id=0,
-    )
-    defaults.update(overrides)
-    return config_cls(**defaults)
 
 
 def _collect_parameter_names(pkg: dict) -> set[str]:

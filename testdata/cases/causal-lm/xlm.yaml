@@ -1,0 +1,17 @@
+model_id: "FacebookAI/xlm-mlm-en-2048"
+revision: "6eb6401a142611ae90f3d6bc606b97384f1c9961"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "Model only has pytorch_model.bin, no safetensors."
+notes: "XLM 570M. Cross-lingual language model with sinusoidal PE and language embeddings."

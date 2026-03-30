@@ -1,0 +1,27 @@
+{
+  "model_id": "bigcode/gpt_bigcode-santacoder",
+  "prompt": "def hello_world():",
+  "generated_tokens": [
+    258,
+    942,
+    372,
+    7371,
+    9956,
+    8657,
+    185,
+    185,
+    563,
+    16300,
+    62,
+    3881,
+    62,
+    17,
+    1241,
+    258,
+    942,
+    372,
+    7371,
+    9956
+  ],
+  "generated_text": "\n    print(\"Hello World!\")\n\ndef hello_world_2():\n    print(\"Hello World"
+}

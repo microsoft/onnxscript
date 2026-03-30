@@ -1,0 +1,16 @@
+model_id: "EleutherAI/gpt-neo-125m"
+revision: "21def0189f5705e2521767faed922f1f15e7d7db"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "GPT-Neo 125M. Local+global attention windows, no RoPE, absolute position embeddings."

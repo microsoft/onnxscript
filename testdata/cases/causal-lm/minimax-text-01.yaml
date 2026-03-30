@@ -1,0 +1,17 @@
+model_id: "MiniMaxAI/MiniMax-Text-01"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "MiniMax-Text-01 is 456B total — too large for CI golden data generation."
+notes: "MiniMax Text-01. Hybrid LightningAttention (linear, gated) + full GQA + MoE. FP accumulation differences (atol=0.05)."

@@ -1,0 +1,17 @@
+model_id: "HuggingFaceTB/SmolLM3-3B"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "Model too large (3B params) for CPU golden generation."
+notes: "SmolLM3 3B. Standard Llama architecture."

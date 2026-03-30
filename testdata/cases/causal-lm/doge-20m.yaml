@@ -1,0 +1,17 @@
+model_id: "SmallDoge/Doge-20M-Instruct"
+revision: "dc9b359e279815619616f9b08d4c3e26d0d7dc0c"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "Custom modeling code requires LossKwargs from newer transformers version."
+notes: "DOGE 20M. Dynamic mask SSM attention with cross-domain mixture of experts."

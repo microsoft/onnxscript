@@ -8,6 +8,7 @@ Reference: DeepSeek-V3 paper, HuggingFace DeepseekV3ForCausalLM.
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 import torch
@@ -106,11 +107,14 @@ class DeepSeekMoEGate(nn.Module):
     def _group_topk_selection(self, op, scores_for_choice):
         """Group-based expert selection: pick topk_group groups first."""
         experts_per_group = self.num_experts // self.n_group
+
+        # Flatten batch*seq dims: (B, S, n_experts) → (B*S, n_experts)
+        # so group reshaping operates on a 2D tensor (token x expert).
+        orig_shape = op.Shape(scores_for_choice)
+        flat = op.Reshape(scores_for_choice, [-1, self.num_experts])
+
         # Reshape to groups: (B*S, n_group, experts_per_group)
-        scores_grouped = op.Reshape(
-            scores_for_choice,
-            [0, self.n_group, experts_per_group],
-        )
+        scores_grouped = op.Reshape(flat, [0, self.n_group, experts_per_group])
         # Group score = sum of top-2 within each group
         k_two = op.Constant(value_ints=[2])
         group_top2, _ = op.TopK(scores_grouped, k_two, axis=-1, _outputs=2)
@@ -137,8 +141,8 @@ class DeepSeekMoEGate(nn.Module):
         )
         # Flatten back: (B*S, num_experts)
         expert_mask = op.Reshape(group_mask_expanded, [0, self.num_experts])
-        # Zero out non-selected groups
-        return op.Mul(scores_for_choice, expert_mask)
+        # Zero out non-selected groups, then reshape back to original (B, S, n_experts)
+        return op.Reshape(op.Mul(flat, expert_mask), orig_shape)
 
 
 class DeepSeekMLADecoderLayer(nn.Module):
@@ -303,7 +307,15 @@ class DeepSeekV3TextModel(nn.Module):
             ]
         )
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.rotary_emb = initialize_rope(config)
+
+        # For MLA, RoPE applies only to the qk_rope_head_dim portion of Q and K,
+        # not the full head_dim. Create a modified config so the cos/sin cache
+        # has the correct dimensionality: (max_pos, qk_rope_head_dim/2).
+        if use_mla and config.qk_rope_head_dim is not None and config.qk_rope_head_dim > 0:
+            rope_config = dataclasses.replace(config, head_dim=config.qk_rope_head_dim)
+        else:
+            rope_config = config
+        self.rotary_emb = initialize_rope(rope_config)
 
     def forward(
         self,
@@ -364,26 +376,41 @@ class DeepSeekV3CausalLMModel(CausalLMModel):
 
         Key mappings:
         - MLA attention projections align already (q_a_proj, q_b_proj, etc.)
-        - MoE expert weights: experts.N.{gate,up,down}_proj → same
-        - Gate weight + bias: gate.weight, gate.e_score_correction_bias
-        - Shared expert: shared_experts.{gate,up,down}_proj → same
+        - MoE gate: mlp.gate.weight → mlp.moe.gate.weight
+        - Shared expert: mlp.shared_experts.* → mlp.moe.shared_experts.*
+        - MoE expert weights: HF stores all experts in a single fused tensor
+            experts.gate_up_proj: (n_experts, 2*intermediate, hidden)
+            experts.down_proj:    (n_experts, hidden, intermediate)
+          These are split into per-expert ONNX weights:
+            moe.experts.{i}.gate_proj.weight: (intermediate, hidden)
+            moe.experts.{i}.up_proj.weight:   (intermediate, hidden)
+            moe.experts.{i}.down_proj.weight: (hidden, intermediate)
         """
         renamed = {}
         for key, value in state_dict.items():
             new_key = key
 
-            # Remap MoE layer names:
-            # HF: layers.N.mlp.gate.weight → layers.N.mlp.moe.gate.weight
-            # HF: layers.N.mlp.experts.N.X → layers.N.mlp.moe.experts.N.X
-            # HF: layers.N.mlp.gate.e_score_correction_bias → layers.N.mlp.moe.gate.e_score_correction_bias
-
-            # For MoE layers: remap gate/experts under mlp → mlp.moe
+            # Remap MoE layer names: mlp.gate.* → mlp.moe.gate.*
             new_key = new_key.replace(".mlp.gate.", ".mlp.moe.gate.")
-            new_key = new_key.replace(".mlp.experts.", ".mlp.moe.experts.")
+            # mlp.shared_experts.* → mlp.moe.shared_experts.*
+            new_key = new_key.replace(".mlp.shared_experts.", ".mlp.moe.shared_experts.")
 
-            # HF q_a_layernorm → q_a_layernorm (matches)
-            # HF kv_a_layernorm → kv_a_layernorm (matches)
-            # HF self_attn.q_a_proj → self_attn.q_a_proj (matches)
+            # HF stores all routed experts in fused tensors:
+            # layers.N.mlp.experts.gate_up_proj  (n_experts, 2*mid, hidden)
+            # layers.N.mlp.experts.down_proj      (n_experts, hidden, mid)
+            # Split into per-expert weights for our ModuleList.
+            if new_key.endswith(".mlp.experts.gate_up_proj"):
+                prefix = new_key[: -len(".mlp.experts.gate_up_proj")]
+                mid = value.shape[1] // 2
+                for i in range(value.shape[0]):
+                    renamed[f"{prefix}.mlp.moe.experts.{i}.gate_proj.weight"] = value[i, :mid]
+                    renamed[f"{prefix}.mlp.moe.experts.{i}.up_proj.weight"] = value[i, mid:]
+                continue
+            if new_key.endswith(".mlp.experts.down_proj"):
+                prefix = new_key[: -len(".mlp.experts.down_proj")]
+                for i in range(value.shape[0]):
+                    renamed[f"{prefix}.mlp.moe.experts.{i}.down_proj.weight"] = value[i]
+                continue
 
             renamed[new_key] = value
 

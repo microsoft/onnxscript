@@ -28,6 +28,7 @@ from mobius._weight_utils import (
 from mobius.components import (
     DecoderLayer,
     Embedding,
+    LayerNorm,
     Linear,
     RMSNorm,
     create_padding_mask,
@@ -171,3 +172,51 @@ class CausalLMModel(nn.Module):
         if self.config.tie_word_embeddings:
             tie_word_embeddings(state_dict)
         return state_dict
+
+
+class LayerNormTextModel(TextModel):
+    """TextModel variant that uses LayerNorm (with bias) instead of RMSNorm.
+
+    Used by models such as Cohere, StarCoder2, and StableLM where HuggingFace
+    uses ``nn.LayerNorm`` (mean-centering + std-normalisation with learnable
+    weight and bias) rather than the bias-free RMS normalisation.
+    """
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__(config)
+        # Replace per-layer norms: DecoderLayer defaults to RMSNorm; override with LayerNorm.
+        qc = getattr(config, "quantization", None)
+        linear_class = None
+        if qc is not None and qc.quant_method != "none":
+            linear_class = make_quantized_linear_factory(
+                bits=qc.bits,
+                block_size=qc.group_size,
+                has_zero_point=not qc.sym,
+            )
+        self.layers = nn.ModuleList(
+            [
+                DecoderLayer(config, linear_class=linear_class, norm_class=LayerNorm)
+                for _ in range(config.num_hidden_layers)
+            ]
+        )
+        # Replace final norm with LayerNorm (weight + bias).
+        self.norm = LayerNorm(config.hidden_size, eps=config.rms_norm_eps)
+
+
+class LayerNormCausalLMModel(CausalLMModel):
+    """CausalLM variant that uses LayerNorm instead of RMSNorm.
+
+    Drop-in replacement for ``CausalLMModel`` for architectures where
+    HuggingFace uses standard ``nn.LayerNorm`` (weight + bias) in place of the
+    bias-free RMSNorm used by most Llama-family models.
+
+    Used by: Cohere, Cohere2, StarCoder2, StableLM.
+
+    Replicates HuggingFace's ``CohereForCausalLM``, ``Starcoder2ForCausalLM``,
+    and ``StableLmForCausalLM``.
+    """
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__(config)
+        # Replace TextModel with the LayerNorm-based variant.
+        self.model = LayerNormTextModel(config)

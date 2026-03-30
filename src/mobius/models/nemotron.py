@@ -21,12 +21,14 @@ class NemotronCausalLMModel(CausalLMModel):
     - **relu2 activation**: Squared ReLU ``max(x, 0)²``.
     - **partial_rotary_factor = 0.5**: Only half of head dimensions
       receive RoPE positional encoding.
+
     """
 
     def __init__(self, config: ArchitectureConfig):
         super().__init__(config)
         # Replace RMSNorm with OffsetLayerNorm (LayerNorm with +1 weight offset)
         self.model.norm = OffsetLayerNorm(config.hidden_size, eps=config.rms_norm_eps)
+
         for layer in self.model.layers:
             layer.mlp = FCMLP(
                 config.hidden_size,

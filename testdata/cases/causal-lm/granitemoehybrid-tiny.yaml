@@ -1,0 +1,17 @@
+model_id: "ibm-granite/granite-4.0-tiny-preview"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "Model requires trust_remote_code — not yet supported in CI golden data generation."
+notes: "GraniteMoE Hybrid (Mamba2 + attention + MoE). Tiny preview model."

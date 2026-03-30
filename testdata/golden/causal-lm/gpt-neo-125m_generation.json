@@ -1,0 +1,27 @@
+{
+  "model_id": "EleutherAI/gpt-neo-125m",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    198,
+    198,
+    447,
+    250,
+    40,
+    447,
+    247,
+    76,
+    257,
+    582,
+    11,
+    257,
+    582,
+    11,
+    257,
+    582,
+    11,
+    257,
+    582,
+    11
+  ],
+  "generated_text": "\n\n\u201cI\u2019m a man, a man, a man, a man,"
+}

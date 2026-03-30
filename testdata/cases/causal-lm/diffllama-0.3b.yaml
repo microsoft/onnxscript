@@ -1,0 +1,16 @@
+model_id: "kajuma/DiffLlama-0.3B-handcut"
+revision: "c2ad1209f1c1ebd4d4ab2eaf5c8002b541b87140"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "DiffLlama 0.3B. Differential attention variant of LLaMA with RoPE."

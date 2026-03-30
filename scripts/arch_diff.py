@@ -114,6 +114,8 @@ _DIFF_MODELS: list[tuple[str, dict, str, str]] = [
         {
             "num_local_experts": 4,
             "num_experts_per_tok": 2,
+            "moe_intermediate_size": 128,
+            "shared_expert_intermediate_size": 64,
             "attn_qkv_bias": True,
         },
         "text-generation",
@@ -124,6 +126,8 @@ _DIFF_MODELS: list[tuple[str, dict, str, str]] = [
         {
             "num_local_experts": 4,
             "num_experts_per_tok": 2,
+            "moe_intermediate_size": 128,
+            "shared_expert_intermediate_size": 64,
             "attn_qkv_bias": True,
         },
         "static-cache",

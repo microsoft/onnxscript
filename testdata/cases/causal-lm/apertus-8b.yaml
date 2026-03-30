@@ -1,0 +1,17 @@
+model_id: "swiss-ai/Apertus-8B-Instruct-2509"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "Model is 8B — too large for CI golden data generation."
+notes: "Apertus 8B. Uses xIELU (Softplus) activation; small FP accumulation differences vs HF (atol=0.02)."

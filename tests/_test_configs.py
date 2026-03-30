@@ -15,14 +15,21 @@ are simple aliases of a base class with ``{}`` overrides are marked
 
 from __future__ import annotations
 
+import dataclasses
+
 from mobius._configs import (
+    ArchitectureConfig,
     BambaConfig,
     DepthAnythingConfig,
     Gemma2Config,
     Gemma3nConfig,
+    GraniteMoeHybridConfig,
     JambaConfig,
+    JetMoeConfig,
+    LongcatFlashConfig,
     Mamba2Config,
     MambaConfig,
+    NanoChatConfig,
     NemotronHConfig,
     Sam2Config,
     SegformerConfig,
@@ -43,6 +50,42 @@ TINY_VOCAB = 256
 LONGROPE_FACTORS = [1.0] * (int(TINY_HEAD_DIM * 0.5) // 2)
 
 
+def _base_config(config_cls=None, **overrides) -> ArchitectureConfig:
+    """Create a tiny ArchitectureConfig for graph-build and parity tests.
+
+    Applies a set of small defaults (hidden_size=64, 2 layers, etc.) and
+    merges caller-supplied *overrides*.  Unknown fields are filtered out for
+    dataclass-based config classes so that specialised configs (e.g.
+    MambaConfig) that lack ``rope_*`` fields don't fail on construction.
+    """
+    if config_cls is None:
+        config_cls = overrides.pop("_config_cls", ArchitectureConfig)
+    else:
+        overrides.pop("_config_cls", None)
+    defaults = dict(
+        hidden_size=TINY_HIDDEN,
+        intermediate_size=TINY_INTERMEDIATE,
+        num_attention_heads=TINY_HEADS,
+        num_key_value_heads=TINY_KV_HEADS,
+        head_dim=TINY_HEAD_DIM,
+        num_hidden_layers=TINY_LAYERS,
+        vocab_size=TINY_VOCAB,
+        max_position_embeddings=128,
+        hidden_act="silu",
+        rms_norm_eps=1e-6,
+        rope_type="default",
+        rope_theta=10_000.0,
+        pad_token_id=0,
+    )
+    defaults.update(overrides)
+    # Filter out fields not accepted by the config class (e.g. MambaConfig
+    # doesn't have max_position_embeddings or rope_* fields).
+    if dataclasses.is_dataclass(config_cls):
+        valid_fields = {f.name for f in dataclasses.fields(config_cls)}
+        defaults = {k: v for k, v in defaults.items() if k in valid_fields}
+    return config_cls(**defaults)
+
+
 # ---------------------------------------------------------------------------
 # Causal LM configs  (task: text-generation / hybrid-text-generation)
 # ---------------------------------------------------------------------------
@@ -51,20 +94,20 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
     ("llama", {}, True),
     ("mistral", {}, False),
     ("qwen2", {}, True),
-    ("cohere", {"tie_word_embeddings": True}, True),
-    ("cohere2", {"tie_word_embeddings": True}, False),
+    ("cohere", {"tie_word_embeddings": True, "logit_scale": 0.0625}, True),
+    ("cohere2", {"tie_word_embeddings": True, "logit_scale": 0.0625}, False),
     ("diffllama", {}, False),
     ("doge", {}, False),
     ("dots1", {}, False),
     ("exaone4", {}, False),
     (
         "glm",
-        {"attn_qkv_bias": True, "attn_o_bias": True},
-        True,
+        {"attn_qkv_bias": True},
+        False,
     ),
     (
         "glm4",
-        {"attn_qkv_bias": True, "attn_o_bias": True},
+        {"attn_qkv_bias": True},
         False,
     ),
     ("helium", {}, False),
@@ -72,7 +115,15 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
     ("llama4_text", {}, False),
     ("ministral", {}, False),
     ("ministral3", {}, False),
-    ("nanochat", {"hidden_act": "relu2"}, True),
+    (
+        "nanochat",
+        {
+            "_config_cls": NanoChatConfig,
+            "hidden_act": "relu2",
+            "final_logit_softcapping": 15.0,
+        },
+        True,
+    ),
     (
         "olmo2",
         {"attn_qk_norm": True, "attn_qk_norm_full": True},
@@ -131,10 +182,28 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
     ),
     ("youtu", {"tie_word_embeddings": True}, False),
     # === Absolute positional embeddings (non-RoPE) ===
-    ("ctrl", {"hidden_act": "gelu_new", "tie_word_embeddings": True}, True),
+    (
+        "ctrl",
+        {
+            # HF CTRL FFN uses ReLU (not gelu_new); token embeds scaled by sqrt(n_embd)
+            "hidden_act": "relu",
+            "tie_word_embeddings": True,
+            "num_key_value_heads": TINY_HEADS,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+        },
+        True,
+    ),
     (
         "gpt2",
-        {"hidden_act": "gelu_new", "tie_word_embeddings": True},
+        {
+            "hidden_act": "gelu_new",
+            "tie_word_embeddings": True,
+            "num_key_value_heads": TINY_HEADS,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+            "rms_norm_eps": 1e-5,
+        },
         True,
     ),
     (
@@ -142,29 +211,54 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         {"hidden_act": "gelu_new", "tie_word_embeddings": True},
         False,
     ),
-    ("opt", {"hidden_act": "relu", "tie_word_embeddings": True}, True),
+    (
+        "opt",
+        {
+            "hidden_act": "relu",
+            "tie_word_embeddings": True,
+            "num_key_value_heads": TINY_HEADS,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+            # HF OPT uses eps=1e-5 for its LayerNorms (nn.LayerNorm default)
+            "rms_norm_eps": 1e-5,
+        },
+        True,
+    ),
     (
         "xlm",
-        {"hidden_act": "gelu_new", "tie_word_embeddings": True},
+        {
+            # HF XLM uses standard GELU (erf-based) and eps=1e-12 for LayerNorms
+            "hidden_act": "gelu",
+            "tie_word_embeddings": True,
+            "num_key_value_heads": TINY_HEADS,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+            # XLM uses 4*emb_dim for feedforward (hardcoded in HF)
+            "intermediate_size": 4 * TINY_HIDDEN,
+            # HF XLM uses eps=1e-12 for all LayerNorms
+            "rms_norm_eps": 1e-12,
+        },
         False,
     ),
     # === Other Llama-compatible ===
-    ("modernbert-decoder", {}, False),
+    # ModernBERT-Decoder uses MHA only (HF sets kv_heads=num_heads internally);
+    # set num_key_value_heads=TINY_HEADS to match.
+    ("modernbert-decoder", {"num_key_value_heads": TINY_HEADS}, False),
     # === Text Generation (architecture-specific) ===
     (
         "gemma",
-        {"attn_qkv_bias": True, "attn_o_bias": True},
+        {"attn_qkv_bias": False, "attn_o_bias": False},
         True,
     ),
     (
         "gemma2",
         {
             "_config_cls": Gemma2Config,
-            "attn_qkv_bias": True,
-            "attn_o_bias": True,
+            "attn_qkv_bias": False,
+            "attn_o_bias": False,
             "attn_logit_softcapping": 50.0,
             "final_logit_softcapping": 30.0,
-            "query_pre_attn_scalar": 256,
+            "query_pre_attn_scalar": TINY_HEAD_DIM,
         },
         True,
     ),
@@ -172,11 +266,11 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         "shieldgemma2",
         {
             "_config_cls": Gemma2Config,
-            "attn_qkv_bias": True,
-            "attn_o_bias": True,
+            "attn_qkv_bias": False,
+            "attn_o_bias": False,
             "attn_logit_softcapping": 50.0,
             "final_logit_softcapping": 30.0,
-            "query_pre_attn_scalar": 256,
+            "query_pre_attn_scalar": TINY_HEAD_DIM,
         },
         False,
     ),
@@ -194,6 +288,7 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         {
             "_config_cls": Gemma3nConfig,
             "attn_qk_norm": True,
+            "hidden_act": "gelu_pytorch_tanh",
             "rope_local_base_freq": 10_000.0,
             "layer_types": ["full_attention", "sliding_attention"],
             "altup_num_inputs": 2,
@@ -210,6 +305,7 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         {
             "_config_cls": Gemma3nConfig,
             "attn_qk_norm": True,
+            "hidden_act": "gelu_pytorch_tanh",
             "rope_local_base_freq": 10_000.0,
             "layer_types": ["full_attention", "sliding_attention"],
             "altup_num_inputs": 2,
@@ -260,7 +356,6 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         },
         True,
     ),
-    ("qwen3_5_vl_text", {"attn_qk_norm": True}, False),
     ("qwen3_vl_text", {"attn_qk_norm": True}, False),
     ("smollm3", {}, False),
     # === Mixture of Experts ===
@@ -291,7 +386,12 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
     ),
     (
         "olmoe",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
+        {
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "attn_qk_norm": True,
+            "attn_qk_norm_full": True,
+        },
         False,
     ),
     (
@@ -299,6 +399,8 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         {
             "num_local_experts": 4,
             "num_experts_per_tok": 2,
+            "moe_intermediate_size": 128,
+            "shared_expert_intermediate_size": 64,
             "attn_qkv_bias": True,
         },
         True,
@@ -308,6 +410,7 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         {
             "num_local_experts": 4,
             "num_experts_per_tok": 2,
+            "moe_intermediate_size": 128,
             "attn_qk_norm": True,
         },
         True,
@@ -332,15 +435,31 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         True,
     ),
     # === Falcon and Bloom ===
-    ("falcon", {"parallel_attn": True}, True),
+    # dual_ln=True: Falcon with new_decoder_architecture uses separate ln_attn + ln_mlp.
+    ("falcon", {"parallel_attn": True, "dual_ln": True}, True),
     (
         "falcon_h1",
-        {"alibi": True, "attn_qkv_bias": True},
+        # ALiBi bias shape (1, num_heads, q, total) requires kv_num_heads == num_heads
+        # in ORT Attention (GQA is incompatible with ALiBi). Use MHA (kv_heads=num_heads).
+        # dual_ln=True: new_decoder_architecture uses separate ln_attn + ln_mlp.
+        {
+            "alibi": True,
+            "attn_qkv_bias": True,
+            "num_key_value_heads": TINY_HEADS,
+            "dual_ln": True,
+        },
         True,
     ),
     (
         "bloom",
-        {"alibi": True, "attn_qkv_bias": True, "mlp_bias": True},
+        {
+            "alibi": True,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+            "mlp_bias": True,
+            "num_key_value_heads": TINY_HEADS,
+            "intermediate_size": 4 * TINY_HIDDEN,
+        },
         True,
     ),
     # === Additional Llama-compatible aliases ===
@@ -400,27 +519,6 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         },
         True,
     ),
-    (
-        "deepseek_v2_moe",
-        {
-            "q_lora_rank": 32,
-            "kv_lora_rank": 16,
-            "qk_nope_head_dim": 16,
-            "qk_rope_head_dim": 8,
-            "v_head_dim": 16,
-            "num_local_experts": 4,
-            "num_experts_per_tok": 2,
-            "moe_intermediate_size": 32,
-            "n_group": 2,
-            "topk_group": 1,
-            "routed_scaling_factor": 1.0,
-            "scoring_func": "softmax",
-            "topk_method": "group_limited_greedy",
-            "first_k_dense_replace": 1,
-            "n_shared_experts": 1,
-        },
-        False,
-    ),
     ("exaone", {}, False),
     # DeepSeek-V2 without MLA (standard attention + MoE, like OCR-2 LLM)
     (
@@ -446,7 +544,20 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
     ("minicpm3", {}, True),
     ("mistral3", {}, False),
     ("openelm", {}, True),
-    ("persimmon", {}, True),
+    (
+        "persimmon",
+        {
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+            "mlp_bias": True,
+            "num_key_value_heads": TINY_HEADS,
+            "partial_rotary_factor": 0.5,
+            "hidden_act": "relu2",
+            # HF Persimmon uses layer_norm_eps=1e-5
+            "rms_norm_eps": 1e-5,
+        },
+        True,
+    ),
     ("yi", {}, False),
     ("zamba", {}, True),
     # === Architecture-specific (untested classes) ===
@@ -461,7 +572,17 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         },
         False,
     ),
-    ("phi", {"partial_rotary_factor": 0.5}, True),
+    (
+        "phi",
+        {
+            "partial_rotary_factor": 0.5,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+            "mlp_bias": True,
+            "hidden_act": "gelu_new",
+        },
+        True,
+    ),
     ("phi3small", {"partial_rotary_factor": 0.5}, True),
     ("qwen", {}, True),
     # === MoE aliases ===
@@ -476,97 +597,242 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         False,
     ),
     (
-        "gptoss",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
-        False,
-    ),
-    (
-        "gpt_oss",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
-        False,
-    ),
-    (
         "jetmoe",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
+        {
+            "_config_cls": JetMoeConfig,
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "head_dim": TINY_HEAD_DIM,  # kv_channels = head_dim; not hidden/num_heads
+            # num_attention_heads = num_experts_per_tok * num_kv_heads = 2 * 2 = 4 (TINY_HEADS)
+        },
         False,
     ),
     # === Additional CausalLM aliases ===
     ("apertus", {}, False),
-    ("arcee", {}, False),
+    ("arcee", {"hidden_act": "relu2"}, False),
     ("code_llama", {}, False),
-    ("codegen", {"partial_rotary_factor": 0.5}, False),
-    ("csm", {}, False),
-    ("evolla", {}, False),
-    ("gpt_neox", {}, False),
-    ("gpt_neox_japanese", {}, False),
-    ("gptj", {"partial_rotary_factor": 0.25}, False),
-    ("longcat_flash", {}, False),
-    ("open-llama", {}, False),
-    ("seed_oss", {}, False),
     (
-        "glm4v_text",
-        {"attn_qkv_bias": True, "attn_o_bias": True},
+        "codegen",
+        {
+            "partial_rotary_factor": 0.5,
+            "mlp_bias": True,
+            "num_key_value_heads": TINY_HEADS,
+            "hidden_act": "gelu_new",
+            # HF CodeGen defaults to layer_norm_epsilon=1e-5
+            "rms_norm_eps": 1e-5,
+        },
         False,
     ),
+    ("csm", {}, False),
+    ("evolla", {}, False),
+    (
+        "gpt_neox",
+        {
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+            "mlp_bias": True,
+            "num_key_value_heads": TINY_HEADS,
+            "hidden_act": "gelu",
+            # HF GPT-NeoX defaults to partial_rotary_factor=0.25
+            "partial_rotary_factor": 0.25,
+        },
+        False,
+    ),
+    (
+        "gpt_neox_japanese",
+        {
+            # GPT-NeoX-Japanese has NO QKV bias (only a separate dense_bias for output proj)
+            "attn_qkv_bias": False,
+            "attn_o_bias": True,
+            "mlp_bias": False,
+            "num_key_value_heads": TINY_HEADS,
+            "hidden_act": "gelu",
+            # NOTE: HF GPT-NeoX-Japanese reads partial_rotary_factor from config.rope_parameters,
+            # not from a top-level field. HF default is 1.0 (full rotary). Use 1.0 here so both
+            # ONNX and HF apply rotary to all head_dim dimensions.
+            # GPT-NeoX-Japanese uses intermediate_multiple_size (default 4) not intermediate_size
+            "intermediate_size": 4 * TINY_HIDDEN,
+            # HF GPT-NeoX-Japanese uses layer_norm_eps=1e-5 by default; match it
+            "rms_norm_eps": 1e-5,
+        },
+        False,
+    ),
+    (
+        "gptj",
+        {
+            "partial_rotary_factor": 0.25,
+            "mlp_bias": True,
+            "num_key_value_heads": TINY_HEADS,
+            "hidden_act": "gelu_new",
+            # HF GPT-J defaults to layer_norm_epsilon=1e-5
+            "rms_norm_eps": 1e-5,
+        },
+        False,
+    ),
+    (
+        "longcat_flash",
+        {
+            "_config_cls": LongcatFlashConfig,
+            "q_lora_rank": 16,
+            "kv_lora_rank": 8,
+            "qk_nope_head_dim": 8,
+            "qk_rope_head_dim": 8,
+            "v_head_dim": 8,
+            "num_local_experts": 4,
+            "zero_expert_num": 2,
+            "num_experts_per_tok": 2,
+            "moe_intermediate_size": 16,
+            "routed_scaling_factor": 1.0,
+            "intermediate_size": TINY_INTERMEDIATE,
+            "num_hidden_layers": TINY_LAYERS * 2,
+            "rope_interleave": True,
+        },
+        True,
+    ),
+    ("open-llama", {}, False),
+    # seed_oss uses attention_bias=True by default (HF always has q/k/v biases).
+    # Set attn_qkv_bias=True so our ONNX model also has these biases for parity.
+    ("seed_oss", {"attn_qkv_bias": True}, False),
     ("zamba2", {}, False),
     # === Additional GPT2 aliases ===
+    # num_key_value_heads=TINY_HEADS: GPT-2 family never uses GQA; setting
+    # kv_heads = num_heads ensures ONNX KV-cache and HF weight shapes agree.
+    # attn_qkv_bias / attn_o_bias: all GPT-2 family models use attention biases.
     (
         "biogpt",
-        {"hidden_act": "gelu_new", "tie_word_embeddings": True},
+        {
+            "hidden_act": "gelu_new",
+            "tie_word_embeddings": True,
+            "num_key_value_heads": TINY_HEADS,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+        },
         False,
     ),
     (
         "gpt-sw3",
-        {"hidden_act": "gelu_new", "tie_word_embeddings": True},
+        {
+            "hidden_act": "gelu_new",
+            "tie_word_embeddings": True,
+            "num_key_value_heads": TINY_HEADS,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+        },
         False,
     ),
     (
         "gpt_bigcode",
-        {"hidden_act": "gelu_new", "tie_word_embeddings": True},
+        {
+            "hidden_act": "gelu_new",
+            "tie_word_embeddings": True,
+            "num_key_value_heads": TINY_HEADS,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+            "rms_norm_eps": 1e-5,
+        },
         False,
     ),
     (
         "gpt_neo",
-        {"hidden_act": "gelu_new", "tie_word_embeddings": True},
+        # GPT-Neo does not scale attention (no 1/sqrt(head_dim)), so set attention_multiplier=1.0.
+        {
+            "hidden_act": "gelu_new",
+            "tie_word_embeddings": True,
+            "num_key_value_heads": TINY_HEADS,
+            "attn_qkv_bias": False,
+            "attn_o_bias": True,
+            "rms_norm_eps": 1e-5,
+            "attention_multiplier": 1.0,
+        },
         False,
     ),
     (
         "openai-gpt",
-        {"hidden_act": "gelu_new", "tie_word_embeddings": True},
+        # OpenAI-GPT uses post-norm (attn → residual+norm) instead of GPT-2 pre-norm.
+        # Also: always uses 4 * n_embd for MLP; no n_inner config option.
+        # No final LayerNorm (ln_f injected as identity in preprocess_weights).
+        {
+            "hidden_act": "gelu_new",
+            "tie_word_embeddings": True,
+            "num_key_value_heads": TINY_HEADS,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+            "intermediate_size": 4 * TINY_HIDDEN,
+            "post_norm": True,
+            "rms_norm_eps": 1e-5,
+        },
         False,
     ),
     (
         "xglm",
-        {"hidden_act": "gelu_new", "tie_word_embeddings": True},
+        {
+            "hidden_act": "gelu_new",
+            "tie_word_embeddings": True,
+            "num_key_value_heads": TINY_HEADS,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+        },
         False,
     ),
     # === Additional Falcon aliases ===
-    ("mpt", {"attn_qkv_bias": True}, False),
+    (
+        "mpt",
+        {
+            "num_key_value_heads": TINY_HEADS,
+            "hidden_act": "gelu",
+            # MPT hardcodes 4*hidden_size; set our intermediate_size to match
+            "intermediate_size": 4 * TINY_HIDDEN,
+        },
+        False,
+    ),
     # === Additional MoE aliases ===
     (
         "ernie4_5_moe",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
+        {
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "moe_intermediate_size": 128,
+            "shared_expert_intermediate_size": 128,
+        },
         False,
     ),
     (
         "flex_olmo",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
+        {
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "attn_qk_norm": True,
+            "attn_qk_norm_full": True,
+            "post_feedforward_norm": True,
+        },
         False,
     ),
     (
         "glm4_moe",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
-        False,
-    ),
-    (
-        "glm4v_moe_text",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
+        {
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "moe_intermediate_size": 128,
+            "shared_expert_intermediate_size": 128,
+        },
         False,
     ),
     (
         "granitemoehybrid",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
-        False,
+        {
+            "_config_cls": GraniteMoeHybridConfig,
+            "layer_types": ["mamba2", "full_attention"],
+            "mamba_n_heads": 4,
+            "mamba_d_head": 32,
+            "mamba_d_state": 8,
+            "mamba_n_groups": 1,
+            "mamba_d_conv": 4,
+            "mamba_expand": 2,
+            "shared_intermediate_size": 32,
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+        },
+        True,
     ),
     (
         "granitemoeshared",
@@ -575,46 +841,65 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
     ),
     (
         "hunyuan_v1_moe",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
-        False,
+        {
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "attn_qk_norm": True,
+            "shared_expert_intermediate_size": TINY_INTERMEDIATE,
+        },
+        True,
     ),
     (
         "minimax",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
-        False,
+        {
+            "layer_types": ["full_attention", "lightning_attention"],
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "head_dim": TINY_HIDDEN // TINY_HEADS,
+        },
+        True,
     ),
     (
-        "qwen3_omni_moe",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
-        False,
-    ),
-    (
-        "qwen3_vl_moe",
-        {"num_local_experts": 4, "num_experts_per_tok": 2},
-        False,
+        "gpt_oss",
+        {
+            "layer_types": ["sliding_attention", "full_attention"],
+            "sliding_window": 64,
+            "head_dim": TINY_HEAD_DIM,
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+        },
+        True,
     ),
     # --- Variant coverage: architecture code-path variants ---
-    # qwen3_next: all full-attention layers (no linear_attention/DeltaNet)
+    # qwen3_next: mostly full-attention (1 linear + 1 full) — exercises full-attention path
+    # while satisfying HF Qwen3NextDynamicCache's requirement for at least one linear layer.
     (
         "qwen3_next",
         {
             "hidden_act": "silu",
-            "layer_types": ["full_attention"] * TINY_LAYERS,
+            "layer_types": ["full_attention", "linear_attention"],
             "num_local_experts": 4,
             "num_experts_per_tok": 2,
             "moe_intermediate_size": 32,
             "shared_expert_intermediate_size": 32,
             "norm_topk_prob": True,
             "attn_qk_norm": True,
+            "partial_rotary_factor": 0.25,
+            "linear_num_value_heads": 4,
+            "linear_num_key_heads": 2,
+            "linear_key_head_dim": 16,
+            "linear_value_head_dim": 16,
+            "linear_conv_kernel_dim": 4,
         },
         False,
     ),
-    # qwen3_next: all linear-attention layers (DeltaNet only, no full attn)
+    # qwen3_next: mostly linear-attention (1 linear + 1 full) — exercises DeltaNet path
+    # while satisfying HF Qwen3NextDynamicCache's requirement for at least one full-attn layer.
     (
         "qwen3_next",
         {
             "hidden_act": "silu",
-            "layer_types": ["linear_attention"] * TINY_LAYERS,
+            "layer_types": ["linear_attention", "full_attention"],
             "num_local_experts": 4,
             "num_experts_per_tok": 2,
             "moe_intermediate_size": 32,
@@ -655,7 +940,16 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
     # falcon_h1: ALiBi with parallel attention+MLP
     (
         "falcon_h1",
-        {"alibi": True, "attn_qkv_bias": True, "parallel_attn": True},
+        # ALiBi bias shape (1, num_heads, q, total) requires kv_num_heads == num_heads
+        # in ORT Attention (GQA is incompatible with ALiBi). Use MHA (kv_heads=num_heads).
+        # dual_ln=True: new_decoder_architecture uses separate ln_attn + ln_mlp.
+        {
+            "alibi": True,
+            "attn_qkv_bias": True,
+            "parallel_attn": True,
+            "num_key_value_heads": TINY_HEADS,
+            "dual_ln": True,
+        },
         False,
     ),
     # jamba: hybrid Mamba+Attention with MoE (requires JambaConfig)
@@ -689,6 +983,10 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
             "mamba_d_conv": 4,
             "mamba_expand": 2,
             "mamba_dt_rank": 4,
+            "num_local_experts": 2,
+            "num_experts_per_tok": 1,
+            "expert_layer_period": 2,
+            "expert_layer_offset": 1,
         },
         False,
     ),
@@ -751,6 +1049,7 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
         {
             "_config_cls": Gemma3nConfig,
             "attn_qk_norm": True,
+            "hidden_act": "gelu_pytorch_tanh",
             "rope_local_base_freq": 10_000.0,
             "layer_types": ["full_attention"] * TINY_LAYERS,
             "altup_num_inputs": 2,
@@ -1460,6 +1759,19 @@ ALL_CONFIGS: list[tuple[str, dict, bool]] = (
 # a model_type can appear more than once with different overrides).
 _EXPLICIT_MODEL_TYPES: set[str] = {mt for mt, _, _ in ALL_CONFIGS}
 
+# Internal aliases removed from test configs — they are still registered in
+# the registry but should not appear in any test parametrization.  Their real
+# HF model_type counterpart (or the underlying model class) is already tested.
+_EXCLUDED_ALIASES: set[str] = {
+    "qwen3_5_vl_text",  # VL text decoder; real type is qwen3_5_text
+    "qwen3_omni_moe",  # VL MoE; no HF AutoModelForCausalLM support
+    "qwen3_vl_moe",  # VL MoE; no HF AutoModelForCausalLM support
+    "glm4v_moe_text",  # VL MoE text; no HF AutoModelForCausalLM support
+    "glm4v_text",  # VL text; GLM architecture incompatible with CausalLMModel
+    "deepseek_v2_moe",  # our custom alias; real type is deepseek_v2
+    "gptoss",  # alias for gpt_oss; real type tested via gpt_oss entry
+}
+
 
 # ---------------------------------------------------------------------------
 # Auto-generated entries for registered model types not covered above
@@ -1485,6 +1797,8 @@ def _auto_generated_configs() -> list[tuple[str, dict, bool]]:
     auto: list[tuple[str, dict, bool]] = []
     for model_type in sorted(registry.architectures()):
         if model_type in _EXPLICIT_MODEL_TYPES:
+            continue
+        if model_type in _EXCLUDED_ALIASES:
             continue
         task = _default_task_for_model(model_type)
         if task in auto_tasks:

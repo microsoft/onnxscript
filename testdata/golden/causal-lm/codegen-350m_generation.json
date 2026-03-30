@@ -1,0 +1,27 @@
+{
+  "model_id": "Salesforce/codegen-350M-mono",
+  "prompt": "def hello_world():",
+  "generated_tokens": [
+    198,
+    50284,
+    4798,
+    7203,
+    15496,
+    2159,
+    4943,
+    198,
+    198,
+    31373,
+    62,
+    6894,
+    3419,
+    198,
+    198,
+    2,
+    220,
+    169,
+    234,
+    234
+  ],
+  "generated_text": "\n    print(\"Hello World\")\n\nhello_world()\n\n# \ud30c"
+}

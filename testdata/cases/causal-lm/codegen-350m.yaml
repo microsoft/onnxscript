@@ -1,0 +1,16 @@
+model_id: "Salesforce/codegen-350M-mono"
+revision: "d9107f71cca463240db1143f4a75a927a27fcb27"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "def hello_world():"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "CodeGen 350M mono. Multi-query attention, code generation, no RoPE."

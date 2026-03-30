@@ -12,8 +12,10 @@ from mobius._weight_utils import (
     merge_lora_weights,
     preprocess_awq_weights,
     preprocess_gptq_weights,
+    split_codegen_qkv,
     split_fused_qkv,
     split_gate_up_proj,
+    split_interleaved_qkv,
     strip_prefix,
     tie_word_embeddings,
     vlm_decoder_weights,
@@ -670,3 +672,99 @@ class TestMergeLoraWeights:
         }
         result = merge_lora_weights(base, lora)
         assert result is base
+
+
+class TestSplitInterleavedQKV:
+    """Tests for split_interleaved_qkv (GPT-NeoX / Persimmon layout)."""
+
+    def test_2d_weight_mha(self):
+        """MHA weight with interleaved [h0_q, h0_k, h0_v, h1_q, ...] layout."""
+        num_heads, head_dim, hidden = 4, 8, 32
+        # Build a known interleaved pattern so we can verify the split
+        qs, ks, vs = [], [], []
+        for h in range(num_heads):
+            qs.append(torch.full((head_dim, hidden), float(h)))
+            ks.append(torch.full((head_dim, hidden), float(h) + 0.1))
+            vs.append(torch.full((head_dim, hidden), float(h) + 0.2))
+        # Interleave: [q0, k0, v0, q1, k1, v1, ...]
+        parts = []
+        for h in range(num_heads):
+            parts.extend([qs[h], ks[h], vs[h]])
+        fused = torch.cat(parts, dim=0)  # [3*hidden, hidden]
+
+        q, k, v = split_interleaved_qkv(fused, num_heads, num_heads, head_dim)
+
+        assert q.shape == (num_heads * head_dim, hidden)
+        assert k.shape == (num_heads * head_dim, hidden)
+        assert v.shape == (num_heads * head_dim, hidden)
+        torch.testing.assert_close(q, torch.cat(qs))
+        torch.testing.assert_close(k, torch.cat(ks))
+        torch.testing.assert_close(v, torch.cat(vs))
+
+    def test_1d_bias(self):
+        """Bias vector (1D) with interleaved layout."""
+        num_heads, head_dim = 4, 8
+        bias = torch.arange(num_heads * 3 * head_dim, dtype=torch.float32)
+        q, k, v = split_interleaved_qkv(bias, num_heads, num_heads, head_dim)
+
+        assert q.shape == (num_heads * head_dim,)
+        assert k.shape == (num_heads * head_dim,)
+        assert v.shape == (num_heads * head_dim,)
+        # Reconstruct from known interleaved pattern
+        reshaped = bias.reshape(num_heads, 3, head_dim)
+        torch.testing.assert_close(q, reshaped[:, 0].reshape(-1))
+        torch.testing.assert_close(k, reshaped[:, 1].reshape(-1))
+        torch.testing.assert_close(v, reshaped[:, 2].reshape(-1))
+
+    def test_wrong_dim_raises(self):
+        """Wrong leading dimension raises ValueError."""
+        with pytest.raises(ValueError, match="expected 96"):
+            split_interleaved_qkv(
+                torch.zeros(100, 32), num_heads=4, num_kv_heads=4, head_dim=8
+            )
+
+    def test_gqa_raises(self):
+        """GQA (num_kv_heads != num_heads) is not supported."""
+        with pytest.raises(ValueError, match="requires MHA"):
+            split_interleaved_qkv(torch.zeros(96, 32), num_heads=4, num_kv_heads=2, head_dim=8)
+
+
+class TestSplitCodegenQKV:
+    """Tests for split_codegen_qkv (QVK model-parallel layout)."""
+
+    def test_basic_split(self):
+        """Verify Q/V/K extraction from mp-interleaved layout."""
+        num_heads, head_dim, hidden, mp_num = 4, 8, 32, 2
+        local_dim = num_heads * head_dim // mp_num  # 16
+
+        # Build known pattern: each mp-block has [q, v, k] chunks
+        q_full = torch.ones(num_heads * head_dim, hidden) * 1.0
+        v_full = torch.ones(num_heads * head_dim, hidden) * 2.0
+        k_full = torch.ones(num_heads * head_dim, hidden) * 3.0
+
+        # Interleave by mp blocks: [q_mp0, v_mp0, k_mp0, q_mp1, v_mp1, k_mp1]
+        parts = []
+        for mp in range(mp_num):
+            s = mp * local_dim
+            e = s + local_dim
+            parts.extend([q_full[s:e], v_full[s:e], k_full[s:e]])
+        fused = torch.cat(parts, dim=0)  # [3*hidden, hidden]
+
+        q, k, v = split_codegen_qkv(fused, num_heads, head_dim, mp_num)
+
+        assert q.shape == (num_heads * head_dim, hidden)
+        assert k.shape == (num_heads * head_dim, hidden)
+        assert v.shape == (num_heads * head_dim, hidden)
+        torch.testing.assert_close(q, q_full)
+        torch.testing.assert_close(k, k_full)
+        torch.testing.assert_close(v, v_full)
+
+    def test_wrong_dim_raises(self):
+        """Wrong leading dimension raises ValueError."""
+        with pytest.raises(ValueError, match="expected 96"):
+            split_codegen_qkv(torch.zeros(100, 32), num_heads=4, head_dim=8)
+
+    def test_indivisible_mp_num_raises(self):
+        """mp_num that doesn't divide hidden raises ValueError."""
+        with pytest.raises(ValueError, match="divisible"):
+            split_codegen_qkv(torch.zeros(96, 32), num_heads=4, head_dim=8, mp_num=3)

@@ -26,6 +26,98 @@ from mobius._configs import (
     BaseModelConfig,
     WhisperConfig,
 )
+from mobius.models import (
+    ApertusCausalLMModel,
+    ArceeCausalLMModel,
+    CausalLMModel,
+    ChatGLMCausalLMModel,
+    DeepSeekOCR2CausalLMModel,
+    DeepSeekV3CausalLMModel,
+    DiffLlamaCausalLMModel,
+    DogeCausalLMModel,
+    Ernie45MoECausalLMModel,
+    ErnieCausalLMModel,
+    ExaOne4CausalLMModel,
+    Gemma2CausalLMModel,
+    Gemma3CausalLMModel,
+    Gemma3MultiModalModel,
+    GemmaCausalLMModel,
+    Glm4CausalLMModel,
+    Glm4MoECausalLMModel,
+    GlmCausalLMModel,
+    GPTOSSCausalLMModel,
+    GraniteCausalLMModel,
+    HunYuanMoEV1CausalLMModel,
+    HunYuanV1DenseCausalLMModel,
+    InternLM2CausalLMModel,
+    LayerNormCausalLMModel,
+    Llama4CausalLMModel,
+    MoECausalLMModel,
+    NanoChatCausalLMModel,
+    NemotronCausalLMModel,
+    OLMo2CausalLMModel,
+    OLMoCausalLMModel,
+    Phi3CausalLMModel,
+    Phi3MoECausalLMModel,
+    Phi3SmallCausalLMModel,
+    Phi4MMMultiModalModel,
+    PhiCausalLMModel,
+    Qwen2MoECausalLMModel,
+    Qwen3CausalLMModel,
+    Qwen3NextCausalLMModel,
+    Qwen3VL3ModelCausalLMModel,
+    Qwen3VLCausalLMModel,
+    Qwen3VLTextModel,
+    Qwen25VLCausalLMModel,
+    Qwen25VLTextModel,
+    Qwen35CausalLMModel,
+    Qwen35MoECausalLMModel,
+    Qwen35VL3ModelCausalLMModel,
+    Qwen35VLTextModel,
+    QwenCausalLMModel,
+    SmolLM3CausalLMModel,
+    WhisperForConditionalGeneration,
+)
+from mobius.models.bamba import BambaCausalLMModel
+from mobius.models.bart import BartForConditionalGeneration
+from mobius.models.bert import BertModel
+from mobius.models.blip import BlipVisionModel
+from mobius.models.blip2 import Blip2Model
+from mobius.models.clip import CLIPTextModel, CLIPVisionModel
+from mobius.models.cohere import CohereCausalLMModel
+from mobius.models.ctrl import CTRLCausalLMModel
+from mobius.models.depth_anything import DepthAnythingForDepthEstimation
+from mobius.models.distilbert import DistilBertModel
+from mobius.models.falcon import BloomCausalLMModel, FalconCausalLMModel, MPTCausalLMModel
+from mobius.models.gemma3n import Gemma3nCausalLMModel
+from mobius.models.gpt2 import GPT2CausalLMModel
+from mobius.models.gpt_neox import GPTNeoXCausalLMModel, GPTNeoXJapaneseCausalLMModel
+from mobius.models.gptj_codegen import CodeGenCausalLMModel, GPTJCausalLMModel
+from mobius.models.granitemoehybrid import GraniteMoeHybridCausalLMModel
+from mobius.models.internvl import InternVL2Model
+from mobius.models.jamba import JambaCausalLMModel
+from mobius.models.jetmoe import JetMoeCausalLMModel
+from mobius.models.layoutlmv3 import LayoutLMv3Model
+from mobius.models.llava import LLaVAModel
+from mobius.models.longcat_flash import LongcatFlashCausalLMModel
+from mobius.models.mamba import Mamba2CausalLMModel, MambaCausalLMModel
+from mobius.models.minimax import MiniMaxCausalLMModel
+from mobius.models.mllama import MllamaCausalLMModel
+from mobius.models.modernbert import ModernBertDecoderModel, ModernBertModel
+from mobius.models.opt import OPTCausalLMModel
+from mobius.models.persimmon import PersimmonCausalLMModel
+from mobius.models.qwen3_asr import Qwen3ASRForConditionalGeneration
+from mobius.models.qwen3_tts import Qwen3TTSForConditionalGeneration
+from mobius.models.qwen3_tts_tokenizer import Qwen3TTSTokenizerV2Model
+from mobius.models.sam2 import Sam2VisionModel
+from mobius.models.segformer import SegformerForSemanticSegmentation
+from mobius.models.starcoder2 import StarCoder2CausalLMModel
+from mobius.models.t5 import T5ForConditionalGeneration
+from mobius.models.trocr import TrOCRForConditionalGeneration
+from mobius.models.vit import ViTModel
+from mobius.models.wav2vec2 import Wav2Vec2Model
+from mobius.models.xlm import XLMCausalLMModel
+from mobius.models.yolos import YolosForObjectDetection
 
 
 @dataclasses.dataclass(frozen=True)
@@ -228,8 +320,6 @@ def _detect_fallback_registration(hf_config) -> ModelRegistration | None:
     if not all(getattr(hf_config, f, 0) > 0 for f in required_fields):
         return None
 
-    from mobius.models import CausalLMModel, MoECausalLMModel
-
     # MoE detection: route to MoE class if experts are present
     num_experts = getattr(hf_config, "num_local_experts", 0)
     if num_experts and num_experts > 1:
@@ -240,110 +330,32 @@ def _detect_fallback_registration(hf_config) -> ModelRegistration | None:
 
 def _create_default_registry() -> ModelRegistry:
     """Create the default registry with all built-in architectures."""
-    from mobius.models import (
-        CausalLMModel,
-        ChatGLMCausalLMModel,
-        DeepSeekOCR2CausalLMModel,
-        DeepSeekV3CausalLMModel,
-        ErnieCausalLMModel,
-        Gemma2CausalLMModel,
-        Gemma3CausalLMModel,
-        Gemma3MultiModalModel,
-        GemmaCausalLMModel,
-        GPTOSSCausalLMModel,
-        GraniteCausalLMModel,
-        InternLM2CausalLMModel,
-        MoECausalLMModel,
-        NemotronCausalLMModel,
-        OLMo2CausalLMModel,
-        OLMoCausalLMModel,
-        Phi3CausalLMModel,
-        Phi3MoECausalLMModel,
-        Phi3SmallCausalLMModel,
-        Phi4MMMultiModalModel,
-        PhiCausalLMModel,
-        Qwen3CausalLMModel,
-        Qwen3NextCausalLMModel,
-        Qwen3VL3ModelCausalLMModel,
-        Qwen3VLCausalLMModel,
-        Qwen3VLTextModel,
-        Qwen25VLCausalLMModel,
-        Qwen25VLTextModel,
-        Qwen35CausalLMModel,
-        Qwen35MoECausalLMModel,
-        Qwen35VL3ModelCausalLMModel,
-        Qwen35VLTextModel,
-        QwenCausalLMModel,
-        SmolLM3CausalLMModel,
-        WhisperForConditionalGeneration,
-    )
-    from mobius.models.bart import BartForConditionalGeneration
-    from mobius.models.bert import BertModel
-    from mobius.models.blip import BlipVisionModel
-    from mobius.models.clip import CLIPTextModel, CLIPVisionModel
-    from mobius.models.depth_anything import DepthAnythingForDepthEstimation
-    from mobius.models.distilbert import DistilBertModel
-    from mobius.models.falcon import FalconCausalLMModel
-    from mobius.models.gemma3n import Gemma3nCausalLMModel
-    from mobius.models.gpt2 import GPT2CausalLMModel
-    from mobius.models.layoutlmv3 import LayoutLMv3Model
-    from mobius.models.llava import LLaVAModel
-    from mobius.models.mllama import MllamaCausalLMModel
-    from mobius.models.modernbert import ModernBertDecoderModel, ModernBertModel
-    from mobius.models.opt import OPTCausalLMModel
-    from mobius.models.sam2 import Sam2VisionModel
-    from mobius.models.segformer import SegformerForSemanticSegmentation
-    from mobius.models.t5 import T5ForConditionalGeneration
-    from mobius.models.trocr import TrOCRForConditionalGeneration
-    from mobius.models.vit import ViTModel
-    from mobius.models.wav2vec2 import Wav2Vec2Model
-    from mobius.models.yolos import YolosForObjectDetection
-
     reg = ModelRegistry()
 
     # --- Text Generation (Llama-compatible) ---
     for name in (
-        "apertus",
-        "arcee",
         "baichuan",
         "code_llama",
-        "codegen",
         "codegen2",
-        "cohere",
-        "cohere2",
         "command_r",
         "csm",
-        "diffllama",
-        "doge",
         "dots1",
         "evolla",
         "exaone",
-        "exaone4",
-        "glm",
-        "glm4",
-        "gpt_neox",
-        "gpt_neox_japanese",
-        "gptj",
         "helium",
-        "hunyuan_v1_dense",
         "llama",
         "llama4_text",
-        "longcat_flash",
         "minicpm",
         "minicpm3",
         "ministral",
         "ministral3",
         "mistral",
         "mistral3",
-        "nanochat",
         "open-llama",
         "openelm",
-        "persimmon",
         "qwen2",
         "seed_oss",
         "solar_open",
-        "stablelm",
-        "starcoder2",
         "yi",
         "youtu",
         "zamba",
@@ -353,19 +365,35 @@ def _create_default_registry() -> ModelRegistry:
 
     # --- Text Generation (architecture-specific) ---
     for name, cls in {
-        "bloom": FalconCausalLMModel,
+        "apertus": ApertusCausalLMModel,
+        "arcee": ArceeCausalLMModel,
+        "bloom": BloomCausalLMModel,
         "chatglm": ChatGLMCausalLMModel,
+        "codegen": CodeGenCausalLMModel,
+        "cohere": CohereCausalLMModel,
+        "cohere2": CohereCausalLMModel,
         "ernie4_5": ErnieCausalLMModel,
+        "exaone4": ExaOne4CausalLMModel,
         "falcon": FalconCausalLMModel,
         "falcon_h1": FalconCausalLMModel,
-        "mpt": FalconCausalLMModel,
+        "gpt_neox": GPTNeoXCausalLMModel,
+        "gpt_neox_japanese": GPTNeoXJapaneseCausalLMModel,
+        "gptj": GPTJCausalLMModel,
+        "mpt": MPTCausalLMModel,
+        "nanochat": NanoChatCausalLMModel,
+        "persimmon": PersimmonCausalLMModel,
+        "stablelm": LayerNormCausalLMModel,
+        "starcoder2": StarCoder2CausalLMModel,
         "gemma": GemmaCausalLMModel,
         "gemma2": Gemma2CausalLMModel,
         "shieldgemma2": Gemma2CausalLMModel,
         "gemma3_text": Gemma3CausalLMModel,
         "gemma3n_text": Gemma3nCausalLMModel,
         "granite": GraniteCausalLMModel,
+        "diffllama": DiffLlamaCausalLMModel,
+        "doge": DogeCausalLMModel,
         "internlm2": InternLM2CausalLMModel,
+        "llama4_text": Llama4CausalLMModel,
         "modernbert-decoder": ModernBertDecoderModel,
         "nemotron": NemotronCausalLMModel,
         "olmo": OLMoCausalLMModel,
@@ -385,23 +413,32 @@ def _create_default_registry() -> ModelRegistry:
     for name in (
         "arctic",
         "dbrx",
-        "ernie4_5_moe",
         "flex_olmo",
-        "glm4_moe",
         "granitemoe",
-        "granitemoehybrid",
         "granitemoeshared",
-        "hunyuan_v1_moe",
-        "jetmoe",
-        "minimax",
         "mixtral",
         "olmoe",
-        "qwen2_moe",
         "qwen3_moe",
         "qwen3_omni_moe",
         "qwen3_vl_moe",
     ):
         reg.register(name, MoECausalLMModel)
+    reg.register("ernie4_5_moe", Ernie45MoECausalLMModel)
+    reg.register("glm", GlmCausalLMModel)
+    reg.register("glm4", Glm4CausalLMModel)
+    reg.register("glm4_moe", Glm4MoECausalLMModel)
+
+    reg.register("jetmoe", JetMoeCausalLMModel)
+    reg.register("hunyuan_v1_dense", HunYuanV1DenseCausalLMModel)
+    reg.register("hunyuan_v1_moe", HunYuanMoEV1CausalLMModel)
+    reg.register("qwen2_moe", Qwen2MoECausalLMModel)
+
+    reg.register("longcat_flash", LongcatFlashCausalLMModel)
+
+    # --- GraniteMoeHybrid (Mamba2+Attention hybrid with MoE on all layers) ---
+    reg.register("granitemoehybrid", GraniteMoeHybridCausalLMModel)
+
+    reg.register("minimax", MiniMaxCausalLMModel)
     reg.register("gptoss", GPTOSSCausalLMModel)
     reg.register("gpt_oss", GPTOSSCausalLMModel)
     reg.register("phimoe", Phi3MoECausalLMModel)
@@ -420,23 +457,14 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("deepseek_vl_v2", DeepSeekOCR2CausalLMModel)
 
     # --- SSM (Mamba / Mamba2) ---
-    from mobius.models.mamba import (
-        Mamba2CausalLMModel,
-        MambaCausalLMModel,
-    )
-
     reg.register("mamba", MambaCausalLMModel)
     reg.register("falcon_mamba", MambaCausalLMModel)
     reg.register("mamba2", Mamba2CausalLMModel)
 
     # --- Hybrid SSM+Attention (Jamba) ---
-    from mobius.models.jamba import JambaCausalLMModel
-
     reg.register("jamba", JambaCausalLMModel)
 
     # --- Hybrid Mamba2+Attention (Bamba) ---
-    from mobius.models.bamba import BambaCausalLMModel
-
     reg.register("bamba", BambaCausalLMModel)
 
     # --- Hybrid Mamba2+Attention+MLP (NemotronH) ---
@@ -473,8 +501,6 @@ def _create_default_registry() -> ModelRegistry:
     ):
         reg.register(name, LLaVAModel, task="vision-language")
 
-    from mobius.models.internvl import InternVL2Model
-
     for name in ("internvl_chat", "internvl2", "internvl"):
         reg.register(name, InternVL2Model, task="vision-language")
     reg.register("gemma3", Gemma3CausalLMModel)
@@ -485,8 +511,6 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("glm4v_moe_text", MoECausalLMModel)
     reg.register("glm4v_text", CausalLMModel)
     reg.register("mllama", MllamaCausalLMModel, task="mllama-vision-language")
-
-    from mobius.models.blip2 import Blip2Model
 
     reg.register("blip-2", Blip2Model, task="vision-language")
     reg.register("phi4mm", Phi4MMMultiModalModel, task="phi4mm-multimodal")
@@ -510,24 +534,12 @@ def _create_default_registry() -> ModelRegistry:
         config_class=WhisperConfig,
     )
 
-    from mobius.models.qwen3_asr import (
-        Qwen3ASRForConditionalGeneration,
-    )
-
     reg.register("qwen3_asr", Qwen3ASRForConditionalGeneration, task="speech-language")
     reg.register(
         "qwen3_forced_aligner", Qwen3ASRForConditionalGeneration, task="speech-language"
     )
 
-    from mobius.models.qwen3_tts import (
-        Qwen3TTSForConditionalGeneration,
-    )
-
     reg.register("qwen3_tts", Qwen3TTSForConditionalGeneration)
-
-    from mobius.models.qwen3_tts_tokenizer import (
-        Qwen3TTSTokenizerV2Model,
-    )
 
     reg.register("qwen3_tts_tokenizer_12hz", Qwen3TTSTokenizerV2Model, task="codec")
 
@@ -582,16 +594,16 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("gpt2", GPT2CausalLMModel)
     for name in (
         "biogpt",
-        "ctrl",
         "gpt-sw3",
         "gpt_bigcode",
         "gpt_neo",
         "imagegpt",
         "openai-gpt",
         "xglm",
-        "xlm",
     ):
         reg.register(name, GPT2CausalLMModel)
+    reg.register("ctrl", CTRLCausalLMModel)
+    reg.register("xlm", XLMCausalLMModel)
     reg.register("opt", OPTCausalLMModel)
 
     # --- Encoder-decoder ---
@@ -787,6 +799,8 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "dbrx": "databricks/dbrx-instruct",
     "arctic": "Snowflake/snowflake-arctic-instruct",
     "jetmoe": "jetmoe/jetmoe-8b",
+    "longcat_flash": "yujiepan/longcat-flash-tiny-random",
+    "minimax": "MiniMaxAI/MiniMax-Text-01",
     "ernie4_5_moe": "baidu/ERNIE-4.5-21B-A3B-PT",
     "flex_olmo": "allenai/Flex-reddit-2x7B-1T",
     "glm4_moe": "zai-org/GLM-4.5-Air",

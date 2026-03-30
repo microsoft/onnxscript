@@ -1,0 +1,17 @@
+model_id: "yujiepan/longcat-flash-tiny-random"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "Tiny random model — not suitable for meaningful golden data generation."
+notes: "LongCat Flash. Dual-sublayer MLA + MoE architecture from Meituan (meituan-longcat/LongCat-Flash-*)."

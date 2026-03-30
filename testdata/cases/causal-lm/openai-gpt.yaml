@@ -1,0 +1,16 @@
+model_id: "openai-community/openai-gpt"
+revision: "1e0d4f3028acbffb47fe933cea64619c5ec1a002"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "GPT-1 117M. Original OpenAI transformer, learned position embeddings, no causal mask in HF (uses position IDs)."

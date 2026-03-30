@@ -1,0 +1,16 @@
+{
+  "model_id": "facebook/xglm-564M",
+  "prompt": "Here is my poem:",
+  "generated_tokens": [
+    44,
+    418,
+    11,
+    14695,
+    48,
+    2423,
+    192260,
+    4,
+    2
+  ],
+  "generated_text": "I am a woman of many talents,"
+}
