@@ -3221,23 +3221,23 @@ class TestRegistryCompleteness:
 
 
 class TestBuildStaticCacheGraph:
-    """Verify StaticCacheCausalLMTask builds a valid graph."""
+    """Verify CausalLMTask(static_cache=True) builds a valid graph."""
 
     MAX_SEQ_LEN = 128
 
     def _build_static_cache_model(self, model_type: str = "qwen2", **config_overrides):
-        """Build a model with StaticCacheCausalLMTask and return (model, config)."""
-        from mobius.tasks import StaticCacheCausalLMTask
+        """Build a model with CausalLMTask(static_cache=True) and return (model, config)."""
+        from mobius.tasks import CausalLMTask
 
         config = _base_config(**config_overrides)
         model_cls = registry.get(model_type)
         module = model_cls(config)
-        task = StaticCacheCausalLMTask(max_seq_len=self.MAX_SEQ_LEN)
+        task = CausalLMTask(static_cache=True, max_seq_len=self.MAX_SEQ_LEN)
         pkg = task.build(module, config)
         return pkg["model"], config
 
     def test_static_cache_graph_builds(self):
-        """Build a Qwen2 model with StaticCacheCausalLMTask."""
+        """Build a Qwen2 model with static cache."""
         model, _ = self._build_static_cache_model()
 
         assert model.graph is not None
@@ -3355,7 +3355,7 @@ class TestBuildStaticCacheGraph:
             )
 
     def test_static_cache_moe_graph_builds(self):
-        """Build a MoE model (qwen2_moe) with StaticCacheCausalLMTask."""
+        """Build a MoE model (qwen2_moe) with static cache."""
         model, _config = self._build_static_cache_model(
             model_type="qwen2_moe",
             num_local_experts=4,

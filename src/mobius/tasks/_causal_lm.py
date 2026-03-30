@@ -26,40 +26,92 @@ from mobius.tasks._base import (
 class CausalLMTask(ModelTask):
     """Causal language model with KV cache for text generation.
 
-    Inputs:
-        - input_ids: [batch, sequence_len] INT64
-        - attention_mask: [batch, total_seq_len] INT64
-        - position_ids: [batch, sequence_len] INT64
-        - past_key_values.{i}.key: [batch, num_kv_heads, past_seq_len, head_dim] FLOAT
-        - past_key_values.{i}.value: [batch, num_kv_heads, past_seq_len, head_dim] FLOAT
+    Supports two cache modes:
 
-    Outputs:
-        - logits: FLOAT
-        - present.{i}.key: FLOAT
-        - present.{i}.value: FLOAT
+    **Dynamic cache** (default):
+        Standard KV cache with dynamic sequence lengths. Past keys/values
+        are concatenated internally by the Attention op.
+
+        Inputs:
+            - input_ids: [batch, sequence_len] INT64
+            - attention_mask: [batch, total_seq_len] INT64
+            - position_ids: [batch, sequence_len] INT64
+            - past_key_values.{i}.key: [batch, num_kv_heads, past_seq_len, head_dim]
+            - past_key_values.{i}.value: [batch, num_kv_heads, past_seq_len, head_dim]
+        Outputs:
+            - logits: FLOAT
+            - present.{i}.key / present.{i}.value: FLOAT
+
+    **Static cache** (``static_cache=True``):
+        Pre-allocated KV cache buffers updated via TensorScatter.  Avoids
+        repeated concatenation and produces a simpler graph that is easier
+        to optimize.  Requires models using :class:`DecoderLayer` or
+        :class:`MoEDecoderLayer`.
+
+        Inputs:
+            - input_ids: [batch, seq_len] INT64
+            - position_ids: [batch, seq_len] INT64
+            - key_cache.{i}: [batch, max_seq_len, kv_hidden] FLOAT per layer
+            - value_cache.{i}: [batch, max_seq_len, kv_hidden] FLOAT per layer
+            - write_indices: [batch] INT64
+            - nonpad_kv_seqlen: [batch] INT64
+        Outputs:
+            - logits: FLOAT
+            - updated_key_cache.{i} / updated_value_cache.{i}: FLOAT
+
+        No ``attention_mask`` input — causal masking uses ``is_causal=1``.
 
     The module's ``forward()`` must accept
     ``(op, input_ids, attention_mask, position_ids, past_key_values)``
-    and return ``(logits, list_of_(key, value)_tuples)``.
+    and return ``(logits, list_of_(key, value)_tuples)``.  In static cache
+    mode, ``attention_mask`` will be ``None`` and ``past_key_values``
+    entries will be :class:`StaticCacheState` tuples.
+
+    Args:
+        static_cache: If ``True``, use pre-allocated static KV cache
+            buffers instead of dynamic concatenation.
+        max_seq_len: Maximum sequence length for static cache buffers.
+            Only used when ``static_cache=True``.  Defaults to
+            ``config.max_position_embeddings``.
     """
+
+    def __init__(
+        self,
+        *,
+        static_cache: bool = False,
+        max_seq_len: int | None = None,
+    ):
+        self._static_cache = static_cache
+        self._max_seq_len = max_seq_len
 
     def build(
         self,
         module: nn.Module,
         config: ArchitectureConfig,
     ) -> ModelPackage:
+        static = self._static_cache
+
+        # --- Static-cache pre-validation ---
+        if static:
+            max_seq_len = self._max_seq_len
+            if max_seq_len is None:
+                max_seq_len = getattr(config, "max_position_embeddings", None)
+            if max_seq_len is None or max_seq_len <= 0:
+                raise ValueError(
+                    "max_seq_len must be a positive integer. Either pass it "
+                    "to CausalLMTask(max_seq_len=...) or ensure "
+                    "config.max_position_embeddings is set."
+                )
+            _validate_static_cache_support(module)
+
+        # --- Symbolic dims ---
         batch = ir.SymbolicDim("batch")
         seq_len = ir.SymbolicDim("sequence_len")
-        past_seq_len = ir.SymbolicDim("past_sequence_len")
 
+        # --- Inputs common to both modes ---
         input_ids = ir.Value(
             name="input_ids",
             shape=ir.Shape([batch, seq_len]),
-            type=ir.TensorType(ir.DataType.INT64),
-        )
-        attention_mask = ir.Value(
-            name="attention_mask",
-            shape=ir.Shape([batch, "past_seq_len + seq_len"]),
             type=ir.TensorType(ir.DataType.INT64),
         )
         position_ids = ir.Value(
@@ -68,22 +120,41 @@ class CausalLMTask(ModelTask):
             type=ir.TensorType(ir.DataType.INT64),
         )
 
-        graph_inputs = [input_ids, attention_mask, position_ids]
+        # --- Cache setup (static vs dynamic) ---
+        if static:
+            attention_mask = None
+            graph_inputs = [input_ids, position_ids]
+            cache_inputs, past_key_values = _make_static_cache_inputs(
+                config.num_hidden_layers,
+                config.num_key_value_heads,
+                config.head_dim,
+                config.dtype,
+                batch,
+                max_seq_len,
+            )
+        else:
+            past_seq_len = ir.SymbolicDim("past_sequence_len")
+            attention_mask = ir.Value(
+                name="attention_mask",
+                shape=ir.Shape([batch, "past_seq_len + seq_len"]),
+                type=ir.TensorType(ir.DataType.INT64),
+            )
+            graph_inputs = [input_ids, attention_mask, position_ids]
+            cache_inputs, past_key_values = _make_kv_cache_inputs(
+                config.num_hidden_layers,
+                config.num_key_value_heads,
+                config.head_dim,
+                config.dtype,
+                batch,
+                past_seq_len,
+                key_head_dim=((config.qk_nope_head_dim or 0) + (config.qk_rope_head_dim or 0))
+                or None,
+                value_head_dim=config.v_head_dim or None,
+            )
 
-        kv_inputs, past_key_values = _make_kv_cache_inputs(
-            config.num_hidden_layers,
-            config.num_key_value_heads,
-            config.head_dim,
-            config.dtype,
-            batch,
-            past_seq_len,
-            # MLA attention has separate key/value head dims
-            key_head_dim=((config.qk_nope_head_dim or 0) + (config.qk_rope_head_dim or 0))
-            or None,
-            value_head_dim=config.v_head_dim or None,
-        )
-        graph_inputs.extend(kv_inputs)
+        graph_inputs.extend(cache_inputs)
 
+        # --- Build graph, invoke module, collect outputs ---
         graph, builder = _make_graph(graph_inputs)
         op = builder.op
 
@@ -97,7 +168,24 @@ class CausalLMTask(ModelTask):
 
         logits.name = "logits"
         graph.outputs.append(logits)
-        _register_kv_cache_outputs(graph, present_key_values, past_key_values=past_key_values)
+
+        # --- Output registration (static vs dynamic) ---
+        if static:
+            kv_hidden = config.num_key_value_heads * config.head_dim
+            _register_static_cache_outputs(
+                graph,
+                present_key_values,
+                config.dtype,
+                batch,
+                max_seq_len,
+                kv_hidden,
+            )
+        else:
+            _register_kv_cache_outputs(
+                graph,
+                present_key_values,
+                past_key_values=past_key_values,
+            )
 
         return ModelPackage({"model": _make_model(graph)}, config=config)
 
@@ -310,132 +398,9 @@ def _validate_static_cache_support(module: nn.Module) -> None:
                 continue
             if not isinstance(layer, (DecoderLayer, MoEDecoderLayer)):
                 raise TypeError(
-                    f"StaticCacheCausalLMTask requires decoder layers that "
+                    f"Static cache mode requires decoder layers that "
                     f"inherit from DecoderLayer or MoEDecoderLayer, but "
                     f"{name}[{i}] is {type(layer).__name__}. Either use a "
                     f"compatible model or add StaticCacheState dispatch to "
                     f"{type(layer).__name__}.forward()."
                 )
-
-
-class StaticCacheCausalLMTask(ModelTask):
-    """Causal LM with statically managed KV cache.
-
-    Uses opset-24 TensorScatter + Attention for static cache management.
-    The caller provides pre-allocated cache buffers and receives updated
-    caches as outputs.
-
-    Compatible models:
-        Models using the base :class:`DecoderLayer` (Llama, Qwen2, Mistral,
-        etc.) work out of the box.  Custom decoder layers
-        (Qwen35DecoderLayer, Gemma2DecoderLayer, etc.) require their own
-        ``StaticCacheState`` dispatch to use this task.
-
-    Inputs:
-        - input_ids: [batch, seq_len] INT64
-        - position_ids: [batch, seq_len] INT64
-        - key_cache.{i}: [batch, max_seq_len, kv_hidden] FLOAT per layer
-        - value_cache.{i}: [batch, max_seq_len, kv_hidden] FLOAT per layer
-        - write_indices: [batch] INT64
-        - nonpad_kv_seqlen: [batch] INT64
-
-    Outputs:
-        - logits: FLOAT
-        - updated_key_cache.{i}: [batch, max_seq_len, kv_hidden] FLOAT
-        - updated_value_cache.{i}: [batch, max_seq_len, kv_hidden] FLOAT
-
-    Note:
-        No ``attention_mask`` input — causal masking is handled by the
-        Attention op's ``is_causal=1`` attribute, and padding is handled
-        via ``nonpad_kv_seqlen``.
-
-    The module's ``forward()`` must accept
-    ``(op, input_ids, attention_mask, position_ids, past_key_values)``
-    and return ``(logits, list_of_(key, value)_tuples)``.  The
-    ``past_key_values`` entries will be :class:`StaticCacheState` tuples.
-    """
-
-    def __init__(self, max_seq_len: int | None = None):
-        self._max_seq_len = max_seq_len
-
-    def build(
-        self,
-        module: nn.Module,
-        config: ArchitectureConfig,
-    ) -> ModelPackage:
-        max_seq_len = self._max_seq_len
-        if max_seq_len is None:
-            max_seq_len = getattr(config, "max_position_embeddings", None)
-        if max_seq_len is None or max_seq_len <= 0:
-            raise ValueError(
-                "max_seq_len must be a positive integer. Either pass it to "
-                "StaticCacheCausalLMTask(max_seq_len=...) or ensure "
-                "config.max_position_embeddings is set."
-            )
-
-        # Validate that the module's decoder layers support static cache.
-        # Only DecoderLayer has the isinstance(StaticCacheState) dispatch;
-        # custom layers will silently unpack the NamedTuple as a regular
-        # tuple, producing wrong results.
-        _validate_static_cache_support(module)
-
-        batch = ir.SymbolicDim("batch")
-        seq_len = ir.SymbolicDim("sequence_len")
-
-        input_ids = ir.Value(
-            name="input_ids",
-            shape=ir.Shape([batch, seq_len]),
-            type=ir.TensorType(ir.DataType.INT64),
-        )
-        # seq_len is intentionally dynamic: static cache supports both
-        # prefill (seq_len=N tokens) and single-token decode (seq_len=1)
-        # via the start-position semantics of write_indices.
-        position_ids = ir.Value(
-            name="position_ids",
-            shape=ir.Shape([batch, seq_len]),
-            type=ir.TensorType(ir.DataType.INT64),
-        )
-
-        graph_inputs = [input_ids, position_ids]
-
-        cache_inputs, static_caches = _make_static_cache_inputs(
-            config.num_hidden_layers,
-            config.num_key_value_heads,
-            config.head_dim,
-            config.dtype,
-            batch,
-            max_seq_len,
-        )
-        graph_inputs.extend(cache_inputs)
-
-        graph, builder = _make_graph(graph_inputs)
-        op = builder.op
-
-        # StaticCacheState objects flow through past_key_values;
-        # DecoderLayer dispatches them to Attention's static_cache.
-        # attention_mask=None skips create_attention_bias() — causal
-        # masking is handled by is_causal=1 on the Attention op.
-        # See _apply_attention() TODO(titaiwang) for future attn_mask
-        # and sliding window support.
-        logits, present_key_values = module(
-            op,
-            input_ids=input_ids,
-            attention_mask=None,
-            position_ids=position_ids,
-            past_key_values=static_caches,
-        )
-
-        logits.name = "logits"
-        graph.outputs.append(logits)
-
-        kv_hidden = config.num_key_value_heads * config.head_dim
-        _register_static_cache_outputs(
-            graph,
-            present_key_values,
-            config.dtype,
-            batch,
-            max_seq_len,
-            kv_hidden,
-        )
-
-        return ModelPackage({"model": _make_model(graph)}, config=config)

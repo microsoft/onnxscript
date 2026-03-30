@@ -294,6 +294,13 @@ def build(
 
         # Access individual models
         model = pkg["model"]
+
+    Example with static cache::
+
+        from mobius import build, CausalLMTask
+
+        task = CausalLMTask(static_cache=True, max_seq_len=2048)
+        pkg = build("meta-llama/Llama-3-8B", task=task)
     """
     import dataclasses
 

@@ -92,9 +92,9 @@ def _display_key(model_type: str, task_name: str) -> str:
 # Top 10 diverse models spanning causal-LM, encoder-only, and seq2seq tasks.
 BENCHMARK_MODELS: list[_BenchEntry] = [
     _BenchEntry("llama", {}, "text-generation", "standard"),
-    _BenchEntry("llama", {}, "static-cache-text-generation", "standard"),
+    _BenchEntry("llama", {}, "static-cache", "standard"),
     _BenchEntry("qwen2", {}, "text-generation", "standard"),
-    _BenchEntry("qwen2", {}, "static-cache-text-generation", "standard"),
+    _BenchEntry("qwen2", {}, "static-cache", "standard"),
     _BenchEntry(
         "phi3",
         {"partial_rotary_factor": 0.5},
@@ -104,7 +104,7 @@ BENCHMARK_MODELS: list[_BenchEntry] = [
     _BenchEntry(
         "phi3",
         {"partial_rotary_factor": 0.5},
-        "static-cache-text-generation",
+        "static-cache",
         "standard",
     ),
     _BenchEntry(
@@ -229,7 +229,7 @@ def _measure_model_size(pkg) -> int:
 def _build_standard(entry: _BenchEntry) -> _BuildResult:
     """Build a model using the standard registry + task.build() path."""
     from mobius._registry import registry
-    from mobius.tasks import get_task
+    from mobius.tasks import CausalLMTask, get_task
 
     overrides = dict(entry.config_overrides)
     # Resolve _config_cls string to actual class if present
@@ -244,7 +244,10 @@ def _build_standard(entry: _BenchEntry) -> _BuildResult:
 
     model_cls = registry.get(entry.model_type)
     module = model_cls(config)
-    task = get_task(entry.task_name)
+    if entry.task_name == "static-cache":
+        task = CausalLMTask(static_cache=True)
+    else:
+        task = get_task(entry.task_name)
 
     tracemalloc.start()
     t0 = time.perf_counter()

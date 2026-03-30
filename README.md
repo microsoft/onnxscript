@@ -60,6 +60,17 @@ pkg = build("meta-llama/Llama-3.2-1B")
 pkg.save("output/llama-3.2-1b/")
 ```
 
+**Static cache** (opt-in) pre-allocates fixed-size KV cache buffers, which is
+useful when you know the maximum sequence length up front:
+
+```python
+from mobius import build, CausalLMTask
+
+task = CausalLMTask(static_cache=True, max_seq_len=2048)
+pkg = build("meta-llama/Llama-3.2-1B", task=task)
+pkg.save("output/llama-3.2-1b-static/")
+```
+
 ### CLI
 
 ```bash
@@ -77,6 +88,12 @@ mobius build --model openai/whisper-tiny output_dir/
 
 # Specify dtype
 mobius build --model meta-llama/Llama-3.2-1B output_dir/ --dtype f16
+
+# Build with static KV cache (pre-allocated buffers, uses TensorScatter)
+mobius build --model meta-llama/Llama-3.2-1B output_dir/ --static-cache
+
+# Static cache with explicit max sequence length
+mobius build --model meta-llama/Llama-3.2-1B output_dir/ --static-cache --max-seq-len 2048
 ```
 
 See the [CLI reference](https://onnxruntime.github.io/mobius/cli.html) for all options.
@@ -85,6 +102,7 @@ See the [CLI reference](https://onnxruntime.github.io/mobius/cli.html) for all o
 
 - [`examples/build_and_save.py`](examples/build_and_save.py) — Build and save ONNX models (simplest workflow)
 - [`examples/text_generation.py`](examples/text_generation.py) — Greedy text generation with a causal LM
+- [`examples/static_cache_generation.py`](examples/static_cache_generation.py) — Text generation with static KV cache
 - [`examples/multimodal_generation.py`](examples/multimodal_generation.py) — Image captioning with a multimodal model
 
 ## Architecture

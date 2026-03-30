@@ -41,13 +41,13 @@ _GITHUB_REPO_URL = "https://github.com/onnxruntime/mobius"
 #   build_kind is "standard", "whisper", "mamba", or "qwen3_5_vl".
 _DIFF_MODELS: list[tuple[str, dict, str, str]] = [
     ("llama", {}, "text-generation", "standard"),
-    ("llama", {}, "static-cache-text-generation", "standard"),
+    ("llama", {}, "static-cache", "standard"),
     ("qwen2", {}, "text-generation", "standard"),
-    ("qwen2", {}, "static-cache-text-generation", "standard"),
+    ("qwen2", {}, "static-cache", "standard"),
     ("qwen", {}, "text-generation", "standard"),
-    ("qwen", {}, "static-cache-text-generation", "standard"),
+    ("qwen", {}, "static-cache", "standard"),
     ("qwen3", {"attn_qk_norm": True}, "text-generation", "standard"),
-    ("qwen3", {"attn_qk_norm": True}, "static-cache-text-generation", "standard"),
+    ("qwen3", {"attn_qk_norm": True}, "static-cache", "standard"),
     (
         "qwen3_5_text",
         {
@@ -126,7 +126,7 @@ _DIFF_MODELS: list[tuple[str, dict, str, str]] = [
             "num_experts_per_tok": 2,
             "attn_qkv_bias": True,
         },
-        "static-cache-text-generation",
+        "static-cache",
         "standard",
     ),
     (
@@ -146,7 +146,7 @@ _DIFF_MODELS: list[tuple[str, dict, str, str]] = [
             "num_experts_per_tok": 2,
             "attn_qk_norm": True,
         },
-        "static-cache-text-generation",
+        "static-cache",
         "standard",
     ),
     (
@@ -158,7 +158,7 @@ _DIFF_MODELS: list[tuple[str, dict, str, str]] = [
     (
         "phi3",
         {"partial_rotary_factor": 0.5},
-        "static-cache-text-generation",
+        "static-cache",
         "standard",
     ),
     (
@@ -337,7 +337,7 @@ _BUILDER_SCRIPT = textwrap.dedent("""\
 
     def _build_standard():
         from mobius._registry import registry
-        from mobius.tasks import get_task
+        from mobius.tasks import CausalLMTask, get_task
         ov = dict(overrides)
         cls_name = ov.pop("_config_cls", None)
         if cls_name:
@@ -347,7 +347,10 @@ _BUILDER_SCRIPT = textwrap.dedent("""\
             config = _base_config(**ov)
         model_cls = registry.get(model_type)
         module = model_cls(config)
-        task = get_task(task_name)
+        if task_name == "static-cache":
+            task = CausalLMTask(static_cache=True)
+        else:
+            task = get_task(task_name)
         return task.build(module, config)
 
     def _build_whisper():
