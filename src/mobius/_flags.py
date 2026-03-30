@@ -79,11 +79,6 @@ class _Flags:
          - ``True``
          - Suppress "has no constant value" warnings from the initializer
            deduplication pass.
-       * - ``disable_mem_pattern_for_scan``
-         - ``MOBIUS_DISABLE_MEM_PATTERN_FOR_SCAN``
-         - ``True``
-         - Disable ORT memory-pattern pre-allocation for models with Scan
-           nodes.
     """
 
     suppress_dedup_warning: bool = dataclasses.field(
@@ -93,17 +88,6 @@ class _Flags:
 
     These warnings are expected noise when optimisation passes run before weights
     are loaded. Set ``MOBIUS_SUPPRESS_DEDUP_WARNING=0`` to see all warnings.
-    """
-
-    disable_mem_pattern_for_scan: bool = dataclasses.field(
-        default_factory=lambda: _env_bool("MOBIUS_DISABLE_MEM_PATTERN_FOR_SCAN", True)
-    )
-    """Disable ORT memory-pattern pre-allocation for models with Scan nodes.
-
-    ORT's memory planner cannot resolve symbolic dims in Scan body outputs,
-    so it pre-allocates undersized buffers.  Disabling the pattern forces
-    runtime allocation with actual shapes.  Set
-    ``MOBIUS_DISABLE_MEM_PATTERN_FOR_SCAN=0`` to restore default ORT behaviour.
     """
 
 

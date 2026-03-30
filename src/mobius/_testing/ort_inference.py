@@ -16,24 +16,7 @@ import numpy as np
 import onnx_ir as ir
 import onnxruntime_easy as ort_easy
 
-from mobius import _flags
 from mobius._model_package import ModelPackage
-
-
-def _has_scan_nodes(model: ir.Model) -> bool:
-    """Return True if the model or any of its functions contain Scan ops.
-
-    Uses ``graph.all_nodes()`` which recurses into Loop/If/Scan
-    subgraph bodies so nested Scan nodes are not missed.
-    """
-    for node in model.graph.all_nodes():
-        if node.op_type == "Scan":
-            return True
-    for func in model.functions.values():
-        for node in func:
-            if node.op_type == "Scan":
-                return True
-    return False
 
 
 class OnnxModelSession:
@@ -63,16 +46,6 @@ class OnnxModelSession:
                     f"single ir.Model or index into the package."
                 )
             model = next(iter(model.values()))
-
-        # Disable memory-pattern pre-allocation for models with Scan
-        # nodes on CUDA.  ORT's memory planner cannot resolve symbolic
-        # dims in Scan body outputs, so it pre-allocates undersized
-        # buffers.  Disabling the pattern forces runtime allocation
-        # with actual shapes.
-        is_cuda = load_kwargs.get("device") == "cuda"
-        if is_cuda and _flags.flags.disable_mem_pattern_for_scan and _has_scan_nodes(model):
-            load_kwargs.setdefault("enable_mem_pattern", False)
-            load_kwargs.setdefault("enable_mem_reuse", False)
 
         self._tmpdir = tempfile.TemporaryDirectory()
         self._model_path = str(Path(self._tmpdir.name) / "model.onnx")

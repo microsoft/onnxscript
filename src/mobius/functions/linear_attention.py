@@ -274,11 +274,7 @@ def _build_recurrence_body(
 ) -> ir.Graph:
     """Build the Scan body for single-token delta-rule recurrence.
 
-    The body operates in ``stash_type`` precision.  Every body input
-    carries an explicit ``ir.TensorType`` so that the ONNX serializer
-    emits a valid ``type_proto`` — without it ORT cannot infer types
-    for the Scan subgraph and the MatMul nodes inside will fail with
-    shape-broadcast errors.
+    The body operates in ``stash_type`` precision.
 
     Body inputs (in order):
         1. state: (B, H, d_k, d_v) [carry]
@@ -292,45 +288,25 @@ def _build_recurrence_body(
         1. new_state: (B, H, d_k, d_v) [carry]
         2. output_t: (B, H, d_v) [scan output]
     """
-    batch = ir.SymbolicDim("B")
     dtype = ir.TensorType(stash_type)
 
-    state_in = ir.Value(
-        name="state",
-        shape=ir.Shape([batch, "H", "d_k", "d_v"]),
-        type=dtype,
-    )
-    q_t = ir.Value(
-        name="q_t",
-        shape=ir.Shape([batch, "H", "d_k"]),
-        type=dtype,
-    )
-    k_t = ir.Value(
-        name="k_t",
-        shape=ir.Shape([batch, "H", "d_k"]),
-        type=dtype,
-    )
-    v_t = ir.Value(
-        name="v_t",
-        shape=ir.Shape([batch, "H", "d_v"]),
-        type=dtype,
-    )
+    # Only specify dtype, not shape. Shapes can be inferred from Scan op's
+    # inputs. Hard-coding locally chosen symbolic dim names is incorrect
+    # since ONNX has a global scope for symbolic dims. Even the dtype is
+    # optional in that it can be inferred, but specifying it is safe and
+    # can help as long as we know the exact type.
+    state_in = ir.Value(name="state", type=dtype)
+    q_t = ir.Value(name="q_t", type=dtype)
+    k_t = ir.Value(name="k_t", type=dtype)
+    v_t = ir.Value(name="v_t", type=dtype)
     scan_in_vals = [q_t, k_t, v_t]
     decay_t: ir.Value | None = None
     beta_t: ir.Value | None = None
     if uses_decay:
-        decay_t = ir.Value(
-            name="decay_t",
-            shape=ir.Shape([batch, "H", "d_k"]),
-            type=dtype,
-        )
+        decay_t = ir.Value(name="decay_t", type=dtype)
         scan_in_vals.append(decay_t)
     if uses_beta:
-        beta_t = ir.Value(
-            name="beta_t",
-            shape=ir.Shape([batch, "H"]),
-            type=dtype,
-        )
+        beta_t = ir.Value(name="beta_t", type=dtype)
         scan_in_vals.append(beta_t)
 
     body_graph, body_builder = create_body_graph(
