@@ -141,7 +141,6 @@ _XFAIL_REASONS: dict[str, str] = {
     "mpt": "HF MPT uses Wqkv naming, not query_key_value",
     # Architecture: LayerNorm with bias instead of RMSNorm
     "stablelm": "HF uses LayerNorm with bias (not RMSNorm)",
-    "nemotron": "Nemotron attention differs from base (needs investigation)",
     # Phi (original): HF uses dense, fc1/fc2, LayerNorm — not Llama-compatible
     "phi": "HF Phi uses dense/fc1/fc2 naming + LayerNorm",
     # Hybrid Mamba: weight naming and MoE routing differences

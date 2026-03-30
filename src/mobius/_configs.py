@@ -1686,6 +1686,77 @@ class BambaConfig(ArchitectureConfig):
 
 
 @dataclasses.dataclass
+class NemotronHConfig(ArchitectureConfig):
+    """Configuration for NemotronH hybrid Mamba2+Attention+MLP models.
+
+    Uses multi-head Mamba2/SSD layers interleaved with attention and
+    standalone MLP layers.  Each layer is a single-mixer block
+    (RMSNorm → mixer → residual).
+    """
+
+    mamba_n_heads: int = 128
+    mamba_d_head: int = 64
+    mamba_d_state: int = 128
+    mamba_n_groups: int = 8
+    mamba_d_conv: int = 4
+    mamba_expand: int = 2
+    mamba_conv_bias: bool = True
+    mamba_proj_bias: bool = False
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> NemotronHConfig:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+
+        # Get layer types from layers_block_type or hybrid_override_pattern
+        layers_block_type = getattr(config, "layers_block_type", None)
+        if layers_block_type is None:
+            pattern = getattr(config, "hybrid_override_pattern", "")
+            # Map pattern chars: M=mamba2, *=full_attention, -=mlp
+            char_map = {"M": "mamba2", "*": "full_attention", "-": "mlp"}
+            layers_block_type = [char_map.get(c, "mamba2") for c in pattern]
+        else:
+            # Convert HF names to mobius names
+            type_map = {
+                "mamba": "mamba2",
+                "attention": "full_attention",
+                "moe": "mlp",
+            }
+            layers_block_type = [type_map.get(t, t) for t in layers_block_type]
+
+        # Override num_hidden_layers based on actual pattern length
+        n = len(layers_block_type) if layers_block_type else base.num_hidden_layers
+
+        mamba_expand = getattr(config, "expand", getattr(config, "mamba_expand", 2))
+        d_inner = config.hidden_size * mamba_expand
+
+        mamba_n_heads = getattr(config, "mamba_num_heads", 128)
+        mamba_d_head = getattr(config, "mamba_head_dim", "auto")
+        if mamba_d_head == "auto":
+            mamba_d_head = d_inner // mamba_n_heads
+
+        # Exclude fields we set explicitly to avoid duplicate keyword args
+        base_fields = {
+            k: v
+            for k, v in _shallow_fields(base).items()
+            if k not in ("layer_types", "num_hidden_layers", "hidden_act")
+        }
+        return cls(
+            **base_fields,
+            num_hidden_layers=n,
+            layer_types=layers_block_type,
+            hidden_act="relu2",
+            mamba_n_heads=mamba_n_heads,
+            mamba_d_head=mamba_d_head,
+            mamba_d_state=getattr(config, "ssm_state_size", 128),
+            mamba_n_groups=getattr(config, "n_groups", 8),
+            mamba_d_conv=getattr(config, "conv_kernel", 4),
+            mamba_expand=mamba_expand,
+            mamba_conv_bias=getattr(config, "use_conv_bias", True),
+            mamba_proj_bias=getattr(config, "mamba_proj_bias", False),
+        )
+
+
+@dataclasses.dataclass
 class WhisperConfig(BaseModelConfig):
     """Configuration for Whisper encoder-decoder models."""
 

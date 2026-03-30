@@ -33,6 +33,7 @@ __all__ = [
     "InputMixer",
     "LayerNorm",
     "LayerNormNoAffine",
+    "OffsetLayerNorm",
     "LayerScale",
     "Linear",
     "LoRALinear",
@@ -130,6 +131,7 @@ from mobius.components._common import (
     LayerNorm,
     LayerNormNoAffine,
     Linear,
+    OffsetLayerNorm,
     create_attention_bias,
     create_padding_mask,
 )

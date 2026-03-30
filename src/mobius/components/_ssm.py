@@ -18,20 +18,21 @@ Single-token decode recurrence:
 State carried across steps:
     ssm_state: (batch, d_inner, d_state)
 
+Precision: The SSM recurrence (softplus, exp, state update) is computed
+in float32 regardless of the model's compute dtype, matching HuggingFace
+which upcasts A_log, dt, hidden_states, B, C to float32 for these ops.
+The output and updated state are cast back to the input dtype.
+
 HuggingFace reference: ``MambaMixer`` (SSM portion).
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+import onnx_ir as ir
 from onnxscript import nn
 from onnxscript._internal import builder
 
 from mobius.components._common import Linear
-
-if TYPE_CHECKING:
-    import onnx_ir as ir
 
 
 class SelectiveScan(nn.Module):
@@ -108,48 +109,50 @@ class SelectiveScan(nn.Module):
         # c_mat: (batch, 1, d_state)
 
         # --- Compute time step dt ---
-        # dt: (batch, 1, d_inner) via rank projection + softplus
-        dt = self.dt_proj(op, dt_raw)
+        # dt: (batch, 1, d_inner) via rank projection + softplus.
+        # Upcast to fp32 for softplus (uses exp internally) to match
+        # HuggingFace which computes the SSM recurrence in float32.
+        dt = op.Cast(self.dt_proj(op, dt_raw), to=ir.DataType.FLOAT)
         dt = op.Softplus(dt)
 
         # --- Discretize state decay matrix A ---
-        # a_neg = -exp(A_log): (d_inner, d_state)
-        a_neg = op.Neg(op.Exp(op.Cast(self.A_log, to=1)))
+        # a_neg = -exp(A_log) in fp32: (d_inner, d_state)
+        a_neg = op.Neg(op.Exp(op.Cast(self.A_log, to=ir.DataType.FLOAT)))
 
         # Broadcast: dt (batch,1,d_inner,1) * A (1,1,d_inner,d_state)
         dt_4d = op.Unsqueeze(dt, [-1])  # (batch, 1, d_inner, 1)
         a_4d = op.Unsqueeze(a_neg, [0, 1])  # (1, 1, d_inner, d_state)
-        # da = exp(dt * A): (batch, 1, d_inner, d_state)
+        # da = exp(dt * A) in fp32: (batch, 1, d_inner, d_state)
         da = op.Exp(op.Mul(dt_4d, a_4d))
 
-        # --- Input contribution: dt * B * x ---
-        b_4d = op.Unsqueeze(b_mat, [2])  # (batch, 1, 1, d_state)
+        # --- Input contribution: dt * B * x (in fp32) ---
+        b_4d = op.Unsqueeze(op.Cast(b_mat, to=ir.DataType.FLOAT), [2])
         dt_b = op.Mul(dt_4d, b_4d)  # (batch, 1, d_inner, d_state)
-        x_4d = op.Unsqueeze(x, [-1])  # (batch, 1, d_inner, 1)
+        x_4d = op.Unsqueeze(op.Cast(x, to=ir.DataType.FLOAT), [-1])
         db_x = op.Mul(dt_b, x_4d)  # (batch, 1, d_inner, d_state)
 
         # --- Squeeze seq dim (single token) ---
         da_t = op.Squeeze(da, [1])  # (batch, d_inner, d_state)
         db_x_t = op.Squeeze(db_x, [1])  # (batch, d_inner, d_state)
 
-        # --- State update: h = dA * h_prev + dBx ---
-        new_ssm_state = op.Add(op.Mul(da_t, ssm_state), db_x_t)
+        # --- State update: h = dA * h_prev + dBx (in fp32) ---
+        new_ssm_state = op.Add(op.Mul(da_t, op.Cast(ssm_state, to=ir.DataType.FLOAT)), db_x_t)
 
         # --- Readout: y = C · h ---
-        c_t = op.Squeeze(c_mat, [1])  # (batch, d_state)
+        c_t = op.Squeeze(op.Cast(c_mat, to=ir.DataType.FLOAT), [1])  # (batch, d_state)
         c_3d = op.Unsqueeze(c_t, [1])  # (batch, 1, d_state)
         # h: (batch, d_inner, d_state), C: (batch, 1, d_state)
         # → element-wise mul then sum over d_state → (batch, d_inner)
         y = op.ReduceSum(op.Mul(new_ssm_state, c_3d), [-1], keepdims=False)
 
         # --- Skip connection: y += D * x ---
-        x_t = op.Squeeze(x, [1])  # (batch, d_inner)
-        y = op.Add(y, op.Mul(op.Cast(self.D, to=1), x_t))
+        x_t = op.Squeeze(op.Cast(x, to=ir.DataType.FLOAT), [1])  # (batch, d_inner)
+        y = op.Add(y, op.Mul(op.Cast(self.D, to=ir.DataType.FLOAT), x_t))
 
-        # Restore seq dim: (batch, 1, d_inner)
-        y = op.Unsqueeze(y, [1])
+        # Restore seq dim and cast back to input dtype: (batch, 1, d_inner)
+        y = op.CastLike(op.Unsqueeze(y, [1]), x)
 
-        return y, new_ssm_state
+        return y, op.CastLike(new_ssm_state, ssm_state)
 
 
 class JambaSelectiveScan(SelectiveScan):
@@ -246,14 +249,20 @@ class Mamba2Scan(nn.Module):
             y: (batch, num_heads * d_head) -- output.
             new_ssm_state: (batch, num_heads, d_head, d_state).
         """
-        # dt = softplus(dt_input + dt_bias): (batch, num_heads)
-        dt = op.Add(dt_input, op.Cast(self.dt_bias, to=1))
-        dt = op.Softplus(dt)
+        # dt = softplus(dt_input + dt_bias) in fp32: (batch, num_heads)
+        # Upcast to fp32 for softplus/exp to match HuggingFace which
+        # computes the SSM recurrence in float32.
+        dt = op.Softplus(
+            op.Add(
+                op.Cast(dt_input, to=ir.DataType.FLOAT),
+                op.Cast(self.dt_bias, to=ir.DataType.FLOAT),
+            )
+        )
 
-        # A = -exp(A_log): (num_heads,)
-        a_neg = op.Neg(op.Exp(op.Cast(self.A_log, to=1)))
+        # A = -exp(A_log) in fp32: (num_heads,)
+        a_neg = op.Neg(op.Exp(op.Cast(self.A_log, to=ir.DataType.FLOAT)))
 
-        # Broadcast for state update
+        # Broadcast for state update (all in fp32)
         dt_4d = op.Unsqueeze(dt, [2, 3])  # (batch, num_heads, 1, 1)
         a_2d = op.Unsqueeze(a_neg, [0])  # (1, num_heads)
         a_4d = op.Unsqueeze(a_2d, [2, 3])  # (1, num_heads, 1, 1)
@@ -261,27 +270,27 @@ class Mamba2Scan(nn.Module):
 
         # Reshape hidden: (batch, num_heads, d_head)
         hidden_shape = op.Constant(value_ints=[0, self.num_heads, self.d_head])
-        hidden_3d = op.Reshape(hidden_states, hidden_shape)
+        hidden_3d = op.Cast(op.Reshape(hidden_states, hidden_shape), to=ir.DataType.FLOAT)
 
-        # Expand B from groups to heads
+        # Expand B from groups to heads (in fp32)
         b_shape = op.Constant(value_ints=[0, self.n_groups, 1, self.d_state])
-        b_4d = op.Reshape(b_mat, b_shape)
+        b_4d = op.Reshape(op.Cast(b_mat, to=ir.DataType.FLOAT), b_shape)
         b_expand_shape = op.Constant(value_ints=[1, 1, self.heads_per_group, 1])
         b_expanded = op.Expand(b_4d, b_expand_shape)
         b_heads_shape = op.Constant(value_ints=[0, self.num_heads, self.d_state])
         b_heads = op.Reshape(b_expanded, b_heads_shape)
         b_ssm = op.Unsqueeze(b_heads, [2])
 
-        # dBx: dt * B * x
+        # dBx: dt * B * x (in fp32)
         dt_b = op.Mul(dt_4d, b_ssm)  # (batch, num_heads, 1, d_state)
         x_4d = op.Unsqueeze(hidden_3d, [3])
         db_x = op.Mul(dt_b, x_4d)  # (batch, num_heads, d_head, d_state)
 
-        # State update: h = dA * h_prev + dBx
-        new_ssm_state = op.Add(op.Mul(da, ssm_state), db_x)
+        # State update: h = dA * h_prev + dBx (in fp32)
+        new_ssm_state = op.Add(op.Mul(da, op.Cast(ssm_state, to=ir.DataType.FLOAT)), db_x)
 
-        # Readout: y = C . h + D * x
-        c_4d = op.Reshape(c_mat, b_shape)
+        # Readout: y = C . h + D * x (in fp32)
+        c_4d = op.Reshape(op.Cast(c_mat, to=ir.DataType.FLOAT), b_shape)
         c_expanded = op.Expand(c_4d, b_expand_shape)
         c_heads = op.Reshape(c_expanded, b_heads_shape)
         c_ssm = op.Unsqueeze(c_heads, [2])
@@ -291,14 +300,14 @@ class Mamba2Scan(nn.Module):
         )  # (batch, num_heads, d_head)
 
         # Skip: y += D * x
-        d_3d = op.Unsqueeze(op.Cast(self.D, to=1), [0, 2])
+        d_3d = op.Unsqueeze(op.Cast(self.D, to=ir.DataType.FLOAT), [0, 2])
         y = op.Add(y, op.Mul(d_3d, hidden_3d))
 
-        # Flatten: (batch, num_heads * d_head)
+        # Flatten and cast back to input dtype: (batch, num_heads * d_head)
         flat_shape = op.Constant(value_ints=[0, self.num_heads * self.d_head])
-        y = op.Reshape(y, flat_shape)
+        y = op.CastLike(op.Reshape(y, flat_shape), hidden_states)
 
-        return y, new_ssm_state
+        return y, op.CastLike(new_ssm_state, ssm_state)
 
 
 class _RMSNorm(nn.Module):
@@ -310,9 +319,12 @@ class _RMSNorm(nn.Module):
         self._eps = eps
 
     def forward(self, op: builder.OpBuilder, x: ir.Value):
-        variance = op.ReduceMean(op.Mul(x, x), [-1], keepdims=True)
+        # Upcast to fp32 for variance computation (matching HF RMSNorm).
+        x_f32 = op.Cast(x, to=ir.DataType.FLOAT)
+        variance = op.ReduceMean(op.Mul(x_f32, x_f32), [-1], keepdims=True)
         x_normed = op.Div(
-            x,
+            x_f32,
             op.Sqrt(op.Add(variance, op.Constant(value_float=self._eps))),
         )
-        return op.Mul(x_normed, op.Cast(self.weight, to=1))
+        result = op.Mul(x_normed, op.Cast(self.weight, to=ir.DataType.FLOAT))
+        return op.CastLike(result, x)

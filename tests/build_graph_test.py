@@ -185,6 +185,8 @@ class TestBuildGraph:
         layer_types = config.layer_types or []
         for i in range(num_layers):
             ltype = layer_types[i] if i < len(layer_types) else "full_attention"
+            if ltype == "mlp":
+                continue  # MLP layers are stateless — no cache outputs
             if ltype in ("linear_attention",):
                 assert f"present.{i}.conv_state" in output_names, (
                     f"Missing present.{i}.conv_state"
@@ -2844,6 +2846,117 @@ class TestBuildBambaGraph:
         assert "model.layers.0.mamba.ssm.dt_bias" in result
         assert "model.layers.0.mamba.in_proj.weight" in result
         assert "model.layers.1.self_attn.q_proj.weight" in result
+
+
+# ===========================================================================
+# Hybrid Mamba2+Attention+MLP (NemotronH) model tests
+# ===========================================================================
+
+
+class TestBuildNemotronHGraph:
+    """Verify NemotronH hybrid model weight renaming."""
+
+    def _nemotron_h_config(self):
+        from mobius._configs import NemotronHConfig
+
+        # 4 layers: mamba2, mlp, full_attention, mlp
+        return NemotronHConfig(
+            vocab_size=TINY_VOCAB,
+            hidden_size=TINY_HIDDEN,
+            intermediate_size=TINY_INTERMEDIATE,
+            num_hidden_layers=4,
+            num_attention_heads=TINY_HEADS,
+            num_key_value_heads=TINY_KV_HEADS,
+            rms_norm_eps=1e-5,
+            layer_types=["mamba2", "mlp", "full_attention", "mlp"],
+            mamba_n_heads=TINY_KV_HEADS,
+            mamba_d_head=TINY_HEAD_DIM,
+            mamba_d_state=16,
+            mamba_n_groups=1,
+            mamba_d_conv=4,
+            mamba_expand=2,
+            hidden_act="relu2",
+            head_dim=TINY_HEAD_DIM,
+        )
+
+    def test_nemotron_h_preprocess_weights(self):
+        """Verify preprocess_weights routes by layer type and nests SSM params."""
+        import torch
+
+        from mobius.models.nemotron_h import NemotronHCausalLMModel
+
+        config = self._nemotron_h_config()
+        module = NemotronHCausalLMModel(config)
+
+        # Simulate HF NemotronH weight names (backbone.* prefix,
+        # all layer mixers named "mixer.*" regardless of type)
+        state_dict = {
+            # Embeddings & final norm
+            "backbone.embeddings.weight": torch.zeros(1),
+            "backbone.norm_f.weight": torch.zeros(1),
+            "lm_head.weight": torch.zeros(1),
+            # Layer 0: mamba2 — SSM params + mixer params
+            "backbone.layers.0.norm.weight": torch.zeros(1),
+            "backbone.layers.0.mixer.A_log": torch.zeros(4),
+            "backbone.layers.0.mixer.D": torch.zeros(4),
+            "backbone.layers.0.mixer.dt_bias": torch.zeros(4),
+            "backbone.layers.0.mixer.in_proj.weight": torch.zeros(1),
+            "backbone.layers.0.mixer.conv1d.weight": torch.zeros(1),
+            "backbone.layers.0.mixer.out_proj.weight": torch.zeros(1),
+            "backbone.layers.0.mixer.norm.weight": torch.zeros(1),
+            # Layer 1: mlp
+            "backbone.layers.1.norm.weight": torch.zeros(1),
+            "backbone.layers.1.mixer.up_proj.weight": torch.zeros(1),
+            "backbone.layers.1.mixer.down_proj.weight": torch.zeros(1),
+            # Layer 2: full_attention
+            "backbone.layers.2.norm.weight": torch.zeros(1),
+            "backbone.layers.2.mixer.q_proj.weight": torch.zeros(1),
+            "backbone.layers.2.mixer.k_proj.weight": torch.zeros(1),
+            "backbone.layers.2.mixer.v_proj.weight": torch.zeros(1),
+            "backbone.layers.2.mixer.o_proj.weight": torch.zeros(1),
+            # Layer 3: mlp
+            "backbone.layers.3.norm.weight": torch.zeros(1),
+            "backbone.layers.3.mixer.up_proj.weight": torch.zeros(1),
+            "backbone.layers.3.mixer.down_proj.weight": torch.zeros(1),
+        }
+        result = module.preprocess_weights(state_dict)
+
+        # Global renames: backbone.embeddings -> model.embed_tokens,
+        # backbone.norm_f -> model.norm
+        assert "model.embed_tokens.weight" in result
+        assert "model.norm.weight" in result
+
+        # Layer 0 (mamba2): SSM params nested under mamba.ssm
+        assert "model.layers.0.mamba.ssm.A_log" in result
+        assert "model.layers.0.mamba.ssm.D" in result
+        assert "model.layers.0.mamba.ssm.dt_bias" in result
+        # Non-SSM mamba params stay under mamba.*
+        assert "model.layers.0.mamba.in_proj.weight" in result
+        assert "model.layers.0.mamba.conv1d.weight" in result
+        assert "model.layers.0.mamba.out_proj.weight" in result
+        assert "model.layers.0.mamba.norm.weight" in result
+
+        # Layer 1 (mlp): mixer -> mlp
+        assert "model.layers.1.mlp.up_proj.weight" in result
+        assert "model.layers.1.mlp.down_proj.weight" in result
+
+        # Layer 2 (full_attention): mixer -> self_attn
+        assert "model.layers.2.self_attn.q_proj.weight" in result
+        assert "model.layers.2.self_attn.k_proj.weight" in result
+        assert "model.layers.2.self_attn.v_proj.weight" in result
+        assert "model.layers.2.self_attn.o_proj.weight" in result
+
+        # Layer 3 (mlp): mixer -> mlp
+        assert "model.layers.3.mlp.up_proj.weight" in result
+        assert "model.layers.3.mlp.down_proj.weight" in result
+
+        # Per-layer norms keep their names
+        assert "model.layers.0.norm.weight" in result
+        assert "model.layers.2.norm.weight" in result
+
+        # No original backbone.* keys should remain
+        for key in result:
+            assert not key.startswith("backbone."), f"Unrenamed key: {key}"
 
 
 # ===========================================================================

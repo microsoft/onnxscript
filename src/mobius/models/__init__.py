@@ -36,6 +36,7 @@ __all__ = [
     "LLaVAModel",
     "MoECausalLMModel",
     "NemotronCausalLMModel",
+    "NemotronHCausalLMModel",
     "OLMo2CausalLMModel",
     "OLMoCausalLMModel",
     "OPTCausalLMModel",
@@ -122,6 +123,7 @@ from mobius.models.moe import (
     Phi3MoECausalLMModel,
 )
 from mobius.models.nemotron import NemotronCausalLMModel
+from mobius.models.nemotron_h import NemotronHCausalLMModel
 from mobius.models.olmo import OLMo2CausalLMModel, OLMoCausalLMModel
 from mobius.models.opt import OPTCausalLMModel
 from mobius.models.phi import (

@@ -310,8 +310,9 @@ def build(
         hf_config = transformers.AutoConfig.from_pretrained(
             model_id, trust_remote_code=trust_remote_code
         )
-    except (ValueError, OSError):
-        # AutoConfig failed — the model_type may not be in transformers.
+    except (ValueError, KeyError, OSError):
+        # AutoConfig failed — the model_type may not be in transformers,
+        # or the HF config class has a bug (e.g. NemotronH with '-' pattern).
         # Try loading config.json directly if the model is in our registry.
         hf_config = _try_load_config_json(model_id)
         if hf_config is None or hf_config.model_type not in registry:

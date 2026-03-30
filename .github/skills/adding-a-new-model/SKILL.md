@@ -733,6 +733,58 @@ for i in range(num_groups - 1):
     codec_sum += cp_embed[i, codes[i + 1], :]
 ```
 
+### 16. Precision-sensitive ops need fp32 upcast
+
+**Symptom:** Type mismatch errors (`tensor(float) vs tensor(bfloat16)`)
+when loading a model built with `--dtype bf16`, or numerical drift compared
+to HuggingFace when running in fp16/bf16.
+
+**Root cause:** Operations like `exp`, `softplus`, `sigmoid` (in gated norms),
+and RMSNorm variance are numerically sensitive and must run in float32 to
+match HuggingFace, which explicitly upcasts with `.float()` /
+`.to(torch.float32)`.
+
+**Two distinct problems:**
+
+1. **Naive `CastLike` everywhere** — keeps everything in the model dtype
+   (e.g. bf16), but `exp` overflows and the SSM state diverges.
+2. **Naive `Cast(to=ir.DataType.FLOAT)` everywhere** — computes in fp32 but forgets to cast
+   back, producing type mismatches with downstream bf16 ops.
+
+**Correct pattern — upcast → compute → cast back:**
+```python
+# 1. Upcast to fp32 for the sensitive region
+dt_f32 = op.Cast(dt, to=ir.DataType.FLOAT)
+dt_f32 = op.Softplus(dt_f32)
+a_neg = op.Neg(op.Exp(op.Cast(self.A_log, to=ir.DataType.FLOAT)))
+da = op.Exp(op.Mul(dt_4d, a_4d))  # all fp32 here
+...
+# 2. Cast back to input dtype at the boundary
+y = op.CastLike(y_f32, x)
+new_state = op.CastLike(new_state_f32, ssm_state)
+```
+
+**How to identify which ops need fp32:** Check the HuggingFace source for
+`.float()` or `.to(torch.float32)` calls.  Each one marks an fp32 region
+that the ONNX graph must replicate.
+
+**Known fp32-required regions:**
+
+| Region | HF evidence | ONNX pattern |
+|--------|-------------|-------------|
+| SSM recurrence (A, dt, exp, state) | `self.A_log.float()`, `hidden_states.float()`, `B.float()`, `C.float()` | `Cast(to=ir.DataType.FLOAT)` all inputs, `CastLike` output |
+| GatedRMSNorm (SiLU + variance) | `hidden_states.to(torch.float32)`, `gate.to(torch.float32)` | Explicit fp32 for both, `CastLike` output |
+| RMSNorm variance | `hidden_states.to(torch.float32)` | ONNX `RMSNormalization` handles via `stash_type=1` (default) |
+
+**When fp32 upcast is NOT needed:**
+- Linear projections (`MatMul`) — runtime handles mixed precision
+- SiLU on conv output — HF keeps in model dtype
+- Standard attention — ONNX `Attention` op handles precision internally
+
+**Use `CastLike` for** parameters/constants that should match the *current*
+compute dtype (which is fp32 inside an upcast region, or the model dtype
+outside).  Use `Cast(to=ir.DataType.FLOAT)` to explicitly enter an fp32 region.
+
 ## Reference implementations
 
 | Model | File | Key differences from base |

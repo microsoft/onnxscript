@@ -206,6 +206,7 @@ class Mamba2Block(nn.Module):
         conv_bias: bool = True,
         proj_bias: bool = False,
         eps: float = 1e-5,
+        norm_group_size: int | None = None,
     ):
         super().__init__()
         self.d_model = d_model
@@ -222,7 +223,7 @@ class Mamba2Block(nn.Module):
         self.in_proj = Linear(d_model, proj_size, bias=proj_bias)
         self.conv1d = _DepthwiseConv1d(self.conv_dim, conv_kernel, bias=conv_bias)
         self.ssm = Mamba2Scan(num_heads, d_head, d_state, n_groups)
-        self.norm = GatedRMSNorm(d_inner, eps=eps)
+        self.norm = GatedRMSNorm(d_inner, eps=eps, group_size=norm_group_size)
         self.out_proj = Linear(d_inner, d_model, bias=proj_bias)
 
     def forward(

@@ -23,6 +23,7 @@ from mobius._configs import (
     JambaConfig,
     Mamba2Config,
     MambaConfig,
+    NemotronHConfig,
     Sam2Config,
     SegformerConfig,
     YolosConfig,
@@ -726,6 +727,23 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
             "mamba_expand": 2,
         },
         False,
+    ),
+    # nemotron_h: hybrid Mamba2+Attention+MLP (requires NemotronHConfig)
+    (
+        "nemotron_h",
+        {
+            "hidden_act": "relu2",
+            "layer_types": ["mamba2", "mlp", "full_attention", "mlp"],
+            "_config_cls": NemotronHConfig,
+            "num_hidden_layers": 4,
+            "mamba_n_heads": TINY_KV_HEADS,
+            "mamba_d_head": TINY_HEAD_DIM,
+            "mamba_d_state": 16,
+            "mamba_n_groups": 1,
+            "mamba_d_conv": 4,
+            "mamba_expand": 2,
+        },
+        True,
     ),
     # gemma3n_text: all full attention (no sliding window)
     (

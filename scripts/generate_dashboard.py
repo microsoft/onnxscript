@@ -258,7 +258,7 @@ def _scan_l2_arch_tests(models: dict[str, ModelInfo]) -> None:
     if not arch_test.exists():
         return
 
-    content = arch_test.read_text()
+    content = arch_test.read_text(encoding="utf-8")
     for model_type, info in models.items():
         # L2 requires test_model_id in registry
         if info.test_model_id:
@@ -367,7 +367,7 @@ def _scan_integration_tests(models: dict[str, ModelInfo]) -> None:
     integration_files = list(tests_dir.glob("*integration*.py"))
 
     for test_file in integration_files:
-        content = test_file.read_text()
+        content = test_file.read_text(encoding="utf-8")
         for model_type in models:
             if f'"{model_type}"' in content or f"'{model_type}'" in content:
                 models[model_type].has_integration_test = True
@@ -400,7 +400,7 @@ def _scan_yaml_test_cases(models: dict[str, ModelInfo]) -> None:
 
     for yaml_file in sorted(cases_dir.rglob("*.yaml")):
         try:
-            data = yaml.safe_load(yaml_file.read_text())
+            data = yaml.safe_load(yaml_file.read_text(encoding="utf-8"))
         except Exception:
             continue
         if not isinstance(data, dict):
@@ -467,7 +467,7 @@ def _scan_l3_parity_status(models: dict[str, ModelInfo]) -> None:
         _ = importlib.util.module_from_spec(spec)
         # Don't actually run the test — just load the module-level dicts
         # by extracting them from the source text
-        content = parity_test.read_text()
+        content = parity_test.read_text(encoding="utf-8")
     except Exception:
         return
 

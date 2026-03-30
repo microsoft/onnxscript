@@ -69,6 +69,31 @@ class LayerNorm(nn.Module):
         )
 
 
+class OffsetLayerNorm(nn.Module):
+    """Layer Normalization with +1 offset on weight: output = LN(x, weight+1, bias).
+
+    Used by Nemotron where the HF checkpoint stores weights initialized
+    to zero, and the effective multiplier is (1 + weight).  Analogous to
+    ``OffsetRMSNorm`` but for full LayerNorm (with bias).
+    """
+
+    def __init__(self, hidden_size: int, eps: float = 1e-6):
+        super().__init__()
+        self.weight = nn.Parameter([hidden_size])
+        self.bias = nn.Parameter([hidden_size])
+        self.eps = eps
+
+    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
+        effective_weight = op.Add(self.weight, 1.0)
+        return op.LayerNormalization(
+            hidden_states,
+            effective_weight,
+            self.bias,
+            epsilon=self.eps,
+            axis=-1,
+        )
+
+
 class LayerNormNoAffine(nn.Module):
     """Layer Normalization without learnable affine parameters.
 
