@@ -4,7 +4,7 @@ ONNX model definitions for generative AI architectures using the [onnxscript](ht
 
 Build ONNX models directly from HuggingFace model IDs with automatic weight downloading, dtype casting, and multi-component export.
 
-📊 [Model Support Dashboard](dashboard/index.html)
+<a href="dashboard/index.html">📊 Model Support Dashboard</a>
 
 ```{toctree}
 :maxdepth: 2
