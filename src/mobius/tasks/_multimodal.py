@@ -107,6 +107,6 @@ class MultiModalTask(ModelTask):
 
         logits.name = "logits"
         graph.outputs.append(logits)
-        _register_kv_cache_outputs(graph, present_key_values, past_key_values=past_key_values)
+        _register_kv_cache_outputs(graph, present_key_values)
 
         return ModelPackage({"model": _make_model(graph)}, config=config)

@@ -107,7 +107,7 @@ class VisionLanguageTask(ModelTask):
 
         logits.name = "logits"
         graph.outputs.append(logits)
-        _register_kv_cache_outputs(graph, present_key_values, past_key_values=past_key_values)
+        _register_kv_cache_outputs(graph, present_key_values)
 
         return _make_model(graph)
 
@@ -238,7 +238,7 @@ class QwenVLTask(VisionLanguageTask):
 
         logits.name = "logits"
         graph.outputs.append(logits)
-        _register_kv_cache_outputs(graph, present_key_values, past_key_values=past_key_values)
+        _register_kv_cache_outputs(graph, present_key_values)
 
         return _make_model(graph)
 
@@ -347,7 +347,6 @@ class HybridQwenVLTask(QwenVLTask):
             graph,
             present_key_values,
             config.layer_types or [],
-            past_key_values=past_key_values,
         )
 
         model = _make_model(graph)
@@ -458,6 +457,6 @@ class MllamaVisionLanguageTask(VisionLanguageTask):
 
         logits.name = "logits"
         graph.outputs.append(logits)
-        _register_kv_cache_outputs(graph, present_key_values, past_key_values=past_key_values)
+        _register_kv_cache_outputs(graph, present_key_values)
 
         return _make_model(graph)

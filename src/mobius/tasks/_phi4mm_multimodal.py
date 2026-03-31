@@ -228,6 +228,5 @@ class Phi4MMMultiModalTask(ModelTask):
         _register_kv_cache_outputs(
             graph,
             present_key_values,
-            past_key_values=past_key_values,
         )
         return _make_model(graph)

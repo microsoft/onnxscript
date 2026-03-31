@@ -113,7 +113,7 @@ class TTSTask(ModelTask):
         last_hidden_state.name = "last_hidden_state"
         graph.outputs.append(logits)
         graph.outputs.append(last_hidden_state)
-        _register_kv_cache_outputs(graph, present_key_values, past_key_values=past_key_values)
+        _register_kv_cache_outputs(graph, present_key_values)
         return _make_model(graph)
 
     def _build_code_predictor(
@@ -206,7 +206,7 @@ class TTSTask(ModelTask):
         # the initializer name used for weight loading.
         codec_embeddings.name = "codec_embeddings"
         graph.outputs.append(codec_embeddings)
-        _register_kv_cache_outputs(graph, present_key_values, past_key_values=past_key_values)
+        _register_kv_cache_outputs(graph, present_key_values)
         return _make_model(graph)
 
     def _build_embedding(

@@ -44,6 +44,7 @@ from onnx_ir.passes.common import CheckerPass
 
 from mobius._builder import (
     DTYPE_MAP,
+    SymbolicShapeInferencePass,
     build_from_module,
 )
 from mobius._config_resolver import _default_task_for_model
@@ -64,6 +65,7 @@ from mobius.tasks import (
 )
 
 _onnx_checker = CheckerPass()
+_shape_inference = SymbolicShapeInferencePass()
 
 # Models where the ONNX checker fails due to upstream onnx-ir issues
 # (e.g. value_info missing type field for custom ops).
@@ -98,6 +100,7 @@ def _run_onnx_checker(pkg: dict[str, ir.Model], model_type: str) -> None:
     """Run ONNX CheckerPass on all models in a package.
 
     Skips models in ``_CHECKER_SKIP_MODELS`` that have known upstream issues.
+    Runs shape inference first since the checker requires output shapes.
     """
     if model_type in _CHECKER_SKIP_MODELS:
         pytest.skip(
@@ -105,8 +108,40 @@ def _run_onnx_checker(pkg: dict[str, ir.Model], model_type: str) -> None:
             "upstream onnx-ir value_info missing type field for custom ops"
         )
     for model in pkg.values():
+        _shape_inference(model)
         _fill_dummy_weights(model)
         _onnx_checker(model)
+
+
+def _assert_outputs_have_shapes_and_dtypes(
+    pkg: dict[str, ir.Model],
+    model_type: str,
+) -> None:
+    """Assert every graph output has a non-None shape and dtype.
+
+    Runs shape inference first (same as the real optimization pipeline)
+    to populate output metadata, then verifies all outputs have both
+    shape and type set.
+
+    Skips models in ``_CHECKER_SKIP_MODELS`` whose custom ops prevent
+    full shape propagation.
+    """
+    if model_type in _CHECKER_SKIP_MODELS:
+        pytest.skip(
+            f"Shape assertion skipped for {model_type}: "
+            "custom ops prevent full shape propagation"
+        )
+    for sub_name, model in pkg.items():
+        _shape_inference(model)
+        for output in model.graph.outputs:
+            assert output.shape is not None, (
+                f"{model_type}/{sub_name}: output '{output.name}' "
+                f"has no shape after shape inference"
+            )
+            assert output.type is not None, (
+                f"{model_type}/{sub_name}: output '{output.name}' "
+                f"has no dtype after shape inference"
+            )
 
 
 # Minimal configs for each architecture. These are hand-crafted small configs
@@ -266,6 +301,15 @@ class TestBuildGraph:
         pkg = task.build(module, config)
         _run_onnx_checker(pkg, model_type)
 
+    def test_outputs_have_shapes_and_dtypes(self, model_type: str, config_overrides: dict):
+        """Verify shape inference populates all output shapes and dtypes."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _assert_outputs_have_shapes_and_dtypes(pkg, model_type)
+
 
 # === Encoder-only model configs (imported from _test_configs) ===
 _ENCODER_MODEL_CONFIGS: list[tuple[str, dict]] = [(mt, ov) for mt, ov, _ in ENCODER_CONFIGS]
@@ -330,6 +374,15 @@ class TestBuildEncoderGraph:
         pkg = task.build(module, config)
         _run_onnx_checker(pkg, model_type)
 
+    def test_outputs_have_shapes_and_dtypes(self, model_type: str, config_overrides: dict):
+        """Verify shape inference populates all output shapes and dtypes."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _assert_outputs_have_shapes_and_dtypes(pkg, model_type)
+
 
 # === Encoder-decoder model configs (imported from _test_configs) ===
 _SEQ2SEQ_MODEL_CONFIGS: list[tuple[str, dict]] = [(mt, ov) for mt, ov, _ in SEQ2SEQ_CONFIGS]
@@ -380,6 +433,15 @@ class TestBuildSeq2SeqGraph:
         pkg = task.build(module, config)
         _run_onnx_checker(pkg, model_type)
 
+    def test_outputs_have_shapes_and_dtypes(self, model_type: str, config_overrides: dict):
+        """Verify shape inference populates all output shapes and dtypes."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _assert_outputs_have_shapes_and_dtypes(pkg, model_type)
+
 
 # === Vision model configs (imported from _test_configs) ===
 _VISION_MODEL_CONFIGS: list[tuple[str, dict]] = [(mt, ov) for mt, ov, _ in VISION_CONFIGS]
@@ -415,6 +477,15 @@ class TestBuildVisionGraph:
         task = get_task(_default_task_for_model(model_type))
         pkg = task.build(module, config)
         _run_onnx_checker(pkg, model_type)
+
+    def test_outputs_have_shapes_and_dtypes(self, model_type: str, config_overrides: dict):
+        """Verify shape inference populates all output shapes and dtypes."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _assert_outputs_have_shapes_and_dtypes(pkg, model_type)
 
 
 # === Object detection model configs (imported from _test_configs) ===
@@ -454,6 +525,15 @@ class TestBuildDetectionGraph:
         task = get_task(_default_task_for_model(model_type))
         pkg = task.build(module, config)
         _run_onnx_checker(pkg, model_type)
+
+    def test_outputs_have_shapes_and_dtypes(self, model_type: str, config_overrides: dict):
+        """Verify shape inference populates all output shapes and dtypes."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _assert_outputs_have_shapes_and_dtypes(pkg, model_type)
 
 
 # === SSM (Mamba/Mamba2) configs ===
@@ -513,6 +593,15 @@ class TestBuildSSMGraph:
         task = get_task(_default_task_for_model(model_type))
         pkg = task.build(module, config)
         _run_onnx_checker(pkg, model_type)
+
+    def test_outputs_have_shapes_and_dtypes(self, model_type: str, config_overrides: dict):
+        """Verify shape inference populates all output shapes and dtypes."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _assert_outputs_have_shapes_and_dtypes(pkg, model_type)
 
 
 class TestBuildGraphLoRA:
@@ -3466,3 +3555,8 @@ class TestBuildStaticCacheGraph:
         op_types = {n.op_type for n in model.graph}
         assert "TensorScatter" in op_types
         assert "Attention" in op_types
+
+    def test_outputs_have_shapes_and_dtypes(self):
+        """Verify shape inference populates all output shapes and dtypes."""
+        model, _ = self._build_static_cache_model()
+        _assert_outputs_have_shapes_and_dtypes({"model": model}, "qwen2-static")

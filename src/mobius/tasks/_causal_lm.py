@@ -183,20 +183,14 @@ class CausalLMTask(ModelTask):
 
         # --- Output registration (static vs dynamic) ---
         if static:
-            kv_hidden = config.num_key_value_heads * config.head_dim
             _register_static_cache_outputs(
                 graph,
                 present_key_values,
-                config.dtype,
-                batch,
-                max_seq_len,
-                kv_hidden,
             )
         else:
             _register_kv_cache_outputs(
                 graph,
                 present_key_values,
-                past_key_values=past_key_values,
             )
 
         return ModelPackage({"model": _make_model(graph)}, config=config)
@@ -275,7 +269,6 @@ class HybridCausalLMTask(ModelTask):
             graph,
             present_key_values,
             config.layer_types or [],
-            past_key_values=past_key_values,
         )
 
         model = _make_model(graph)
@@ -348,19 +341,15 @@ def _make_static_cache_inputs(
 def _register_static_cache_outputs(
     graph: ir.Graph,
     present_key_values: list[tuple[ir.Value, ir.Value]],
-    dtype: ir.DataType,
-    batch: ir.SymbolicDim,
-    max_seq_len: int,
-    kv_hidden: int,
 ) -> None:
-    """Name and register static cache outputs on the graph."""
+    """Name and register static cache outputs on the graph.
+
+    Output shapes and dtypes are inferred by the shape inference pass
+    that runs during model optimization.
+    """
     for i, (updated_key, updated_value) in enumerate(present_key_values):
         updated_key.name = f"updated_key_cache.{i}"
         updated_value.name = f"updated_value_cache.{i}"
-        updated_key.shape = ir.Shape([batch, max_seq_len, kv_hidden])
-        updated_key.type = ir.TensorType(dtype)
-        updated_value.shape = ir.Shape([batch, max_seq_len, kv_hidden])
-        updated_value.type = ir.TensorType(dtype)
         graph.outputs.append(updated_key)
         graph.outputs.append(updated_value)
 

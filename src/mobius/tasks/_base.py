@@ -138,33 +138,16 @@ def _register_kv_cache_outputs(
     graph: ir.Graph,
     present_key_values: list[tuple[ir.Value, ir.Value]],
     *,
-    past_key_values: list[tuple[ir.Value, ir.Value]] | None = None,
     prefix: str = "present",
 ) -> None:
     """Name and register KV cache outputs on the graph.
 
-    When ``past_key_values`` is provided, output shapes are derived from
-    the corresponding past inputs (replacing the sequence-length dimension
-    with a ``total_sequence_len`` symbolic dim).
+    Output shapes and dtypes are inferred by the shape inference pass
+    that runs during model optimization.
     """
-    total_seq_len = ir.SymbolicDim("total_sequence_len")
     for i, (present_key, present_value) in enumerate(present_key_values):
         present_key.name = f"{prefix}.{i}.key"
         present_value.name = f"{prefix}.{i}.value"
-        if past_key_values is not None:
-            past_k, past_v = past_key_values[i]
-            if past_k.shape is not None and len(past_k.shape) >= 3:
-                present_key.shape = ir.Shape(
-                    [*past_k.shape[:-2], total_seq_len, past_k.shape[-1]]
-                )
-            if past_k.type is not None:
-                present_key.type = past_k.type
-            if past_v.shape is not None and len(past_v.shape) >= 3:
-                present_value.shape = ir.Shape(
-                    [*past_v.shape[:-2], total_seq_len, past_v.shape[-1]]
-                )
-            if past_v.type is not None:
-                present_value.type = past_v.type
         graph.outputs.append(present_key)
         graph.outputs.append(present_value)
 
@@ -333,7 +316,6 @@ def _register_hybrid_cache_outputs(
     present_key_values: list[tuple[ir.Value, ...]],
     layer_types: list[str],
     *,
-    past_key_values: list[tuple[ir.Value, ...]] | None = None,
     prefix: str = "present",
 ) -> None:
     """Name and register hybrid cache outputs on the graph.
@@ -343,10 +325,9 @@ def _register_hybrid_cache_outputs(
     ``.conv_state``/``.recurrent_state`` for linear attention layers,
     and ``.conv_state``/``.ssm_state`` for mamba/mamba2 layers.
 
-    When ``past_key_values`` is provided, output shapes are derived
-    from the corresponding past inputs.
+    Output shapes and dtypes are inferred by the shape inference pass
+    that runs during model optimization.
     """
-    total_seq_len = ir.SymbolicDim("total_sequence_len")
     for i, states in enumerate(present_key_values):
         ltype = layer_types[i] if i < len(layer_types) else "full_attention"
         if ltype == "mlp":
@@ -355,12 +336,6 @@ def _register_hybrid_cache_outputs(
             # Single recurrent state only (no conv_state for lightning)
             (state_a,) = states
             state_a.name = f"{prefix}.{i}.recurrent_state"
-            if past_key_values is not None:
-                (past_a,) = past_key_values[i]
-                if past_a.shape is not None:
-                    state_a.shape = past_a.shape
-                if past_a.type is not None:
-                    state_a.type = past_a.type
             graph.outputs.append(state_a)
         else:
             state_a, state_b = states
@@ -373,28 +348,6 @@ def _register_hybrid_cache_outputs(
             else:
                 state_a.name = f"{prefix}.{i}.key"
                 state_b.name = f"{prefix}.{i}.value"
-            if past_key_values is not None:
-                past_a, past_b = past_key_values[i]
-                if ltype == "full_attention":
-                    # KV cache: replace seq_len dim with total_seq_len
-                    if past_a.shape is not None and len(past_a.shape) >= 3:
-                        state_a.shape = ir.Shape(
-                            [*past_a.shape[:-2], total_seq_len, past_a.shape[-1]]
-                        )
-                    if past_b.shape is not None and len(past_b.shape) >= 3:
-                        state_b.shape = ir.Shape(
-                            [*past_b.shape[:-2], total_seq_len, past_b.shape[-1]]
-                        )
-                else:
-                    # Recurrent/conv states have fixed shape
-                    if past_a.shape is not None:
-                        state_a.shape = past_a.shape
-                    if past_b.shape is not None:
-                        state_b.shape = past_b.shape
-                if past_a.type is not None:
-                    state_a.type = past_a.type
-                if past_b.type is not None:
-                    state_b.type = past_b.type
             graph.outputs.append(state_a)
             graph.outputs.append(state_b)
 

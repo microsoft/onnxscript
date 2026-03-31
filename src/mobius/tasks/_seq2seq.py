@@ -152,29 +152,14 @@ class Seq2SeqTask(ModelTask):
         logits.name = "logits"
         graph.outputs.append(logits)
 
-        total_seq_len = ir.SymbolicDim("total_sequence_len")
         for i, (k, v) in enumerate(present_self_kvs):
             k.name = f"present.{i}.self.key"
             v.name = f"present.{i}.self.value"
-            past_k, past_v = past_self_kvs[i]
-            if past_k.shape is not None and len(past_k.shape) >= 3:
-                k.shape = ir.Shape([*past_k.shape[:-2], total_seq_len, past_k.shape[-1]])
-                k.type = past_k.type
-            if past_v.shape is not None and len(past_v.shape) >= 3:
-                v.shape = ir.Shape([*past_v.shape[:-2], total_seq_len, past_v.shape[-1]])
-                v.type = past_v.type
             graph.outputs.extend([k, v])
 
         for i, (k, v) in enumerate(present_cross_kvs):
             k.name = f"present.{i}.cross.key"
             v.name = f"present.{i}.cross.value"
-            past_k, past_v = cross_past_kvs[i]
-            if past_k.shape is not None:
-                k.shape = past_k.shape
-                k.type = past_k.type
-            if past_v.shape is not None:
-                v.shape = past_v.shape
-                v.type = past_v.type
             graph.outputs.extend([k, v])
 
         return _make_model(graph)
