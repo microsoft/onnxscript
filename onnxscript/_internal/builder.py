@@ -194,6 +194,8 @@ def build_graph(
         subgraph.inputs.append(ir.Value(name=input_name, type=ts.type, shape=ts.shape))
 
     sub_builder = GraphBuilder(subgraph, parent=parent)
+    if parent is not None:
+        sub_builder._scope_stack = list(parent._scope_stack)
     trace_outputs = trace_function(sub_builder.op, *subgraph.inputs)
     if not isinstance(trace_outputs, Sequence):
         trace_outputs = [trace_outputs]

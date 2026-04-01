@@ -1102,6 +1102,34 @@ class BuildGraphFunctionTest(unittest.TestCase):
 
         parent_builder.subgraph(body, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
 
+    def test_build_graph_inherits_parent_scope_stack(self):
+        """build_graph copies the parent's scope stack so nodes in the subgraph carry scoped names."""
+        parent_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        parent_builder = builder.GraphBuilder(parent_graph)
+        parent_builder.push_module("encoder", "Encoder")
+        parent_builder.push_module("layers.0", "TransformerBlock")
+
+        subgraph = builder.build_graph(
+            lambda op, x: op.Relu(x),
+            inputs={"x": FLOAT[3, 4]},
+            outputs={"y": FLOAT[3, 4]},
+            parent=parent_builder,
+        )
+
+        # The single node created inside the subgraph should carry the
+        # parent's scope prefix in its name and metadata.
+        node = subgraph.node(0)
+        self.assertIn("encoder", node.name)
+        self.assertIn("layers.0", node.name)
+        self.assertIn("encoder", node.metadata_props["namespace"])
+        self.assertIn("TransformerBlock", node.metadata_props["namespace"])
+
     def test_root_graph_builder_is_its_own_root(self):
         """A top-level GraphBuilder has root == self."""
         graph = ir.Graph(
