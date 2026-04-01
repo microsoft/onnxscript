@@ -133,6 +133,7 @@ def build_graph(
     *,
     opset_imports: dict[str, int] | None = None,
     name: str = "subgraph",
+    parent: GraphBuilder | None = None,
 ) -> ir.Graph:
     """Build an :class:`ir.Graph` suitable for use as a graph-valued attribute.
 
@@ -165,6 +166,10 @@ def build_graph(
         opset_imports: Opset version map for the subgraph (e.g.
             ``{"": 23}``).  Defaults to ``{"": 23}`` when *None*.
         name: Name of the resulting :class:`ir.Graph`.
+        parent: Optional parent :class:`GraphBuilder`.  When provided, the
+            sub-builder's ``_root`` points to the root builder of the parent,
+            so that :meth:`Parameter._realize` registers initializers in the
+            root (main) graph rather than the subgraph.
 
     Returns:
         An :class:`ir.Graph` whose inputs and outputs are populated and whose
@@ -188,7 +193,7 @@ def build_graph(
     for input_name, ts in resolved_inputs:
         subgraph.inputs.append(ir.Value(name=input_name, type=ts.type, shape=ts.shape))
 
-    sub_builder = GraphBuilder(subgraph)
+    sub_builder = GraphBuilder(subgraph, parent=parent)
     trace_outputs = trace_function(sub_builder.op, *subgraph.inputs)
     if not isinstance(trace_outputs, Sequence):
         trace_outputs = [trace_outputs]
@@ -209,8 +214,12 @@ def build_graph(
 class GraphBuilder:
     """Imperative builder for constructing ONNX IR graphs with automatic constant promotion, type casting, and shape inference."""
 
-    def __init__(self, graph: ir.Graph) -> None:
+    def __init__(
+        self, graph: ir.Graph, parent: GraphBuilder | None = None
+    ) -> None:
         self._graph = graph
+        self._parent = parent
+        self._root: GraphBuilder = parent._root if parent is not None else self
 
         # Get the opset version for "" (default domain) from the graph
         if "" not in graph.opset_imports:
@@ -237,6 +246,16 @@ class GraphBuilder:
     @property
     def op(self) -> OpBuilder:
         return self._op_builder
+
+    @property
+    def parent(self) -> GraphBuilder | None:
+        """The parent builder, or None for a top-level builder."""
+        return self._parent
+
+    @property
+    def root(self) -> GraphBuilder:
+        """The root (top-level) builder in the parent chain."""
+        return self._root
 
     @property
     def graph(self) -> ir.Graph:
@@ -502,6 +521,7 @@ class GraphBuilder:
             outputs,
             opset_imports=dict(self._graph.opset_imports),
             name=name,
+            parent=self,
         )
 
     def call_op(

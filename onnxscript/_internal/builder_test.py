@@ -1061,6 +1061,48 @@ class BuildGraphFunctionTest(unittest.TestCase):
         )
         self.assertEqual(graph.name, "loop_body")
 
+    def test_build_graph_with_parent(self):
+        """build_graph with parent sets root on the sub-builder."""
+        parent_graph = ir.Graph(
+            name="main", inputs=[], outputs=[], nodes=[], opset_imports={"": 23},
+        )
+        parent_builder = builder.GraphBuilder(parent_graph)
+
+        def body(op, x):
+            self.assertIs(op.builder.parent, parent_builder)
+            self.assertIs(op.builder.root, parent_builder)
+            return op.Identity(x)
+
+        builder.build_graph(
+            body,
+            inputs=[FLOAT[3]],
+            outputs=[FLOAT[3]],
+            parent=parent_builder,
+        )
+
+    def test_subgraph_sets_parent_and_root(self):
+        """GraphBuilder.subgraph() sets parent=self on the sub-builder."""
+        parent_graph = ir.Graph(
+            name="main", inputs=[], outputs=[], nodes=[], opset_imports={"": 23},
+        )
+        parent_builder = builder.GraphBuilder(parent_graph)
+
+        def body(op, x):
+            self.assertIs(op.builder.parent, parent_builder)
+            self.assertIs(op.builder.root, parent_builder)
+            return op.Identity(x)
+
+        parent_builder.subgraph(body, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
+
+    def test_root_graph_builder_is_its_own_root(self):
+        """A top-level GraphBuilder has root == self."""
+        graph = ir.Graph(
+            name="main", inputs=[], outputs=[], nodes=[], opset_imports={"": 23},
+        )
+        gb = builder.GraphBuilder(graph)
+        self.assertIs(gb.root, gb)
+        self.assertIsNone(gb.parent)
+
 
 class PartitionInputsAttributesTest(unittest.TestCase):
     """Tests for GraphBuilder._partition_inputs_attributes."""
