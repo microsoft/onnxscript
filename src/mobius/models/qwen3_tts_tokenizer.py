@@ -593,9 +593,9 @@ class _EncoderVQ(nn.Module):
         embedding = self.codebook(op)
 
         # Find nearest: ||x - e||² = ||x||² - 2*x·e^T + ||e||²
-        x_sq = op.ReduceSumSquare(x_t, axes=[-1], keepdims=1)  # (B,T,1)
+        x_sq = op.ReduceSumSquare(x_t, [-1], keepdims=1)  # (B,T,1)
         e_sq = op.ReduceSumSquare(
-            op.Unsqueeze(embedding, [0]), axes=[-1], keepdims=0
+            op.Unsqueeze(embedding, [0]), [-1], keepdims=0
         )  # (1, codebook_size)
         dot = op.MatMul(x_t, op.Transpose(embedding, perm=[1, 0]))
         distances = op.Add(op.Sub(x_sq, op.Mul(dot, op.Constant(value_float=2.0))), e_sq)

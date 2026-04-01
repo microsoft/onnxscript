@@ -212,13 +212,13 @@ class GatedDeltaNet(nn.Module):
         # TODO: Use op.LpNormalization directly once ORT >=1.25 supports it.
         q_4d = op.Reshape(query, qk_4d_shape)  # (B, T, num_k_heads, head_k_dim)
         q_l2 = op.Sqrt(
-            op.ReduceSumSquare(q_4d, axes=[-1], keepdims=1)
+            op.ReduceSumSquare(q_4d, [-1], keepdims=1)
         )  # (B, T, num_k_heads, 1) — L2 norm per head
         query = op.Reshape(op.Div(q_4d, q_l2), qk_3d_shape)  # (B, T, key_dim)
 
         k_4d = op.Reshape(key, qk_4d_shape)  # (B, T, num_k_heads, head_k_dim)
         k_l2 = op.Sqrt(
-            op.ReduceSumSquare(k_4d, axes=[-1], keepdims=1)
+            op.ReduceSumSquare(k_4d, [-1], keepdims=1)
         )  # (B, T, num_k_heads, 1) — L2 norm per head
         key = op.Reshape(op.Div(k_4d, k_l2), qk_3d_shape)  # (B, T, key_dim)
 
