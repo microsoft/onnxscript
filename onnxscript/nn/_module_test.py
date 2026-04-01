@@ -126,7 +126,7 @@ class ParameterTest(unittest.TestCase):
 
         def outer_fn(op, x):
             # Build a nested subgraph
-            _inner_graph = build_graph(
+            build_graph(
                 inner_fn,
                 inputs=[FLOAT[3]],
                 outputs=[FLOAT[3]],
