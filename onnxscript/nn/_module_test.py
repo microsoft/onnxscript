@@ -134,7 +134,7 @@ class ParameterTest(unittest.TestCase):
             )
             return op.Identity(x)
 
-        _outer_graph = root_builder.subgraph(
+        root_builder.subgraph(
             outer_fn,
             inputs=[FLOAT[3]],
             outputs=[FLOAT[3]],
