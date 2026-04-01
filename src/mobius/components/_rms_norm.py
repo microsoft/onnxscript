@@ -7,9 +7,7 @@ import onnx_ir as ir
 from onnxscript import nn
 from onnxscript._internal import builder
 
-# ORT ≤1.24.4 CUDA kernel for RMSNormalization produces wrong results
-# when scale is 2D.  Set to True to emit decomposed ops as a workaround.
-_ORT_CUDA_GROUPED_RMSNORM_WORKAROUND = False
+from mobius._flags import flags
 
 
 class RMSNorm(nn.Module):
@@ -86,7 +84,7 @@ class GatedRMSNorm(nn.Module):
             # Grouped RMSNorm: reshape to (batch, n_groups, group_size),
             # normalize within each group, then reshape back.
             n_groups = self.hidden_size // self.group_size
-            if _ORT_CUDA_GROUPED_RMSNORM_WORKAROUND:
+            if flags.ort_cuda_grouped_rmsnorm_workaround:
                 # ORT ≤1.24.4 CUDA kernel for RMSNormalization produces
                 # wrong results when scale is 2D. Decompose into basic
                 # ops as a workaround.

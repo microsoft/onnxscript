@@ -90,6 +90,14 @@ class _Flags:
     are loaded. Set ``MOBIUS_SUPPRESS_DEDUP_WARNING=0`` to see all warnings.
     """
 
+    ort_cuda_grouped_rmsnorm_workaround: bool = dataclasses.field(
+        default_factory=lambda: _env_bool("MOBIUS_ORT_CUDA_GROUPED_RMSNORM_WORKAROUND", False)
+    )
+    """Decompose grouped RMSNormalization into basic ops to work around an
+    ORT ≤1.24.4 CUDA kernel bug that produces wrong results when scale is 2D.
+    Set ``MOBIUS_ORT_CUDA_GROUPED_RMSNORM_WORKAROUND=1`` when targeting CUDA.
+    """
+
 
 # Global singleton — import and use this directly.
 flags = _Flags()
