@@ -377,7 +377,7 @@ class DeepSeekV3CausalLMModel(CausalLMModel):
         Key mappings:
         - MLA attention projections align already (q_a_proj, q_b_proj, etc.)
         - MoE gate: mlp.gate.weight → mlp.moe.gate.weight
-        - Shared expert: mlp.shared_experts.* → mlp.moe.shared_experts.*
+        - Shared expert weights align already (mlp.shared_experts.* → same)
         - MoE expert weights: HF stores all experts in a single fused tensor
             experts.gate_up_proj: (n_experts, 2*intermediate, hidden)
             experts.down_proj:    (n_experts, hidden, intermediate)
@@ -392,8 +392,6 @@ class DeepSeekV3CausalLMModel(CausalLMModel):
 
             # Remap MoE layer names: mlp.gate.* → mlp.moe.gate.*
             new_key = new_key.replace(".mlp.gate.", ".mlp.moe.gate.")
-            # mlp.shared_experts.* → mlp.moe.shared_experts.*
-            new_key = new_key.replace(".mlp.shared_experts.", ".mlp.moe.shared_experts.")
 
             # HF stores all routed experts in fused tensors:
             # layers.N.mlp.experts.gate_up_proj  (n_experts, 2*mid, hidden)

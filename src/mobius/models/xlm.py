@@ -133,6 +133,9 @@ class XLMCausalLMModel(GPT2CausalLMModel):
             result = _rename_xlm_weight(name, tensor)
             if result is not None:
                 new.update(result)
+            else:
+                # Pass through already-ONNX-aligned names unchanged
+                new[name] = tensor
         # XLM uses tied word embeddings when tie_word_embeddings=True
         tie_word_embeddings(new, embed_key="transformer.wte.weight")
         return new

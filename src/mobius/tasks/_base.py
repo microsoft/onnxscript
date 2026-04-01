@@ -148,6 +148,7 @@ def _register_kv_cache_outputs(
     for i, (present_key, present_value) in enumerate(present_key_values):
         present_key.name = f"{prefix}.{i}.key"
         present_value.name = f"{prefix}.{i}.value"
+
         graph.outputs.append(present_key)
         graph.outputs.append(present_value)
 
@@ -348,6 +349,7 @@ def _register_hybrid_cache_outputs(
             else:
                 state_a.name = f"{prefix}.{i}.key"
                 state_b.name = f"{prefix}.{i}.value"
+
             graph.outputs.append(state_a)
             graph.outputs.append(state_b)
 

@@ -295,7 +295,17 @@ _HF_EXTRA_CONFIG: dict[str, dict] = {
     # GPT-2 family: control MLP width via model-specific field names
     # (HF ignores the generic 'intermediate_size' for these models)
     "gpt2": {"n_inner": TINY_INTERMEDIATE},
-    "gpt_neo": {"layer_norm_epsilon": 1e-5, "n_inner": TINY_INTERMEDIATE},
+    # GPT-Neo: default attention_types=[[[global,local],12]] generates 24 attention_layers,
+    # but HF validates len(attention_layers)==num_layers.  Override to produce exactly
+    # TINY_LAYERS layers.  Must also pass num_layers explicitly (GPT-Neo's field name)
+    # so the length check sees the correct value at validation time.
+    "gpt_neo": {
+        "layer_norm_epsilon": 1e-5,
+        "n_inner": TINY_INTERMEDIATE,
+        "num_layers": TINY_LAYERS,
+        "attention_types": [[["global", "local"], TINY_LAYERS // 2]],
+        "window_size": 8,
+    },
     "gpt_bigcode": {"n_inner": TINY_INTERMEDIATE, "multi_query": False},
     # gpt-sw3 uses n_inner (not intermediate_size) for MLP width (HF default is 4*hidden_size)
     "gpt-sw3": {"n_inner": TINY_INTERMEDIATE},
@@ -498,6 +508,13 @@ def _create_hf_config(model_type: str, config_overrides: dict):
             "attention" if lt in ("full_attention", "attention") else "mamba"
             for lt in layer_types
         ]
+
+    # NemotronH uses layers_block_type with HF values {"mamba", "attention", "moe"}.
+    # Convert our internal layer_types names (mamba2, full_attention, mlp) to HF names.
+    if hf_model_type in ("nemotron_h",) and "layer_types" in hf_kwargs:
+        layer_types = hf_kwargs.pop("layer_types")
+        _nemotron_type_map = {"mamba2": "mamba", "full_attention": "attention", "mlp": "moe"}
+        hf_kwargs["layers_block_type"] = [_nemotron_type_map.get(lt, lt) for lt in layer_types]
 
     # Some models use different field names for num_local_experts and num_experts_per_tok.
     # Maps hf_model_type -> {our_field: hf_field} for field name translation.

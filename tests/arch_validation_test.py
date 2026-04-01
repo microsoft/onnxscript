@@ -29,7 +29,11 @@ from __future__ import annotations
 import gc
 import logging
 import os
-import resource
+
+try:
+    import resource
+except ImportError:
+    resource = None  # Windows
 
 import pytest
 
@@ -66,7 +70,9 @@ _ARCH_PARAMS = [
 
 
 def _get_rss_bytes() -> int:
-    """Return current RSS (resident set size) in bytes."""
+    """Return current RSS (resident set size) in bytes, or 0 on Windows."""
+    if resource is None:
+        return 0  # resource module unavailable on Windows
     usage = resource.getrusage(resource.RUSAGE_SELF)
     # ru_maxrss is in KB on Linux
     return usage.ru_maxrss * 1024

@@ -67,6 +67,9 @@ class CTRLCausalLMModel(GPT2CausalLMModel):
             result = _rename_ctrl_weight(name, tensor)
             if result is not None:
                 new.update(result)
+            else:
+                # Pass through already-ONNX-aligned names unchanged
+                new[name] = tensor
 
         # CTRL scales token embeddings by sqrt(d_model) at runtime in the forward
         # pass (``inputs_embeds *= np.sqrt(self.d_model_size)``).  Pre-apply this
