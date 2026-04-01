@@ -74,11 +74,15 @@ class ParameterTest(unittest.TestCase):
 
     def test_realize_in_subgraph_registers_in_root(self):
         """Parameter realized inside a subgraph builder is stored in the root graph."""
-        from onnxscript._internal.builder import GraphBuilder, build_graph
+        from onnxscript._internal.builder import GraphBuilder
         from onnxscript.onnx_types import FLOAT
 
         root_graph = ir.Graph(
-            name="main", inputs=[], outputs=[], nodes=[], opset_imports={"": 23},
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
         )
         root_builder = GraphBuilder(root_graph)
 
@@ -106,7 +110,11 @@ class ParameterTest(unittest.TestCase):
         from onnxscript.onnx_types import FLOAT
 
         root_graph = ir.Graph(
-            name="main", inputs=[], outputs=[], nodes=[], opset_imports={"": 23},
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
         )
         root_builder = GraphBuilder(root_graph)
 

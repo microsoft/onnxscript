@@ -214,9 +214,7 @@ def build_graph(
 class GraphBuilder:
     """Imperative builder for constructing ONNX IR graphs with automatic constant promotion, type casting, and shape inference."""
 
-    def __init__(
-        self, graph: ir.Graph, parent: GraphBuilder | None = None
-    ) -> None:
+    def __init__(self, graph: ir.Graph, parent: GraphBuilder | None = None) -> None:
         self._graph = graph
         self._parent = parent
         self._root: GraphBuilder = parent._root if parent is not None else self

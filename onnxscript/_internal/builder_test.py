@@ -1064,7 +1064,11 @@ class BuildGraphFunctionTest(unittest.TestCase):
     def test_build_graph_with_parent(self):
         """build_graph with parent sets root on the sub-builder."""
         parent_graph = ir.Graph(
-            name="main", inputs=[], outputs=[], nodes=[], opset_imports={"": 23},
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
         )
         parent_builder = builder.GraphBuilder(parent_graph)
 
@@ -1083,7 +1087,11 @@ class BuildGraphFunctionTest(unittest.TestCase):
     def test_subgraph_sets_parent_and_root(self):
         """GraphBuilder.subgraph() sets parent=self on the sub-builder."""
         parent_graph = ir.Graph(
-            name="main", inputs=[], outputs=[], nodes=[], opset_imports={"": 23},
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
         )
         parent_builder = builder.GraphBuilder(parent_graph)
 
@@ -1097,7 +1105,11 @@ class BuildGraphFunctionTest(unittest.TestCase):
     def test_root_graph_builder_is_its_own_root(self):
         """A top-level GraphBuilder has root == self."""
         graph = ir.Graph(
-            name="main", inputs=[], outputs=[], nodes=[], opset_imports={"": 23},
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
         )
         gb = builder.GraphBuilder(graph)
         self.assertIs(gb.root, gb)
