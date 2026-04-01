@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 """Fuses BatchNormalization nodes into preceding nodes. Supported fusion patterns:
 - BatchNormalization ∘ Conv         -> Conv
-- BatchNormalization ∘ ConvTranpose -> ConvTranpose
+- BatchNormalization ∘ ConvTranspose -> ConvTranspose
 - BatchNormalization ∘ Gemm         -> Gemm
 
 Approach:
@@ -14,7 +14,7 @@ Approach:
         - B_fused = (B - μ) * (gamma / std) + β
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import ClassVar, Mapping
 
 import numpy as np
@@ -33,9 +33,18 @@ def _reshape_for_broadcast(x: np.ndarray, rank: int, axis: int = 1) -> np.ndarra
 class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
     """Interface for BatchNormalization nodes fusion."""
 
-    @abstractmethod
     def get_filters_axis(self, attributes: Mapping[str, ir.Attr]) -> int:
         """Return the axis along which BatchNorm scale should be broadcasted."""
+        raise NotImplementedError()
+
+    def _scale_weights(
+        self,
+        weights: np.ndarray,
+        scale_factor: np.ndarray,
+        attributes: Mapping[str, ir.Attr],
+    ) -> np.ndarray:
+        axis = self.get_filters_axis(attributes)
+        return weights * _reshape_for_broadcast(scale_factor, weights.ndim, axis=axis)
 
     def rewrite(self, op, x: ir.Value, inbound_out: ir.Value, batchnorm_out: ir.Value):
         batchnorm_node = batchnorm_out.producer()
@@ -56,10 +65,8 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
         inbound_node = inbound_out.producer()
         weights = inbound_node.inputs[1].const_value.numpy()
 
-        # Reshape scale factor so it is broadcastable
-        axis = self.get_filters_axis(inbound_node.attributes)
         fused_weights = ir.tensor(
-            weights * _reshape_for_broadcast(scale_factor, weights.ndim, axis=axis)
+            self._scale_weights(weights, scale_factor, inbound_node.attributes)
         )
 
         # Update bias
@@ -127,8 +134,26 @@ class FuseBatchNormIntoConvTranspose(_FuseBatchNormBase):
 
     op_type: ClassVar = "ConvTranspose"
 
-    def get_filters_axis(self, attributes: Mapping[str, ir.Attr]) -> int:
-        return 1
+    def _scale_weights(
+        self,
+        weights: np.ndarray,
+        scale_factor: np.ndarray,
+        attributes: Mapping[str, ir.Attr],
+    ) -> np.ndarray:
+        # ConvTranspose weight: (in_channels, out_channels/group, *kernel)
+        # Reshape weights: [in_channels, out_channels/group, *kernel] → [group, in_channels/group, out_channels/group, *kernel]
+        in_channels = weights.shape[0]
+        out_channels_per_group = weights.shape[1]
+        kernel_shape = weights.shape[2:]
+        group = attributes.get("group", ir.AttrInt64("group", 1)).as_int()
+        w = weights.reshape(group, in_channels // group, out_channels_per_group, *kernel_shape)
+
+        # Per group scale_factor (out_channels,) -> (group, out_channels/group) -> (group, 1, out_channels/group, 1, ..., 1)
+        s = scale_factor.reshape((group, out_channels_per_group) + (1,) * len(kernel_shape))
+        # insert in_channels/group axis -> (group, 1, out_channels/group, *ones)
+        s = s[:, None, ...]
+
+        return (w * s).reshape(weights.shape)
 
     def pattern(self, op, x):
         return op.BatchNormalization(
@@ -136,6 +161,25 @@ class FuseBatchNormIntoConvTranspose(_FuseBatchNormBase):
             _allow_other_inputs=True,
             _outputs=["batchnorm_out"],
         )
+
+    def check(self, context, x, inbound_out, batchnorm_out):
+        check_result = super().check(context, x, inbound_out, batchnorm_out)
+        if not check_result:
+            return check_result
+
+        inbound_node = inbound_out.producer()
+
+        in_channels = inbound_node.inputs[1].const_value.numpy().shape[0]
+        group = inbound_node.attributes.get("group", ir.AttrInt64("group", 1)).as_int()
+
+        # Check that in_channels is divisible by group as ONNX checker allows it
+        # But this is invalid case
+        if in_channels % group != 0:
+            return check_result.fail(
+                f"ConvTranspose in_channels ({in_channels}) is not divisible by group ({group})."
+            )
+
+        return check_result
 
 
 class FuseBatchNormIntoGemm(_FuseBatchNormBase):
