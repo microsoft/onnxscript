@@ -4,43 +4,70 @@
   "title": "GoldenTestCase",
   "description": "Schema for YAML test case files in testdata/cases/. Each file describes one model + one input scenario for L4/L5 golden tests.",
   "type": "object",
-  "required": ["model_id", "revision", "task_type", "dtype", "level"],
+  "required": [
+    "model_id",
+    "revision",
+    "task_type",
+    "dtype",
+    "level"
+  ],
   "additionalProperties": false,
   "properties": {
     "model_id": {
       "type": "string",
       "minLength": 1,
       "description": "HuggingFace model ID (e.g. 'Qwen/Qwen2.5-0.5B').",
-      "examples": ["Qwen/Qwen2.5-0.5B", "google-bert/bert-base-uncased"]
+      "examples": [
+        "Qwen/Qwen2.5-0.5B",
+        "google-bert/bert-base-uncased"
+      ]
     },
     "revision": {
       "type": "string",
       "minLength": 1,
       "description": "HuggingFace model revision: a full commit SHA (preferred for reproducibility) or 'main'.",
-      "examples": ["060db6499f32faf8b98477b0a26969ef7d8b9987", "main"]
+      "examples": [
+        "060db6499f32faf8b98477b0a26969ef7d8b9987",
+        "main"
+      ]
     },
     "task_type": {
       "type": "string",
       "enum": [
-        "text-generation",
-        "image-text-to-text",
-        "speech-to-text",
         "audio-feature-extraction",
+        "audio-to-audio",
+        "codec",
+        "depth-estimation",
         "feature-extraction",
-        "seq2seq",
         "image-classification",
-        "object-detection"
+        "image-segmentation",
+        "image-text-to-text",
+        "image-to-image",
+        "image-to-text",
+        "object-detection",
+        "seq2seq",
+        "speech-language",
+        "speech-to-text",
+        "text-generation"
       ],
       "description": "Task type string matching the mobius registry."
     },
     "dtype": {
       "type": "string",
-      "enum": ["float32", "float16", "bfloat16"],
+      "enum": [
+        "float32",
+        "float16",
+        "bfloat16"
+      ],
       "description": "Weight and activation dtype."
     },
     "level": {
       "type": "string",
-      "enum": ["L4", "L5", "L4+L5"],
+      "enum": [
+        "L4",
+        "L5",
+        "L4+L5"
+      ],
       "description": "Test level(s) to run: L4 (checkpoint verified), L5 (generation E2E), or both."
     },
     "inputs": {
@@ -49,19 +76,27 @@
       "properties": {
         "prompts": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "minItems": 0,
           "description": "Text prompts for text-generation, feature-extraction, seq2seq, and image-text-to-text tasks."
         },
         "images": {
           "type": "array",
-          "items": {"type": "string", "minLength": 1},
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "minItems": 0,
           "description": "Image file paths relative to testdata/ (vision and vision-language tasks)."
         },
         "audio": {
           "type": "array",
-          "items": {"type": "string", "minLength": 1},
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "minItems": 0,
           "description": "Audio file paths relative to testdata/ (speech tasks)."
         },
@@ -94,7 +129,10 @@
       "description": "Whether the HuggingFace model requires trust_remote_code=True."
     },
     "skip_reason": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "If non-null/non-empty, the test is skipped with this message. Use for known failures or unimplemented features."
     },
     "min_token_match_ratio": {

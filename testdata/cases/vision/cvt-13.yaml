@@ -1,0 +1,12 @@
+model_id: "microsoft/cvt-13"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "CvT-13. Convolutional vision transformer."

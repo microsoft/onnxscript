@@ -19,7 +19,10 @@ import dataclasses
 
 from mobius._configs import (
     ArchitectureConfig,
+    AudioConfig,
     BambaConfig,
+    CodecDecoderConfig,
+    CodecEncoderConfig,
     DepthAnythingConfig,
     Gemma2Config,
     Gemma3nConfig,
@@ -29,10 +32,13 @@ from mobius._configs import (
     LongcatFlashConfig,
     Mamba2Config,
     MambaConfig,
+    MllamaConfig,
     NanoChatConfig,
     NemotronHConfig,
     Sam2Config,
     SegformerConfig,
+    VisionConfig,
+    WhisperConfig,
     YolosConfig,
 )
 
@@ -814,6 +820,35 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
             "num_experts_per_tok": 2,
             "moe_intermediate_size": 128,
             "shared_expert_intermediate_size": 128,
+        },
+        False,
+    ),
+    (
+        "glm4v_text",
+        {},
+        False,
+    ),
+    (
+        "glm4v_moe_text",
+        {
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+        },
+        False,
+    ),
+    (
+        "qwen3_omni_moe",
+        {
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+        },
+        False,
+    ),
+    (
+        "qwen3_vl_moe",
+        {
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
         },
         False,
     ),
@@ -1744,6 +1779,313 @@ SSM_CONFIGS: list[tuple[str, dict, bool]] = [
 
 
 # ---------------------------------------------------------------------------
+# Shared VL tiny vision sub-config (SigLIP-style: 28x28, patch 14)
+# ---------------------------------------------------------------------------
+_TINY_VISION = VisionConfig(
+    hidden_size=32,
+    intermediate_size=64,
+    num_hidden_layers=1,
+    num_attention_heads=2,
+    image_size=28,
+    patch_size=14,
+    norm_eps=1e-6,
+)
+
+_TINY_QWEN_VL_VISION = VisionConfig(
+    hidden_size=32,
+    intermediate_size=64,
+    num_hidden_layers=1,
+    num_attention_heads=2,
+    image_size=28,
+    patch_size=14,
+    norm_eps=1e-6,
+    spatial_merge_size=2,
+    temporal_patch_size=2,
+    out_hidden_size=64,
+)
+
+_TINY_QWEN3_VL_VISION = VisionConfig(
+    hidden_size=32,
+    intermediate_size=64,
+    num_hidden_layers=1,
+    num_attention_heads=2,
+    image_size=28,
+    patch_size=14,
+    norm_eps=1e-6,
+    spatial_merge_size=2,
+    temporal_patch_size=2,
+    out_hidden_size=64,
+    fullatt_block_indexes=[0],
+    window_size=4,
+)
+
+
+# ---------------------------------------------------------------------------
+# Vision-Language configs  (task: vision-language and variants)
+# ---------------------------------------------------------------------------
+# NOTE: These models build multi-model packages (decoder + vision + embedding).
+# The test parametrization in build_graph_test.py uses specialised test
+# methods that invoke the correct task and assert the right output models.
+VL_CONFIGS: list[tuple[str, dict, bool]] = [
+    # --- LLaVA family (vision-language, 3-model split) ---
+    ("llava", {"vision": _TINY_VISION, "image_token_id": 32000}, True),
+    ("aya_vision", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("chameleon", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("cohere2_vision", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("deepseek_vl", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("deepseek_vl_hybrid", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("florence2", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("fuyu", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("glm4v", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("glm4v_moe", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("got_ocr2", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("idefics2", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("idefics3", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("instructblip", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("instructblipvideo", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("janus", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("llava_next", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("llava_next_video", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("llava_onevision", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("molmo", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("ovis2", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("paligemma", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("pixtral", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("smolvlm", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("video_llava", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("vipllava", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    # --- InternVL family ---
+    ("internvl_chat", {"vision": _TINY_VISION, "image_token_id": 32000}, True),
+    ("internvl2", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    ("internvl", {"vision": _TINY_VISION, "image_token_id": 32000}, False),
+    # --- Gemma3 multimodal (requires rope_local_base_freq, layer_types) ---
+    (
+        "gemma3_multimodal",
+        {
+            "attn_qk_norm": True,
+            "rope_local_base_freq": 10_000.0,
+            "layer_types": ["full_attention", "sliding_attention"],
+            "vision": VisionConfig(
+                hidden_size=32,
+                intermediate_size=64,
+                num_hidden_layers=1,
+                num_attention_heads=2,
+                image_size=28,
+                patch_size=14,
+                norm_eps=1e-6,
+                mm_tokens_per_image=4,
+            ),
+            "mm_tokens_per_image": 4,
+            "image_token_id": 255999,
+        },
+        True,
+    ),
+    # --- Blip2 (ViT + Q-Former + LLM) ---
+    (
+        "blip-2",
+        {
+            "vision": _TINY_VISION,
+            "image_token_id": 50265,
+            "num_query_tokens": 4,
+            "qformer_hidden_size": 32,
+            "qformer_num_hidden_layers": 1,
+            "qformer_num_attention_heads": 2,
+            "qformer_intermediate_size": 64,
+        },
+        True,
+    ),
+    # --- DeepSeek-VL-V2 (SAM ViT + Qwen2 encoder + MoE decoder) ---
+    (
+        "deepseek_vl_v2",
+        {
+            "vision": _TINY_VISION,
+            "image_token_id": 32000,
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "moe_intermediate_size": 64,
+            "moe_layer_frequency": 1,
+            "first_k_dense_replace": 0,
+            "n_shared_experts": 1,
+        },
+        True,
+    ),
+    # --- Mllama (cross-attention VL, requires MllamaConfig) ---
+    (
+        "mllama",
+        {
+            "_config_cls": MllamaConfig,
+            "num_hidden_layers": 3,
+            "vision": _TINY_VISION,
+            "image_token_id": 32000,
+            "cross_attention_layers": [1],
+        },
+        True,
+    ),
+    # --- Qwen VL family (packed-attention, MRoPE) ---
+    (
+        "qwen2_vl",
+        {
+            "vision": _TINY_QWEN_VL_VISION,
+            "image_token_id": 32000,
+            "temporal_patch_size": 2,
+            "mrope_section": [16, 24, 24],
+        },
+        True,
+    ),
+    (
+        "qwen2_5_vl",
+        {
+            "vision": _TINY_QWEN_VL_VISION,
+            "image_token_id": 32000,
+            "temporal_patch_size": 2,
+            "mrope_section": [16, 24, 24],
+        },
+        False,
+    ),
+    (
+        "qwen3_vl",
+        {
+            "vision": _TINY_QWEN3_VL_VISION,
+            "image_token_id": 32000,
+            "temporal_patch_size": 2,
+            "mrope_section": [16, 24, 24],
+            "attn_qk_norm": True,
+        },
+        True,
+    ),
+    (
+        "qwen3_vl_single",
+        {
+            "vision": _TINY_QWEN3_VL_VISION,
+            "image_token_id": 32000,
+            "temporal_patch_size": 2,
+            "mrope_section": [16, 24, 24],
+            "attn_qk_norm": True,
+        },
+        False,
+    ),
+    (
+        "qwen3_5_vl",
+        {
+            "vision": _TINY_QWEN3_VL_VISION,
+            "image_token_id": 32000,
+            "temporal_patch_size": 2,
+            "mrope_section": [16, 24, 24],
+            "attn_qk_norm": True,
+        },
+        True,
+    ),
+]
+
+
+# ---------------------------------------------------------------------------
+# Speech / TTS / Codec configs
+# ---------------------------------------------------------------------------
+SPEECH_CONFIGS: list[tuple[str, dict, bool]] = [
+    # --- Whisper (speech-to-text, encoder-decoder) ---
+    (
+        "whisper",
+        {
+            "_config_cls": WhisperConfig,
+            "attn_qkv_bias": True,
+            "attn_o_bias": True,
+            "tie_word_embeddings": True,
+            "encoder_layers": TINY_LAYERS,
+            "encoder_attention_heads": TINY_HEADS,
+            "encoder_ffn_dim": TINY_INTERMEDIATE,
+            "num_mel_bins": 16,
+            "max_source_positions": 100,
+            "max_target_positions": 50,
+            "scale_embedding": True,
+        },
+        True,
+    ),
+    # --- Qwen3-ASR (speech-language, 3-model split) ---
+    (
+        "qwen3_asr",
+        {
+            "attn_qk_norm": True,
+            "mrope_section": [24, 20, 20],
+            "mrope_interleaved": True,
+            "audio": AudioConfig(
+                d_model=64,
+                encoder_layers=2,
+                encoder_attention_heads=4,
+                encoder_ffn_dim=128,
+                num_mel_bins=128,
+                max_source_positions=256,
+                downsample_hidden_size=32,
+                output_dim=64,
+                audio_token_id=100,
+            ),
+        },
+        True,
+    ),
+    # --- Qwen3-ForcedAligner (speech-language, same class as ASR) ---
+    (
+        "qwen3_forced_aligner",
+        {
+            "attn_qk_norm": True,
+            "mrope_section": [24, 20, 20],
+            "mrope_interleaved": True,
+            "audio": AudioConfig(
+                d_model=64,
+                encoder_layers=2,
+                encoder_attention_heads=4,
+                encoder_ffn_dim=128,
+                num_mel_bins=128,
+                max_source_positions=256,
+                downsample_hidden_size=32,
+                output_dim=64,
+                audio_token_id=100,
+                classify_num=10,
+            ),
+        },
+        False,
+    ),
+    # --- Qwen3-TTS Codec Tokenizer (codec, 2-model split) ---
+    (
+        "qwen3_tts_tokenizer_12hz",
+        {
+            "codec_decoder": CodecDecoderConfig(
+                codebook_dim=32,
+                codebook_size=64,
+                latent_dim=64,
+                hidden_size=32,
+                intermediate_size=64,
+                num_hidden_layers=2,
+                num_attention_heads=4,
+                num_key_value_heads=4,
+                head_dim=8,
+                rms_norm_eps=1e-5,
+                rope_theta=10000.0,
+                max_position_embeddings=128,
+                decoder_dim=96,
+                num_quantizers=4,
+                upsample_rates=[2, 2, 2, 2],
+                upsampling_ratios=[2, 2],
+            ),
+            "codec_encoder": CodecEncoderConfig(
+                codebook_dim=16,
+                codebook_size=64,
+                hidden_size=32,
+                intermediate_size=128,
+                num_hidden_layers=2,
+                num_attention_heads=4,
+                num_key_value_heads=4,
+                head_dim=8,
+                rope_theta=10000.0,
+                max_position_embeddings=128,
+                num_quantizers=8,
+                num_semantic_quantizers=1,
+            ),
+        },
+        True,
+    ),
+]
+
+
+# ---------------------------------------------------------------------------
 # Aggregate lists
 # ---------------------------------------------------------------------------
 ALL_CONFIGS: list[tuple[str, dict, bool]] = (
@@ -1753,6 +2095,8 @@ ALL_CONFIGS: list[tuple[str, dict, bool]] = (
     + VISION_CONFIGS
     + DETECTION_CONFIGS
     + SSM_CONFIGS
+    + VL_CONFIGS
+    + SPEECH_CONFIGS
 )
 
 # Model types explicitly declared in configs above (may have duplicates —
@@ -1769,7 +2113,12 @@ _EXCLUDED_ALIASES: set[str] = {
     "glm4v_moe_text",  # VL MoE text; no HF AutoModelForCausalLM support
     "glm4v_text",  # VL text; GLM architecture incompatible with CausalLMModel
     "deepseek_v2_moe",  # our custom alias; real type is deepseek_v2
-    "gptoss",  # alias for gpt_oss; real type tested via gpt_oss entry
+    # VL text-only submodels (tested via VL parent model)
+    "qwen2_vl_text",
+    "qwen2_5_vl_text",
+    "qwen3_vl_text",
+    # Duplicate VL alias
+    "qwen3_5",  # same as qwen3_5_vl (Qwen35VL3ModelCausalLMModel)
 }
 
 
@@ -1828,3 +2177,7 @@ FAST_DETECTION_CONFIGS: list[tuple[str, dict]] = [
     (mt, ov) for mt, ov, rep in DETECTION_CONFIGS if rep
 ]
 FAST_SSM_CONFIGS: list[tuple[str, dict]] = [(mt, ov) for mt, ov, rep in SSM_CONFIGS if rep]
+FAST_VL_CONFIGS: list[tuple[str, dict]] = [(mt, ov) for mt, ov, rep in VL_CONFIGS if rep]
+FAST_SPEECH_CONFIGS: list[tuple[str, dict]] = [
+    (mt, ov) for mt, ov, rep in SPEECH_CONFIGS if rep
+]

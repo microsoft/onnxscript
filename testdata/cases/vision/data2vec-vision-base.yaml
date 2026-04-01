@@ -1,0 +1,12 @@
+model_id: "facebook/data2vec-vision-base-ft1k"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "Data2Vec vision base. Self-supervised vision encoder fine-tuned on ImageNet."

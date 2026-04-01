@@ -1,0 +1,17 @@
+model_id: "uclanlp/plbart-base"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "def add(a, b): return a + b"
+  decoder_prompt: ""
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "PLBart base. Pre-trained language model for code and text."

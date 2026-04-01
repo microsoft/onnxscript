@@ -1,0 +1,14 @@
+model_id: "allenai/led-base-16384"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "summarize: The tower is 324 metres tall and is the tallest structure in Paris."
+  decoder_prompt: ""
+
+level: "L4"
+
+skip_reason: "LED base supports 16384 token context — too large for CI golden generation."
+notes: "LED base. Longformer encoder-decoder for long documents."

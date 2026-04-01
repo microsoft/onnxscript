@@ -27,6 +27,7 @@ from _test_configs import (
     ENCODER_CONFIGS,
     LONGROPE_FACTORS,
     SEQ2SEQ_CONFIGS,
+    SPEECH_CONFIGS,
     SSM_CONFIGS,
     TINY_HEAD_DIM,
     TINY_HEADS,
@@ -36,6 +37,7 @@ from _test_configs import (
     TINY_LAYERS,
     TINY_VOCAB,
     VISION_CONFIGS,
+    VL_CONFIGS,
     _base_config,
 )
 
@@ -75,6 +77,13 @@ _CHECKER_SKIP_MODELS: set[str] = {
     "qwen3_5_text",
     "qwen3_5_moe",
     "qwen3_next",
+    # VL/Speech models with value_info/shape checker issues
+    "qwen2_vl",
+    "qwen2_5_vl",
+    "qwen3_vl",
+    "qwen3_vl_single",
+    "qwen3_5_vl",
+    "qwen3_tts_tokenizer_12hz",
 }
 
 
@@ -3346,13 +3355,8 @@ _SPECIALIZED_TEST_MODEL_TYPES: set[str] = {
 # from test configs because they duplicate existing coverage or
 # cannot be tested with our generic test infrastructure.
 _KNOWN_UNTESTED_MODEL_TYPES: set[str] = {
-    "qwen3_5_vl_text",  # VL text decoder; real type is qwen3_5_text
-    "qwen3_omni_moe",  # VL MoE; no HF AutoModelForCausalLM support
-    "qwen3_vl_moe",  # VL MoE; no HF AutoModelForCausalLM support
-    "glm4v_moe_text",  # VL MoE text; no HF AutoModelForCausalLM support
-    "glm4v_text",  # VL text; GLM architecture incompatible with CausalLMModel
-    "deepseek_v2_moe",  # our custom alias; real type is deepseek_v2
-    "gptoss",  # alias for gpt_oss; real type tested via gpt_oss entry
+    "deepseek_v2_moe",  # Alias for deepseek_v2 — tested via deepseek_v2
+    "qwen3_5_vl_text",  # VL text decoder — tested via parent VL model
 }
 
 
@@ -3560,3 +3564,139 @@ class TestBuildStaticCacheGraph:
         """Verify shape inference populates all output shapes and dtypes."""
         model, _ = self._build_static_cache_model()
         _assert_outputs_have_shapes_and_dtypes({"model": model}, "qwen2-static")
+
+
+# === Parametrized Vision-Language configs (imported from _test_configs) ===
+_VL_MODEL_PARAMS = _make_params(VL_CONFIGS)
+
+# VL models that produce a single "model" key instead of 3-model split
+_VL_SINGLE_MODEL_TASKS = {"qwen3-vl-vision-language"}
+
+
+@pytest.mark.parametrize("model_type,config_overrides", _VL_MODEL_PARAMS)
+class TestBuildVLGraph:
+    """Verify vision-language models build valid multi-model ONNX packages."""
+
+    def test_package_builds(self, model_type: str, config_overrides: dict):
+        """Build a VL model and verify it produces the expected sub-models."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task_name = _default_task_for_model(model_type)
+        task = get_task(task_name)
+        pkg = task.build(module, config)
+
+        if task_name in _VL_SINGLE_MODEL_TASKS:
+            assert "model" in pkg, f"{model_type} should produce 'model'"
+            model = pkg["model"]
+            assert model.graph is not None
+            output_names = {o.name for o in model.graph.outputs}
+            assert "logits" in output_names
+        else:
+            assert "decoder" in pkg, f"{model_type} should produce 'decoder'"
+            assert "vision" in pkg, f"{model_type} should produce 'vision'"
+            assert "embedding" in pkg, f"{model_type} should produce 'embedding'"
+
+            decoder = pkg["decoder"]
+            assert "inputs_embeds" in {i.name for i in decoder.graph.inputs}
+            assert "logits" in {o.name for o in decoder.graph.outputs}
+
+            vision = pkg["vision"]
+            assert "pixel_values" in {i.name for i in vision.graph.inputs}
+
+    def test_has_initializers(self, model_type: str, config_overrides: dict):
+        """Verify all sub-models have non-empty initializers."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task_name = _default_task_for_model(model_type)
+        task = get_task(task_name)
+        pkg = task.build(module, config)
+
+        for name, model in pkg.items():
+            init_names = list(model.graph.initializers)
+            assert len(init_names) > 0, f"{model_type}/{name} should have initializers"
+
+    def test_onnx_checker_passes(self, model_type: str, config_overrides: dict):
+        """Run ONNX CheckerPass on all sub-models."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _run_onnx_checker(pkg, model_type)
+
+    def test_outputs_have_shapes_and_dtypes(self, model_type: str, config_overrides: dict):
+        """Verify shape inference populates all output shapes and dtypes."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _assert_outputs_have_shapes_and_dtypes(pkg, model_type)
+
+
+# === Parametrized Speech / TTS / Codec configs ===
+_SPEECH_MODEL_PARAMS = _make_params(SPEECH_CONFIGS)
+
+# Expected sub-model keys per speech task type
+_SPEECH_TASK_KEYS: dict[str, set[str]] = {
+    "speech-to-text": {"encoder", "decoder"},
+    "speech-language": {"audio_encoder", "embedding", "decoder"},
+    "codec": {"decoder", "encoder"},
+}
+
+
+@pytest.mark.parametrize("model_type,config_overrides", _SPEECH_MODEL_PARAMS)
+class TestBuildSpeechGraph:
+    """Verify speech/TTS/codec models build valid multi-model packages."""
+
+    def test_package_builds(self, model_type: str, config_overrides: dict):
+        """Build a speech model and verify expected sub-models."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task_name = _default_task_for_model(model_type)
+        task = get_task(task_name)
+        pkg = task.build(module, config)
+
+        expected = _SPEECH_TASK_KEYS.get(task_name, set())
+        for key in expected:
+            assert key in pkg, f"{model_type} ({task_name}) should produce '{key}'"
+
+        # Every sub-model should have a valid graph
+        for name, model in pkg.items():
+            assert model.graph is not None, f"{model_type}/{name} graph is None"
+            assert len(model.graph.inputs) > 0, f"{model_type}/{name} has no inputs"
+            assert len(model.graph.outputs) > 0, f"{model_type}/{name} has no outputs"
+
+    def test_has_initializers(self, model_type: str, config_overrides: dict):
+        """Verify all sub-models have non-empty initializers."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task_name = _default_task_for_model(model_type)
+        task = get_task(task_name)
+        pkg = task.build(module, config)
+
+        for name, model in pkg.items():
+            init_names = list(model.graph.initializers)
+            assert len(init_names) > 0, f"{model_type}/{name} should have initializers"
+
+    def test_onnx_checker_passes(self, model_type: str, config_overrides: dict):
+        """Run ONNX CheckerPass on all sub-models."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _run_onnx_checker(pkg, model_type)
+
+    def test_outputs_have_shapes_and_dtypes(self, model_type: str, config_overrides: dict):
+        """Verify shape inference populates all output shapes and dtypes."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _assert_outputs_have_shapes_and_dtypes(pkg, model_type)

@@ -1,0 +1,12 @@
+model_id: "facebook/deit-small-patch16-224"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "DeiT small patch16. Data-efficient image transformer."

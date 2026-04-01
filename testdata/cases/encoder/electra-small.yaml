@@ -1,0 +1,12 @@
+model_id: "google/electra-small-generator"
+revision: "main"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+notes: "ELECTRA small generator. Replaced token detection pre-training."

@@ -1,0 +1,12 @@
+model_id: "Xenova/tiny-random-ErnieMModel"
+revision: "main"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+notes: "ERNIE-M tiny random. Cross-lingual encoder."

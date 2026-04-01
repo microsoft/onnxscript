@@ -1,0 +1,12 @@
+model_id: "microsoft/trocr-small-handwritten"
+revision: "main"
+task_type: "image-to-text"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "TrOCR small handwritten. OCR with vision encoder + text decoder."

@@ -1,0 +1,14 @@
+model_id: "microsoft/xprophetnet-large-wiki100-cased"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "summarize: The tower is 324 metres tall and is the tallest structure in Paris."
+  decoder_prompt: ""
+
+level: "L4"
+
+skip_reason: "XLM-ProphetNet large is large — too large for CI golden generation."
+notes: "XLM-ProphetNet large. Multilingual future n-gram prediction."

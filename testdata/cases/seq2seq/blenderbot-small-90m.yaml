@@ -1,0 +1,17 @@
+model_id: "facebook/blenderbot_small-90M"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Hello, how are you?"
+  decoder_prompt: ""
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "BlenderBot-Small 90M. Compact open-domain dialogue model."

@@ -1,0 +1,19 @@
+model_id: "Salesforce/blip2-opt-2.7b"
+revision: "main"
+task_type: "image-text-to-text"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "What is shown in this image?"
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 30
+  do_sample: false
+
+skip_reason: "BLIP-2 Q-Former cross-attention requires weight-dependent testing."
+notes: "BLIP-2 with OPT-2.7B. ViT + Q-Former projector + OPT decoder."

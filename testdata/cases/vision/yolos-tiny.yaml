@@ -1,0 +1,12 @@
+model_id: "hustvl/yolos-tiny"
+revision: "main"
+task_type: "object-detection"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "YOLOS tiny. You Only Look One-level feature object detection."

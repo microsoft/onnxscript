@@ -1,0 +1,14 @@
+model_id: "facebook/m2m100_418M"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "translate English to German: The house is wonderful."
+  decoder_prompt: ""
+
+level: "L4"
+
+skip_reason: "M2M-100 418M requires lang_id tokens and is large — skipping CI golden generation."
+notes: "M2M-100 418M. Many-to-many multilingual translation."

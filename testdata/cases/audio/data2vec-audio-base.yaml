@@ -1,0 +1,13 @@
+model_id: "facebook/data2vec-audio-base-960h"
+revision: "main"
+task_type: "audio-feature-extraction"
+dtype: "float32"
+
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+
+level: "L4"
+
+skip_reason: "HF repo has no safetensors (pytorch_model.bin only)."
+notes: "Data2Vec audio base. Self-supervised audio representation."

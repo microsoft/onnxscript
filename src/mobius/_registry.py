@@ -439,7 +439,6 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("granitemoehybrid", GraniteMoeHybridCausalLMModel)
 
     reg.register("minimax", MiniMaxCausalLMModel)
-    reg.register("gptoss", GPTOSSCausalLMModel)
     reg.register("gpt_oss", GPTOSSCausalLMModel)
     reg.register("phimoe", Phi3MoECausalLMModel)
     reg.register("qwen3_5_moe", Qwen35MoECausalLMModel)
@@ -779,7 +778,6 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "gpt_neo": "EleutherAI/gpt-neo-125m",
     "gpt_neox_japanese": "abeja/gpt-neox-japanese-2.7b",
     "gpt_oss": "openai/gpt-oss-20b",
-    "gptoss": "openai/gpt-oss-20b",
     "hunyuan_v1_dense": "optimum-intel-internal-testing/tiny-random-hunyuan-v1-dense",
     "hunyuan_v1_moe": "tencent/Hunyuan-A13B-Instruct",
     "imagegpt": "openai/imagegpt-small",
@@ -811,6 +809,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
 
     # --- DeepSeek (MLA + MoE) ---
     "deepseek_v2": "deepseek-ai/DeepSeek-V2-Lite",
+    "deepseek_v2_moe": "deepseek-ai/DeepSeek-V2-Lite",
     "deepseek_v3": "deepseek-ai/DeepSeek-V3",
 
     # --- SSM (Mamba) ---
@@ -996,7 +995,6 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "qwen3_vl_moe": "qwen",
     "qwen3_5": "qwen",
     "qwen3_5_vl": "qwen",
-    "qwen3_5_vl_text": "qwen",
     "qwen3_omni_moe": "qwen",
     "qwen3_asr": "qwen",
     "qwen3_forced_aligner": "qwen",
@@ -1071,8 +1069,8 @@ _FAMILY_OVERRIDES: dict[str, str] = {
 # -- Variant labels for code-path identification --
 _VARIANT_LABELS: dict[str, str] = {
     "deepseek_v2": "mla",
-    "deepseek_v3": "mla+moe",
     "deepseek_v2_moe": "mla+moe",
+    "deepseek_v3": "mla+moe",
     "phi3small": "blocksparse",
     "falcon_h1": "hybrid-ssm",
     "mamba": "ssm",

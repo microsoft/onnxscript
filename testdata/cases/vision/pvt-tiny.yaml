@@ -1,0 +1,12 @@
+model_id: "Zetatech/pvt-tiny-224"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "PVT tiny. Pyramid vision transformer."

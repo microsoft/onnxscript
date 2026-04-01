@@ -1,0 +1,12 @@
+model_id: "andreasmadsen/efficient_mlm_m0.40"
+revision: "main"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+notes: "RoBERTa PreLayerNorm. Pre-layer normalization variant."

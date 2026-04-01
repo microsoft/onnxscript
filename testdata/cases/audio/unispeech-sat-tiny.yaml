@@ -1,0 +1,12 @@
+model_id: "optimum-intel-internal-testing/tiny-random-UnispeechSatModel"
+revision: "main"
+task_type: "audio-feature-extraction"
+dtype: "float32"
+
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+
+level: "L4"
+
+notes: "UniSpeechSat tiny random. Speaker-aware self-supervised audio encoder."

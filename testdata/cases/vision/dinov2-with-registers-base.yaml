@@ -1,0 +1,12 @@
+model_id: "facebook/dinov2-with-registers-base"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "DINOv2 with registers base. Vision transformer with register tokens."

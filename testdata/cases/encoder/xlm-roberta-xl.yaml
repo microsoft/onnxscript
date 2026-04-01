@@ -1,0 +1,13 @@
+model_id: "facebook/xlm-roberta-xl"
+revision: "main"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+skip_reason: "XLM-RoBERTa XL is large (3.5B) — too large for CI."
+notes: "XLM-RoBERTa XL. Extra-large multilingual encoder."

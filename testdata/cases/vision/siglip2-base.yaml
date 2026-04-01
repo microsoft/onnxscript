@@ -1,0 +1,12 @@
+model_id: "google/siglip2-base-patch16-224"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "SigLIP2 base patch16. Improved sigmoid loss vision encoder."

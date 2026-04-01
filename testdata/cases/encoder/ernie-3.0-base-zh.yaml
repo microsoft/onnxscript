@@ -1,0 +1,12 @@
+model_id: "nghuyong/ernie-3.0-base-zh"
+revision: "main"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+notes: "ERNIE 3.0 base Chinese. Knowledge-enhanced Chinese encoder."

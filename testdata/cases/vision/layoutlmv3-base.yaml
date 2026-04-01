@@ -1,0 +1,12 @@
+model_id: "microsoft/layoutlmv3-base"
+revision: "main"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "LayoutLMv3 base. Unified text+image document model."

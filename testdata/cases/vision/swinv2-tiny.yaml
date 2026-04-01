@@ -1,0 +1,12 @@
+model_id: "microsoft/swinv2-tiny-patch4-window16-256"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "Swin Transformer V2 tiny. Scaled cosine attention hierarchy."

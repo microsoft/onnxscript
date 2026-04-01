@@ -1,0 +1,9 @@
+model_id: "facebook/musicgen-small"
+revision: "main"
+task_type: "audio-to-audio"
+dtype: "float32"
+
+level: "L4"
+
+skip_reason: "MusicGen requires special audio inputs and conditional text."
+notes: "MusicGen small. Text-conditional music generation model."

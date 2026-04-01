@@ -1,0 +1,12 @@
+model_id: "microsoft/layoutlmv2-base-uncased"
+revision: "main"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+notes: "LayoutLMv2 base. Multi-modal document understanding."

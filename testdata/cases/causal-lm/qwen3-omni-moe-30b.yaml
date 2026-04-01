@@ -1,0 +1,17 @@
+model_id: "Qwen/Qwen3-Omni-30B-A3B-Instruct"
+revision: "main"
+task_type: "text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "Here is my poem:"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "VL-Omni-MoE top-level config; no AutoModelForCausalLM support. Model is 30B — too large for CI."
+notes: "Qwen3-Omni-MoE (model_type=qwen3_omni_moe). Text-only ONNX uses MoECausalLMModel for the thinker text backbone."

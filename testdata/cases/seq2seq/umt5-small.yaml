@@ -1,0 +1,17 @@
+model_id: "IMISLab/GreekT5-umt5-small-greeksum"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "summarize: The tower is 324 metres tall and is the tallest structure in Paris."
+  decoder_prompt: ""
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+notes: "UMT5 small. Unified multilingual multi-task T5."

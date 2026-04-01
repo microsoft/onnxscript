@@ -1,0 +1,13 @@
+model_id: "google/rembert"
+revision: "main"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The quick brown fox jumps over the lazy dog."
+
+level: "L4"
+
+skip_reason: "RemBERT model is large (559M) — too large for CI."
+notes: "RemBERT. Decoupled embeddings multilingual encoder."

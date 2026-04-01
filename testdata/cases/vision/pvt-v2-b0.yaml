@@ -1,0 +1,12 @@
+model_id: "OpenGVLab/pvt_v2_b0"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "PVT v2 B0. Improved pyramid vision transformer."

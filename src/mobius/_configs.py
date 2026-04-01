@@ -877,7 +877,6 @@ class ArchitectureConfig(BaseModelConfig):
                     "qwen3_moe",
                     "qwen3_tts_talker",
                     "qwen3_5_vl",
-                    "qwen3_5_vl_text",
                     "qwen3_vl",
                     "qwen3_vl_text",
                 )

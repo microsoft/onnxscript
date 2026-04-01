@@ -1,0 +1,9 @@
+model_id: "facebook/hf-seamless-m4t-medium"
+revision: "main"
+task_type: "speech-to-text"
+dtype: "float32"
+
+level: "L4"
+
+skip_reason: "SeamlessM4T requires special speech+text inputs."
+notes: "SeamlessM4T medium. Multimodal speech + text translation."

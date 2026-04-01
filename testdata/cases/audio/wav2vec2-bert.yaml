@@ -1,0 +1,13 @@
+model_id: "facebook/w2v-bert-2.0"
+revision: "main"
+task_type: "audio-feature-extraction"
+dtype: "float32"
+
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+
+level: "L4"
+
+skip_reason: "w2v-BERT 2.0 has no safetensors."
+notes: "w2v-BERT 2.0. Contrastive + masked prediction audio pre-training."

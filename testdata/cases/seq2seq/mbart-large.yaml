@@ -1,0 +1,14 @@
+model_id: "facebook/mbart-large-cc25"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "translate English to German: The house is wonderful."
+  decoder_prompt: ""
+
+level: "L4"
+
+skip_reason: "mBART large CC25 is large (610M) — too large for CI golden generation."
+notes: "mBART large CC25. Multilingual denoising pre-training."

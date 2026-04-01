@@ -1,0 +1,17 @@
+model_id: "Qwen/Qwen3-ASR"
+revision: "main"
+task_type: "speech-language"
+dtype: "float32"
+
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+
+generation:
+  max_new_tokens: 50
+  do_sample: false
+
+level: "L4+L5"
+
+skip_reason: "Requires audio preprocessing pipeline not yet supported in test harness."
+notes: "Qwen3-ASR speech recognition. 3-model split: audio_encoder + embedding + decoder."

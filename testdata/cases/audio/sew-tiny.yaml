@@ -1,0 +1,13 @@
+model_id: "asapp/sew-tiny-100k"
+revision: "main"
+task_type: "audio-feature-extraction"
+dtype: "float32"
+
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+
+level: "L4"
+
+skip_reason: "HF repo has no safetensors (pytorch_model.bin only)."
+notes: "SEW tiny. Squeezed and efficient Wav2Vec2 audio encoder."

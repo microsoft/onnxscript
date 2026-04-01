@@ -1,0 +1,14 @@
+model_id: "google/switch-base-8"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "translate English to German: The house is wonderful."
+  decoder_prompt: ""
+
+level: "L4"
+
+skip_reason: "Switch Transformers requires CUDA sparse routing kernels."
+notes: "Switch Transformers base 8 experts. Sparsely-activated MoE seq2seq."

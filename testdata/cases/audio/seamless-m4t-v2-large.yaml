@@ -1,0 +1,9 @@
+model_id: "facebook/seamless-m4t-v2-large"
+revision: "main"
+task_type: "speech-to-text"
+dtype: "float32"
+
+level: "L4"
+
+skip_reason: "SeamlessM4T v2 large requires special speech+text inputs."
+notes: "SeamlessM4T v2 large. Improved multimodal translation model."

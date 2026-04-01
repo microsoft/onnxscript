@@ -1,0 +1,12 @@
+model_id: "caidas/swin2SR-classical-sr-x2-64"
+revision: "main"
+task_type: "image-to-image"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "Swin2SR. Super-resolution image transformer."

@@ -1,0 +1,13 @@
+model_id: "microsoft/speecht5_asr"
+revision: "main"
+task_type: "speech-to-text"
+dtype: "float32"
+
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+
+level: "L4"
+
+skip_reason: "SpeechT5 requires speaker embeddings for TTS / special encoder-decoder inputs."
+notes: "SpeechT5 ASR. Unified speech encoder-decoder for recognition."

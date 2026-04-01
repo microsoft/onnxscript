@@ -1,0 +1,13 @@
+model_id: "Qwen/Qwen3-TTS-Tokenizer-12Hz"
+revision: "main"
+task_type: "codec"
+dtype: "float32"
+
+inputs:
+  audio:
+    - "652-129742-0006.flac"
+
+level: "L4"
+
+skip_reason: "Codec models require waveform/codes input not supported in test harness."
+notes: "Qwen3-TTS codec tokenizer. 2-model split: decoder (codes→waveform) + encoder (waveform→codes)."

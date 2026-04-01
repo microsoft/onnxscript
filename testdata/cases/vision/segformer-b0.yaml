@@ -1,0 +1,12 @@
+model_id: "nvidia/segformer-b0-finetuned-ade-512-512"
+revision: "main"
+task_type: "image-segmentation"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "SegFormer B0. Semantic segmentation transformer."

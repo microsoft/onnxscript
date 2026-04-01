@@ -1,0 +1,14 @@
+model_id: "microsoft/prophetnet-large-uncased"
+revision: "main"
+task_type: "seq2seq"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "summarize: The tower is 324 metres tall and is the tallest structure in Paris."
+  decoder_prompt: ""
+
+level: "L4"
+
+skip_reason: "ProphetNet large is 396M — too large for CI golden generation."
+notes: "ProphetNet large uncased. Future n-gram prediction pre-training."
