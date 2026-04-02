@@ -29,8 +29,8 @@ from mobius._configs import (
     MoondreamConfig,
     ResNetConfig,
     RtDetrConfig,
-    RwkvConfig,
     Rwkv6Config,
+    RwkvConfig,
     WhisperConfig,
 )
 from mobius.models import (
@@ -902,6 +902,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
 
     # --- RWKV ---
     "rwkv": "RWKV/v4-pile-430m-20220901-ctx8192",
+    "rwkv6": "RWKV/v6-Finch-1B6-HF",
 
     # --- Hybrid SSM+Attention ---
     "jamba": "ai21labs/Jamba-v0.1",
@@ -1120,6 +1121,7 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "mamba": "mamba",
     "mamba2": "mamba",
     "rwkv": "rwkv",
+    "rwkv6": "rwkv",
     "bloom": "bloom",
     "gpt2": "gpt2",
     "gpt_neo": "gpt2",
@@ -1179,6 +1181,7 @@ _VARIANT_LABELS: dict[str, str] = {
     "mamba2": "ssm",
     "falcon_mamba": "ssm",
     "rwkv": "linear-rnn",
+    "rwkv6": "linear-rnn",
     "jamba": "hybrid-ssm+attn",
     "bamba": "hybrid-mamba2+attn",
     "qwen3_next": "moe+linear-attn",

@@ -41,6 +41,7 @@ __all__ = [
     "QwenImageVAETask",
     "QwenVLTask",
     "RwkvCausalLMTask",
+    "Rwkv6CausalLMTask",
     "SSM2CausalLMTask",
     "SSMCausalLMTask",
     "Seq2SeqTask",
@@ -75,6 +76,7 @@ from mobius.tasks._multimodal import MultiModalTask
 from mobius.tasks._object_detection import ObjectDetectionTask
 from mobius.tasks._phi4mm_multimodal import Phi4MMMultiModalTask
 from mobius.tasks._qwen_image_vae import QwenImageVAETask
+from mobius.tasks._rwkv6_causal_lm import Rwkv6CausalLMTask
 from mobius.tasks._rwkv_causal_lm import RwkvCausalLMTask
 from mobius.tasks._seq2seq import Seq2SeqTask
 from mobius.tasks._speech_language import SpeechLanguageTask
@@ -123,6 +125,7 @@ TASK_REGISTRY: dict[str, type[ModelTask]] = {
     "ssm-text-generation": SSMCausalLMTask,
     "ssm2-text-generation": SSM2CausalLMTask,
     "rwkv-text-generation": RwkvCausalLMTask,
+    "rwkv6-text-generation": Rwkv6CausalLMTask,
     "tts": TTSTask,
     "video-denoising": VideoDenoisingTask,
 }
