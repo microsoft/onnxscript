@@ -3493,7 +3493,6 @@ class TestBuildJambaGraph:
         assert "model.layers.0.mamba.in_proj.weight" in result
 
 
-
 class TestBuildClapAudioGraph:
     """Verify ClapAudioModel builds a valid ONNX graph with mel-spectrogram input."""
 
@@ -3531,6 +3530,7 @@ class TestBuildClapAudioGraph:
     def test_outputs_have_shapes_and_dtypes(self):
         pkg = {"model": self._build_clap_audio()}
         _assert_outputs_have_shapes_and_dtypes(pkg, "clap_audio_model")
+
 
 # ===========================================================================
 # Registry completeness
@@ -3614,6 +3614,10 @@ _SPECIALIZED_TEST_MODEL_TYPES: set[str] = {
     # Hybrid SSM+Attention dedicated tests
     "bamba",
     "jamba",
+    # RWKV linear-RNN dedicated tests
+    "rwkv",
+    # CLAP audio dedicated tests
+    "clap_audio_model",
 }
 
 # Registered model types that truly have no test coverage yet.

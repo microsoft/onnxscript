@@ -31,7 +31,6 @@ from onnxscript._internal import builder
 from mobius._configs import ArchitectureConfig
 from mobius.components import Attention, Embedding, LayerNorm, Linear, StaticCacheState
 from mobius.components._vision import (
-    VisionAttention,
     VisionEncoder,
     VisionLayerNorm,
     VisionMLP,
@@ -264,9 +263,7 @@ class _LinearPatchEmbedding(nn.Module):
         x = op.Transpose(x, perm=[0, 2, 4, 1, 3, 5])
         # [B, H/P, W/P, C, P, P] → [B, num_patches, C*P*P]
         num_patches = op.Mul(h_div_p, w_div_p)
-        shape_3d = op.Concat(
-            batch, num_patches, op.Constant(value_ints=[c * p * p]), axis=0
-        )
+        shape_3d = op.Concat(batch, num_patches, op.Constant(value_ints=[c * p * p]), axis=0)
         x = op.Reshape(x, shape_3d)
 
         # Linear projection + position embedding
@@ -280,7 +277,7 @@ class _MoondreamVisionEncoderModel(nn.Module):
 
     Architecture:
         pixel_values → linear patch embed + pos_emb
-        → N × (LN→Attn + LN→MLP) vision blocks
+        → N x (LN→Attn + LN→MLP) vision blocks
         → post-LN
         → duplicate-concat (placeholder for multi-crop reconstruction)
         → 2-layer projection MLP → image_features
@@ -308,9 +305,7 @@ class _MoondreamVisionEncoderModel(nn.Module):
 
         # Projection MLP: 2*enc_dim → proj_inner → text_dim
         # (2*enc_dim because moondream concatenates global + spatial features)
-        proj_inner = getattr(vc, "proj_inner_dim", None) or (
-            vc.intermediate_size * 2
-        )
+        proj_inner = getattr(vc, "proj_inner_dim", None) or (vc.intermediate_size * 2)
         self.proj_mlp = VisionMLP(vc.hidden_size * 2, proj_inner)
         self._proj_out_dim = config.hidden_size
 
@@ -354,15 +349,11 @@ class _MoondreamEmbeddingModel(nn.Module):
         )
         self.image_token_id = config.image_token_id or 0
 
-    def forward(
-        self, op: builder.OpBuilder, input_ids: ir.Value, image_features: ir.Value
-    ):
+    def forward(self, op: builder.OpBuilder, input_ids: ir.Value, image_features: ir.Value):
         text_embeds = self.embed_tokens(op, input_ids)
 
         # Mask where input_ids == image_token_id
-        image_mask = op.Equal(
-            input_ids, op.Constant(value_int=self.image_token_id)
-        )
+        image_mask = op.Equal(input_ids, op.Constant(value_int=self.image_token_id))
         image_mask_3d = op.Unsqueeze(image_mask, [-1])
 
         # CumSum to map each image token to the right feature index
@@ -465,7 +456,7 @@ def _rename_decoder_weights(
         if not name.startswith("model.text."):
             continue
         # Strip "model.text." prefix
-        key = name[len("model.text."):]
+        key = name[len("model.text.") :]
 
         # Skip embedding (goes to embedding model)
         if key == "wte":
@@ -475,7 +466,7 @@ def _rename_decoder_weights(
         if ".attn.qkv." in key:
             # Find the layer prefix: "blocks.N."
             prefix = key[: key.index(".attn.qkv.")]
-            suffix = key[key.index(".attn.qkv.") + len(".attn.qkv."):]
+            suffix = key[key.index(".attn.qkv.") + len(".attn.qkv.") :]
             if suffix == "weight":
                 bias_key = f"model.text.{prefix}.attn.qkv.bias"
                 bias = state_dict.get(bias_key)
@@ -511,7 +502,7 @@ def _rename_vision_weights(
     for name, tensor in state_dict.items():
         if not name.startswith("model.vision."):
             continue
-        key = name[len("model.vision."):]
+        key = name[len("model.vision.") :]
 
         # patch_emb → patch_embed.patch_emb
         if key.startswith("patch_emb."):
@@ -539,7 +530,7 @@ def _rename_vision_weights(
             if ".attn.qkv." in key:
                 prefix = key[: key.index(".attn.qkv.")]
                 layer_idx = prefix.split(".")[1]
-                suffix = key[key.index(".attn.qkv.") + len(".attn.qkv."):]
+                suffix = key[key.index(".attn.qkv.") + len(".attn.qkv.") :]
                 if suffix == "weight":
                     # Vision: equal Q/K/V (enc_dim each)
                     dim = tensor.shape[0] // 3

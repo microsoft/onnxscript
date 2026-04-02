@@ -67,9 +67,7 @@ class _ConvNorm(nn.Module):
         super().__init__()
         if padding is None:
             padding = (kernel_size - 1) // 2
-        self.conv = Conv2dNoBias(
-            in_channels, out_channels, kernel_size, stride, padding
-        )
+        self.conv = Conv2dNoBias(in_channels, out_channels, kernel_size, stride, padding)
         self.norm = BatchNorm2d(out_channels)
         self._activate = activate
 
@@ -89,12 +87,8 @@ class _RepVggBlock(nn.Module):
 
     def __init__(self, channels: int):
         super().__init__()
-        self.conv1 = _ConvNorm(
-            channels, channels, kernel_size=3, padding=1, activate=False
-        )
-        self.conv2 = _ConvNorm(
-            channels, channels, kernel_size=1, padding=0, activate=False
-        )
+        self.conv1 = _ConvNorm(channels, channels, kernel_size=3, padding=1, activate=False)
+        self.conv2 = _ConvNorm(channels, channels, kernel_size=1, padding=0, activate=False)
 
     def forward(self, op: builder.OpBuilder, x: ir.Value) -> ir.Value:
         y = op.Add(self.conv1(op, x), self.conv2(op, x))
@@ -121,9 +115,7 @@ class _CSPRepLayer(nn.Module):
         hidden = int(out_channels * expansion)
         self.conv1 = _ConvNorm(in_channels, hidden, kernel_size=1)
         self.conv2 = _ConvNorm(in_channels, hidden, kernel_size=1)
-        self.bottlenecks = nn.Sequential(
-            *[_RepVggBlock(hidden) for _ in range(num_blocks)]
-        )
+        self.bottlenecks = nn.Sequential(*[_RepVggBlock(hidden) for _ in range(num_blocks)])
         # Identity when hidden == out_channels (common case)
         self._use_conv3 = hidden != out_channels
         if self._use_conv3:
@@ -185,9 +177,7 @@ class _RtDetrShortcut(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, stride: int):
         super().__init__()
         self._stride = stride
-        self.convolution = Conv2dNoBias(
-            in_channels, out_channels, kernel_size=1, stride=1
-        )
+        self.convolution = Conv2dNoBias(in_channels, out_channels, kernel_size=1, stride=1)
         self.normalization = BatchNorm2d(out_channels)
 
     def forward(self, op: builder.OpBuilder, x: ir.Value) -> ir.Value:
@@ -218,11 +208,13 @@ class _BottleneckBlock(nn.Module):
     ):
         super().__init__()
         mid = out_channels // reduction
-        self.layer = nn.ModuleList([
-            _ConvBnRelu(in_channels, mid, kernel_size=1),
-            _ConvBnRelu(mid, mid, kernel_size=3, stride=stride, padding=1),
-            _ConvBnRelu(mid, out_channels, kernel_size=1, activate=False),
-        ])
+        self.layer = nn.ModuleList(
+            [
+                _ConvBnRelu(in_channels, mid, kernel_size=1),
+                _ConvBnRelu(mid, mid, kernel_size=3, stride=stride, padding=1),
+                _ConvBnRelu(mid, out_channels, kernel_size=1, activate=False),
+            ]
+        )
         self._use_shortcut = (in_channels != out_channels) or stride != 1
         if self._use_shortcut:
             self.shortcut = _RtDetrShortcut(in_channels, out_channels, stride)
@@ -274,27 +266,31 @@ class _RtDetrResNetBackbone(nn.Module):
         num_channels = getattr(config, "num_channels", 3)
 
         # Stem: 3x Conv3x3 with BN + ReLU
-        self.embedder = nn.ModuleList([
-            _ConvBnRelu(num_channels, embed // 2, 3, stride=2, padding=1),
-            _ConvBnRelu(embed // 2, embed // 2, 3, stride=1, padding=1),
-            _ConvBnRelu(embed // 2, embed, 3, stride=1, padding=1),
-        ])
+        self.embedder = nn.ModuleList(
+            [
+                _ConvBnRelu(num_channels, embed // 2, 3, stride=2, padding=1),
+                _ConvBnRelu(embed // 2, embed // 2, 3, stride=1, padding=1),
+                _ConvBnRelu(embed // 2, embed, 3, stride=1, padding=1),
+            ]
+        )
 
         # 4 stages of bottleneck blocks
         in_ch = [embed, *list(hidden_sizes[:-1])]
-        self.stages = nn.ModuleList([
-            _ResNetStage(
-                in_ch[i], hidden_sizes[i], depths[i],
-                stride=1 if i == 0 else 2,
-            )
-            for i in range(4)
-        ])
+        self.stages = nn.ModuleList(
+            [
+                _ResNetStage(
+                    in_ch[i],
+                    hidden_sizes[i],
+                    depths[i],
+                    stride=1 if i == 0 else 2,
+                )
+                for i in range(4)
+            ]
+        )
 
         self._out_indices = list(config.backbone_out_indices)
 
-    def forward(
-        self, op: builder.OpBuilder, pixel_values: ir.Value
-    ) -> list[ir.Value]:
+    def forward(self, op: builder.OpBuilder, pixel_values: ir.Value) -> list[ir.Value]:
         # Stem: (B, 3, H, W) → (B, embed, H/2, W/2)
         x = pixel_values
         for conv in self.embedder:
@@ -330,7 +326,7 @@ def _compute_sine_pos_embed_2d(
     assert d_model % 4 == 0
     pos_dim = d_model // 4
     omega = np.arange(pos_dim, dtype=np.float32) / pos_dim
-    omega = 1.0 / (temperature ** omega)
+    omega = 1.0 / (temperature**omega)
 
     grid_w = np.arange(w, dtype=np.float32)
     grid_h = np.arange(h, dtype=np.float32)
@@ -374,9 +370,7 @@ class _AIFIEncoderLayer(nn.Module):
         self.fc2 = Linear(ffn_dim, d_model, bias=True)
         self.final_layer_norm = LayerNorm(d_model, eps=1e-5)
 
-    def forward(
-        self, op: builder.OpBuilder, x: ir.Value, pos_embed: ir.Value
-    ) -> ir.Value:
+    def forward(self, op: builder.OpBuilder, x: ir.Value, pos_embed: ir.Value) -> ir.Value:
         # Self-attention with positional bias on Q and K
         residual = x
         q_input = op.Add(x, pos_embed)
@@ -387,10 +381,12 @@ class _AIFIEncoderLayer(nn.Module):
         v = self.v_proj(op, x)
 
         attn_out = op.Attention(
-            q, k, v,
+            q,
+            k,
+            v,
             q_num_heads=self._num_heads,
             kv_num_heads=self._num_heads,
-            scale=float(self._head_dim ** -0.5),
+            scale=float(self._head_dim**-0.5),
         )
         attn_out = self.o_proj(op, attn_out)
         x = self.self_attn_layer_norm(op, op.Add(residual, attn_out))
@@ -427,29 +423,30 @@ class _HybridEncoder(nn.Module):
         aifi_w = image_size // highest_stride
 
         # AIFI: transformer layers on highest feature level
-        self.aifi = nn.ModuleList([
-            _AIFIWrapper(d, config.encoder_attention_heads,
-                         config.encoder_ffn_dim, config.encoder_layers,
-                         config.positional_encoding_temperature,
-                         spatial_shape=(aifi_h, aifi_w))
-        ])
+        self.aifi = nn.ModuleList(
+            [
+                _AIFIWrapper(
+                    d,
+                    config.encoder_attention_heads,
+                    config.encoder_ffn_dim,
+                    config.encoder_layers,
+                    config.positional_encoding_temperature,
+                    spatial_shape=(aifi_h, aifi_w),
+                )
+            ]
+        )
 
         # FPN (top-down): n_levels - 1 lateral convs + CSP blocks
-        self.lateral_convs = nn.ModuleList([
-            _ConvNorm(d, d, kernel_size=1) for _ in range(n_levels - 1)
-        ])
-        self.fpn_blocks = nn.ModuleList([
-            _CSPRepLayer(d * 2, d) for _ in range(n_levels - 1)
-        ])
+        self.lateral_convs = nn.ModuleList(
+            [_ConvNorm(d, d, kernel_size=1) for _ in range(n_levels - 1)]
+        )
+        self.fpn_blocks = nn.ModuleList([_CSPRepLayer(d * 2, d) for _ in range(n_levels - 1)])
 
         # PAN (bottom-up): n_levels - 1 downsample convs + CSP blocks
-        self.downsample_convs = nn.ModuleList([
-            _ConvNorm(d, d, kernel_size=3, stride=2, padding=1)
-            for _ in range(n_levels - 1)
-        ])
-        self.pan_blocks = nn.ModuleList([
-            _CSPRepLayer(d * 2, d) for _ in range(n_levels - 1)
-        ])
+        self.downsample_convs = nn.ModuleList(
+            [_ConvNorm(d, d, kernel_size=3, stride=2, padding=1) for _ in range(n_levels - 1)]
+        )
+        self.pan_blocks = nn.ModuleList([_CSPRepLayer(d * 2, d) for _ in range(n_levels - 1)])
 
     def forward(
         self,
@@ -517,10 +514,9 @@ class _AIFIWrapper(nn.Module):
     ):
         super().__init__()
         self._d_model = d_model
-        self.layers = nn.ModuleList([
-            _AIFIEncoderLayer(d_model, num_heads, ffn_dim)
-            for _ in range(num_layers)
-        ])
+        self.layers = nn.ModuleList(
+            [_AIFIEncoderLayer(d_model, num_heads, ffn_dim) for _ in range(num_layers)]
+        )
         # Pre-compute sine position encoding as a constant initializer
         if spatial_shape is not None:
             h, w = spatial_shape
@@ -536,9 +532,7 @@ class _AIFIWrapper(nn.Module):
             self._h = 0
             self._w = 0
 
-    def forward(
-        self, op: builder.OpBuilder, feature: ir.Value
-    ) -> ir.Value:
+    def forward(self, op: builder.OpBuilder, feature: ir.Value) -> ir.Value:
         # feature: (B, C, H, W)
         batch = op.Shape(feature, start=0, end=1)
 
@@ -601,12 +595,8 @@ class _DeformableAttention(nn.Module):
         self._n_points = n_points
         self._d_head = d_model // n_heads
 
-        self.sampling_offsets = Linear(
-            d_model, n_heads * n_levels * n_points * 2, bias=True
-        )
-        self.attention_weights = Linear(
-            d_model, n_heads * n_levels * n_points, bias=True
-        )
+        self.sampling_offsets = Linear(d_model, n_heads * n_levels * n_points * 2, bias=True)
+        self.attention_weights = Linear(d_model, n_heads * n_levels * n_points, bias=True)
         self.value_proj = Linear(d_model, d_model, bias=True)
         self.output_proj = Linear(d_model, d_model, bias=True)
 
@@ -752,7 +742,8 @@ class _DeformableAttention(nn.Module):
             # GridSample: (B*H, d_head, h_l, w_l) + (B*H, Q, P, 2)
             #           → (B*H, d_head, Q, P)
             sampled_l = op.GridSample(
-                value_l, grid_l,
+                value_l,
+                grid_l,
                 align_corners=0,
                 mode="bilinear",
                 padding_mode="zeros",
@@ -786,7 +777,8 @@ class _DeformableAttention(nn.Module):
         output = op.Reshape(
             output,
             op.Concat(
-                batch, op.Constant(value_ints=[self._d_model, -1]),
+                batch,
+                op.Constant(value_ints=[self._d_model, -1]),
                 axis=0,
             ),
         )
@@ -816,8 +808,10 @@ class _RtDetrDecoderLayer(nn.Module):
 
         # Cross-attention (multi-scale deformable)
         self.encoder_attn = _DeformableAttention(
-            d, config.decoder_attention_heads,
-            config.num_feature_levels, config.decoder_n_points,
+            d,
+            config.decoder_attention_heads,
+            config.num_feature_levels,
+            config.decoder_n_points,
         )
         self.encoder_attn_layer_norm = LayerNorm(d, eps=1e-5)
 
@@ -840,27 +834,25 @@ class _RtDetrDecoderLayer(nn.Module):
         q = op.Add(hidden_states, query_pos)
         k = op.Add(hidden_states, query_pos)
         attn_out = self.self_attn(op, q, k, hidden_states)
-        hidden_states = self.self_attn_layer_norm(
-            op, op.Add(residual, attn_out)
-        )
+        hidden_states = self.self_attn_layer_norm(op, op.Add(residual, attn_out))
 
         # Deformable cross-attention with position embedding added to query
         residual = hidden_states
         cross_input = op.Add(hidden_states, query_pos)
         cross_out = self.encoder_attn(
-            op, cross_input, encoder_hidden_states,
-            reference_points, spatial_shapes, level_start_index,
+            op,
+            cross_input,
+            encoder_hidden_states,
+            reference_points,
+            spatial_shapes,
+            level_start_index,
         )
-        hidden_states = self.encoder_attn_layer_norm(
-            op, op.Add(residual, cross_out)
-        )
+        hidden_states = self.encoder_attn_layer_norm(op, op.Add(residual, cross_out))
 
         # FFN
         residual = hidden_states
         ffn_out = self.mlp(op, hidden_states)
-        hidden_states = self.final_layer_norm(
-            op, op.Add(residual, ffn_out)
-        )
+        hidden_states = self.final_layer_norm(op, op.Add(residual, ffn_out))
 
         return hidden_states
 
@@ -888,10 +880,12 @@ class _SelfAttention(nn.Module):
         k = self.k_proj(op, key)
         v = self.v_proj(op, value)
         attn = op.Attention(
-            q, k, v,
+            q,
+            k,
+            v,
             q_num_heads=self._num_heads,
             kv_num_heads=self._num_heads,
-            scale=float(self._head_dim ** -0.5),
+            scale=float(self._head_dim**-0.5),
         )
         return self.o_proj(op, attn)
 
@@ -916,10 +910,9 @@ class _MLPHead(nn.Module):
 
     def __init__(self, dims: list[int]):
         super().__init__()
-        self.layers = nn.ModuleList([
-            Linear(dims[i], dims[i + 1], bias=True)
-            for i in range(len(dims) - 1)
-        ])
+        self.layers = nn.ModuleList(
+            [Linear(dims[i], dims[i + 1], bias=True) for i in range(len(dims) - 1)]
+        )
         self._num_layers = len(dims) - 1
 
     def forward(self, op: builder.OpBuilder, x: ir.Value) -> ir.Value:
@@ -955,10 +948,10 @@ def _generate_anchors(
             indexing="ij",
         )
         grid_xy = np.stack([grid_x, grid_y], axis=-1).reshape(1, h * w, 2)
-        grid_xy = (grid_xy + 0.5)
+        grid_xy = grid_xy + 0.5
         grid_xy[..., 0] /= w
         grid_xy[..., 1] /= h
-        wh = np.ones_like(grid_xy) * grid_size * (2.0 ** level)
+        wh = np.ones_like(grid_xy) * grid_size * (2.0**level)
         all_anchors.append(
             np.concatenate([grid_xy, wh], axis=-1)  # (1, h*w, 4)
         )
@@ -1023,25 +1016,29 @@ class RtDetrForObjectDetection(nn.Module):
         self.backbone = _RtDetrResNetBackbone(config)
 
         # Input projections: backbone channels → d_model
-        self.encoder_input_proj = nn.ModuleList([
-            nn.Sequential(
-                Conv2dNoBias(ch, d, kernel_size=1),
-                BatchNorm2d(d),
-            )
-            for ch in config.encoder_in_channels
-        ])
+        self.encoder_input_proj = nn.ModuleList(
+            [
+                nn.Sequential(
+                    Conv2dNoBias(ch, d, kernel_size=1),
+                    BatchNorm2d(d),
+                )
+                for ch in config.encoder_in_channels
+            ]
+        )
 
         # Hybrid encoder
         self.encoder = _HybridEncoder(config)
 
         # Decoder input projections
-        self.decoder_input_proj = nn.ModuleList([
-            nn.Sequential(
-                Conv2dNoBias(d, d, kernel_size=1),
-                BatchNorm2d(d),
-            )
-            for _ in range(n_levels)
-        ])
+        self.decoder_input_proj = nn.ModuleList(
+            [
+                nn.Sequential(
+                    Conv2dNoBias(d, d, kernel_size=1),
+                    BatchNorm2d(d),
+                )
+                for _ in range(n_levels)
+            ]
+        )
 
         # Encoder output head (for query selection)
         self.enc_output = nn.Sequential(
@@ -1057,8 +1054,7 @@ class RtDetrForObjectDetection(nn.Module):
         # Pre-compute spatial shapes and anchors for the fixed image size
         image_size = getattr(config, "image_size", 640)
         self._spatial_shapes = [
-            (image_size // s, image_size // s)
-            for s in config.feat_strides
+            (image_size // s, image_size // s) for s in config.feat_strides
         ]
         self._level_start_index = []
         idx = 0
@@ -1127,8 +1123,10 @@ class RtDetrForObjectDetection(nn.Module):
         # TopK on max class score per position
         max_scores = op.ReduceMax(enc_scores, op.Constant(value_ints=[-1]), keepdims=0)
         _topk_vals, topk_ind = op.TopK(
-            max_scores, op.Constant(value_int=num_queries),
-            axis=1, _outputs=2,
+            max_scores,
+            op.Constant(value_int=num_queries),
+            axis=1,
+            _outputs=2,
         )  # topk_ind: (B, num_queries)
 
         # Gather reference points and initial target
@@ -1141,9 +1139,7 @@ class RtDetrForObjectDetection(nn.Module):
                 axis=0,
             ),
         )
-        reference_points_unact = op.GatherElements(
-            enc_bboxes_logits, topk_ind_4, axis=1
-        )
+        reference_points_unact = op.GatherElements(enc_bboxes_logits, topk_ind_4, axis=1)
 
         # Expand for d_model gather
         topk_ind_d = op.Expand(
@@ -1158,7 +1154,9 @@ class RtDetrForObjectDetection(nn.Module):
 
         # 8. Decoder with iterative box refinement
         logits, pred_boxes = self.decoder(
-            op, target, source_flatten,
+            op,
+            target,
+            source_flatten,
             reference_points_unact,
             self._spatial_shapes,
             self._level_start_index,
@@ -1182,7 +1180,7 @@ class RtDetrForObjectDetection(nn.Module):
         for name, value in state_dict.items():
             # Strip ForObjectDetection model. prefix
             if name.startswith("model."):
-                name = name[len("model."):]
+                name = name[len("model.") :]
             result = _rename_rt_detr_weight(name, value)
             if result is not None:
                 new[result[0]] = result[1]
@@ -1205,17 +1203,13 @@ class _RtDetrDecoder(nn.Module):
         self.query_pos_head = _MLPHead([4, d * 2, d])
 
         # Decoder layers
-        self.layers = nn.ModuleList([
-            _RtDetrDecoderLayer(config) for _ in range(n)
-        ])
+        self.layers = nn.ModuleList([_RtDetrDecoderLayer(config) for _ in range(n)])
 
         # Per-layer detection heads (iterative refinement)
-        self.class_embed = nn.ModuleList([
-            Linear(d, config.num_labels, bias=True) for _ in range(n)
-        ])
-        self.bbox_embed = nn.ModuleList([
-            _MLPHead([d, d, d, 4]) for _ in range(n)
-        ])
+        self.class_embed = nn.ModuleList(
+            [Linear(d, config.num_labels, bias=True) for _ in range(n)]
+        )
+        self.bbox_embed = nn.ModuleList([_MLPHead([d, d, d, 4]) for _ in range(n)])
 
     def forward(
         self,
@@ -1242,8 +1236,13 @@ class _RtDetrDecoder(nn.Module):
             ref_input = op.Unsqueeze(reference_points, [2])
 
             hidden_states = layer(
-                op, hidden_states, query_pos, encoder_hidden_states,
-                ref_input, spatial_shapes, level_start_index,
+                op,
+                hidden_states,
+                query_pos,
+                encoder_hidden_states,
+                ref_input,
+                spatial_shapes,
+                level_start_index,
             )
 
             # Box refinement: predict delta + add to inverse-sigmoid of ref
@@ -1268,14 +1267,10 @@ class _RtDetrDecoder(nn.Module):
 # ---------------------------------------------------------------------------
 
 # Regex for backbone encoder stage weights
-_BACKBONE_STAGE_RE = re.compile(
-    r"backbone\.encoder\.stages\.(\d+)\.layers\.(\d+)\.(.*)"
-)
+_BACKBONE_STAGE_RE = re.compile(r"backbone\.encoder\.stages\.(\d+)\.layers\.(\d+)\.(.*)")
 
 
-def _rename_rt_detr_weight(
-    name: str, value: torch.Tensor
-) -> tuple[str, torch.Tensor] | None:
+def _rename_rt_detr_weight(name: str, value: torch.Tensor) -> tuple[str, torch.Tensor] | None:
     """Map a single HF RT-DETR weight name to our naming convention.
 
     All names have already had the ``model.`` prefix stripped.
@@ -1288,16 +1283,16 @@ def _rename_rt_detr_weight(
 
     # --- Backbone ---
     if name.startswith("backbone.model."):
-        rest = name[len("backbone.model."):]
+        rest = name[len("backbone.model.") :]
 
         # Stem: embedder.embedder.{0,1,2} → backbone.embedder.{0,1,2}
         if rest.startswith("embedder.embedder."):
-            suffix = rest[len("embedder.embedder."):]
+            suffix = rest[len("embedder.embedder.") :]
             return f"backbone.embedder.{suffix}", value
 
         # Encoder stages
         if rest.startswith("encoder."):
-            suffix = rest[len("encoder."):]
+            suffix = rest[len("encoder.") :]
             new_name = f"backbone.encoder.{suffix}"
             # Handle stride-2 shortcut naming:
             # HF: shortcut.1.convolution → our: shortcut.convolution

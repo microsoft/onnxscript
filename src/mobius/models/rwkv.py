@@ -450,7 +450,7 @@ class RwkvCausalLMModel(nn.Module):
             k = key
             # Strip outer model prefix
             if k.startswith("rwkv."):
-                k = k[len("rwkv."):]
+                k = k[len("rwkv.") :]
             result[k] = value
 
         # Apply rescale_every: scale attention output and FFN value weights
@@ -468,10 +468,8 @@ class RwkvCausalLMModel(nn.Module):
                             if hasattr(w, "mul_") and isinstance(w, torch.Tensor):
                                 result[wname] = w * scale
                             else:
-                                import numpy as np  # noqa: PLC0415
+                                import numpy as np
 
-                                result[wname] = (
-                                    np.array(w, dtype=np.float32) * scale
-                                )
+                                result[wname] = np.array(w, dtype=np.float32) * scale
 
         return result

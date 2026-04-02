@@ -9,11 +9,11 @@ basic (2-layer) and bottleneck (3-layer) residual blocks.
 Architecture overview::
 
     pixel_values (B, 3, H, W)
-      → Stem: Conv2d 7×7/2 + BN + ReLU + MaxPool 3×3/2
-      → Stage 1: N₁ × ResidualBlock(hidden_sizes[0])
-      → Stage 2: N₂ × ResidualBlock(hidden_sizes[1], stride=2)
-      → Stage 3: N₃ × ResidualBlock(hidden_sizes[2], stride=2)
-      → Stage 4: N₄ × ResidualBlock(hidden_sizes[3], stride=2)
+      → Stem: Conv2d 7x7/2 + BN + ReLU + MaxPool 3x3/2
+      → Stage 1: N₁ x ResidualBlock(hidden_sizes[0])
+      → Stage 2: N₂ x ResidualBlock(hidden_sizes[1], stride=2)
+      → Stage 3: N₃ x ResidualBlock(hidden_sizes[2], stride=2)
+      → Stage 4: N₄ x ResidualBlock(hidden_sizes[3], stride=2)
       → AdaptiveAvgPool2d → (B, hidden_sizes[-1], 1, 1)
 
 Replicates HuggingFace ``ResNetModel``.
@@ -28,7 +28,7 @@ from onnxscript import nn
 from onnxscript._internal import builder
 
 from mobius._configs import ResNetConfig
-from mobius.components._conv import BatchNorm2d, Conv2d, Conv2dNoBias
+from mobius.components._conv import BatchNorm2d, Conv2dNoBias
 
 if TYPE_CHECKING:
     import onnx_ir as ir
@@ -67,7 +67,7 @@ class _ConvBnRelu(nn.Module):
 
 
 class _Shortcut(nn.Module):
-    """1×1 convolution shortcut for dimension/stride matching."""
+    """1x1 convolution shortcut for dimension/stride matching."""
 
     def __init__(self, in_channels: int, out_channels: int, stride: int):
         super().__init__()
@@ -83,16 +83,16 @@ class _Shortcut(nn.Module):
 
 
 class _BottleneckBlock(nn.Module):
-    """Bottleneck residual block: 1×1 → 3×3 → 1×1 + shortcut.
+    """Bottleneck residual block: 1x1 → 3x3 → 1x1 + shortcut.
 
     HuggingFace ``ResNetBottleNeckLayer`` structure::
 
-        layer.0: Conv 1×1 (reduce)  + BN + ReLU
-        layer.1: Conv 3×3 (spatial) + BN + ReLU
-        layer.2: Conv 1×1 (expand)  + BN (no ReLU)
-        shortcut: optional 1×1 conv + BN
+        layer.0: Conv 1x1 (reduce)  + BN + ReLU
+        layer.1: Conv 3x3 (spatial) + BN + ReLU
+        layer.2: Conv 1x1 (expand)  + BN (no ReLU)
+        shortcut: optional 1x1 conv + BN
 
-    The stride-2 downsampling is applied in layer.1 (the 3×3 conv)
+    The stride-2 downsampling is applied in layer.1 (the 3x3 conv)
     when ``downsample_in_bottleneck=False`` (HF default for ResNet-50).
     """
 
@@ -105,20 +105,27 @@ class _BottleneckBlock(nn.Module):
     ):
         super().__init__()
         mid_channels = out_channels // reduction
-        # 1×1 reduce
-        self.layer = nn.ModuleList([
-            _ConvBnRelu(in_channels, mid_channels, kernel_size=1),
-            # 3×3 spatial (stride applied here)
-            _ConvBnRelu(
-                mid_channels, mid_channels,
-                kernel_size=3, stride=stride, padding=1,
-            ),
-            # 1×1 expand (no activation — applied after residual add)
-            _ConvBnRelu(
-                mid_channels, out_channels,
-                kernel_size=1, activate=False,
-            ),
-        ])
+        # 1x1 reduce
+        self.layer = nn.ModuleList(
+            [
+                _ConvBnRelu(in_channels, mid_channels, kernel_size=1),
+                # 3x3 spatial (stride applied here)
+                _ConvBnRelu(
+                    mid_channels,
+                    mid_channels,
+                    kernel_size=3,
+                    stride=stride,
+                    padding=1,
+                ),
+                # 1x1 expand (no activation — applied after residual add)
+                _ConvBnRelu(
+                    mid_channels,
+                    out_channels,
+                    kernel_size=1,
+                    activate=False,
+                ),
+            ]
+        )
         # Shortcut when dimensions change
         self._use_shortcut = (in_channels != out_channels) or stride != 1
         if self._use_shortcut:
@@ -134,13 +141,13 @@ class _BottleneckBlock(nn.Module):
 
 
 class _BasicBlock(nn.Module):
-    """Basic residual block: 3×3 → 3×3 + shortcut.
+    """Basic residual block: 3x3 → 3x3 + shortcut.
 
     HuggingFace ``ResNetBasicLayer`` structure::
 
-        layer.0: Conv 3×3 + BN + ReLU
-        layer.1: Conv 3×3 + BN (no ReLU)
-        shortcut: optional 1×1 conv + BN
+        layer.0: Conv 3x3 + BN + ReLU
+        layer.1: Conv 3x3 + BN (no ReLU)
+        shortcut: optional 1x1 conv + BN
     """
 
     def __init__(
@@ -150,16 +157,24 @@ class _BasicBlock(nn.Module):
         stride: int = 1,
     ):
         super().__init__()
-        self.layer = nn.ModuleList([
-            _ConvBnRelu(
-                in_channels, out_channels,
-                kernel_size=3, stride=stride, padding=1,
-            ),
-            _ConvBnRelu(
-                out_channels, out_channels,
-                kernel_size=3, padding=1, activate=False,
-            ),
-        ])
+        self.layer = nn.ModuleList(
+            [
+                _ConvBnRelu(
+                    in_channels,
+                    out_channels,
+                    kernel_size=3,
+                    stride=stride,
+                    padding=1,
+                ),
+                _ConvBnRelu(
+                    out_channels,
+                    out_channels,
+                    kernel_size=3,
+                    padding=1,
+                    activate=False,
+                ),
+            ]
+        )
         self._use_shortcut = (in_channels != out_channels) or stride != 1
         if self._use_shortcut:
             self.shortcut = _Shortcut(in_channels, out_channels, stride)
@@ -213,15 +228,11 @@ class _ResNetEncoder(nn.Module):
         embedding_size = config.embedding_size
 
         # First stage takes from embedding_size, subsequent from previous
-        in_channels = [embedding_size] + list(hidden_sizes[:-1])
+        in_channels = [embedding_size, *list(hidden_sizes[:-1])]
         stages = []
-        for i, (ic, oc, d) in enumerate(
-            zip(in_channels, hidden_sizes, depths)
-        ):
+        for i, (ic, oc, d) in enumerate(zip(in_channels, hidden_sizes, depths)):
             stride = 1 if i == 0 else 2
-            stages.append(
-                _ResNetStage(ic, oc, d, stride, layer_type)
-            )
+            stages.append(_ResNetStage(ic, oc, d, stride, layer_type))
         self.stages = nn.ModuleList(stages)
 
     def forward(self, op: builder.OpBuilder, x: ir.Value) -> ir.Value:
@@ -252,23 +263,22 @@ class ResNetModel(nn.Module):
         embedding_size = config.embedding_size
         num_channels = getattr(config, "num_channels", 3)
 
-        # Stem: 7×7 conv, stride 2, pad 3 → BN → ReLU → MaxPool 3×3/2
+        # Stem: 7x7 conv, stride 2, pad 3 → BN → ReLU → MaxPool 3x3/2
         self.embedder = _ConvBnRelu(
-            num_channels, embedding_size,
-            kernel_size=7, stride=2, padding=3,
+            num_channels,
+            embedding_size,
+            kernel_size=7,
+            stride=2,
+            padding=3,
         )
         self.encoder = _ResNetEncoder(config)
 
-    def forward(
-        self, op: builder.OpBuilder, pixel_values: ir.Value
-    ) -> ir.Value:
+    def forward(self, op: builder.OpBuilder, pixel_values: ir.Value) -> ir.Value:
         # Stem: (B, 3, H, W) → (B, embed, H/2, W/2)
         x = self.embedder(op, pixel_values)
 
         # MaxPool: (B, embed, H/2, W/2) → (B, embed, H/4, W/4)
-        x = op.MaxPool(
-            x, kernel_shape=[3, 3], strides=[2, 2], pads=[1, 1, 1, 1]
-        )
+        x = op.MaxPool(x, kernel_shape=[3, 3], strides=[2, 2], pads=[1, 1, 1, 1])
 
         # Encoder stages: (B, embed, H/4, W/4) → (B, hidden[-1], H/32, W/32)
         x = self.encoder(op, x)
@@ -279,9 +289,7 @@ class ResNetModel(nn.Module):
         # Reshape to (B, 1, C) for image-classification task compatibility
         batch = op.Shape(x, start=0, end=1)
         channels = op.Shape(x, start=1, end=2)
-        x = op.Reshape(
-            x, op.Concat(batch, [1], channels, axis=0)
-        )
+        x = op.Reshape(x, op.Concat(batch, [1], channels, axis=0))
         return x
 
     def preprocess_weights(
@@ -304,7 +312,7 @@ def _rename_resnet_weight(name: str) -> str | None:
     """Rename a single HuggingFace ResNet weight key."""
     # Stem: embedder.embedder.* → embedder.*
     if name.startswith("embedder.embedder."):
-        return name[len("embedder."):]
+        return name[len("embedder.") :]
 
     # Encoder: encoder.stages.* → encoder.stages.*
     if name.startswith("encoder."):

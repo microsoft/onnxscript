@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import pytest
 from mobius.models.resnet import (
     ResNetModel,
     _BasicBlock,

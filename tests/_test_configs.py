@@ -1158,7 +1158,11 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
 # ---------------------------------------------------------------------------
 ENCODER_CONFIGS: list[tuple[str, dict, bool]] = [
     ("bert", {"hidden_act": "gelu", "type_vocab_size": 2}, True),
-    ("clap_text_model", {"hidden_act": "gelu", "type_vocab_size": 1, "projection_dim": 8}, True),
+    (
+        "clap_text_model",
+        {"hidden_act": "gelu", "type_vocab_size": 1, "projection_dim": 8},
+        True,
+    ),
     ("albert", {"hidden_act": "gelu", "type_vocab_size": 2}, True),
     (
         "camembert",

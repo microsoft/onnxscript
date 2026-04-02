@@ -26,8 +26,6 @@ from mobius._configs import (
     BaseModelConfig,
     ConvNextConfig,
     DetrConfig,
-    RtDetrConfig,
-    RwkvConfig,
     MoondreamConfig,
     ResNetConfig,
     RtDetrConfig,
@@ -91,8 +89,8 @@ from mobius.models.bart import BartForConditionalGeneration
 from mobius.models.bert import BertModel
 from mobius.models.blip import BlipVisionModel
 from mobius.models.blip2 import Blip2Model
-from mobius.models.clip import CLIPTextModel, CLIPVisionModel
 from mobius.models.clap import ClapAudioModel, ClapTextModel
+from mobius.models.clip import CLIPTextModel, CLIPVisionModel
 from mobius.models.cohere import CohereCausalLMModel
 from mobius.models.convnext import ConvNextModel
 from mobius.models.ctrl import CTRLCausalLMModel
@@ -112,7 +110,6 @@ from mobius.models.layoutlmv3 import LayoutLMv3Model
 from mobius.models.llava import LLaVAModel
 from mobius.models.longcat_flash import LongcatFlashCausalLMModel
 from mobius.models.mamba import Mamba2CausalLMModel, MambaCausalLMModel
-from mobius.models.rwkv import RwkvCausalLMModel
 from mobius.models.minimax import MiniMaxCausalLMModel
 from mobius.models.mllama import MllamaCausalLMModel
 from mobius.models.modernbert import ModernBertDecoderModel, ModernBertModel
@@ -124,6 +121,7 @@ from mobius.models.qwen3_tts import Qwen3TTSForConditionalGeneration
 from mobius.models.qwen3_tts_tokenizer import Qwen3TTSTokenizerV2Model
 from mobius.models.resnet import ResNetModel
 from mobius.models.rt_detr import RtDetrForObjectDetection
+from mobius.models.rwkv import RwkvCausalLMModel
 from mobius.models.sam2 import Sam2VisionModel
 from mobius.models.segformer import SegformerForSemanticSegmentation
 from mobius.models.starcoder2 import StarCoder2CausalLMModel
@@ -478,7 +476,9 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("mamba2", Mamba2CausalLMModel)
 
     # --- RWKV linear-RNN ---
-    reg.register("rwkv", RwkvCausalLMModel, task="rwkv-text-generation", config_class=RwkvConfig)
+    reg.register(
+        "rwkv", RwkvCausalLMModel, task="rwkv-text-generation", config_class=RwkvConfig
+    )
 
     # --- Hybrid SSM+Attention (Jamba) ---
     reg.register("jamba", JambaCausalLMModel)

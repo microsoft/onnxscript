@@ -75,10 +75,10 @@ from mobius.tasks._multimodal import MultiModalTask
 from mobius.tasks._object_detection import ObjectDetectionTask
 from mobius.tasks._phi4mm_multimodal import Phi4MMMultiModalTask
 from mobius.tasks._qwen_image_vae import QwenImageVAETask
+from mobius.tasks._rwkv_causal_lm import RwkvCausalLMTask
 from mobius.tasks._seq2seq import Seq2SeqTask
 from mobius.tasks._speech_language import SpeechLanguageTask
 from mobius.tasks._speech_to_text import SpeechToTextTask
-from mobius.tasks._rwkv_causal_lm import RwkvCausalLMTask
 from mobius.tasks._ssm_causal_lm import SSM2CausalLMTask, SSMCausalLMTask
 from mobius.tasks._tts import TTSTask
 from mobius.tasks._vae import VAETask

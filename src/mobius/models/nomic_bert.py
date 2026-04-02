@@ -122,15 +122,9 @@ class _NomicBertMLP(nn.Module):
 
     def __init__(self, config: ArchitectureConfig):
         super().__init__()
-        self.gate_proj = Linear(
-            config.hidden_size, config.intermediate_size, bias=False
-        )
-        self.up_proj = Linear(
-            config.hidden_size, config.intermediate_size, bias=False
-        )
-        self.down_proj = Linear(
-            config.intermediate_size, config.hidden_size, bias=False
-        )
+        self.gate_proj = Linear(config.hidden_size, config.intermediate_size, bias=False)
+        self.up_proj = Linear(config.hidden_size, config.intermediate_size, bias=False)
+        self.down_proj = Linear(config.intermediate_size, config.hidden_size, bias=False)
 
     def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
         gate = self.gate_proj(op, hidden_states)
@@ -167,11 +161,13 @@ class _NomicBertLayer(nn.Module):
     ):
         # Post-norm: residual + sublayer → norm
         hidden_states = self.norm1(
-            op, op.Add(hidden_states, self.attn(op, hidden_states, attention_mask, position_embeddings))
+            op,
+            op.Add(
+                hidden_states,
+                self.attn(op, hidden_states, attention_mask, position_embeddings),
+            ),
         )
-        hidden_states = self.norm2(
-            op, op.Add(hidden_states, self.mlp(op, hidden_states))
-        )
+        hidden_states = self.norm2(op, op.Add(hidden_states, self.mlp(op, hidden_states)))
         return hidden_states
 
 
@@ -257,9 +253,7 @@ class _NomicBertEmbeddings(nn.Module):
         self.word_embeddings = Embedding(
             config.vocab_size, config.hidden_size, config.pad_token_id
         )
-        self.token_type_embeddings = Embedding(
-            config.type_vocab_size or 2, config.hidden_size
-        )
+        self.token_type_embeddings = Embedding(config.type_vocab_size or 2, config.hidden_size)
 
     def forward(
         self,
@@ -331,7 +325,7 @@ def _rename_nomic_bert_weight(
 
         # Fused QKV: attn.Wqkv.weight [3*H, H] → split into q/k/v
         if remainder.startswith("attn.Wqkv."):
-            param_type = remainder[len("attn.Wqkv."):]  # "weight"
+            param_type = remainder[len("attn.Wqkv.") :]  # "weight"
             dim = tensor.shape[0] // 3
             q, k, v = tensor.split(dim, dim=0)
             out[f"{prefix}.attn.q_proj.{param_type}"] = q
