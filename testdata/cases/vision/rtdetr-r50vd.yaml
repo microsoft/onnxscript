@@ -1,0 +1,12 @@
+model_id: "PekingU/rtdetr_r50vd"
+revision: "df939e661d8c52e80608d1ec566561aabd25a4e7"
+task_type: "object-detection"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "RT-DETR (Real-Time DEtection TRansformer) with ResNet-50vd backbone. Baidu's real-time object detector using hybrid encoder (AIFI + CCFM) and deformable attention decoder. COCO 80 classes."
