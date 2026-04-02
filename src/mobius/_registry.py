@@ -459,6 +459,7 @@ def _create_default_registry() -> ModelRegistry:
         "deepseek_v2",
         "deepseek_v2_moe",
         "deepseek_v3",
+        "kimi_k2",
     ):
         reg.register(name, DeepSeekV3CausalLMModel)
 
@@ -867,6 +868,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "deepseek_v2": "deepseek-ai/DeepSeek-V2-Lite",
     "deepseek_v2_moe": "deepseek-ai/DeepSeek-V2-Lite",
     "deepseek_v3": "deepseek-ai/DeepSeek-V3",
+    "kimi_k2": "moonshotai/Kimi-K2-Instruct",
 
     # --- SSM (Mamba) ---
     "mamba": "state-spaces/mamba-130m-hf",
@@ -1069,6 +1071,7 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "deepseek_v2": "deepseek",
     "deepseek_v2_moe": "deepseek",
     "deepseek_v3": "deepseek",
+    "kimi_k2": "deepseek",
     "deepseek_vl_v2": "deepseek",
     "olmo": "olmo",
     "olmo2": "olmo",
@@ -1142,6 +1145,7 @@ _VARIANT_LABELS: dict[str, str] = {
     "deepseek_v2": "mla",
     "deepseek_v2_moe": "mla+moe",
     "deepseek_v3": "mla+moe",
+    "kimi_k2": "mla+moe",
     "phi3small": "blocksparse",
     "falcon_h1": "hybrid-ssm",
     "mamba": "ssm",
