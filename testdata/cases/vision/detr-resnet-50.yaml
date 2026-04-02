@@ -1,0 +1,12 @@
+model_id: "facebook/detr-resnet-50"
+revision: "1d5f47bd3bdd2c4bbfa585418ffe6da5028b4c0b"
+task_type: "object-detection"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "DETR (DEtection TRansformer) with ResNet-50 backbone. End-to-end object detection on COCO (91 classes)."

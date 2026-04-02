@@ -1,0 +1,12 @@
+model_id: "microsoft/table-transformer-detection"
+revision: "2357cbe2b5a5d1c03e54f32764f06058933b65ab"
+task_type: "object-detection"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "Table Transformer Detection — DETR fine-tuned for table detection in document images (2 classes: table, table rotated)."
