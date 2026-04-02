@@ -352,7 +352,7 @@ def _rename_nomic_bert_weight(
             return name.replace("mlp.fc2.", "mlp.down_proj.")
 
         # Norms: norm1, norm2 — already aligned
-        if remainder.startswith("norm1.") or remainder.startswith("norm2."):
+        if remainder.startswith(("norm1.", "norm2.")):
             return name
 
     return None
