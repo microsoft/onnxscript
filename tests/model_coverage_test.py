@@ -273,6 +273,8 @@ _COVERAGE_SKIP: dict[str, str] = {
     "youtu": "CausalLM — YAML not yet created",
     "zamba": "CausalLM — YAML not yet created",
     "zamba2": "CausalLM — YAML not yet created",
+    # --- Contrastive models (tested via specialized test classes) ---
+    "clip": "Contrastive model — tested via TestBuildCLIPContrastiveGraph",
 }
 
 

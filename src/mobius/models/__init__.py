@@ -13,6 +13,8 @@ __all__ = [
     "BertModel",
     "Blip2Model",
     "BloomCausalLMModel",
+    "CLIPModel",
+    "CLIPTextModel",
     "CLIPVisionModel",
     "CLIPSegModel",
     "CTRLCausalLMModel",
@@ -144,7 +146,7 @@ from mobius.models.bert import BertModel
 from mobius.models.blip2 import Blip2Model
 from mobius.models.chatglm import ChatGLMCausalLMModel
 from mobius.models.clap import ClapAudioModel, ClapModel, ClapTextModel
-from mobius.models.clip import CLIPVisionModel
+from mobius.models.clip import CLIPModel, CLIPTextModel, CLIPVisionModel
 from mobius.models.clipseg import CLIPSegModel
 from mobius.models.cogvideox import CogVideoXTransformer3DModel
 from mobius.models.cohere import CohereCausalLMModel
