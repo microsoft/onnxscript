@@ -3686,6 +3686,115 @@ class TestBuildClapAudioGraph:
 
 
 # ===========================================================================
+# Contrastive model tests (CLIP, CLAP top-level)
+# ===========================================================================
+
+
+class TestBuildCLIPContrastiveGraph:
+    """Verify CLIPModel builds valid text + vision ONNX graphs."""
+
+    def _build_clip(self):
+        from mobius.models.clip import CLIPModel
+        from mobius.tasks import ContrastiveTask
+
+        config = _base_config(
+            hidden_act="quick_gelu",
+            image_size=32,
+            patch_size=8,
+            num_channels=3,
+            projection_dim=32,
+        )
+        module = CLIPModel(config)
+        task = ContrastiveTask()
+        return task.build(module, config)
+
+    def test_graph_builds_text_and_vision(self):
+        pkg = self._build_clip()
+        assert "text" in pkg, "Should produce 'text' model"
+        assert "vision" in pkg, "Should produce 'vision' model"
+
+    def test_text_model_has_correct_inputs(self):
+        pkg = self._build_clip()
+        text_model = pkg["text"]
+        input_names = {inp.name for inp in text_model.graph.inputs}
+        assert "input_ids" in input_names
+        assert "attention_mask" in input_names
+
+    def test_vision_model_has_correct_inputs(self):
+        pkg = self._build_clip()
+        vision_model = pkg["vision"]
+        input_names = {inp.name for inp in vision_model.graph.inputs}
+        assert "pixel_values" in input_names
+
+    def test_text_model_output_is_embeddings(self):
+        pkg = self._build_clip()
+        text_model = pkg["text"]
+        output_names = {out.name for out in text_model.graph.outputs}
+        assert "text_embeds" in output_names
+
+    def test_vision_model_output_is_embeddings(self):
+        pkg = self._build_clip()
+        vision_model = pkg["vision"]
+        output_names = {out.name for out in vision_model.graph.outputs}
+        assert "vision_embeds" in output_names
+
+
+class TestBuildCLAPContrastiveGraph:
+    """Verify ClapModel builds valid text + audio ONNX graphs."""
+
+    def _build_clap(self):
+        from mobius._configs import AudioConfig
+        from mobius.models.clap import ClapModel
+        from mobius.tasks import ContrastiveTask
+
+        config = _base_config(
+            projection_dim=8,
+            audio=AudioConfig(
+                spec_size=16,
+                num_mel_bins=4,
+                patch_size=4,
+                window_size=2,
+                depths=[1, 1],
+                num_attention_heads=[2, 4],
+                patch_embeds_hidden_size=8,
+            ),
+        )
+        module = ClapModel(config)
+        task = ContrastiveTask()
+        return task.build(module, config)
+
+    def test_graph_builds_text_and_audio(self):
+        pkg = self._build_clap()
+        assert "text" in pkg, "Should produce 'text' model"
+        assert "audio" in pkg, "Should produce 'audio' model"
+
+    def test_text_model_has_correct_inputs(self):
+        pkg = self._build_clap()
+        text_model = pkg["text"]
+        input_names = {inp.name for inp in text_model.graph.inputs}
+        assert "input_ids" in input_names
+        assert "attention_mask" in input_names
+
+    def test_audio_model_has_correct_inputs(self):
+        pkg = self._build_clap()
+        audio_model = pkg["audio"]
+        input_names = {inp.name for inp in audio_model.graph.inputs}
+        assert "input_features" in input_names
+
+    def test_text_output_is_embeddings(self):
+        pkg = self._build_clap()
+        text_model = pkg["text"]
+        output_names = {out.name for out in text_model.graph.outputs}
+        assert "text_embeds" in output_names
+
+    def test_audio_output_is_embeddings(self):
+        pkg = self._build_clap()
+        audio_model = pkg["audio"]
+        output_names = {out.name for out in audio_model.graph.outputs}
+        assert "audio_embeds" in output_names
+
+
+# ===========================================================================
 # Registry completeness
 # ===========================================================================
 
@@ -3772,6 +3881,9 @@ _SPECIALIZED_TEST_MODEL_TYPES: set[str] = {
     "rwkv6",
     # CLAP audio dedicated tests
     "clap_audio_model",
+    # Contrastive model dedicated tests
+    "clip",
+    "clap",
 }
 
 # Registered model types that truly have no test coverage yet.

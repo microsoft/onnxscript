@@ -13,7 +13,7 @@ from onnxscript._internal import builder
 
 from mobius._configs import ArchitectureConfig
 from mobius.components import FCMLP
-from mobius.components._common import Embedding, LayerNorm
+from mobius.components._common import Embedding, LayerNorm, Linear
 from mobius.components._conv import Conv2d
 from mobius.components._encoder import EncoderAttention
 
