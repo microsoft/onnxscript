@@ -1,0 +1,12 @@
+model_id: "facebook/convnext-tiny-224"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "ConvNeXT-Tiny. Modernized pure-CNN backbone: depthwise conv, LayerNorm, GELU, inverted bottleneck, layer scale."
