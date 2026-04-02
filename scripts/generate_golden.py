@@ -555,6 +555,110 @@ def _generate_image_classification(case: TestCase, json_path: Path, device: str)
     )
 
 
+def _generate_audio_language(case: TestCase, json_path: Path, device: str) -> None:
+    """Generate golden data for audio-language (3-model split) models.
+
+    Handles models like AudioFlamingo3 and VibeVoice-ASR that combine an audio
+    encoder with a text decoder using audio token fusion.  The HF processor
+    handles both audio preprocessing (mel spectrogram, etc.) and tokenization.
+
+    L4: single forward pass → top-k logits.
+    L5: ``model.generate()`` → decoded text.
+    """
+    import librosa
+    import torch
+
+    from mobius._testing.golden import save_generation_json, save_golden_ref
+    from mobius._testing.torch_reference import load_torch_audio_language_model
+
+    model, processor = load_torch_audio_language_model(
+        case.model_id, device=device, trust_remote_code=case.trust_remote_code
+    )
+
+    # Load audio from testdata/
+    audio_path = Path("testdata") / case.audio[0]
+    audio_array, sample_rate = librosa.load(str(audio_path), sr=16000)
+
+    prompt_text = case.prompts[0] if case.prompts else "Describe the audio."
+
+    # Try Qwen-style apply_chat_template with audio content block
+    if hasattr(processor, "apply_chat_template"):
+        content: list[dict] = [
+            {"type": "audio", "audio_url": str(audio_path)},
+            {"type": "text", "text": prompt_text},
+        ]
+        messages = [{"role": "user", "content": content}]
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            prompt_text = processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+
+    # Process audio and text through the HF processor
+    try:
+        processed = processor(
+            text=prompt_text,
+            audio=audio_array,
+            sampling_rate=sample_rate,
+            return_tensors="pt",
+        ).to(device)
+    except TypeError:
+        # Some processors use 'audios' instead of 'audio'
+        processed = processor(
+            text=prompt_text,
+            audios=audio_array,
+            sampling_rate=sample_rate,
+            return_tensors="pt",
+        ).to(device)
+
+    # L4: single forward pass
+    with torch.no_grad():
+        outputs = model(**processed)
+
+    last_logits = outputs.logits[0, -1, :].cpu().numpy()
+    golden = _extract_logits_golden(last_logits)
+    input_ids_np = processed["input_ids"].cpu().numpy()
+
+    # L5: greedy generation
+    generated_ids = None
+    if "L5" in case.level:
+        with torch.no_grad():
+            gen = model.generate(
+                **processed,
+                max_new_tokens=case.generation_params.get("max_new_tokens", 50),
+                do_sample=False,
+            )
+        input_len = processed["input_ids"].shape[1]
+        generated_ids = gen[0, input_len:].cpu().numpy()
+
+    save_golden_ref(
+        json_path,
+        top1_id=golden["top1_id"],
+        top2_id=golden["top2_id"],
+        top10_ids=golden["top10_ids"],
+        top10_logits=golden["top10_logits"],
+        logits_summary=golden["logits_summary"],
+        input_ids=input_ids_np,
+    )
+
+    if generated_ids is not None:
+        tokenizer = getattr(processor, "tokenizer", None)
+        generated_text = (
+            tokenizer.decode(generated_ids.tolist(), skip_special_tokens=True)
+            if tokenizer is not None
+            else None
+        )
+        gen_path = json_path.with_name(json_path.stem + "_generation.json")
+        save_generation_json(
+            gen_path,
+            model_id=case.model_id,
+            prompt=prompt_text,
+            generated_tokens=generated_ids.tolist(),
+            generated_text=generated_text,
+        )
+
+
 # ---- Dispatcher ----
 
 # Map task_type strings to generator functions.
@@ -566,6 +670,8 @@ _GENERATORS = {
     "image-classification": _generate_image_classification,
     "speech-to-text": _generate_speech_to_text,
     "audio-feature-extraction": _generate_audio_feature_extraction,
+    "audio-language": _generate_audio_language,
+    "speech-language": _generate_audio_language,
 }
 
 

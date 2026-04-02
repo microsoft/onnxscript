@@ -464,6 +464,42 @@ def torch_audio_forward(
 
 
 # ---------------------------------------------------------------------------
+# Audio-language models (AudioFlamingo3, VibeVoice-ASR, etc.)
+# ---------------------------------------------------------------------------
+
+
+def load_torch_audio_language_model(
+    model_id: str,
+    dtype: torch.dtype = torch.float32,
+    device: str = "cpu",
+    trust_remote_code: bool = True,
+):
+    """Load a HuggingFace audio-language model for reference inference.
+
+    Handles models with a 3-model split: audio encoder, embedding, and
+    text decoder (e.g. AudioFlamingo3, VibeVoice-ASR).
+
+    Returns:
+        Tuple of ``(model, processor)``.  The processor handles both audio
+        feature extraction (mel spectrogram or similar) and tokenization.
+    """
+    import transformers
+
+    processor = transformers.AutoProcessor.from_pretrained(
+        model_id, trust_remote_code=trust_remote_code
+    )
+    model = transformers.AutoModelForConditionalGeneration.from_pretrained(
+        model_id,
+        torch_dtype=dtype,
+        device_map=device,
+        trust_remote_code=trust_remote_code,
+    )
+    model.eval()
+
+    return model, processor
+
+
+# ---------------------------------------------------------------------------
 # Whisper encoder-decoder models
 # ---------------------------------------------------------------------------
 
