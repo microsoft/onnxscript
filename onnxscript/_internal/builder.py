@@ -31,6 +31,7 @@ VALUE_LIKE = Union[
     Sequence[float],
     Sequence[bool],
     Sequence[str],
+    None,
 ]
 
 # Mapping from Python scalar types to their default ONNX DataType,
@@ -132,6 +133,7 @@ def build_graph(
     *,
     opset_imports: dict[str, int] | None = None,
     name: str = "subgraph",
+    parent: GraphBuilder | None = None,
 ) -> ir.Graph:
     """Build an :class:`ir.Graph` suitable for use as a graph-valued attribute.
 
@@ -164,6 +166,10 @@ def build_graph(
         opset_imports: Opset version map for the subgraph (e.g.
             ``{"": 23}``).  Defaults to ``{"": 23}`` when *None*.
         name: Name of the resulting :class:`ir.Graph`.
+        parent: Optional parent :class:`GraphBuilder`.  When provided, the
+            sub-builder's ``_root`` points to the root builder of the parent,
+            so that :meth:`Parameter._realize` registers initializers in the
+            root (main) graph rather than the subgraph.
 
     Returns:
         An :class:`ir.Graph` whose inputs and outputs are populated and whose
@@ -187,7 +193,9 @@ def build_graph(
     for input_name, ts in resolved_inputs:
         subgraph.inputs.append(ir.Value(name=input_name, type=ts.type, shape=ts.shape))
 
-    sub_builder = GraphBuilder(subgraph)
+    sub_builder = GraphBuilder(subgraph, parent=parent)
+    if parent is not None:
+        sub_builder._scope_stack = list(parent._scope_stack)
     trace_outputs = trace_function(sub_builder.op, *subgraph.inputs)
     if not isinstance(trace_outputs, Sequence):
         trace_outputs = [trace_outputs]
@@ -208,8 +216,10 @@ def build_graph(
 class GraphBuilder:
     """Imperative builder for constructing ONNX IR graphs with automatic constant promotion, type casting, and shape inference."""
 
-    def __init__(self, graph: ir.Graph) -> None:
+    def __init__(self, graph: ir.Graph, parent: GraphBuilder | None = None) -> None:
         self._graph = graph
+        self._parent = parent
+        self._root: GraphBuilder = parent._root if parent is not None else self
 
         # Get the opset version for "" (default domain) from the graph
         if "" not in graph.opset_imports:
@@ -238,6 +248,16 @@ class GraphBuilder:
         return self._op_builder
 
     @property
+    def parent(self) -> GraphBuilder | None:
+        """The parent builder, or None for a top-level builder."""
+        return self._parent
+
+    @property
+    def root(self) -> GraphBuilder:
+        """The root (top-level) builder in the parent chain."""
+        return self._root
+
+    @property
     def graph(self) -> ir.Graph:
         return self._graph
 
@@ -258,7 +278,7 @@ class GraphBuilder:
 
     def _input_to_ir_value(
         self, value: VALUE_LIKE, like_type: ir.Value | None = None
-    ) -> ir.Value:
+    ) -> ir.Value | None:
         """Convert a permissible input (for a call to an op) into an ir.Value.
 
         Permissible values include ir.Value as well as python constants that can be converted
@@ -266,6 +286,8 @@ class GraphBuilder:
         target onnx type.
         """
         if isinstance(value, ir.Value):
+            return value
+        if value is None:
             return value
         dtype = (
             like_type.type.dtype
@@ -356,7 +378,7 @@ class GraphBuilder:
     def _partition_inputs_attributes(
         self,
         schema: onnx.defs.OpSchema | None,
-        inputs: Sequence[ir.Value | ir.TensorProtocol],
+        inputs: Sequence[ir.Value | ir.TensorProtocol | None],
         kwargs: dict[str, Any],
     ) -> tuple[Sequence[ir.Value | ir.TensorProtocol], dict[str, Any]]:
         if schema is None:
@@ -499,12 +521,13 @@ class GraphBuilder:
             outputs,
             opset_imports=dict(self._graph.opset_imports),
             name=name,
+            parent=self,
         )
 
     def call_op(
         self,
         op_type: str,
-        inputs: Sequence[ir.Value | ir.TensorProtocol],
+        inputs: Sequence[ir.Value | ir.TensorProtocol | None],
         kwargs: dict[str, Any],
     ):
         """Create an ONNX node and add it to the graph, returning its output value(s)."""

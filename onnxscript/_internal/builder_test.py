@@ -848,6 +848,39 @@ class GraphBuilderTest(unittest.TestCase):
 
         self.assertIn("does not match", str(cm.exception))
 
+    def test_none_input_is_passed_through(self):
+        """Test that None inputs are preserved as None in the node's inputs."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Gemm's third input (C) is optional; passing None should work
+        result = op.Gemm(x, y, None, alpha=1.0)
+
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        node = nodes[0]
+        self.assertEqual(node.op_type, "Gemm")
+        # The third input should be None (optional, omitted)
+        self.assertEqual(len(list(node.inputs)), 3)
+        self.assertIs(node.inputs[0], x)
+        self.assertIs(node.inputs[1], y)
+        self.assertIsNone(node.inputs[2])
+        self.assertIsNotNone(result)
+
+    def test_none_input_with_custom_domain(self):
+        """Test that None inputs work with custom domain ops."""
+        op, x, y = _create_builder_with_inputs()
+
+        result = op.CustomOp(x, None, y, _domain="com.custom")
+
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        node = nodes[0]
+        self.assertEqual(node.op_type, "CustomOp")
+        self.assertIs(node.inputs[0], x)
+        self.assertIsNone(node.inputs[1])
+        self.assertIs(node.inputs[2], y)
+        self.assertIsNotNone(result)
+
 
 class BuildSubgraphTest(unittest.TestCase):
     """Tests for GraphBuilder.subgraph()."""
@@ -1027,6 +1060,88 @@ class BuildGraphFunctionTest(unittest.TestCase):
             name="loop_body",
         )
         self.assertEqual(graph.name, "loop_body")
+
+    def test_build_graph_with_parent(self):
+        """build_graph with parent sets root on the sub-builder."""
+        parent_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        parent_builder = builder.GraphBuilder(parent_graph)
+
+        def body(op, x):
+            self.assertIs(op.builder.parent, parent_builder)
+            self.assertIs(op.builder.root, parent_builder)
+            return op.Identity(x)
+
+        builder.build_graph(
+            body,
+            inputs=[FLOAT[3]],
+            outputs=[FLOAT[3]],
+            parent=parent_builder,
+        )
+
+    def test_subgraph_sets_parent_and_root(self):
+        """GraphBuilder.subgraph() sets parent=self on the sub-builder."""
+        parent_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        parent_builder = builder.GraphBuilder(parent_graph)
+
+        def body(op, x):
+            self.assertIs(op.builder.parent, parent_builder)
+            self.assertIs(op.builder.root, parent_builder)
+            return op.Identity(x)
+
+        parent_builder.subgraph(body, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
+
+    def test_build_graph_inherits_parent_scope_stack(self):
+        """build_graph copies the parent's scope stack so nodes in the subgraph carry scoped names."""
+        parent_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        parent_builder = builder.GraphBuilder(parent_graph)
+        parent_builder.push_module("encoder", "Encoder")
+        parent_builder.push_module("layers.0", "TransformerBlock")
+
+        subgraph = builder.build_graph(
+            lambda op, x: op.Relu(x),
+            inputs={"x": FLOAT[3, 4]},
+            outputs={"y": FLOAT[3, 4]},
+            parent=parent_builder,
+        )
+
+        # The single node created inside the subgraph should carry the
+        # parent's scope prefix in its name and metadata.
+        node = subgraph.node(0)
+        self.assertIn("encoder", node.name)
+        self.assertIn("layers.0", node.name)
+        self.assertIn("encoder", node.metadata_props["namespace"])
+        self.assertIn("TransformerBlock", node.metadata_props["namespace"])
+
+    def test_root_graph_builder_is_its_own_root(self):
+        """A top-level GraphBuilder has root == self."""
+        graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        gb = builder.GraphBuilder(graph)
+        self.assertIs(gb.root, gb)
+        self.assertIsNone(gb.parent)
 
 
 class PartitionInputsAttributesTest(unittest.TestCase):
