@@ -3140,6 +3140,159 @@ class TestBuildRwkvGraph:
 
 
 # ===========================================================================
+# RWKV-6 (Eagle/Finch) linear-RNN model tests
+# ===========================================================================
+
+
+class TestBuildRwkv6Graph:
+    """Verify RWKV-6 (Finch/Eagle) causal LM model builds correctly.
+
+    Tests graph structure and the WKV-6 matrix recurrent state I/O convention.
+    """
+
+    def _rwkv6_config(self):
+        """Tiny RWKV-6 config: hidden=64, 2 layers, 2 heads of size 32."""
+        from mobius._configs import Rwkv6Config
+
+        # num_heads = attention_hidden_size // head_size = 64 // 32 = 2
+        return Rwkv6Config(
+            vocab_size=TINY_VOCAB,
+            hidden_size=64,
+            intermediate_size=224,
+            num_hidden_layers=TINY_LAYERS,
+            attention_hidden_size=64,
+            head_size=32,
+            head_size_divisor=8,
+            layer_norm_epsilon=1e-5,
+            rescale_every=0,
+            time_mix_extra_dim=8,
+            time_decay_extra_dim=16,
+        )
+
+    def test_rwkv6_builds(self):
+        """Build RWKV-6 model and verify a single-model package."""
+        from mobius.models.rwkv6 import Rwkv6CausalLMModel
+        from mobius.tasks import Rwkv6CausalLMTask
+
+        config = self._rwkv6_config()
+        module = Rwkv6CausalLMModel(config)
+        pkg = Rwkv6CausalLMTask().build(module, config)
+
+        assert "model" in pkg
+        assert pkg["model"].graph is not None
+
+    def test_rwkv6_inputs_no_attention_mask(self):
+        """Verify RWKV-6 has input_ids but no attention_mask or position_ids."""
+        from mobius.models.rwkv6 import Rwkv6CausalLMModel
+        from mobius.tasks import Rwkv6CausalLMTask
+
+        config = self._rwkv6_config()
+        module = Rwkv6CausalLMModel(config)
+        pkg = Rwkv6CausalLMTask().build(module, config)
+        model = pkg["model"]
+
+        input_names = {inp.name for inp in model.graph.inputs}
+        assert "input_ids" in input_names
+        assert "attention_mask" not in input_names
+        assert "position_ids" not in input_names
+
+    def test_rwkv6_matrix_state_io(self):
+        """Verify 3 state tensors per layer (shift_attn, wkv_state, shift_ffn) in graph I/O."""
+        from mobius.models.rwkv6 import Rwkv6CausalLMModel
+        from mobius.tasks import Rwkv6CausalLMTask
+
+        config = self._rwkv6_config()
+        module = Rwkv6CausalLMModel(config)
+        pkg = Rwkv6CausalLMTask().build(module, config)
+        model = pkg["model"]
+
+        input_names = {inp.name for inp in model.graph.inputs}
+        output_names = {out.name for out in model.graph.outputs}
+
+        for i in range(config.num_hidden_layers):
+            for state_name in ("shift_attn", "wkv_state", "shift_ffn"):
+                assert f"past_states.{i}.{state_name}" in input_names, (
+                    f"Missing input past_states.{i}.{state_name}"
+                )
+                assert f"present.{i}.{state_name}" in output_names, (
+                    f"Missing output present.{i}.{state_name}"
+                )
+
+    def test_rwkv6_logits_output(self):
+        """Verify logits are produced in the graph outputs."""
+        from mobius.models.rwkv6 import Rwkv6CausalLMModel
+        from mobius.tasks import Rwkv6CausalLMTask
+
+        config = self._rwkv6_config()
+        module = Rwkv6CausalLMModel(config)
+        pkg = Rwkv6CausalLMTask().build(module, config)
+        model = pkg["model"]
+
+        output_names = {out.name for out in model.graph.outputs}
+        assert "logits" in output_names
+
+    def test_rwkv6_has_initializers(self):
+        """Verify RWKV-6-specific parameters appear in the graph initializers."""
+        from mobius.models.rwkv6 import Rwkv6CausalLMModel
+        from mobius.tasks import Rwkv6CausalLMTask
+
+        config = self._rwkv6_config()
+        module = Rwkv6CausalLMModel(config)
+        pkg = Rwkv6CausalLMTask().build(module, config)
+        model = pkg["model"]
+
+        init_names = list(model.graph.initializers)
+        assert any("embeddings" in n for n in init_names), "Missing embedding weights"
+        assert any("time_maa" in n for n in init_names), "Missing time_maa params"
+        assert any("time_decay" in n for n in init_names), "Missing time_decay params"
+        assert any("time_faaaa" in n for n in init_names), "Missing time_faaaa (u) params"
+        assert any("ln_out" in n for n in init_names), "Missing ln_out norm"
+
+    def test_rwkv6_registry_lookup(self):
+        """Verify 'rwkv6' is registered with rwkv6-text-generation task."""
+        from mobius.models.rwkv6 import Rwkv6CausalLMModel
+
+        assert registry.get("rwkv6") is Rwkv6CausalLMModel
+        assert _default_task_for_model("rwkv6") == "rwkv6-text-generation"
+
+    def test_rwkv6_ort_inference(self):
+        """Build and run RWKV-6 through OnnxRuntime for end-to-end validation."""
+        import numpy as np
+
+        from mobius._testing.ort_inference import OnnxModelSession
+        from mobius.models.rwkv6 import Rwkv6CausalLMModel
+        from mobius.rewrite_rules._testing_utils import fill_random_weights
+        from mobius.tasks import Rwkv6CausalLMTask
+
+        config = self._rwkv6_config()
+        module = Rwkv6CausalLMModel(config)
+        pkg = Rwkv6CausalLMTask().build(module, config)
+        fill_random_weights(pkg["model"])
+
+        session = OnnxModelSession(pkg["model"])
+
+        batch = 1
+        hidden_size = config.hidden_size
+        num_heads = config.attention_hidden_size // config.head_size
+        head_size = config.head_size
+        n_layers = config.num_hidden_layers
+
+        feeds: dict[str, np.ndarray] = {
+            "input_ids": np.array([[42]], dtype=np.int64),
+        }
+        for i in range(n_layers):
+            feeds[f"past_states.{i}.shift_attn"] = np.zeros((batch, hidden_size), np.float32)
+            feeds[f"past_states.{i}.wkv_state"] = np.zeros(
+                (batch, num_heads, head_size, head_size), np.float32
+            )
+            feeds[f"past_states.{i}.shift_ffn"] = np.zeros((batch, hidden_size), np.float32)
+
+        outputs = session.run(feeds)
+        assert "logits" in outputs
+        assert outputs["logits"].shape == (batch, 1, config.vocab_size)
+
+
+# ===========================================================================
 # Hybrid Mamba2+Attention (Bamba) model tests
 # ===========================================================================
 
@@ -3616,6 +3769,7 @@ _SPECIALIZED_TEST_MODEL_TYPES: set[str] = {
     "jamba",
     # RWKV linear-RNN dedicated tests
     "rwkv",
+    "rwkv6",
     # CLAP audio dedicated tests
     "clap_audio_model",
 }
