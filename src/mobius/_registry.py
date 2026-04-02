@@ -95,7 +95,6 @@ from mobius.models.clap import ClapAudioModel, ClapTextModel
 from mobius.models.clip import CLIPTextModel, CLIPVisionModel
 from mobius.models.cohere import CohereCausalLMModel
 from mobius.models.convnext import ConvNextModel
-from mobius.models.mobilenet_v2 import MobileNetV2Model
 from mobius.models.ctrl import CTRLCausalLMModel
 from mobius.models.depth_anything import DepthAnythingForDepthEstimation
 from mobius.models.detr import DetrForObjectDetection
@@ -115,6 +114,7 @@ from mobius.models.longcat_flash import LongcatFlashCausalLMModel
 from mobius.models.mamba import Mamba2CausalLMModel, MambaCausalLMModel
 from mobius.models.minimax import MiniMaxCausalLMModel
 from mobius.models.mllama import MllamaCausalLMModel
+from mobius.models.mobilenet_v2 import MobileNetV2Model
 from mobius.models.modernbert import ModernBertDecoderModel, ModernBertModel
 from mobius.models.moondream import MoondreamModel
 from mobius.models.opt import OPTCausalLMModel

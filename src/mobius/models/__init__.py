@@ -149,7 +149,6 @@ from mobius.models.cogvideox import CogVideoXTransformer3DModel
 from mobius.models.cohere import CohereCausalLMModel
 from mobius.models.controlnet import ControlNetModel
 from mobius.models.convnext import ConvNextModel
-from mobius.models.mobilenet_v2 import MobileNetV2Model
 from mobius.models.ctrl import CTRLCausalLMModel
 from mobius.models.deepseek import DeepSeekV3CausalLMModel
 from mobius.models.deepseek_ocr2 import DeepSeekOCR2CausalLMModel
@@ -184,6 +183,7 @@ from mobius.models.llava import LLaVAModel
 from mobius.models.longcat_flash import LongcatFlashCausalLMModel
 from mobius.models.mamba import Mamba2CausalLMModel, MambaCausalLMModel
 from mobius.models.minimax import MiniMaxCausalLMModel
+from mobius.models.mobilenet_v2 import MobileNetV2Model
 from mobius.models.moe import (
     Ernie45MoECausalLMModel,
     Glm4MoECausalLMModel,

@@ -46,9 +46,7 @@ class ContrastiveTask(ModelTask):
 
         models: dict[str, ir.Model] = {}
         models["text"] = self._build_text(module.text_encoder, config)
-        models[modality] = self._build_modality(
-            module.modality_encoder, config, modality
-        )
+        models[modality] = self._build_modality(module.modality_encoder, config, modality)
 
         return ModelPackage(models, config=config)
 
@@ -79,9 +77,7 @@ class ContrastiveTask(ModelTask):
         graph, builder = _make_graph([input_ids, attention_mask])
         op = builder.op
 
-        text_embeds = text_encoder(
-            op, input_ids=input_ids, attention_mask=attention_mask
-        )
+        text_embeds = text_encoder(op, input_ids=input_ids, attention_mask=attention_mask)
 
         text_embeds.name = "text_embeds"
         graph.outputs.append(text_embeds)

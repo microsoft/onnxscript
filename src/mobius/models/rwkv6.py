@@ -171,20 +171,20 @@ class _Rwkv6TimeMixing(nn.Module):
             delta = op.Transpose(delta_1bh, perm=[1, 0, 2])  # (B, 1, H)
             return op.Add(hidden, op.Mul(xx, op.Add(base_param, delta)))  # (B, 1, H)
 
-        w_in = _apply_mix(self.time_maa_w, mw)   # (B, 1, H) — for decay
-        k_in = _apply_mix(self.time_maa_k, mk)   # (B, 1, H)
-        v_in = _apply_mix(self.time_maa_v, mv)   # (B, 1, H)
-        r_in = _apply_mix(self.time_maa_r, mr)   # (B, 1, H)
-        g_in = _apply_mix(self.time_maa_g, mg)   # (B, 1, H)
+        w_in = _apply_mix(self.time_maa_w, mw)  # (B, 1, H) — for decay
+        k_in = _apply_mix(self.time_maa_k, mk)  # (B, 1, H)
+        v_in = _apply_mix(self.time_maa_v, mv)  # (B, 1, H)
+        r_in = _apply_mix(self.time_maa_r, mr)  # (B, 1, H)
+        g_in = _apply_mix(self.time_maa_g, mg)  # (B, 1, H)
 
         # ------------------------------------------------------------------
         # 3. Linear projections + gate (SiLU = x * sigmoid(x))
         # ------------------------------------------------------------------
-        r = self.receptance(op, r_in)                               # (B, 1, A)
-        k = self.key(op, k_in)                                      # (B, 1, A)
-        v = self.value(op, v_in)                                    # (B, 1, A)
-        g_gate = self.gate(op, g_in)                                # (B, 1, A)
-        g = op.Mul(g_gate, op.Sigmoid(g_gate))                      # (B, 1, A) — SiLU
+        r = self.receptance(op, r_in)  # (B, 1, A)
+        k = self.key(op, k_in)  # (B, 1, A)
+        v = self.value(op, v_in)  # (B, 1, A)
+        g_gate = self.gate(op, g_in)  # (B, 1, A)
+        g = op.Mul(g_gate, op.Sigmoid(g_gate))  # (B, 1, A) — SiLU
 
         # ------------------------------------------------------------------
         # 4. Data-dependent decay
@@ -192,7 +192,7 @@ class _Rwkv6TimeMixing(nn.Module):
         # w = time_decay + tanh(w_in @ time_decay_w1) @ time_decay_w2
         w_delta = op.MatMul(
             op.Tanh(op.MatMul(w_in, self.time_decay_w1)),  # (B, 1, D_decay)
-            self.time_decay_w2,                             # (D_decay, A)
+            self.time_decay_w2,  # (D_decay, A)
         )  # (B, 1, A)
         w = op.Add(self.time_decay, w_delta)  # (B, 1, A) — log-log decay values
 
@@ -485,7 +485,7 @@ class Rwkv6CausalLMModel(nn.Module):
             present_states.append(new_state)
 
         hidden = self.ln_out(op, hidden)  # (B, 1, H)
-        logits = self.head(op, hidden)    # (B, 1, V)
+        logits = self.head(op, hidden)  # (B, 1, V)
 
         return logits, present_states
 
@@ -517,7 +517,7 @@ class Rwkv6CausalLMModel(nn.Module):
             k = key
             # Strip outer model prefix
             if k.startswith("rwkv6."):
-                k = k[len("rwkv6."):]
+                k = k[len("rwkv6.") :]
             # GroupNorm sub-module → bare param rename
             k = re.sub(r"\.ln_x\.(weight|bias)$", r".ln_x_\1", k)
             result[k] = value
@@ -532,11 +532,11 @@ class Rwkv6CausalLMModel(nn.Module):
                         f"blocks.{block_id}.feed_forward.value.weight",
                     ):
                         if wname in result:
-                            import numpy as np  # noqa: PLC0415
+                            import numpy as np
 
                             w = result[wname]
                             try:
-                                import torch  # noqa: PLC0415
+                                import torch
 
                                 if isinstance(w, torch.Tensor):
                                     result[wname] = w * scale

@@ -379,7 +379,6 @@ def _rename_clip_text_weight(name: str) -> str | None:
     return None
 
 
-
 class _CLIPContrastiveTextEncoder(nn.Module):
     """CLIP text encoder with EOS pooling + projection."""
 
@@ -389,8 +388,12 @@ class _CLIPContrastiveTextEncoder(nn.Module):
         projection_dim = getattr(config, "projection_dim", config.hidden_size)
         self.text_projection = Linear(config.hidden_size, projection_dim, bias=False)
 
-    def forward(self, op: builder.OpBuilder, input_ids: ir.Value, attention_mask: ir.Value) -> ir.Value:
-        hidden_states = self.text_model(op, input_ids, attention_mask, token_type_ids=input_ids)
+    def forward(
+        self, op: builder.OpBuilder, input_ids: ir.Value, attention_mask: ir.Value
+    ) -> ir.Value:
+        hidden_states = self.text_model(
+            op, input_ids, attention_mask, token_type_ids=input_ids
+        )
         eos_positions = op.ArgMax(input_ids, axis=-1, keepdims=False)
         hidden_size = op.Shape(hidden_states, start=2, end=3)
         eos_idx = op.Unsqueeze(eos_positions, [1, 2])
@@ -427,7 +430,9 @@ class CLIPModel(nn.Module):
         self.text_encoder = _CLIPContrastiveTextEncoder(config)
         self.modality_encoder = _CLIPContrastiveVisionEncoder(config)
 
-    def preprocess_weights(self, state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def preprocess_weights(
+        self, state_dict: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
         new_sd: dict[str, torch.Tensor] = {}
         for name, tensor in state_dict.items():
             new_name = _rename_clip_contrastive_weight(name)
