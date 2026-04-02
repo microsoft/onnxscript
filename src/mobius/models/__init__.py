@@ -112,7 +112,9 @@ __all__ = [
     "Qwen3VLVisionEncoderModel",
     "QwenCausalLMModel",
     "QwenImageTransformer2DModel",
+    "ConvNextModel",
     "ResNetModel",
+    "RtDetrForObjectDetection",
     "SD3Transformer2DModel",
     "SmolLM3CausalLMModel",
     "StarCoder2CausalLMModel",
@@ -124,6 +126,7 @@ __all__ = [
     "Wav2Vec2Model",
     "WhisperForConditionalGeneration",
     "XLMCausalLMModel",
+    "ZoeDepthForDepthEstimation",
 ]
 
 from mobius.models.adapters import IPAdapterModel, T2IAdapterModel
@@ -239,7 +242,9 @@ from mobius.models.qwen_vl import (
     Qwen25VLTextModel,
     Qwen25VLVisionEncoderModel,
 )
+from mobius.models.convnext import ConvNextModel
 from mobius.models.resnet import ResNetModel
+from mobius.models.rt_detr import RtDetrForObjectDetection
 from mobius.models.smollm import SmolLM3CausalLMModel
 from mobius.models.starcoder2 import StarCoder2CausalLMModel
 from mobius.models.t5 import T5ForConditionalGeneration
@@ -250,3 +255,4 @@ from mobius.models.vit import ViTModel
 from mobius.models.wav2vec2 import Wav2Vec2Model
 from mobius.models.whisper import WhisperForConditionalGeneration
 from mobius.models.xlm import XLMCausalLMModel
+from mobius.models.zoedepth import ZoeDepthForDepthEstimation

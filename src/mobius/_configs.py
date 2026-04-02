@@ -239,6 +239,13 @@ class AudioConfig:
     classify_num: int | None = None
     # LoRA config
     lora: dict | None = None
+    # HTSAT Swin (CLAP audio encoder)
+    spec_size: int | None = None
+    patch_size: int | None = None
+    window_size: int | None = None
+    depths: list[int] | None = None
+    num_attention_heads: list[int] | None = None
+    patch_embeds_hidden_size: int | None = None
 
 
 def _first_not_none(*values, default=None):
@@ -530,6 +537,25 @@ def _extract_audio_config(config, parent_config, model_type: str) -> dict:
         audio_fields["audio_start_token_id"] = getattr(tc, "audio_start_token_id", None)
         audio_fields["audio_end_token_id"] = getattr(tc, "audio_end_token_id", None)
         audio_fields["classify_num"] = getattr(tc, "classify_num", None)
+
+    # CLAP audio config (laion/clap-htsat-fused and similar)
+    if model_type in ("clap_audio_model", "clap"):
+        hf_audio_config = getattr(config, "audio_config", None)
+        if hf_audio_config is not None:
+            ac = (
+                hf_audio_config
+                if not isinstance(hf_audio_config, dict)
+                else type("AC", (), hf_audio_config)()
+            )
+            audio_fields.update(
+                spec_size=getattr(ac, "spec_size", 256),
+                num_mel_bins=getattr(ac, "num_mel_bins", 64),
+                patch_size=getattr(ac, "patch_size", 4),
+                window_size=getattr(ac, "window_size", 8),
+                depths=getattr(ac, "depths", [2, 2, 6, 2]),
+                num_attention_heads=getattr(ac, "num_attention_heads", [4, 8, 16, 32]),
+                patch_embeds_hidden_size=getattr(ac, "patch_embeds_hidden_size", 96),
+            )
 
     # Build AudioConfig sub-config if any audio fields are set
     has_audio = any(v is not None for v in audio_fields.values())
@@ -1008,17 +1034,18 @@ class ArchitectureConfig(BaseModelConfig):
         # Audio config
         options.update(_extract_audio_config(config, parent_config, model_type))
 
+        # CLAP contrastive projection config
+        if model_type in ("clap", "clap_text_model", "clap_audio_model"):
+            clap_src = parent_config or config
+            options["projection_dim"] = getattr(clap_src, "projection_dim", 512)
+
         # CLIPSeg segmentation decoder config (fields on parent_config)
         seg_source = parent_config or config
         if getattr(seg_source, "reduce_dim", None) is not None:
             options["projection_dim"] = getattr(seg_source, "projection_dim", 512)
             options["reduce_dim"] = getattr(seg_source, "reduce_dim", 64)
-            options["extract_layers"] = getattr(
-                seg_source, "extract_layers", [3, 6, 9]
-            )
-            options["conditional_layer"] = getattr(
-                seg_source, "conditional_layer", 0
-            )
+            options["extract_layers"] = getattr(seg_source, "extract_layers", [3, 6, 9])
+            options["conditional_layer"] = getattr(seg_source, "conditional_layer", 0)
             options["decoder_num_attention_heads"] = getattr(
                 seg_source, "decoder_num_attention_heads", 4
             )
@@ -1467,6 +1494,51 @@ class DepthAnythingConfig(ArchitectureConfig):
 
 
 @dataclasses.dataclass
+class ZoeDepthConfig(ArchitectureConfig):
+    """Configuration for ZoeDepth monocular depth estimation models.
+
+    Extends DepthAnythingConfig-style fields with ZoeDepth-specific
+    bin head parameters (attractors, temperature, etc.).
+    """
+
+    neck_hidden_sizes: list[int] | None = None
+    reassemble_factors: list[float] | None = None
+    fusion_hidden_size: int = 256
+    backbone_out_indices: list[int] | None = None
+    bottleneck_features: int = 256
+    bin_configurations: list[dict] | None = None
+    num_attractors: list[int] | None = None
+    bin_embedding_dim: int = 128
+    num_relative_features: int = 32
+    min_temp: float = 0.0212
+    max_temp: float = 50.0
+    head_in_index: int = -1
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> ZoeDepthConfig:
+        backbone = getattr(config, "backbone_config", config)
+        base = ArchitectureConfig.from_transformers(backbone, parent_config)
+        return cls(
+            **_shallow_fields(base),
+            neck_hidden_sizes=getattr(config, "neck_hidden_sizes", None),
+            reassemble_factors=getattr(config, "reassemble_factors", None),
+            fusion_hidden_size=getattr(config, "fusion_hidden_size", 256),
+            backbone_out_indices=(
+                getattr(backbone, "out_indices", None)
+                or getattr(config, "backbone_out_indices", None)
+            ),
+            bottleneck_features=getattr(config, "bottleneck_features", 256),
+            bin_configurations=getattr(config, "bin_configurations", None),
+            num_attractors=getattr(config, "num_attractors", None),
+            bin_embedding_dim=getattr(config, "bin_embedding_dim", 128),
+            num_relative_features=getattr(config, "num_relative_features", 32),
+            min_temp=getattr(config, "min_temp", 0.0212),
+            max_temp=getattr(config, "max_temp", 50.0),
+            head_in_index=getattr(config, "head_in_index", -1),
+        )
+
+
+@dataclasses.dataclass
 class SegformerConfig(EncoderConfig):
     """Configuration for Segformer hierarchical vision transformers.
 
@@ -1550,9 +1622,7 @@ class DetrConfig(ArchitectureConfig):
     backbone_hidden_sizes: list[int] = dataclasses.field(
         default_factory=lambda: [256, 512, 1024, 2048]
     )
-    backbone_depths: list[int] = dataclasses.field(
-        default_factory=lambda: [3, 4, 6, 3]
-    )
+    backbone_depths: list[int] = dataclasses.field(default_factory=lambda: [3, 4, 6, 3])
     backbone_layer_type: str = "bottleneck"
 
     @classmethod
@@ -1577,6 +1647,89 @@ class DetrConfig(ArchitectureConfig):
 
 
 @dataclasses.dataclass
+class RtDetrConfig(ArchitectureConfig):
+    """Configuration for RT-DETR real-time object detection models.
+
+    RT-DETR uses a ResNet backbone with a hybrid encoder (FPN/PAN/AIFI)
+    and a transformer decoder with multi-scale deformable attention.
+    """
+
+    d_model: int = 256
+    num_queries: int = 300
+    encoder_layers: int = 1
+    decoder_layers: int = 6
+    encoder_attention_heads: int = 8
+    decoder_attention_heads: int = 8
+    encoder_ffn_dim: int = 1024
+    decoder_ffn_dim: int = 1024
+    decoder_n_points: int = 4
+    num_feature_levels: int = 3
+    positional_encoding_temperature: float = 10000.0
+    # Backbone (RT-DETR ResNet variant)
+    backbone_embedding_size: int = 64
+    backbone_hidden_sizes: list[int] = dataclasses.field(
+        default_factory=lambda: [256, 512, 1024, 2048]
+    )
+    backbone_depths: list[int] = dataclasses.field(
+        default_factory=lambda: [3, 4, 6, 3]
+    )
+    backbone_out_indices: list[int] = dataclasses.field(
+        default_factory=lambda: [1, 2, 3]
+    )
+    encoder_in_channels: list[int] = dataclasses.field(
+        default_factory=lambda: [512, 1024, 2048]
+    )
+    feat_strides: list[int] = dataclasses.field(
+        default_factory=lambda: [8, 16, 32]
+    )
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> RtDetrConfig:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+        # Extract backbone config (RTDetrResNetConfig object)
+        bc = getattr(config, "backbone_config", None)
+        if bc is not None and hasattr(bc, "hidden_sizes"):
+            b_hidden = list(bc.hidden_sizes)
+            b_depths = list(bc.depths)
+            b_embed = getattr(bc, "embedding_size", 64)
+            b_out_idx = list(getattr(bc, "out_indices", [2, 3, 4]))
+            # Convert 1-indexed HF out_indices to 0-indexed stages
+            b_out_idx = [i - 1 for i in b_out_idx]
+        else:
+            b_hidden = [256, 512, 1024, 2048]
+            b_depths = [3, 4, 6, 3]
+            b_embed = 64
+            b_out_idx = [1, 2, 3]
+
+        return cls(
+            **_shallow_fields(base),
+            d_model=getattr(config, "d_model", 256),
+            num_queries=getattr(config, "num_queries", 300),
+            encoder_layers=getattr(config, "encoder_layers", 1),
+            decoder_layers=getattr(config, "decoder_layers", 6),
+            encoder_attention_heads=getattr(config, "encoder_attention_heads", 8),
+            decoder_attention_heads=getattr(config, "decoder_attention_heads", 8),
+            encoder_ffn_dim=getattr(config, "encoder_ffn_dim", 1024),
+            decoder_ffn_dim=getattr(config, "decoder_ffn_dim", 1024),
+            decoder_n_points=getattr(config, "decoder_n_points", 4),
+            num_feature_levels=getattr(config, "num_feature_levels", 3),
+            positional_encoding_temperature=getattr(
+                config, "positional_encoding_temperature", 10000.0
+            ),
+            backbone_embedding_size=b_embed,
+            backbone_hidden_sizes=b_hidden,
+            backbone_depths=b_depths,
+            backbone_out_indices=b_out_idx,
+            encoder_in_channels=list(
+                getattr(config, "encoder_in_channels", [512, 1024, 2048])
+            ),
+            feat_strides=list(
+                getattr(config, "feat_strides", [8, 16, 32])
+            ),
+        )
+
+
+@dataclasses.dataclass
 class ResNetConfig(ArchitectureConfig):
     """Configuration for ResNet CNN backbone models.
 
@@ -1584,12 +1737,8 @@ class ResNetConfig(ArchitectureConfig):
     """
 
     embedding_size: int = 64
-    hidden_sizes: list[int] = dataclasses.field(
-        default_factory=lambda: [256, 512, 1024, 2048]
-    )
-    depths: list[int] = dataclasses.field(
-        default_factory=lambda: [3, 4, 6, 3]
-    )
+    hidden_sizes: list[int] = dataclasses.field(default_factory=lambda: [256, 512, 1024, 2048])
+    depths: list[int] = dataclasses.field(default_factory=lambda: [3, 4, 6, 3])
     layer_type: str = "bottleneck"
     downsample_in_bottleneck: bool = False
 
@@ -1599,15 +1748,35 @@ class ResNetConfig(ArchitectureConfig):
         return cls(
             **_shallow_fields(base),
             embedding_size=getattr(config, "embedding_size", 64),
-            hidden_sizes=getattr(
-                config, "hidden_sizes", [256, 512, 1024, 2048]
-            ),
+            hidden_sizes=getattr(config, "hidden_sizes", [256, 512, 1024, 2048]),
             depths=getattr(config, "depths", [3, 4, 6, 3]),
             layer_type=getattr(config, "layer_type", "bottleneck"),
-            downsample_in_bottleneck=getattr(
-                config, "downsample_in_bottleneck", False
-            ),
+            downsample_in_bottleneck=getattr(config, "downsample_in_bottleneck", False),
         )
+
+
+@dataclasses.dataclass
+class ConvNextConfig(ArchitectureConfig):
+    """Configuration for ConvNeXT CNN backbone models.
+
+    ConvNeXT modernizes ResNet: depth-wise conv, LayerNorm, GELU,
+    inverted bottleneck, per-channel layer scale.
+    """
+
+    hidden_sizes: list[int] = dataclasses.field(default_factory=lambda: [96, 192, 384, 768])
+    depths: list[int] = dataclasses.field(default_factory=lambda: [3, 3, 9, 3])
+    layer_scale_init_value: float = 1e-6
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> ConvNextConfig:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+        return cls(
+            **_shallow_fields(base),
+            hidden_sizes=getattr(config, "hidden_sizes", [96, 192, 384, 768]),
+            depths=getattr(config, "depths", [3, 3, 9, 3]),
+            layer_scale_init_value=getattr(config, "layer_scale_init_value", 1e-6),
+        )
+
 
 @dataclasses.dataclass
 class MoondreamConfig(ArchitectureConfig):

@@ -32,6 +32,7 @@ from mobius._configs import (
     LongcatFlashConfig,
     Mamba2Config,
     MambaConfig,
+    ConvNextConfig,
     MllamaConfig,
     MoondreamConfig,
     NanoChatConfig,
@@ -42,6 +43,7 @@ from mobius._configs import (
     VisionConfig,
     WhisperConfig,
     YolosConfig,
+    ZoeDepthConfig,
 )
 
 # ---------------------------------------------------------------------------
@@ -1135,6 +1137,33 @@ ENCODER_CONFIGS: list[tuple[str, dict, bool]] = [
         True,
     ),
     (
+        "clap_text_model",
+        {
+            "hidden_act": "gelu",
+            "type_vocab_size": 1,
+            "projection_dim": 8,
+        },
+        True,
+    ),
+    (
+        "clap_audio_model",
+        {
+            "hidden_size": 16,
+            "hidden_act": "gelu",
+            "projection_dim": 8,
+            "audio": AudioConfig(
+                spec_size=16,
+                num_mel_bins=4,
+                patch_size=4,
+                window_size=2,
+                depths=[1, 1],
+                num_attention_heads=[2, 4],
+                patch_embeds_hidden_size=8,
+            ),
+        },
+        True,
+    ),
+    (
         "data2vec-text",
         {"hidden_act": "gelu", "type_vocab_size": 1},
         False,
@@ -1500,6 +1529,32 @@ VISION_CONFIGS: list[tuple[str, dict, bool]] = [
         True,
     ),
     (
+        "zoedepth",
+        {
+            "_config_cls": ZoeDepthConfig,
+            "hidden_act": "gelu",
+            "hidden_size": 32,
+            "num_hidden_layers": 4,
+            "num_attention_heads": 2,
+            "intermediate_size": 64,
+            "image_size": 32,
+            "patch_size": 16,
+            "num_channels": 3,
+            "backbone_out_indices": [1, 2, 3, 4],
+            "neck_hidden_sizes": [8, 8, 8, 32],
+            "reassemble_factors": [4.0, 2.0, 1.0, 0.5],
+            "fusion_hidden_size": 8,
+            "num_relative_features": 4,
+            "bottleneck_features": 8,
+            "bin_embedding_dim": 8,
+            "num_attractors": [2, 2, 2, 1],
+            "bin_configurations": [
+                {"n_bins": 4, "min_depth": 0.001, "max_depth": 10.0, "name": "nyu"}
+            ],
+        },
+        True,
+    ),
+    (
         "data2vec-vision",
         {
             "hidden_act": "gelu",
@@ -1619,6 +1674,20 @@ VISION_CONFIGS: list[tuple[str, dict, bool]] = [
             "hidden_sizes": [32, 64, 128, 256],
             "depths": [1, 1, 1, 1],
             "layer_type": "bottleneck",
+            "image_size": 32,
+        },
+        True,
+    ),
+    (
+        "convnext",
+        {
+            "_config_cls": ConvNextConfig,
+            "hidden_act": "gelu",
+            "num_channels": 3,
+            "hidden_sizes": [32, 64, 128, 256],
+            "depths": [1, 1, 1, 1],
+            "layer_scale_init_value": 1e-6,
+            "patch_size": 4,
             "image_size": 32,
         },
         True,

@@ -11,6 +11,7 @@ __all__ = [
     "CausalLMTask",
     "DepthAnythingConfig",
     "DetrConfig",
+    "ZoeDepthConfig",
     "EncoderConfig",
     "Gemma2Config",
     "Gemma3nConfig",
@@ -23,6 +24,7 @@ __all__ = [
     "MoondreamConfig",
     "OPSET_VERSION",
     "ResNetConfig",
+    "RtDetrConfig",
     "Sam2Config",
     "SegformerConfig",
     "VisionConfig",
@@ -60,12 +62,14 @@ from mobius._configs import (
     MllamaConfig,
     MoondreamConfig,
     ResNetConfig,
+    RtDetrConfig,
     Sam2Config,
     SegformerConfig,
     VisionConfig,
     VisionLanguageConfig,
     WhisperConfig,
     YolosConfig,
+    ZoeDepthConfig,
 )
 from mobius._constants import OPSET_VERSION
 from mobius._diffusers_builder import build_diffusers_pipeline

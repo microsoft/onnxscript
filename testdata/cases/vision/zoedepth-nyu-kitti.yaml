@@ -1,0 +1,14 @@
+model_id: "Intel/zoedepth-nyu-kitti"
+revision: "main"
+task_type: "depth-estimation"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4+L5"
+
+skip_reason: "ZoeDepth 344M — too large for CI; BEiT ViT-L backbone + DPT neck + attractor metric head."
+
+notes: "ZoeDepth metric depth estimation. BEiT ViT-Large backbone + DPT neck + attractor-based metric calibration head. Supports NYU (0.001–10 m) and KITTI (0.001–80 m) depth ranges."

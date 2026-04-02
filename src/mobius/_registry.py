@@ -24,6 +24,7 @@ from onnxscript import nn
 
 from mobius._configs import (
     BaseModelConfig,
+    ConvNextConfig,
     DetrConfig,
     MoondreamConfig,
     ResNetConfig,
@@ -91,6 +92,7 @@ from mobius.models.clip import CLIPTextModel, CLIPVisionModel
 from mobius.models.cohere import CohereCausalLMModel
 from mobius.models.ctrl import CTRLCausalLMModel
 from mobius.models.depth_anything import DepthAnythingForDepthEstimation
+from mobius.models.detr import DetrForObjectDetection
 from mobius.models.distilbert import DistilBertModel
 from mobius.models.falcon import BloomCausalLMModel, FalconCausalLMModel, MPTCausalLMModel
 from mobius.models.gemma3n import Gemma3nCausalLMModel
@@ -114,6 +116,7 @@ from mobius.models.persimmon import PersimmonCausalLMModel
 from mobius.models.qwen3_asr import Qwen3ASRForConditionalGeneration
 from mobius.models.qwen3_tts import Qwen3TTSForConditionalGeneration
 from mobius.models.qwen3_tts_tokenizer import Qwen3TTSTokenizerV2Model
+from mobius.models.convnext import ConvNextModel
 from mobius.models.resnet import ResNetModel
 from mobius.models.sam2 import Sam2VisionModel
 from mobius.models.segformer import SegformerForSemanticSegmentation
@@ -123,8 +126,8 @@ from mobius.models.trocr import TrOCRForConditionalGeneration
 from mobius.models.vit import ViTModel
 from mobius.models.wav2vec2 import Wav2Vec2Model
 from mobius.models.xlm import XLMCausalLMModel
-from mobius.models.detr import DetrForObjectDetection
 from mobius.models.yolos import YolosForObjectDetection
+from mobius.models.zoedepth import ZoeDepthForDepthEstimation
 
 
 @dataclasses.dataclass(frozen=True)
@@ -520,8 +523,10 @@ def _create_default_registry() -> ModelRegistry:
 
     reg.register("blip-2", Blip2Model, task="vision-language")
     reg.register(
-        "moondream1", MoondreamModel,
-        task="vision-language", config_class=MoondreamConfig,
+        "moondream1",
+        MoondreamModel,
+        task="vision-language",
+        config_class=MoondreamConfig,
     )
     reg.register("phi4mm", Phi4MMMultiModalModel, task="phi4mm-multimodal")
     reg.register("phi4_multimodal", Phi4MMMultiModalModel, task="phi4mm-multimodal")
@@ -656,6 +661,7 @@ def _create_default_registry() -> ModelRegistry:
     reg.register(
         "depth_anything", DepthAnythingForDepthEstimation, task="image-classification"
     )
+    reg.register("zoedepth", ZoeDepthForDepthEstimation, task="image-classification")
     for name in (
         "beit",
         "cvt",
@@ -686,8 +692,17 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("siglip2", CLIPVisionModel, task="image-classification")
     # ResNet (CNN backbone)
     reg.register(
-        "resnet", ResNetModel, task="image-classification",
+        "resnet",
+        ResNetModel,
+        task="image-classification",
         config_class=ResNetConfig,
+    )
+    # ConvNeXT (modernized CNN backbone)
+    reg.register(
+        "convnext",
+        ConvNextModel,
+        task="image-classification",
+        config_class=ConvNextConfig,
     )
 
     # --- Object detection ---
@@ -977,6 +992,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "deit": "facebook/deit-small-patch16-224",
     "blip": "Salesforce/blip-image-captioning-base",
     "depth_anything": "LiheYoung/depth-anything-small-hf",
+    "zoedepth": "Intel/zoedepth-nyu-kitti",
     "yolos": "hustvl/yolos-tiny",
     "segformer": "nvidia/segformer-b0-finetuned-ade-512-512",
     "cvt": "microsoft/cvt-13",
@@ -993,6 +1009,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "siglip": "google/siglip-base-patch16-224",
     "siglip2": "google/siglip2-base-patch16-224",
     "resnet": "microsoft/resnet-50",
+    "convnext": "facebook/convnext-tiny-224",
     "swin2sr": "caidas/swin2SR-classical-sr-x2-64",
     "swinv2": "microsoft/swinv2-tiny-patch4-window16-256",
     "vit_mae": "facebook/vit-mae-base",
