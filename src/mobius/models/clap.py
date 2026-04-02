@@ -805,3 +805,67 @@ class ClapAudioModel(nn.Module):
             elif name.startswith("audio_projection."):
                 result["projection." + name[len("audio_projection.") :]] = tensor
         return result
+
+
+
+class _ClapContrastiveTextEncoder(nn.Module):
+    """CLAP text encoder adapter for ContrastiveTask."""
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__()
+        self.text_model = _ClapTextEncoder(config)
+        self.projection = _ClapProjectionLayer(
+            config.hidden_size, config.hidden_size, config.projection_dim,
+        )
+
+    def forward(self, op: builder.OpBuilder, input_ids: ir.Value, attention_mask: ir.Value) -> ir.Value:
+        pooled = self.text_model(op, input_ids, attention_mask)
+        return self.projection(op, pooled)
+
+
+class _ClapContrastiveAudioEncoder(nn.Module):
+    """CLAP audio encoder adapter for ContrastiveTask."""
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__()
+        assert config.audio is not None
+        self.audio_encoder = _ClapAudioEncoder(config)
+        self.projection = _ClapProjectionLayer(
+            config.hidden_size, config.hidden_size, config.projection_dim,
+        )
+
+    def forward(self, op: builder.OpBuilder, input_features: ir.Value) -> ir.Value:
+        audio_feats = self.audio_encoder(op, input_features)
+        return self.projection(op, audio_feats)
+
+
+class ClapModel(nn.Module):
+    """Top-level CLAP contrastive model (model_type: ``clap``)."""
+
+    default_task = "contrastive"
+    category = "Multimodal"
+    modality = "audio"
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__()
+        self.text_encoder = _ClapContrastiveTextEncoder(config)
+        self.modality_encoder = _ClapContrastiveAudioEncoder(config)
+
+    def preprocess_weights(self, state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        fusion_pfx = ("audio_encoder.patch_embed.fusion_model.", "audio_encoder.patch_embed.mel_conv2d.")
+        result: dict[str, torch.Tensor] = {}
+        for name, tensor in state_dict.items():
+            if name.startswith("logit_scale"):
+                continue
+            if name.startswith("text_model."):
+                result[f"text_encoder.{name}"] = tensor
+            elif name.startswith("text_projection."):
+                result[f"text_encoder.projection.{name[len("text_projection."):]}"] = tensor
+            elif name.startswith("audio_model."):
+                stripped = name[len("audio_model."):]
+                if any(stripped.startswith(p) for p in fusion_pfx):
+                    continue
+                result[f"modality_encoder.{stripped}"] = tensor
+            elif name.startswith("audio_projection."):
+                result[f"modality_encoder.projection.{name[len("audio_projection."):]}"] = tensor
+        return result

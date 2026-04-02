@@ -1,0 +1,17 @@
+model_id: "RWKV/rwkv-4-430m-pile"
+revision: "a4f6ec80438d4262d1bbc8f385feb2ef1a4a9d6b"
+task_type: "rwkv-text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The Eiffel Tower is located in"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "RWKV-4 uses custom WKV recurrence with scalar state; requires dedicated runtime support."
+notes: "RWKV-4 430M. Linear-complexity RNN with fixed WKV recurrence. 430M params."

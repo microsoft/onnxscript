@@ -24,6 +24,7 @@ __all__ = [
     "CausalLMTask",
     "ClapAudioFeatureExtractionTask",
     "CodecTask",
+    "ContrastiveTask",
     "ControlNetTask",
     "DenoisingTask",
     "FeatureExtractionTask",
@@ -67,6 +68,7 @@ from mobius.tasks._causal_lm import (
     HybridCausalLMTask,
 )
 from mobius.tasks._codec import CodecTask
+from mobius.tasks._contrastive import ContrastiveTask
 from mobius.tasks._controlnet import ControlNetTask
 from mobius.tasks._denoising import DenoisingTask
 from mobius.tasks._feature_extraction import FeatureExtractionTask
@@ -102,6 +104,7 @@ TASK_REGISTRY: dict[str, type[ModelTask]] = {
     "audio-feature-extraction": AudioFeatureExtractionTask,
     "clap-audio-feature-extraction": ClapAudioFeatureExtractionTask,
     "codec": CodecTask,
+    "contrastive": ContrastiveTask,
     "controlnet": ControlNetTask,
     "denoising": DenoisingTask,
     "feature-extraction": FeatureExtractionTask,

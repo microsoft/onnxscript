@@ -377,3 +377,76 @@ def _rename_clip_text_weight(name: str) -> str | None:
         return f"encoder.{layer_idx}.{remainder}"
 
     return None
+
+
+
+class _CLIPContrastiveTextEncoder(nn.Module):
+    """CLIP text encoder with EOS pooling + projection."""
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__()
+        self.text_model = CLIPTextModel(config)
+        projection_dim = getattr(config, "projection_dim", config.hidden_size)
+        self.text_projection = Linear(config.hidden_size, projection_dim, bias=False)
+
+    def forward(self, op: builder.OpBuilder, input_ids: ir.Value, attention_mask: ir.Value) -> ir.Value:
+        hidden_states = self.text_model(op, input_ids, attention_mask, token_type_ids=input_ids)
+        eos_positions = op.ArgMax(input_ids, axis=-1, keepdims=False)
+        hidden_size = op.Shape(hidden_states, start=2, end=3)
+        eos_idx = op.Unsqueeze(eos_positions, [1, 2])
+        eos_idx = op.Expand(eos_idx, op.Concat([1], [1], hidden_size, axis=0))
+        pooled = op.GatherElements(hidden_states, eos_idx, axis=1)
+        pooled = op.Squeeze(pooled, [1])
+        return self.text_projection(op, pooled)
+
+
+class _CLIPContrastiveVisionEncoder(nn.Module):
+    """CLIP vision encoder with CLS pooling + projection."""
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__()
+        self.vision_model = CLIPVisionModel(config)
+        projection_dim = getattr(config, "projection_dim", config.hidden_size)
+        self.visual_projection = Linear(config.hidden_size, projection_dim, bias=False)
+
+    def forward(self, op: builder.OpBuilder, pixel_values: ir.Value) -> ir.Value:
+        hidden_states = self.vision_model(op, pixel_values=pixel_values)
+        cls_token = op.Gather(hidden_states, op.Constant(value_int=0), axis=1)
+        return self.visual_projection(op, cls_token)
+
+
+class CLIPModel(nn.Module):
+    """Top-level CLIP contrastive model (model_type: ``clip``)."""
+
+    default_task = "contrastive"
+    category = "Multimodal"
+    modality = "vision"
+
+    def __init__(self, config: ArchitectureConfig):
+        super().__init__()
+        self.text_encoder = _CLIPContrastiveTextEncoder(config)
+        self.modality_encoder = _CLIPContrastiveVisionEncoder(config)
+
+    def preprocess_weights(self, state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        new_sd: dict[str, torch.Tensor] = {}
+        for name, tensor in state_dict.items():
+            new_name = _rename_clip_contrastive_weight(name)
+            if new_name is not None:
+                new_sd[new_name] = tensor
+        return new_sd
+
+
+def _rename_clip_contrastive_weight(name: str) -> str | None:
+    if name.startswith("logit_scale"):
+        return None
+    if name.startswith("text_projection."):
+        return f"text_encoder.{name}"
+    if name.startswith("visual_projection."):
+        return f"modality_encoder.{name}"
+    if name.startswith("text_model."):
+        inner = _rename_clip_text_weight(name)
+        return f"text_encoder.text_model.{inner}" if inner else None
+    if name.startswith("vision_model."):
+        inner = _rename_clip_vision_weight(name)
+        return f"modality_encoder.vision_model.{inner}" if inner else None
+    return None
