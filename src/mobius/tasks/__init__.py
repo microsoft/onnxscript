@@ -22,6 +22,7 @@ __all__ = [
     "AdapterTask",
     "AudioFeatureExtractionTask",
     "CausalLMTask",
+    "ClapAudioFeatureExtractionTask",
     "CodecTask",
     "ControlNetTask",
     "DenoisingTask",
@@ -39,6 +40,7 @@ __all__ = [
     "Qwen3VLVisionLanguageTask",
     "QwenImageVAETask",
     "QwenVLTask",
+    "RwkvCausalLMTask",
     "SSM2CausalLMTask",
     "SSMCausalLMTask",
     "Seq2SeqTask",
@@ -54,7 +56,10 @@ __all__ = [
 
 from mobius._constants import OPSET_VERSION
 from mobius.tasks._adapter import AdapterTask
-from mobius.tasks._audio_feature_extraction import AudioFeatureExtractionTask
+from mobius.tasks._audio_feature_extraction import (
+    AudioFeatureExtractionTask,
+    ClapAudioFeatureExtractionTask,
+)
 from mobius.tasks._base import ModelTask
 from mobius.tasks._causal_lm import (
     CausalLMTask,
@@ -73,6 +78,7 @@ from mobius.tasks._qwen_image_vae import QwenImageVAETask
 from mobius.tasks._seq2seq import Seq2SeqTask
 from mobius.tasks._speech_language import SpeechLanguageTask
 from mobius.tasks._speech_to_text import SpeechToTextTask
+from mobius.tasks._rwkv_causal_lm import RwkvCausalLMTask
 from mobius.tasks._ssm_causal_lm import SSM2CausalLMTask, SSMCausalLMTask
 from mobius.tasks._tts import TTSTask
 from mobius.tasks._vae import VAETask
@@ -92,6 +98,7 @@ from mobius.tasks._vision_language_3model import (
 TASK_REGISTRY: dict[str, type[ModelTask]] = {
     "adapter": AdapterTask,
     "audio-feature-extraction": AudioFeatureExtractionTask,
+    "clap-audio-feature-extraction": ClapAudioFeatureExtractionTask,
     "codec": CodecTask,
     "controlnet": ControlNetTask,
     "denoising": DenoisingTask,
@@ -115,6 +122,7 @@ TASK_REGISTRY: dict[str, type[ModelTask]] = {
     "speech-to-text": SpeechToTextTask,
     "ssm-text-generation": SSMCausalLMTask,
     "ssm2-text-generation": SSM2CausalLMTask,
+    "rwkv-text-generation": RwkvCausalLMTask,
     "tts": TTSTask,
     "video-denoising": VideoDenoisingTask,
 }
