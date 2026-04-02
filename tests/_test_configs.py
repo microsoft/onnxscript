@@ -1218,6 +1218,15 @@ ENCODER_CONFIGS: list[tuple[str, dict, bool]] = [
         False,
     ),
     ("modernbert", {"hidden_act": "gelu"}, True),
+    (
+        "nomic_bert",
+        {
+            "hidden_act": "swiglu",
+            "type_vocab_size": 2,
+            "rope_theta": 1000.0,
+        },
+        True,
+    ),
     ("lilt", {"hidden_act": "gelu", "type_vocab_size": 2}, False),
     ("markuplm", {"hidden_act": "gelu", "type_vocab_size": 2}, False),
     ("mega", {"hidden_act": "gelu", "type_vocab_size": 2}, False),

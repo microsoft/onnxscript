@@ -1,0 +1,14 @@
+model_id: "nomic-ai/nomic-embed-text-v1.5"
+revision: "e5cf08aadaa33385f5990def41f7a23405aec398"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "search_query: What is ONNX Runtime?"
+
+level: "L4"
+
+trust_remote_code: true
+skip_reason: "NomicBERT requires trust_remote_code; custom HF modeling file."
+notes: "NomicBERT v1.5 sentence embedding. BERT + RoPE + SwiGLU. 137M params. 10M+ monthly downloads."

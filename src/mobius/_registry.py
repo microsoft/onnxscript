@@ -589,6 +589,10 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("layoutlmv3", LayoutLMv3Model, task="feature-extraction")
     reg.register("modernbert", ModernBertModel, task="feature-extraction")
 
+    from mobius.models.nomic_bert import NomicBertModel
+
+    reg.register("nomic_bert", NomicBertModel, task="feature-extraction")
+
     # --- Absolute positional embeddings (non-RoPE) ---
     reg.register("gpt2", GPT2CausalLMModel)
     for name in (
@@ -869,6 +873,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "deberta-v2": "microsoft/deberta-v3-base",
     "xlm-roberta": "FacebookAI/xlm-roberta-base",
     "modernbert": "answerdotai/ModernBERT-base",
+    "nomic_bert": "nomic-ai/nomic-embed-text-v1.5",
     "clip_text_model": "openai/clip-vit-base-patch32",
     "bros": "naver-clova-ocr/bros-base-uncased",
     "camembert": "almanach/camembert-base",
@@ -1042,6 +1047,7 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "xlm-roberta": "bert",
     "xlm-roberta-xl": "bert",
     "distilbert": "bert",
+    "nomic_bert": "bert",
     "deberta": "deberta",
     "deberta-v2": "deberta",
     "wav2vec2": "wav2vec2",
