@@ -37,12 +37,14 @@ __all__ = [
     "MultiModalTask",
     "OPSET_VERSION",
     "ObjectDetectionTask",
+    "Owlv2ObjectDetectionTask",
     "Phi4MMMultiModalTask",
     "Qwen3VLVisionLanguageTask",
     "QwenImageVAETask",
     "QwenVLTask",
     "RwkvCausalLMTask",
     "Rwkv6CausalLMTask",
+    "Speech2TextSeq2SeqTask",
     "SSM2CausalLMTask",
     "SSMCausalLMTask",
     "Seq2SeqTask",
@@ -76,9 +78,11 @@ from mobius.tasks._image_classification import ImageClassificationTask
 from mobius.tasks._image_segmentation import ImageSegmentationTask
 from mobius.tasks._multimodal import MultiModalTask
 from mobius.tasks._object_detection import ObjectDetectionTask
+from mobius.tasks._owlv2_detection import Owlv2ObjectDetectionTask
 from mobius.tasks._phi4mm_multimodal import Phi4MMMultiModalTask
 from mobius.tasks._qwen_image_vae import QwenImageVAETask
 from mobius.tasks._rwkv6_causal_lm import Rwkv6CausalLMTask
+from mobius.tasks._speech2text_seq2seq import Speech2TextSeq2SeqTask
 from mobius.tasks._rwkv_causal_lm import RwkvCausalLMTask
 from mobius.tasks._seq2seq import Seq2SeqTask
 from mobius.tasks._speech_language import SpeechLanguageTask
@@ -111,6 +115,7 @@ TASK_REGISTRY: dict[str, type[ModelTask]] = {
     "image-classification": ImageClassificationTask,
     "image-segmentation": ImageSegmentationTask,
     "object-detection": ObjectDetectionTask,
+    "owlv2-object-detection": Owlv2ObjectDetectionTask,
     "seq2seq": Seq2SeqTask,
     "text-generation": CausalLMTask,
     "hybrid-text-generation": HybridCausalLMTask,
@@ -129,6 +134,7 @@ TASK_REGISTRY: dict[str, type[ModelTask]] = {
     "ssm2-text-generation": SSM2CausalLMTask,
     "rwkv-text-generation": RwkvCausalLMTask,
     "rwkv6-text-generation": Rwkv6CausalLMTask,
+    "speech2text-seq2seq": Speech2TextSeq2SeqTask,
     "tts": TTSTask,
     "video-denoising": VideoDenoisingTask,
 }

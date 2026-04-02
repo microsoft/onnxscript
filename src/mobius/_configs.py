@@ -1722,6 +1722,57 @@ class RtDetrConfig(ArchitectureConfig):
 
 
 @dataclasses.dataclass
+class Owlv2Config(ArchitectureConfig):
+    """Configuration for OWLv2 open-vocabulary object detection.
+
+    Vision fields (``hidden_size``, ``intermediate_size``, etc.) describe the
+    CLIP vision encoder.  Text-specific fields are prefixed ``text_``.
+    ``projection_dim`` is already on :class:`ArchitectureConfig`.
+    """
+
+    text_hidden_size: int = 512
+    text_intermediate_size: int = 2048
+    text_num_hidden_layers: int = 12
+    text_num_attention_heads: int = 8
+    text_max_position_embeddings: int = 16
+    text_vocab_size: int = 49408
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> Owlv2Config:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+        # Vision dims come from the nested ``vision_config``
+        vc = getattr(config, "vision_config", config)
+        tc = getattr(config, "text_config", config)
+        return cls(
+            **_shallow_fields(base),
+            # Override vision fields from vision_config
+            hidden_size=getattr(vc, "hidden_size", base.hidden_size),
+            intermediate_size=getattr(
+                vc, "intermediate_size", base.intermediate_size
+            ),
+            num_hidden_layers=getattr(
+                vc, "num_hidden_layers", base.num_hidden_layers
+            ),
+            num_attention_heads=getattr(
+                vc, "num_attention_heads", base.num_attention_heads
+            ),
+            image_size=getattr(vc, "image_size", base.image_size),
+            patch_size=getattr(vc, "patch_size", base.patch_size),
+            num_channels=getattr(vc, "num_channels", base.num_channels),
+            projection_dim=getattr(config, "projection_dim", 512),
+            # Text encoder
+            text_hidden_size=getattr(tc, "hidden_size", 512),
+            text_intermediate_size=getattr(tc, "intermediate_size", 2048),
+            text_num_hidden_layers=getattr(tc, "num_hidden_layers", 12),
+            text_num_attention_heads=getattr(tc, "num_attention_heads", 8),
+            text_max_position_embeddings=getattr(
+                tc, "max_position_embeddings", 16
+            ),
+            text_vocab_size=getattr(tc, "vocab_size", 49408),
+        )
+
+
+@dataclasses.dataclass
 class MobileNetV2Config(ArchitectureConfig):
     """Configuration for MobileNet V2 CNN backbone models.
 
@@ -2382,6 +2433,77 @@ class Rwkv6Config(ArchitectureConfig):
             rescale_every=getattr(config, "rescale_every", 6),
             layer_norm_epsilon=getattr(config, "layer_norm_epsilon", 1e-5),
             tie_word_embeddings=getattr(config, "tie_word_embeddings", False),
+        )
+
+        resolved = _resolve_dtype(config)
+        if resolved is not None:
+            options["dtype"] = resolved
+
+        return cls(**options)
+
+
+@dataclasses.dataclass
+class Speech2TextConfig(ArchitectureConfig):
+    """Configuration for Facebook Speech2Text (S2T) encoder-decoder ASR models.
+
+    Key fields:
+        input_feat_per_channel: Number of mel-spectrogram bins (default 80).
+        input_channels:         Number of audio input channels (default 1).
+        conv_channels:          Inner channel count for Conv1d subsampler.
+        conv_kernel_sizes:      Kernel sizes for each subsampling conv layer.
+        num_conv_layers:        Number of Conv1d+GLU subsampling stages.
+        max_source_positions:   Maximum encoder positional embedding entries.
+        max_target_positions:   Maximum decoder positional embedding entries.
+        scale_embedding:        Whether to scale embeddings by sqrt(d_model).
+
+    ``num_hidden_layers`` is the **encoder** transformer depth.
+    ``num_decoder_layers`` is the **decoder** transformer depth.
+    ``num_attention_heads`` is used for both encoder and decoder attention.
+    """
+
+    input_feat_per_channel: int = 80
+    input_channels: int = 1
+    conv_channels: int = 1024
+    conv_kernel_sizes: list = dataclasses.field(default_factory=lambda: [5, 5])
+    num_conv_layers: int = 2
+    max_source_positions: int = 6000
+    max_target_positions: int = 1024
+    scale_embedding: bool = True
+
+    @classmethod
+    def from_transformers(cls, config) -> "Speech2TextConfig":
+        if config.model_type != "speech_to_text":
+            raise ValueError(
+                f"Speech2TextConfig expects model_type='speech_to_text', got '{config.model_type}'"
+            )
+
+        d_model = getattr(config, "d_model", 256)
+        num_heads = getattr(config, "decoder_attention_heads", 4)
+        head_dim = d_model // num_heads
+        encoder_layers = getattr(config, "encoder_layers", 12)
+        decoder_layers = getattr(config, "decoder_layers", 6)
+        intermediate_size = getattr(config, "encoder_ffn_dim", 2048)
+
+        options: dict = dict(
+            vocab_size=config.vocab_size,
+            hidden_size=d_model,
+            intermediate_size=intermediate_size,
+            num_hidden_layers=encoder_layers,
+            num_decoder_layers=decoder_layers,
+            num_attention_heads=num_heads,
+            num_key_value_heads=num_heads,
+            head_dim=head_dim,
+            hidden_act=getattr(config, "activation_function", "relu"),
+            rms_norm_eps=1e-5,
+            input_feat_per_channel=getattr(config, "input_feat_per_channel", 80),
+            input_channels=getattr(config, "input_channels", 1),
+            conv_channels=getattr(config, "conv_channels", 1024),
+            conv_kernel_sizes=list(getattr(config, "conv_kernel_sizes", [5, 5])),
+            num_conv_layers=getattr(config, "num_conv_layers", 2),
+            max_source_positions=getattr(config, "max_source_positions", 6000),
+            max_target_positions=getattr(config, "max_target_positions", 1024),
+            scale_embedding=getattr(config, "scale_embedding", True),
+            tie_word_embeddings=getattr(config, "tie_word_embeddings", True),
         )
 
         resolved = _resolve_dtype(config)

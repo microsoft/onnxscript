@@ -4231,6 +4231,7 @@ _SPEECH_MODEL_PARAMS = _make_params(SPEECH_CONFIGS)
 # Expected sub-model keys per speech task type
 _SPEECH_TASK_KEYS: dict[str, set[str]] = {
     "speech-to-text": {"encoder", "decoder"},
+    "speech2text-seq2seq": {"encoder", "decoder"},
     "speech-language": {"audio_encoder", "embedding", "decoder"},
     "codec": {"decoder", "encoder"},
 }

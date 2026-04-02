@@ -122,6 +122,7 @@ from mobius.models.mobilenet_v2 import MobileNetV2Model
 from mobius.models.modernbert import ModernBertDecoderModel, ModernBertModel
 from mobius.models.moondream import MoondreamModel
 from mobius.models.opt import OPTCausalLMModel
+from mobius.models.owlv2 import Owlv2ForObjectDetection
 from mobius.models.persimmon import PersimmonCausalLMModel
 from mobius.models.qwen3_asr import Qwen3ASRForConditionalGeneration
 from mobius.models.qwen3_tts import Qwen3TTSForConditionalGeneration
@@ -769,6 +770,13 @@ def _create_default_registry() -> ModelRegistry:
         RtDetrForObjectDetection,
         task="object-detection",
         config_class=RtDetrConfig,
+    )
+    reg.register(
+        "owlv2",
+        Owlv2ForObjectDetection,
+        task="owlv2-object-detection",
+        config_class=Owlv2Config,
+        test_model_id="google/owlv2-base-patch16-ensemble",
     )
 
     # --- Segmentation ---
