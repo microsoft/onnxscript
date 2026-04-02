@@ -1,0 +1,14 @@
+model_id: "jinaai/jina-embeddings-v2-base-en"
+revision: "322d4d7e2f35e84137961a65af894fda0385eb7a"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "search_query: What is ONNX Runtime?"
+
+level: "L4"
+
+trust_remote_code: true
+skip_reason: "Jina BERT uses trust_remote_code; custom HF config module has incompatible import."
+notes: "Jina BERT v2 sentence embedding. BERT + ALiBi + GEGLU. 137M params. 4.5M+ monthly downloads."

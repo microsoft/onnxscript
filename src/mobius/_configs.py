@@ -2299,3 +2299,64 @@ class RwkvConfig(BaseModelConfig):
             options["dtype"] = resolved
 
         return cls(**options)
+
+
+@dataclasses.dataclass
+class Rwkv6Config(ArchitectureConfig):
+    """Configuration for RWKV-6 (Eagle/Finch) causal language models.
+
+    Key fields that differ from RWKV-4:
+        attention_hidden_size: size of WKV projections (defaults to hidden_size).
+        head_size:             per-head dimension for WKV matrix state.
+        head_size_divisor:     used to compute GroupNorm epsilon:
+                               eps = layer_norm_epsilon * head_size_divisor^2.
+        time_mix_extra_dim:    low-rank dimension for data-dependent time mixing.
+        time_decay_extra_dim:  low-rank dimension for data-dependent decay.
+        intermediate_size:     FFN width; if 0, computed as int((H * 3.5) // 32 * 32).
+    """
+
+    attention_hidden_size: int = 0
+    head_size: int = 64
+    head_size_divisor: int = 8
+    rescale_every: int = 6
+    layer_norm_epsilon: float = 1e-5
+    time_mix_extra_dim: int = 32
+    time_decay_extra_dim: int = 64
+
+    def __post_init__(self) -> None:
+        if self.attention_hidden_size == 0:
+            self.attention_hidden_size = self.hidden_size
+        if self.intermediate_size == 0:
+            self.intermediate_size = int((self.hidden_size * 3.5) // 32 * 32)
+
+    @classmethod
+    def from_transformers(cls, config) -> Rwkv6Config:
+        if config.model_type != "rwkv6":
+            raise ValueError(
+                f"Rwkv6Config expects model_type='rwkv6', got '{config.model_type}'"
+            )
+
+        hidden_size = config.hidden_size
+        attention_hidden_size = (
+            getattr(config, "attention_hidden_size", hidden_size) or hidden_size
+        )
+        intermediate_size = getattr(config, "intermediate_size", None) or 0
+
+        options: dict = dict(
+            vocab_size=config.vocab_size,
+            hidden_size=hidden_size,
+            intermediate_size=intermediate_size,
+            num_hidden_layers=config.num_hidden_layers,
+            attention_hidden_size=attention_hidden_size,
+            head_size=getattr(config, "head_size", 64),
+            head_size_divisor=getattr(config, "head_size_divisor", 8),
+            rescale_every=getattr(config, "rescale_every", 6),
+            layer_norm_epsilon=getattr(config, "layer_norm_epsilon", 1e-5),
+            tie_word_embeddings=getattr(config, "tie_word_embeddings", False),
+        )
+
+        resolved = _resolve_dtype(config)
+        if resolved is not None:
+            options["dtype"] = resolved
+
+        return cls(**options)

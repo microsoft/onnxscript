@@ -30,6 +30,7 @@ from mobius._configs import (
     ResNetConfig,
     RtDetrConfig,
     RwkvConfig,
+    Rwkv6Config,
     WhisperConfig,
 )
 from mobius.models import (
@@ -122,6 +123,7 @@ from mobius.models.qwen3_tts_tokenizer import Qwen3TTSTokenizerV2Model
 from mobius.models.resnet import ResNetModel
 from mobius.models.rt_detr import RtDetrForObjectDetection
 from mobius.models.rwkv import RwkvCausalLMModel
+from mobius.models.rwkv6 import Rwkv6CausalLMModel
 from mobius.models.sam2 import Sam2VisionModel
 from mobius.models.segformer import SegformerForSemanticSegmentation
 from mobius.models.starcoder2 import StarCoder2CausalLMModel
@@ -479,6 +481,9 @@ def _create_default_registry() -> ModelRegistry:
     reg.register(
         "rwkv", RwkvCausalLMModel, task="rwkv-text-generation", config_class=RwkvConfig
     )
+    reg.register(
+        "rwkv6", Rwkv6CausalLMModel, task="rwkv6-text-generation", config_class=Rwkv6Config
+    )
 
     # --- Hybrid SSM+Attention (Jamba) ---
     reg.register("jamba", JambaCausalLMModel)
@@ -625,6 +630,10 @@ def _create_default_registry() -> ModelRegistry:
     from mobius.models.nomic_bert import NomicBertModel
 
     reg.register("nomic_bert", NomicBertModel, task="feature-extraction")
+
+    from mobius.models.jina_bert import JinaBertModel
+
+    reg.register("jina_bert", JinaBertModel, task="feature-extraction")
 
     # --- Absolute positional embeddings (non-RoPE) ---
     reg.register("gpt2", GPT2CausalLMModel)
@@ -948,6 +957,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "xlm-roberta": "FacebookAI/xlm-roberta-base",
     "modernbert": "answerdotai/ModernBERT-base",
     "nomic_bert": "nomic-ai/nomic-embed-text-v1.5",
+    "jina_bert": "jinaai/jina-embeddings-v2-base-en",
     "clip_text_model": "openai/clip-vit-base-patch32",
     "clipseg": "CIDAS/clipseg-rd64-refined",
     "bros": "naver-clova-ocr/bros-base-uncased",
@@ -1130,6 +1140,7 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "xlm-roberta-xl": "bert",
     "distilbert": "bert",
     "nomic_bert": "bert",
+    "jina_bert": "bert",
     "deberta": "deberta",
     "deberta-v2": "deberta",
     "wav2vec2": "wav2vec2",

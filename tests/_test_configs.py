@@ -1158,6 +1158,7 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
 # ---------------------------------------------------------------------------
 ENCODER_CONFIGS: list[tuple[str, dict, bool]] = [
     ("bert", {"hidden_act": "gelu", "type_vocab_size": 2}, True),
+    ("jina_bert", {"hidden_act": "gelu", "type_vocab_size": 2}, True),
     (
         "clap_text_model",
         {"hidden_act": "gelu", "type_vocab_size": 1, "projection_dim": 8},
@@ -1270,6 +1271,14 @@ ENCODER_CONFIGS: list[tuple[str, dict, bool]] = [
         True,
     ),
     ("lilt", {"hidden_act": "gelu", "type_vocab_size": 2}, False),
+    (
+        "jina_bert",
+        {
+            "hidden_act": "gelu",
+            "type_vocab_size": 2,
+        },
+        True,
+    ),
     ("markuplm", {"hidden_act": "gelu", "type_vocab_size": 2}, False),
     ("mega", {"hidden_act": "gelu", "type_vocab_size": 2}, False),
     ("mra", {"hidden_act": "gelu", "type_vocab_size": 2}, False),
