@@ -35,11 +35,14 @@ from mobius._configs import (
     Mamba2Config,
     MambaConfig,
     MllamaConfig,
+    MobileNetV2Config,
     MoondreamConfig,
     NanoChatConfig,
     NemotronHConfig,
     ResNetConfig,
     RtDetrConfig,
+    Rwkv6Config,
+    RwkvConfig,
     Sam2Config,
     SegformerConfig,
     VisionConfig,
@@ -538,6 +541,28 @@ CAUSAL_LM_CONFIGS: list[tuple[str, dict, bool]] = [
                 "mscale_all_dim": 1.0,
                 "original_max_position_embeddings": 4096,
             },
+        },
+        False,
+    ),
+    # GLM-5 (glm_moe_dsa): MLA+MoE architecture like DeepSeek V3
+    (
+        "glm_moe_dsa",
+        {
+            "q_lora_rank": 32,
+            "kv_lora_rank": 16,
+            "qk_nope_head_dim": 16,
+            "qk_rope_head_dim": 8,
+            "v_head_dim": 16,
+            "num_local_experts": 4,
+            "num_experts_per_tok": 2,
+            "moe_intermediate_size": 32,
+            "n_group": 1,
+            "topk_group": 1,
+            "routed_scaling_factor": 2.827,
+            "scoring_func": "sigmoid",
+            "topk_method": "noaux_tc",
+            "first_k_dense_replace": 1,
+            "n_shared_experts": 1,
         },
         False,
     ),
@@ -1685,6 +1710,19 @@ VISION_CONFIGS: list[tuple[str, dict, bool]] = [
         False,
     ),
     (
+        "mobilenet_v2",
+        {
+            "_config_cls": MobileNetV2Config,
+            "num_channels": 3,
+            "depth_multiplier": 1.0,
+            "expand_ratio": 6,
+            "layer_norm_eps": 0.001,
+            "output_stride": 32,
+            "image_size": 32,
+        },
+        True,
+    ),
+    (
         "resnet",
         {
             "_config_cls": ResNetConfig,
@@ -2018,6 +2056,39 @@ SSM_CONFIGS: list[tuple[str, dict, bool]] = [
             "expand": 2,
         },
         True,
+    ),
+]
+
+
+# ---------------------------------------------------------------------------
+# Linear RNN (RWKV) configs — use dedicated test classes, not SSM parametrized
+# ---------------------------------------------------------------------------
+LINEAR_RNN_CONFIGS: list[tuple[str, dict, bool]] = [
+    # rwkv: RWKV-4 linear RNN — requires RwkvConfig
+    (
+        "rwkv",
+        {
+            "_config_cls": RwkvConfig,
+            "attention_hidden_size": 64,
+            "head_size": 8,
+            "head_size_divisor": 4,
+            "rescale_every": 0,
+        },
+        False,  # covered by dedicated TestBuildRwkvGraph
+    ),
+    # rwkv6: RWKV-6 (Eagle/Finch) linear RNN — requires Rwkv6Config
+    (
+        "rwkv6",
+        {
+            "_config_cls": Rwkv6Config,
+            "attention_hidden_size": 64,
+            "head_size": 32,
+            "head_size_divisor": 8,
+            "rescale_every": 0,
+            "time_mix_extra_dim": 8,
+            "time_decay_extra_dim": 16,
+        },
+        False,  # covered by dedicated TestBuildRwkv6Graph
     ),
 ]
 
@@ -2370,6 +2441,7 @@ ALL_CONFIGS: list[tuple[str, dict, bool]] = (
     + DETECTION_CONFIGS
     + SEGMENTATION_CONFIGS
     + SSM_CONFIGS
+    + LINEAR_RNN_CONFIGS
     + VL_CONFIGS
     + SPEECH_CONFIGS
 )

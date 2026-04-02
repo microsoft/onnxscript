@@ -26,6 +26,7 @@ from mobius._configs import (
     BaseModelConfig,
     ConvNextConfig,
     DetrConfig,
+    MobileNetV2Config,
     MoondreamConfig,
     ResNetConfig,
     RtDetrConfig,
@@ -90,10 +91,11 @@ from mobius.models.bart import BartForConditionalGeneration
 from mobius.models.bert import BertModel
 from mobius.models.blip import BlipVisionModel
 from mobius.models.blip2 import Blip2Model
-from mobius.models.clap import ClapAudioModel, ClapTextModel
-from mobius.models.clip import CLIPTextModel, CLIPVisionModel
+from mobius.models.clap import ClapAudioModel, ClapModel, ClapTextModel
+from mobius.models.clip import CLIPModel, CLIPTextModel, CLIPVisionModel
 from mobius.models.cohere import CohereCausalLMModel
 from mobius.models.convnext import ConvNextModel
+from mobius.models.mobilenet_v2 import MobileNetV2Model
 from mobius.models.ctrl import CTRLCausalLMModel
 from mobius.models.depth_anything import DepthAnythingForDepthEstimation
 from mobius.models.detr import DetrForObjectDetection
@@ -465,6 +467,7 @@ def _create_default_registry() -> ModelRegistry:
         "deepseek_v2",
         "deepseek_v2_moe",
         "deepseek_v3",
+        "glm_moe_dsa",
         "kimi_k2",
     ):
         reg.register(name, DeepSeekV3CausalLMModel)
@@ -618,10 +621,12 @@ def _create_default_registry() -> ModelRegistry:
         reg.register(name, BertModel, task="feature-extraction")
     reg.register("distilbert", DistilBertModel, task="feature-extraction")
     reg.register("clip_text_model", CLIPTextModel, task="feature-extraction")
+    reg.register("clip", CLIPModel, task="contrastive")
     reg.register("layoutlmv3", LayoutLMv3Model, task="feature-extraction")
     reg.register("modernbert", ModernBertModel, task="feature-extraction")
     reg.register("clap_text_model", ClapTextModel, task="feature-extraction")
     reg.register("clap_audio_model", ClapAudioModel, task="clap-audio-feature-extraction")
+    reg.register("clap", ClapModel, task="contrastive")
 
     from mobius.models.clipseg import CLIPSegModel
 
@@ -723,6 +728,13 @@ def _create_default_registry() -> ModelRegistry:
         ConvNextModel,
         task="image-classification",
         config_class=ConvNextConfig,
+    )
+    # MobileNet V2 (inverted residual CNN backbone)
+    reg.register(
+        "mobilenet_v2",
+        MobileNetV2Model,
+        task="image-classification",
+        config_class=MobileNetV2Config,
     )
 
     # --- Object detection ---
@@ -893,6 +905,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "deepseek_v2": "deepseek-ai/DeepSeek-V2-Lite",
     "deepseek_v2_moe": "deepseek-ai/DeepSeek-V2-Lite",
     "deepseek_v3": "deepseek-ai/DeepSeek-V3",
+    "glm_moe_dsa": "zai-org/GLM-5-FP8",
     "kimi_k2": "moonshotai/Kimi-K2-Instruct",
 
     # --- SSM (Mamba) ---
@@ -901,7 +914,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "falcon_mamba": "tiiuae/falcon-mamba-7b",
 
     # --- RWKV ---
-    "rwkv": "RWKV/v4-pile-430m-20220901-ctx8192",
+    "rwkv": "RWKV/rwkv-4-430m-pile",
     "rwkv6": "RWKV/v6-Finch-1B6-HF",
 
     # --- Hybrid SSM+Attention ---
@@ -948,6 +961,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "seamless_m4t_v2": "facebook/seamless-m4t-v2-large",
     "clap_audio_model": "laion/clap-htsat-fused",
     "clap_text_model": "laion/clap-htsat-fused",
+    "clap": "laion/clap-htsat-fused",
 
     # --- Encoder-only ---
     "bert": "google-bert/bert-base-uncased",
@@ -1020,12 +1034,16 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "dinov2": "facebook/dinov2-small",
     "beit": "microsoft/beit-base-patch16-224",
     "clip_vision_model": "openai/clip-vit-base-patch32",
+    "clip": "openai/clip-vit-base-patch32",
     "swin": "microsoft/swin-tiny-patch4-window7-224",
     "deit": "facebook/deit-small-patch16-224",
     "blip": "Salesforce/blip-image-captioning-base",
     "depth_anything": "LiheYoung/depth-anything-small-hf",
     "zoedepth": "Intel/zoedepth-nyu-kitti",
     "yolos": "hustvl/yolos-tiny",
+    "detr": "facebook/detr-resnet-50",
+    "table-transformer": "microsoft/table-transformer-detection",
+    "rt_detr": "PekingU/rtdetr_r50vd",
     "segformer": "nvidia/segformer-b0-finetuned-ade-512-512",
     "cvt": "microsoft/cvt-13",
     "data2vec-vision": "facebook/data2vec-vision-base-ft1k",
@@ -1042,6 +1060,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "siglip2": "google/siglip2-base-patch16-224",
     "resnet": "microsoft/resnet-50",
     "convnext": "facebook/convnext-tiny-224",
+    "mobilenet_v2": "google/mobilenet_v2_1.0_224",
     "swin2sr": "caidas/swin2SR-classical-sr-x2-64",
     "swinv2": "microsoft/swinv2-tiny-patch4-window16-256",
     "vit_mae": "facebook/vit-mae-base",
@@ -1101,6 +1120,7 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "deepseek_v2": "deepseek",
     "deepseek_v2_moe": "deepseek",
     "deepseek_v3": "deepseek",
+    "glm_moe_dsa": "deepseek",
     "kimi_k2": "deepseek",
     "deepseek_vl_v2": "deepseek",
     "olmo": "olmo",
@@ -1169,6 +1189,10 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "siglip2_vision_model": "clip",
     "siglip": "clip",
     "siglip2": "clip",
+    "clip": "clip",
+    "clap_text_model": "clap",
+    "clap_audio_model": "clap",
+    "clap": "clap",
 }
 
 # -- Variant labels for code-path identification --
@@ -1176,6 +1200,7 @@ _VARIANT_LABELS: dict[str, str] = {
     "deepseek_v2": "mla",
     "deepseek_v2_moe": "mla+moe",
     "deepseek_v3": "mla+moe",
+    "glm_moe_dsa": "mla+moe",
     "kimi_k2": "mla+moe",
     "phi3small": "blocksparse",
     "falcon_h1": "hybrid-ssm",

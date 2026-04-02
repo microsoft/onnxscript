@@ -1722,6 +1722,35 @@ class RtDetrConfig(ArchitectureConfig):
 
 
 @dataclasses.dataclass
+class MobileNetV2Config(ArchitectureConfig):
+    """Configuration for MobileNet V2 CNN backbone models.
+
+    Inverted residual architecture with linear bottleneck and depthwise-separable
+    convolutions. Designed for efficient mobile inference.
+    """
+
+    depth_multiplier: float = 1.0
+    expand_ratio: int = 6
+    first_layer_is_expansion: bool = True
+    layer_norm_eps: float = 0.001
+    output_stride: int = 32
+    num_labels: int = 1001
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> MobileNetV2Config:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+        return cls(
+            **_shallow_fields(base),
+            depth_multiplier=getattr(config, "depth_multiplier", 1.0),
+            expand_ratio=getattr(config, "expand_ratio", 6),
+            first_layer_is_expansion=getattr(config, "first_layer_is_expansion", True),
+            layer_norm_eps=getattr(config, "layer_norm_eps", 0.001),
+            output_stride=getattr(config, "output_stride", 32),
+            num_labels=getattr(config, "num_labels", 1001),
+        )
+
+
+@dataclasses.dataclass
 class ResNetConfig(ArchitectureConfig):
     """Configuration for ResNet CNN backbone models.
 

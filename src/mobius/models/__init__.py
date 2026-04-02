@@ -114,6 +114,7 @@ __all__ = [
     "Qwen3VLVisionEncoderModel",
     "QwenCausalLMModel",
     "QwenImageTransformer2DModel",
+    "MobileNetV2Model",
     "ConvNextModel",
     "ResNetModel",
     "RtDetrForObjectDetection",
@@ -148,6 +149,7 @@ from mobius.models.cogvideox import CogVideoXTransformer3DModel
 from mobius.models.cohere import CohereCausalLMModel
 from mobius.models.controlnet import ControlNetModel
 from mobius.models.convnext import ConvNextModel
+from mobius.models.mobilenet_v2 import MobileNetV2Model
 from mobius.models.ctrl import CTRLCausalLMModel
 from mobius.models.deepseek import DeepSeekV3CausalLMModel
 from mobius.models.deepseek_ocr2 import DeepSeekOCR2CausalLMModel

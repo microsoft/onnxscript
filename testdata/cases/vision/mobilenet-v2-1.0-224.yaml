@@ -1,0 +1,12 @@
+model_id: "google/mobilenet_v2_1.0_224"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "MobileNet V2 (depth_multiplier=1.0, 224x224). Inverted residual CNN backbone with linear bottleneck. Widely used for mobile inference."
