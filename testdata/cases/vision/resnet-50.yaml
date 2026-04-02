@@ -1,0 +1,12 @@
+model_id: "microsoft/resnet-50"
+revision: "main"
+task_type: "image-classification"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4"
+
+notes: "ResNet-50 bottleneck. CNN backbone for image classification. First non-transformer vision model in mobius."

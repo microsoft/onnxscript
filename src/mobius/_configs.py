@@ -1499,6 +1499,40 @@ class Sam2Config(ArchitectureConfig):
 
 
 @dataclasses.dataclass
+class ResNetConfig(ArchitectureConfig):
+    """Configuration for ResNet CNN backbone models.
+
+    Adds ResNet-specific per-stage depths, channel sizes, and block type.
+    """
+
+    embedding_size: int = 64
+    hidden_sizes: list[int] = dataclasses.field(
+        default_factory=lambda: [256, 512, 1024, 2048]
+    )
+    depths: list[int] = dataclasses.field(
+        default_factory=lambda: [3, 4, 6, 3]
+    )
+    layer_type: str = "bottleneck"
+    downsample_in_bottleneck: bool = False
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> ResNetConfig:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+        return cls(
+            **_shallow_fields(base),
+            embedding_size=getattr(config, "embedding_size", 64),
+            hidden_sizes=getattr(
+                config, "hidden_sizes", [256, 512, 1024, 2048]
+            ),
+            depths=getattr(config, "depths", [3, 4, 6, 3]),
+            layer_type=getattr(config, "layer_type", "bottleneck"),
+            downsample_in_bottleneck=getattr(
+                config, "downsample_in_bottleneck", False
+            ),
+        )
+
+
+@dataclasses.dataclass
 class MambaConfig(BaseModelConfig):
     """Configuration for Mamba SSM (Selective State Space) models.
 

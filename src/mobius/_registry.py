@@ -24,6 +24,7 @@ from onnxscript import nn
 
 from mobius._configs import (
     BaseModelConfig,
+    ResNetConfig,
     WhisperConfig,
 )
 from mobius.models import (
@@ -109,6 +110,7 @@ from mobius.models.persimmon import PersimmonCausalLMModel
 from mobius.models.qwen3_asr import Qwen3ASRForConditionalGeneration
 from mobius.models.qwen3_tts import Qwen3TTSForConditionalGeneration
 from mobius.models.qwen3_tts_tokenizer import Qwen3TTSTokenizerV2Model
+from mobius.models.resnet import ResNetModel
 from mobius.models.sam2 import Sam2VisionModel
 from mobius.models.segformer import SegformerForSemanticSegmentation
 from mobius.models.starcoder2 import StarCoder2CausalLMModel
@@ -664,6 +666,14 @@ def _create_default_registry() -> ModelRegistry:
         reg.register(name, ViTModel, task="image-classification")
     for name in ("clip_vision_model", "siglip_vision_model", "siglip2_vision_model"):
         reg.register(name, CLIPVisionModel, task="image-classification")
+    # Standalone SigLIP (vision+text): reuse vision encoder, drop text weights
+    reg.register("siglip", CLIPVisionModel, task="image-classification")
+    reg.register("siglip2", CLIPVisionModel, task="image-classification")
+    # ResNet (CNN backbone)
+    reg.register(
+        "resnet", ResNetModel, task="image-classification",
+        config_class=ResNetConfig,
+    )
 
     # --- Object detection ---
     reg.register("yolos", YolosForObjectDetection, task="object-detection")
@@ -949,6 +959,9 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "pvt_v2": "OpenGVLab/pvt_v2_b0",
     "siglip_vision_model": "google/siglip-base-patch16-224",
     "siglip2_vision_model": "google/siglip2-base-patch16-224",
+    "siglip": "google/siglip-base-patch16-224",
+    "siglip2": "google/siglip2-base-patch16-224",
+    "resnet": "microsoft/resnet-50",
     "swin2sr": "caidas/swin2SR-classical-sr-x2-64",
     "swinv2": "microsoft/swinv2-tiny-patch4-window16-256",
     "vit_mae": "facebook/vit-mae-base",
@@ -1070,6 +1083,8 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "clip_vision_model": "clip",
     "siglip_vision_model": "clip",
     "siglip2_vision_model": "clip",
+    "siglip": "clip",
+    "siglip2": "clip",
 }
 
 # -- Variant labels for code-path identification --

@@ -35,6 +35,7 @@ from mobius._configs import (
     MllamaConfig,
     NanoChatConfig,
     NemotronHConfig,
+    ResNetConfig,
     Sam2Config,
     SegformerConfig,
     VisionConfig,
@@ -1608,6 +1609,20 @@ VISION_CONFIGS: list[tuple[str, dict, bool]] = [
         False,
     ),
     (
+        "resnet",
+        {
+            "_config_cls": ResNetConfig,
+            "hidden_act": "relu",
+            "num_channels": 3,
+            "embedding_size": 16,
+            "hidden_sizes": [32, 64, 128, 256],
+            "depths": [1, 1, 1, 1],
+            "layer_type": "bottleneck",
+            "image_size": 32,
+        },
+        True,
+    ),
+    (
         "siglip_vision_model",
         {
             "hidden_act": "gelu",
@@ -1619,6 +1634,26 @@ VISION_CONFIGS: list[tuple[str, dict, bool]] = [
     ),
     (
         "siglip2_vision_model",
+        {
+            "hidden_act": "gelu",
+            "image_size": 32,
+            "patch_size": 8,
+            "num_channels": 3,
+        },
+        False,
+    ),
+    (
+        "siglip",
+        {
+            "hidden_act": "gelu",
+            "image_size": 32,
+            "patch_size": 8,
+            "num_channels": 3,
+        },
+        False,
+    ),
+    (
+        "siglip2",
         {
             "hidden_act": "gelu",
             "image_size": 32,
