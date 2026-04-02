@@ -1,7 +1,9 @@
-# CLIPSeg: text-guided image segmentation
-# Reference: CIDAS/clipseg-rd64-refined (992K downloads/month)
-model_id: CIDAS/clipseg-rd64-refined
-model_type: clipseg
-task_type: image-segmentation
-config_sha: 19e45d23
-skip_reason: "No integration test infrastructure for image-segmentation task yet"
+model_id: "CIDAS/clipseg-rd64-refined"
+revision: "main"
+task_type: "image-segmentation"
+dtype: "float32"
+
+level: "L4+L5"
+
+skip_reason: "No integration test infrastructure for image-segmentation task yet."
+notes: "CLIPSeg text-guided image segmentation. CLIP encoder + decoder with conditional layer norms."

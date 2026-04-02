@@ -946,6 +946,8 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "musicgen": "facebook/musicgen-small",
     "seamless_m4t": "facebook/hf-seamless-m4t-medium",
     "seamless_m4t_v2": "facebook/seamless-m4t-v2-large",
+    "clap_audio_model": "laion/clap-htsat-fused",
+    "clap_text_model": "laion/clap-htsat-fused",
 
     # --- Encoder-only ---
     "bert": "google-bert/bert-base-uncased",

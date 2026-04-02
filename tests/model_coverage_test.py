@@ -59,6 +59,7 @@ from _test_configs import (  # noqa: E402
     ALL_CAUSAL_LM_CONFIGS,
     DETECTION_CONFIGS,
     ENCODER_CONFIGS,
+    SEGMENTATION_CONFIGS,
     SEQ2SEQ_CONFIGS,
     SPEECH_CONFIGS,
     SSM_CONFIGS,
@@ -71,7 +72,7 @@ def _l1_l3_model_types() -> set[str]:
     """Return model_types that have a test config in _test_configs.py.
 
     Includes ALL config lists: causal LM, encoder, seq2seq, vision,
-    detection, SSM, vision-language, and speech.
+    detection, SSM, vision-language, speech, and segmentation.
     """
     types: set[str] = set()
     all_configs = (
@@ -80,6 +81,7 @@ def _l1_l3_model_types() -> set[str]:
         + SEQ2SEQ_CONFIGS
         + VISION_CONFIGS
         + DETECTION_CONFIGS
+        + SEGMENTATION_CONFIGS
         + SSM_CONFIGS
         + VL_CONFIGS
         + SPEECH_CONFIGS

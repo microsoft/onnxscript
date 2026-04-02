@@ -1,0 +1,13 @@
+model_id: "laion/clap-htsat-fused"
+revision: "main"
+task_type: "feature-extraction"
+dtype: "float32"
+
+inputs:
+  texts:
+    - "the sound of rain"
+
+level: "L4+L5"
+
+skip_reason: "CLAP text encoder (RoBERTa-style) shares checkpoint with clap_audio_model — tested together."
+notes: "CLAP text encoder (model_type=clap_text_model). RoBERTa-style BERT with projection head. Outputs 512-dim text embeddings."

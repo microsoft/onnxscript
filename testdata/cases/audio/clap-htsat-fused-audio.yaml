@@ -1,0 +1,9 @@
+model_id: "laion/clap-htsat-fused"
+revision: "main"
+task_type: "clap-audio-feature-extraction"
+dtype: "float32"
+
+level: "L4+L5"
+
+skip_reason: "CLAP audio encoder requires mel-spectrogram preprocessing; 4-stage Swin Transformer too large for CI."
+notes: "CLAP audio encoder (model_type=clap_audio_model). HTSAT Swin Transformer on mel spectrograms. Outputs 512-dim audio embeddings."
