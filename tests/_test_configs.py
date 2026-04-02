@@ -45,6 +45,7 @@ from mobius._configs import (
     RwkvConfig,
     Sam2Config,
     SegformerConfig,
+    Speech2TextConfig,
     VisionConfig,
     WhisperConfig,
     YolosConfig,
@@ -1287,6 +1288,11 @@ ENCODER_CONFIGS: list[tuple[str, dict, bool]] = [
     ),
     ("modernbert", {"hidden_act": "gelu"}, True),
     (
+        "longformer",
+        {"hidden_act": "gelu", "type_vocab_size": 1},
+        True,
+    ),
+    (
         "nomic_bert",
         {
             "hidden_act": "swiglu",
@@ -2325,6 +2331,24 @@ SPEECH_CONFIGS: list[tuple[str, dict, bool]] = [
             "max_source_positions": 100,
             "max_target_positions": 50,
             "scale_embedding": True,
+        },
+        True,
+    ),
+    # --- Facebook Speech2Text (Conv1d subsampler + transformer, ASR) ---
+    (
+        "speech_to_text",
+        {
+            "_config_cls": Speech2TextConfig,
+            "input_feat_per_channel": 16,
+            "input_channels": 1,
+            "conv_channels": TINY_HIDDEN,  # 64; GLU → 32, matches hidden_size*2→hidden_size
+            "conv_kernel_sizes": [3, 3],
+            "num_conv_layers": 2,
+            "max_source_positions": 64,
+            "max_target_positions": 32,
+            "num_decoder_layers": TINY_LAYERS,
+            "scale_embedding": True,
+            "rms_norm_eps": 1e-5,
         },
         True,
     ),

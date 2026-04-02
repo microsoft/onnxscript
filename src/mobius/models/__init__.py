@@ -68,6 +68,7 @@ __all__ = [
     "VideoLLaMA3Model",
     "LayerNormCausalLMModel",
     "LongcatFlashCausalLMModel",
+    "LongformerModel",
     "MPTCausalLMModel",
     "Mamba2CausalLMModel",
     "MambaCausalLMModel",
@@ -81,6 +82,7 @@ __all__ = [
     "OLMo2CausalLMModel",
     "OLMoCausalLMModel",
     "OPTCausalLMModel",
+    "Owlv2ForObjectDetection",
     "PersimmonCausalLMModel",
     "Phi3CausalLMModel",
     "Phi3MoECausalLMModel",
@@ -186,6 +188,7 @@ from mobius.models.jina_bert import JinaBertModel
 from mobius.models.llama4 import Llama4CausalLMModel
 from mobius.models.llava import LLaVAModel
 from mobius.models.longcat_flash import LongcatFlashCausalLMModel
+from mobius.models.longformer import LongformerModel
 from mobius.models.mamba import Mamba2CausalLMModel, MambaCausalLMModel
 from mobius.models.minimax import MiniMaxCausalLMModel
 from mobius.models.mobilenet_v2 import MobileNetV2Model
@@ -204,6 +207,7 @@ from mobius.models.nemotron_h import NemotronHCausalLMModel
 from mobius.models.nomic_bert import NomicBertModel
 from mobius.models.olmo import OLMo2CausalLMModel, OLMoCausalLMModel
 from mobius.models.opt import OPTCausalLMModel
+from mobius.models.owlv2 import Owlv2ForObjectDetection
 from mobius.models.persimmon import PersimmonCausalLMModel
 from mobius.models.phi import (
     Phi3SmallCausalLMModel,

@@ -28,9 +28,11 @@ from mobius._configs import (
     DetrConfig,
     MobileNetV2Config,
     MoondreamConfig,
+    Owlv2Config,
     ResNetConfig,
     RtDetrConfig,
     Rwkv6Config,
+    Speech2TextConfig,
     RwkvConfig,
     WhisperConfig,
 )
@@ -112,6 +114,7 @@ from mobius.models.jetmoe import JetMoeCausalLMModel
 from mobius.models.layoutlmv3 import LayoutLMv3Model
 from mobius.models.llava import LLaVAModel
 from mobius.models.longcat_flash import LongcatFlashCausalLMModel
+from mobius.models.longformer import LongformerModel
 from mobius.models.mamba import Mamba2CausalLMModel, MambaCausalLMModel
 from mobius.models.minimax import MiniMaxCausalLMModel
 from mobius.models.mllama import MllamaCausalLMModel
@@ -127,6 +130,7 @@ from mobius.models.resnet import ResNetModel
 from mobius.models.rt_detr import RtDetrForObjectDetection
 from mobius.models.rwkv import RwkvCausalLMModel
 from mobius.models.rwkv6 import Rwkv6CausalLMModel
+from mobius.models.speech2text import Speech2TextForConditionalGeneration
 from mobius.models.sam2 import Sam2VisionModel
 from mobius.models.segformer import SegformerForSemanticSegmentation
 from mobius.models.starcoder2 import StarCoder2CausalLMModel
@@ -568,6 +572,12 @@ def _create_default_registry() -> ModelRegistry:
         task="speech-to-text",
         config_class=WhisperConfig,
     )
+    reg.register(
+        "speech_to_text",
+        Speech2TextForConditionalGeneration,
+        task="speech2text-seq2seq",
+        config_class=Speech2TextConfig,
+    )
 
     reg.register("qwen3_asr", Qwen3ASRForConditionalGeneration, task="speech-language")
     reg.register(
@@ -624,6 +634,7 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("clip_text_model", CLIPTextModel, task="feature-extraction")
     reg.register("layoutlmv3", LayoutLMv3Model, task="feature-extraction")
     reg.register("modernbert", ModernBertModel, task="feature-extraction")
+    reg.register("longformer", LongformerModel, task="feature-extraction")
     reg.register("clap_text_model", ClapTextModel, task="feature-extraction")
     reg.register("clap_audio_model", ClapAudioModel, task="clap-audio-feature-extraction")
     reg.register("clap", ClapModel, task="contrastive")
@@ -949,6 +960,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
 
     # --- Speech ---
     "whisper": "openai/whisper-tiny",
+    "speech_to_text": "facebook/s2t-small-librispeech-asr",
     "qwen3_asr": "Qwen/Qwen3-ASR-2B-Instruct",
     "speecht5": "microsoft/speecht5_asr",
     "sew": "asapp/sew-tiny-100k",
@@ -975,6 +987,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "deberta-v2": "microsoft/deberta-v3-base",
     "xlm-roberta": "FacebookAI/xlm-roberta-base",
     "modernbert": "answerdotai/ModernBERT-base",
+    "longformer": "allenai/longformer-base-4096",
     "nomic_bert": "nomic-ai/nomic-embed-text-v1.5",
     "jina_bert": "jinaai/jina-embeddings-v2-base-en",
     "clip_text_model": "openai/clip-vit-base-patch32",
