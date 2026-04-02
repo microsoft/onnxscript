@@ -2248,3 +2248,54 @@ class WhisperConfig(BaseModelConfig):
             options["dtype"] = resolved
 
         return cls(**options)
+
+
+@dataclasses.dataclass
+class RwkvConfig(BaseModelConfig):
+    """Configuration for RWKV linear-RNN models (model_type='rwkv').
+
+    RWKV replaces softmax attention with the WKV recurrence, which is
+    processed token-by-token during inference (no KV cache — just RNN state).
+    """
+
+    attention_hidden_size: int = 0
+    head_size: int = 64
+    head_size_divisor: int = 4
+    rescale_every: int = 6
+    layer_norm_epsilon: float = 1e-5
+
+    def __post_init__(self) -> None:
+        if self.attention_hidden_size == 0:
+            self.attention_hidden_size = self.hidden_size
+
+    @classmethod
+    def from_transformers(cls, config) -> RwkvConfig:
+        if config.model_type != "rwkv":
+            raise ValueError(
+                f"RwkvConfig expects model_type='rwkv', got '{config.model_type}'"
+            )
+
+        hidden_size = config.hidden_size
+        intermediate_size = getattr(config, "intermediate_size", 4 * hidden_size)
+        attention_hidden_size = (
+            getattr(config, "attention_hidden_size", hidden_size) or hidden_size
+        )
+
+        options: dict = dict(
+            vocab_size=config.vocab_size,
+            hidden_size=hidden_size,
+            intermediate_size=intermediate_size,
+            num_hidden_layers=config.num_hidden_layers,
+            attention_hidden_size=attention_hidden_size,
+            head_size=getattr(config, "head_size", 64),
+            head_size_divisor=getattr(config, "head_size_divisor", 4),
+            rescale_every=getattr(config, "rescale_every", 6),
+            layer_norm_epsilon=getattr(config, "layer_norm_epsilon", 1e-5),
+            tie_word_embeddings=getattr(config, "tie_word_embeddings", False),
+        )
+
+        resolved = _resolve_dtype(config)
+        if resolved is not None:
+            options["dtype"] = resolved
+
+        return cls(**options)

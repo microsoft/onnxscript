@@ -145,10 +145,16 @@ class TestDetectFallbackRegistration:
         config = _make_hf_config(ssm_cfg={"d_state": 16})
         assert _detect_fallback_registration(config) is None
 
-    def test_rwkv_rescale_every_rejected(self):
-        """RWKV models with rescale_every are rejected."""
+    def test_rwkv_rescale_every_not_rejected(self):
+        """RWKV is now properly registered; rescale_every no longer triggers SSM rejection."""
+        from mobius.models.base import CausalLMModel
         config = _make_hf_config(rescale_every=6)
-        assert _detect_fallback_registration(config) is None
+        # A fake CausalLM config with rescale_every is now handled by the
+        # standard fallback path (not rejected as an SSM model) because
+        # RWKV has its own registry entry under model_type='rwkv'.
+        result = _detect_fallback_registration(config)
+        assert result is not None
+        assert result.module_class is CausalLMModel
 
 
 class TestRegistryBasics:
