@@ -24,6 +24,7 @@ from onnxscript import nn
 
 from mobius._configs import (
     BaseModelConfig,
+    DetrConfig,
     MoondreamConfig,
     ResNetConfig,
     WhisperConfig,
@@ -85,6 +86,7 @@ from mobius.models.bart import BartForConditionalGeneration
 from mobius.models.bert import BertModel
 from mobius.models.blip import BlipVisionModel
 from mobius.models.blip2 import Blip2Model
+from mobius.models.clap import ClapAudioModel, ClapTextModel
 from mobius.models.clip import CLIPTextModel, CLIPVisionModel
 from mobius.models.cohere import CohereCausalLMModel
 from mobius.models.ctrl import CTRLCausalLMModel
@@ -121,6 +123,7 @@ from mobius.models.trocr import TrOCRForConditionalGeneration
 from mobius.models.vit import ViTModel
 from mobius.models.wav2vec2 import Wav2Vec2Model
 from mobius.models.xlm import XLMCausalLMModel
+from mobius.models.detr import DetrForObjectDetection
 from mobius.models.yolos import YolosForObjectDetection
 
 
@@ -594,6 +597,8 @@ def _create_default_registry() -> ModelRegistry:
         reg.register(name, BertModel, task="feature-extraction")
     reg.register("distilbert", DistilBertModel, task="feature-extraction")
     reg.register("clip_text_model", CLIPTextModel, task="feature-extraction")
+    reg.register("clap_text_model", ClapTextModel, task="feature-extraction")
+    reg.register("clap_audio_model", ClapAudioModel, task="feature-extraction")
     reg.register("layoutlmv3", LayoutLMv3Model, task="feature-extraction")
     reg.register("modernbert", ModernBertModel, task="feature-extraction")
 
@@ -687,6 +692,18 @@ def _create_default_registry() -> ModelRegistry:
 
     # --- Object detection ---
     reg.register("yolos", YolosForObjectDetection, task="object-detection")
+    reg.register(
+        "detr",
+        DetrForObjectDetection,
+        task="object-detection",
+        config_class=DetrConfig,
+    )
+    reg.register(
+        "table-transformer",
+        DetrForObjectDetection,
+        task="object-detection",
+        config_class=DetrConfig,
+    )
 
     # --- Segmentation ---
     reg.register("sam2", Sam2VisionModel, task="image-classification")
@@ -896,6 +913,8 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "modernbert": "answerdotai/ModernBERT-base",
     "nomic_bert": "nomic-ai/nomic-embed-text-v1.5",
     "clip_text_model": "openai/clip-vit-base-patch32",
+    "clap_text_model": "laion/clap-htsat-fused",
+    "clap_audio_model": "laion/clap-htsat-fused",
     "clipseg": "CIDAS/clipseg-rd64-refined",
     "bros": "naver-clova-ocr/bros-base-uncased",
     "camembert": "almanach/camembert-base",
@@ -1093,6 +1112,8 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "swinv2": "swin",
     "clip_text_model": "clip",
     "clip_vision_model": "clip",
+    "clap_text_model": "clap",
+    "clap_audio_model": "clap",
     "siglip_vision_model": "clip",
     "siglip2_vision_model": "clip",
     "siglip": "clip",

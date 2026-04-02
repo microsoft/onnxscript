@@ -1791,6 +1791,52 @@ DETECTION_CONFIGS: list[tuple[str, dict, bool]] = [
 
 
 # ---------------------------------------------------------------------------
+# Image segmentation configs
+# ---------------------------------------------------------------------------
+SEGMENTATION_CONFIGS: list[tuple[str, dict, bool]] = [
+    (
+        "clipseg",
+        {
+            # Text encoder (main config)
+            "hidden_act": "quick_gelu",
+            "hidden_size": 32,
+            "intermediate_size": 64,
+            "num_attention_heads": 4,
+            "num_hidden_layers": 2,
+            "num_key_value_heads": 4,
+            "head_dim": 8,
+            "max_position_embeddings": 32,
+            "vocab_size": 256,
+            "rms_norm_eps": 1e-5,
+            # Segmentation decoder config
+            "projection_dim": 32,
+            "reduce_dim": 16,
+            "extract_layers": [1, 2],
+            "conditional_layer": 0,
+            "decoder_num_attention_heads": 2,
+            "decoder_intermediate_size": 64,
+            "decoder_hidden_act": "quick_gelu",
+            # Vision sub-config
+            "vision": VisionConfig(
+                hidden_size=32,
+                intermediate_size=64,
+                num_attention_heads=4,
+                num_hidden_layers=2,
+                image_size=16,
+                patch_size=4,
+                in_channels=3,
+                norm_eps=1e-5,
+            ),
+            "image_size": 16,
+            "patch_size": 4,
+            "num_channels": 3,
+        },
+        True,
+    ),
+]
+
+
+# ---------------------------------------------------------------------------
 # SSM (State Space Model) configs — pure Mamba/Mamba2, no attention
 # ---------------------------------------------------------------------------
 SSM_CONFIGS: list[tuple[str, dict, bool]] = [
@@ -2151,6 +2197,7 @@ ALL_CONFIGS: list[tuple[str, dict, bool]] = (
     + SEQ2SEQ_CONFIGS
     + VISION_CONFIGS
     + DETECTION_CONFIGS
+    + SEGMENTATION_CONFIGS
     + SSM_CONFIGS
     + VL_CONFIGS
     + SPEECH_CONFIGS

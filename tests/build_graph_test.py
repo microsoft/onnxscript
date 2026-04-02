@@ -26,6 +26,7 @@ from _test_configs import (
     DETECTION_CONFIGS,
     ENCODER_CONFIGS,
     LONGROPE_FACTORS,
+    SEGMENTATION_CONFIGS,
     SEQ2SEQ_CONFIGS,
     SPEECH_CONFIGS,
     SSM_CONFIGS,
@@ -525,6 +526,51 @@ class TestBuildDetectionGraph:
         output_names = {out.name for out in model.graph.outputs}
         assert "logits" in output_names
         assert "pred_boxes" in output_names
+
+    def test_onnx_checker_passes(self, model_type: str, config_overrides: dict):
+        """Run the ONNX CheckerPass to catch attribute/shape/type errors."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _run_onnx_checker(pkg, model_type)
+
+    def test_outputs_have_shapes_and_dtypes(self, model_type: str, config_overrides: dict):
+        """Verify shape inference populates all output shapes and dtypes."""
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task = get_task(_default_task_for_model(model_type))
+        pkg = task.build(module, config)
+        _assert_outputs_have_shapes_and_dtypes(pkg, model_type)
+
+
+# === Image segmentation configs ===
+_SEGMENTATION_MODEL_PARAMS = _make_params(SEGMENTATION_CONFIGS)
+
+
+@pytest.mark.parametrize("model_type,config_overrides", _SEGMENTATION_MODEL_PARAMS)
+class TestBuildSegmentationGraph:
+    """Verify that image segmentation model types build valid ONNX graphs."""
+
+    def test_graph_builds_without_weights(self, model_type: str, config_overrides: dict):
+        config = _base_config(**config_overrides)
+        model_cls = registry.get(model_type)
+        module = model_cls(config)
+        task_name = _default_task_for_model(model_type)
+        task = get_task(task_name)
+        pkg = task.build(module, config)
+        model = pkg["model"]
+
+        assert model.graph is not None
+        input_names = {inp.name for inp in model.graph.inputs}
+        assert "pixel_values" in input_names
+        assert "input_ids" in input_names
+        assert "attention_mask" in input_names
+
+        output_names = {out.name for out in model.graph.outputs}
+        assert "logits" in output_names
 
     def test_onnx_checker_passes(self, model_type: str, config_overrides: dict):
         """Run the ONNX CheckerPass to catch attribute/shape/type errors."""
