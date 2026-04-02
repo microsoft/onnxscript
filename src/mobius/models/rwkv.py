@@ -34,17 +34,12 @@ HuggingFace reference: ``RwkvForCausalLM`` (model_type="rwkv").
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import onnx_ir as ir
 from onnxscript import nn
 from onnxscript._internal import builder
 
 from mobius._configs import RwkvConfig
 from mobius.components._common import Embedding, LayerNorm, Linear
-
-if TYPE_CHECKING:
-    pass
 
 # ---------------------------------------------------------------------------
 # Time-mixing (WKV attention)

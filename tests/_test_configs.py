@@ -2427,6 +2427,23 @@ SPEECH_CONFIGS: list[tuple[str, dict, bool]] = [
         },
         True,
     ),
+    # --- CLAP full dual-encoder (contrastive task: text + audio) ---
+    (
+        "clap",
+        {
+            "projection_dim": 8,
+            "audio": AudioConfig(
+                spec_size=16,
+                num_mel_bins=4,
+                patch_size=4,
+                window_size=2,
+                depths=[1, 1],
+                num_attention_heads=[2, 4],
+                patch_embeds_hidden_size=8,
+            ),
+        },
+        True,
+    ),
 ]
 
 
