@@ -72,6 +72,77 @@ class ParameterTest(unittest.TestCase):
         self.assertEqual(value.name, "layer1.bias")
         self.assertIn("layer1.bias", graph.initializers)
 
+    def test_realize_in_subgraph_registers_in_root(self):
+        """Parameter realized inside a subgraph builder is stored in the root graph."""
+        from onnxscript._internal.builder import GraphBuilder
+        from onnxscript.onnx_types import FLOAT
+
+        root_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        root_builder = GraphBuilder(root_graph)
+
+        p = Parameter([3, 4], name="weight")
+
+        def body_fn(op, x):
+            # Realize param inside a sub-builder context
+            p._realize(op.builder)  # pylint: disable=protected-access
+            return op.Add(x, x)
+
+        _sub_graph = root_builder.subgraph(
+            body_fn,
+            inputs=[FLOAT[3, 4]],
+            outputs=[FLOAT[3, 4]],
+        )
+        # Parameter should be in the ROOT graph's initializers, not the subgraph's
+        self.assertIn("weight", root_graph.initializers)
+        self.assertIs(root_graph.initializers["weight"], p)
+        # The subgraph should NOT have the initializer
+        self.assertNotIn("weight", _sub_graph.initializers)
+
+    def test_realize_in_nested_subgraph_registers_in_root(self):
+        """Parameter realized in a doubly-nested subgraph goes to the root graph."""
+        from onnxscript._internal.builder import GraphBuilder, build_graph
+        from onnxscript.onnx_types import FLOAT
+
+        root_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        root_builder = GraphBuilder(root_graph)
+
+        p = Parameter([3], name="bias")
+
+        def inner_fn(op, x):
+            p._realize(op.builder)  # pylint: disable=protected-access
+            return op.Identity(x)
+
+        def outer_fn(op, x):
+            # Build a nested subgraph
+            build_graph(
+                inner_fn,
+                inputs=[FLOAT[3]],
+                outputs=[FLOAT[3]],
+                parent=op.builder,
+            )
+            return op.Identity(x)
+
+        root_builder.subgraph(
+            outer_fn,
+            inputs=[FLOAT[3]],
+            outputs=[FLOAT[3]],
+        )
+        # Even through two levels of nesting, param ends up in root
+        self.assertIn("bias", root_graph.initializers)
+        self.assertIs(root_graph.initializers["bias"], p)
+
 
 class ModuleBasicTest(unittest.TestCase):
     def test_parameter_auto_registration(self):
@@ -854,7 +925,7 @@ class SequentialTest(unittest.TestCase):
                 return op.Add(x, op.Constant(value_float=1.0))
 
         graph, op, x = self._make_input()
-        seq = Sequential([AddOne(), AddOne(), AddOne()])
+        seq = Sequential(AddOne(), AddOne(), AddOne())
         result = seq(op, x)
 
         self.assertIsInstance(result, ir.Value)
@@ -869,7 +940,7 @@ class SequentialTest(unittest.TestCase):
                 return op.Identity(x)
 
         _, op, x = self._make_input()
-        seq = Sequential([PassThrough()])
+        seq = Sequential(PassThrough())
         result = seq(op, x)
         self.assertIsInstance(result, ir.Value)
 
@@ -899,7 +970,7 @@ class SequentialTest(unittest.TestCase):
                 return op.Add(a, b)
 
         graph, op, x = self._make_input()
-        seq = Sequential([SplitTwo(), UnpackAndAdd()])
+        seq = Sequential(SplitTwo(), UnpackAndAdd())
         result = seq(op, x)
 
         self.assertIsInstance(result, ir.Value)
@@ -920,7 +991,7 @@ class SequentialTest(unittest.TestCase):
                 return op.Add(a, b)
 
         _, op, x = self._make_input()
-        seq = Sequential([SplitTwoList(), UnpackAndAdd()])
+        seq = Sequential(SplitTwoList(), UnpackAndAdd())
         result = seq(op, x)
         self.assertIsInstance(result, ir.Value)
 
@@ -938,7 +1009,7 @@ class SequentialTest(unittest.TestCase):
                 return pair
 
         _, op, x = self._make_input()
-        seq = Sequential([ReturnPair(), TupleIdentity()])
+        seq = Sequential(ReturnPair(), TupleIdentity())
         result = seq(op, x)
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 2)
@@ -951,7 +1022,7 @@ class SequentialTest(unittest.TestCase):
                 return (op.Identity(x), op.Identity(x))
 
         _, op, x = self._make_input()
-        seq = Sequential([ReturnPair()])
+        seq = Sequential(ReturnPair())
         result = seq(op, x)
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 2)
@@ -968,7 +1039,7 @@ class SequentialTest(unittest.TestCase):
                 return (op.Identity(x), op.Identity(x), op.Identity(x))
 
         _, op, x = self._make_input()
-        seq = Sequential([Identity(), SplitThree()])
+        seq = Sequential(Identity(), SplitThree())
         result = seq(op, x)
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 3)
@@ -987,7 +1058,7 @@ class SequentialTest(unittest.TestCase):
 
         _, op = _create_graph_and_op()
         accept = AcceptNone()
-        seq = Sequential([ReturnNone(), accept])
+        seq = Sequential(ReturnNone(), accept)
         result = seq(op, "anything")
         self.assertIsNone(result)
         self.assertIsNone(accept.received)
@@ -1008,7 +1079,7 @@ class SequentialTest(unittest.TestCase):
         class Model(Module):
             def __init__(self):
                 super().__init__("model")
-                self.layers = Sequential([Linear(4, 4), Linear(4, 4)])
+                self.layers = Sequential(Linear(4, 4), Linear(4, 4))
 
             def forward(self, op, x):
                 return self.layers(op, x)
@@ -1035,7 +1106,7 @@ class SequentialTest(unittest.TestCase):
             def forward(self, op, x):
                 return op.MatMul(x, op.Transpose(self.weight, perm=[1, 0]))
 
-        seq = Sequential([SiLU(), Linear(4)])
+        seq = Sequential(SiLU(), Linear(4))
         named = dict(seq.named_parameters())
         # SiLU at index 0 has no params; Linear at index 1 has weight
         self.assertIn("1.weight", named)
@@ -1061,7 +1132,7 @@ class SequentialTest(unittest.TestCase):
         class Model(Module):
             def __init__(self):
                 super().__init__("model")
-                self.blocks = Sequential([])
+                self.blocks = Sequential()
                 # Append AFTER __setattr__ has set Sequential._name = "blocks"
                 self.blocks.append(Linear(4))
                 self.blocks.append(Linear(4))

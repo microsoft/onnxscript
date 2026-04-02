@@ -339,9 +339,11 @@ The subgraph automatically inherits the opset version from the parent
 
 ### Type annotations for subgraph inputs and outputs
 
-`subgraph()` accepts `input_types` and `output_types` lists that describe
-the types and shapes of each input and output. Each element can be either an
-`ir.TypeAndShape` object or — more conveniently — an
+`subgraph()` accepts `inputs` and `outputs` that describe
+the types and shapes of each input and output. They can be provided as a
+:class:`list` of type specs (names are auto-generated) **or** as a
+:class:`dict` mapping explicit names to type specs. Each type spec can be
+either an `ir.TypeAndShape` object or — more conveniently — an
 `onnxscript` tensor-type expression:
 
 | Expression           | Meaning                                 |
@@ -408,8 +410,8 @@ def cumsum_body(op, state, x_i):
 
 body = builder.subgraph(
     cumsum_body,
-    input_types=[FLOAT[D], FLOAT[D]],   # state, x_i
-    output_types=[FLOAT[D], FLOAT[D]],  # new_state, scan_out_i
+    inputs=[FLOAT[D], FLOAT[D]],   # state, x_i
+    outputs=[FLOAT[D], FLOAT[D]],  # new_state, scan_out_i
     name="cumsum_body",
 )
 
@@ -430,7 +432,7 @@ model = ir.Model(graph=graph, ir_version=10)
 
 Key points:
 
-- `builder.subgraph(fn, input_types, output_types)` creates a fresh
+- `builder.subgraph(fn, inputs, outputs)` creates a fresh
   `ir.Graph`, calls `fn(op, *inputs)` to trace the body, and wires up the
   declared input/output types.
 - The `fn` receives an `OpBuilder` as its first argument — exactly the same
@@ -450,8 +452,8 @@ def outer_body(op, state, x_i):
     # Build a nested subgraph inside the scan body
     inner = op.builder.subgraph(
         lambda iop, v: iop.Relu(v),
-        input_types=[FLOAT[D]],
-        output_types=[FLOAT[D]],
+        inputs=[FLOAT[D]],
+        outputs=[FLOAT[D]],
         name="relu_body",
     )
     # ... use inner as a graph attribute of a nested op ...
