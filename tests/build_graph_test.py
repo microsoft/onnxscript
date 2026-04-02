@@ -3739,6 +3739,56 @@ class TestBuildCLIPContrastiveGraph:
         assert "vision_embeds" in output_names
 
 
+class TestBuildAltCLIPContrastiveGraph:
+    """Verify AltCLIPModel builds valid text + vision ONNX graphs."""
+
+    def _build_altclip(self):
+        from mobius.models.altclip import AltCLIPModel
+        from mobius.tasks import ContrastiveTask
+
+        config = _base_config(
+            hidden_act="gelu",
+            type_vocab_size=1,
+            image_size=32,
+            patch_size=8,
+            num_channels=3,
+            projection_dim=32,
+        )
+        module = AltCLIPModel(config)
+        task = ContrastiveTask()
+        return task.build(module, config)
+
+    def test_graph_builds_text_and_vision(self):
+        pkg = self._build_altclip()
+        assert "text" in pkg, "Should produce 'text' model"
+        assert "vision" in pkg, "Should produce 'vision' model"
+
+    def test_text_model_has_correct_inputs(self):
+        pkg = self._build_altclip()
+        text_model = pkg["text"]
+        input_names = {inp.name for inp in text_model.graph.inputs}
+        assert "input_ids" in input_names
+        assert "attention_mask" in input_names
+
+    def test_vision_model_has_correct_inputs(self):
+        pkg = self._build_altclip()
+        vision_model = pkg["vision"]
+        input_names = {inp.name for inp in vision_model.graph.inputs}
+        assert "pixel_values" in input_names
+
+    def test_text_model_output_is_embeddings(self):
+        pkg = self._build_altclip()
+        text_model = pkg["text"]
+        output_names = {out.name for out in text_model.graph.outputs}
+        assert "text_embeds" in output_names
+
+    def test_vision_model_output_is_embeddings(self):
+        pkg = self._build_altclip()
+        vision_model = pkg["vision"]
+        output_names = {out.name for out in vision_model.graph.outputs}
+        assert "vision_embeds" in output_names
+
+
 class TestBuildCLAPContrastiveGraph:
     """Verify ClapModel builds valid text + audio ONNX graphs."""
 
@@ -3883,6 +3933,7 @@ _SPECIALIZED_TEST_MODEL_TYPES: set[str] = {
     "clap_audio_model",
     # Contrastive model dedicated tests
     "clip",
+    "altclip",
     "clap",
 }
 

@@ -275,6 +275,7 @@ _COVERAGE_SKIP: dict[str, str] = {
     "zamba2": "CausalLM — YAML not yet created",
     # --- Contrastive models (tested via specialized test classes) ---
     "clip": "Contrastive model — tested via TestBuildCLIPContrastiveGraph",
+    "altclip": "Contrastive model — tested via TestBuildAltCLIPContrastiveGraph",
 }
 
 

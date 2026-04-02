@@ -86,6 +86,7 @@ from mobius.models import (
     SmolLM3CausalLMModel,
     WhisperForConditionalGeneration,
 )
+from mobius.models.altclip import AltCLIPModel
 from mobius.models.bamba import BambaCausalLMModel
 from mobius.models.bart import BartForConditionalGeneration
 from mobius.models.bert import BertModel
@@ -627,6 +628,7 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("clap_audio_model", ClapAudioModel, task="clap-audio-feature-extraction")
     reg.register("clap", ClapModel, task="contrastive")
     reg.register("clip", CLIPModel, task="contrastive")
+    reg.register("altclip", AltCLIPModel, task="contrastive")
 
     from mobius.models.clipseg import CLIPSegModel
 
@@ -1035,6 +1037,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "beit": "microsoft/beit-base-patch16-224",
     "clip_vision_model": "openai/clip-vit-base-patch32",
     "clip": "openai/clip-vit-base-patch32",
+    "altclip": "BAAI/AltCLIP",
     "swin": "microsoft/swin-tiny-patch4-window7-224",
     "deit": "facebook/deit-small-patch16-224",
     "blip": "Salesforce/blip-image-captioning-base",
@@ -1190,6 +1193,7 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "siglip": "clip",
     "siglip2": "clip",
     "clip": "clip",
+    "altclip": "clip",
     "clap_text_model": "clap",
     "clap_audio_model": "clap",
     "clap": "clap",

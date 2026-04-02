@@ -7,6 +7,7 @@ __all__ = [
     "ApertusCausalLMModel",
     "ArceeCausalLMModel",
     "AutoencoderKLModel",
+    "AltCLIPModel",
     "AutoencoderKLQwenImageModel",
     "BambaCausalLMModel",
     "BartForConditionalGeneration",
@@ -138,6 +139,7 @@ __all__ = [
 
 from mobius.models.adapters import IPAdapterModel, T2IAdapterModel
 from mobius.models.apertus import ApertusCausalLMModel
+from mobius.models.altclip import AltCLIPModel
 from mobius.models.arcee import ArceeCausalLMModel
 from mobius.models.bamba import BambaCausalLMModel
 from mobius.models.bart import BartForConditionalGeneration
