@@ -29,6 +29,7 @@ from mobius._configs import (
     MoondreamConfig,
     ResNetConfig,
     RtDetrConfig,
+    RwkvConfig,
     WhisperConfig,
 )
 from mobius.models import (
@@ -108,6 +109,7 @@ from mobius.models.layoutlmv3 import LayoutLMv3Model
 from mobius.models.llava import LLaVAModel
 from mobius.models.longcat_flash import LongcatFlashCausalLMModel
 from mobius.models.mamba import Mamba2CausalLMModel, MambaCausalLMModel
+from mobius.models.rwkv import RwkvCausalLMModel
 from mobius.models.minimax import MiniMaxCausalLMModel
 from mobius.models.mllama import MllamaCausalLMModel
 from mobius.models.modernbert import ModernBertDecoderModel, ModernBertModel
@@ -312,7 +314,6 @@ def _detect_fallback_registration(hf_config) -> ModelRegistration | None:
         "d_conv",
         "ssm_cfg",
         "recurrent_block_type",
-        "rescale_every",  # RWKV linear-attention models
     )
     if any(getattr(hf_config, attr, None) is not None for attr in _ssm_indicators):
         return None
@@ -472,6 +473,9 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("mamba", MambaCausalLMModel)
     reg.register("falcon_mamba", MambaCausalLMModel)
     reg.register("mamba2", Mamba2CausalLMModel)
+
+    # --- RWKV linear-RNN ---
+    reg.register("rwkv", RwkvCausalLMModel, task="rwkv-text-generation", config_class=RwkvConfig)
 
     # --- Hybrid SSM+Attention (Jamba) ---
     reg.register("jamba", JambaCausalLMModel)
@@ -882,6 +886,9 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "mamba2": "state-spaces/mamba2-130m",
     "falcon_mamba": "tiiuae/falcon-mamba-7b",
 
+    # --- RWKV ---
+    "rwkv": "RWKV/v4-pile-430m-20220901-ctx8192",
+
     # --- Hybrid SSM+Attention ---
     "jamba": "ai21labs/Jamba-v0.1",
     "bamba": "ibm-fms/Bamba-9B",
@@ -1097,6 +1104,7 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "falcon_mamba": "falcon",
     "mamba": "mamba",
     "mamba2": "mamba",
+    "rwkv": "rwkv",
     "bloom": "bloom",
     "gpt2": "gpt2",
     "gpt_neo": "gpt2",
@@ -1154,6 +1162,7 @@ _VARIANT_LABELS: dict[str, str] = {
     "mamba": "ssm",
     "mamba2": "ssm",
     "falcon_mamba": "ssm",
+    "rwkv": "linear-rnn",
     "jamba": "hybrid-ssm+attn",
     "bamba": "hybrid-mamba2+attn",
     "qwen3_next": "moe+linear-attn",
