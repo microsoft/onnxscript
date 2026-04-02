@@ -14,6 +14,7 @@ __all__ = [
     "Blip2Model",
     "BloomCausalLMModel",
     "CLIPVisionModel",
+    "CLIPSegModel",
     "CTRLCausalLMModel",
     "CausalLMModel",
     "ChatGLMCausalLMModel",
@@ -64,6 +65,7 @@ __all__ = [
     "MambaCausalLMModel",
     "MiniMaxCausalLMModel",
     "MoECausalLMModel",
+    "MoondreamModel",
     "NanoChatCausalLMModel",
     "NemotronCausalLMModel",
     "NemotronHCausalLMModel",
@@ -132,6 +134,7 @@ from mobius.models.bert import BertModel
 from mobius.models.blip2 import Blip2Model
 from mobius.models.chatglm import ChatGLMCausalLMModel
 from mobius.models.clip import CLIPVisionModel
+from mobius.models.clipseg import CLIPSegModel
 from mobius.models.cogvideox import CogVideoXTransformer3DModel
 from mobius.models.cohere import CohereCausalLMModel
 from mobius.models.controlnet import ControlNetModel
@@ -176,6 +179,7 @@ from mobius.models.moe import (
     Phi3MoECausalLMModel,
     Qwen2MoECausalLMModel,
 )
+from mobius.models.moondream import MoondreamModel
 from mobius.models.nanochat import NanoChatCausalLMModel
 from mobius.models.nemotron import NemotronCausalLMModel
 from mobius.models.nemotron_h import NemotronHCausalLMModel

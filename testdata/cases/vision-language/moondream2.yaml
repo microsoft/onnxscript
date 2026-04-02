@@ -1,0 +1,19 @@
+model_id: "vikhyatk/moondream2"
+revision: "main"
+task_type: "vision-language"
+dtype: "float32"
+
+skip_reason: "Custom trust_remote_code model; requires HF compat workaround"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+  text: "Describe this image."
+
+level: "L4"
+
+notes: >
+  Moondream2 lightweight VL model. Uses model_type moondream1 with custom
+  trust_remote_code config. Vision is ViT with linear patch embedding.
+  Text decoder uses parallel pre-norm (Cohere-style). Fused QKV weights
+  split in preprocess_weights. Multi-crop support is Phase 2.

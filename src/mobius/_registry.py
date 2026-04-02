@@ -24,6 +24,7 @@ from onnxscript import nn
 
 from mobius._configs import (
     BaseModelConfig,
+    MoondreamConfig,
     ResNetConfig,
     WhisperConfig,
 )
@@ -105,6 +106,7 @@ from mobius.models.mamba import Mamba2CausalLMModel, MambaCausalLMModel
 from mobius.models.minimax import MiniMaxCausalLMModel
 from mobius.models.mllama import MllamaCausalLMModel
 from mobius.models.modernbert import ModernBertDecoderModel, ModernBertModel
+from mobius.models.moondream import MoondreamModel
 from mobius.models.opt import OPTCausalLMModel
 from mobius.models.persimmon import PersimmonCausalLMModel
 from mobius.models.qwen3_asr import Qwen3ASRForConditionalGeneration
@@ -514,6 +516,10 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("mllama", MllamaCausalLMModel, task="mllama-vision-language")
 
     reg.register("blip-2", Blip2Model, task="vision-language")
+    reg.register(
+        "moondream1", MoondreamModel,
+        task="vision-language", config_class=MoondreamConfig,
+    )
     reg.register("phi4mm", Phi4MMMultiModalModel, task="phi4mm-multimodal")
     reg.register("phi4_multimodal", Phi4MMMultiModalModel, task="phi4mm-multimodal")
     reg.register("qwen2_vl", Qwen25VLCausalLMModel, task="qwen-vl")
@@ -590,6 +596,10 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("clip_text_model", CLIPTextModel, task="feature-extraction")
     reg.register("layoutlmv3", LayoutLMv3Model, task="feature-extraction")
     reg.register("modernbert", ModernBertModel, task="feature-extraction")
+
+    from mobius.models.clipseg import CLIPSegModel
+
+    reg.register("clipseg", CLIPSegModel, task="image-segmentation")
 
     from mobius.models.nomic_bert import NomicBertModel
 
@@ -857,6 +867,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "instructblip": "Salesforce/instructblip-flan-t5-xl",
     "llava_onevision": "llava-hf/llava-onevision-qwen2-0.5b-ov-hf",
     "molmo": "allenai/MolmoE-1B-0924",
+    "moondream1": "vikhyatk/moondream2",
 
     # --- Speech ---
     "whisper": "openai/whisper-tiny",
@@ -885,6 +896,7 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "modernbert": "answerdotai/ModernBERT-base",
     "nomic_bert": "nomic-ai/nomic-embed-text-v1.5",
     "clip_text_model": "openai/clip-vit-base-patch32",
+    "clipseg": "CIDAS/clipseg-rd64-refined",
     "bros": "naver-clova-ocr/bros-base-uncased",
     "camembert": "almanach/camembert-base",
     "data2vec-text": "facebook/data2vec-text-base",

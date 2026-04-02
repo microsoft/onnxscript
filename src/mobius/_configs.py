@@ -735,6 +735,15 @@ class ArchitectureConfig(BaseModelConfig):
     # YOLOS object detection config
     num_labels: int = 91
 
+    # CLIPSeg segmentation decoder config
+    projection_dim: int | None = None
+    reduce_dim: int = 64
+    extract_layers: list[int] | None = None
+    conditional_layer: int = 0
+    decoder_num_attention_heads: int = 4
+    decoder_intermediate_size: int | None = None
+    decoder_hidden_act: str = "quick_gelu"
+
     # Composed sub-configs
     rope: RoPEConfig | None = None
     vision: VisionConfig | None = None
@@ -998,6 +1007,27 @@ class ArchitectureConfig(BaseModelConfig):
 
         # Audio config
         options.update(_extract_audio_config(config, parent_config, model_type))
+
+        # CLIPSeg segmentation decoder config (fields on parent_config)
+        seg_source = parent_config or config
+        if getattr(seg_source, "reduce_dim", None) is not None:
+            options["projection_dim"] = getattr(seg_source, "projection_dim", 512)
+            options["reduce_dim"] = getattr(seg_source, "reduce_dim", 64)
+            options["extract_layers"] = getattr(
+                seg_source, "extract_layers", [3, 6, 9]
+            )
+            options["conditional_layer"] = getattr(
+                seg_source, "conditional_layer", 0
+            )
+            options["decoder_num_attention_heads"] = getattr(
+                seg_source, "decoder_num_attention_heads", 4
+            )
+            options["decoder_intermediate_size"] = getattr(
+                seg_source, "decoder_intermediate_size", 2048
+            )
+            options["decoder_hidden_act"] = getattr(
+                seg_source, "decoder_hidden_act", "quick_gelu"
+            )
 
         # Q-Former config (for BLIP-2 style models)
         qformer_source = parent_config or config
@@ -1499,6 +1529,54 @@ class Sam2Config(ArchitectureConfig):
 
 
 @dataclasses.dataclass
+class DetrConfig(ArchitectureConfig):
+    """Configuration for DETR (DEtection TRansformer) object detection models.
+
+    DETR uses a ResNet-50 backbone (timm-style weight naming) with a
+    transformer encoder-decoder.  Backbone fields are embedded directly
+    to avoid an extra nested config object.
+    """
+
+    d_model: int = 256
+    num_queries: int = 100
+    encoder_layers: int = 6
+    decoder_layers: int = 6
+    encoder_attention_heads: int = 8
+    decoder_attention_heads: int = 8
+    encoder_ffn_dim: int = 2048
+    decoder_ffn_dim: int = 2048
+    # ResNet-50 backbone defaults
+    backbone_embedding_size: int = 64
+    backbone_hidden_sizes: list[int] = dataclasses.field(
+        default_factory=lambda: [256, 512, 1024, 2048]
+    )
+    backbone_depths: list[int] = dataclasses.field(
+        default_factory=lambda: [3, 4, 6, 3]
+    )
+    backbone_layer_type: str = "bottleneck"
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> DetrConfig:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+        return cls(
+            **_shallow_fields(base),
+            d_model=getattr(config, "d_model", 256),
+            num_queries=getattr(config, "num_queries", 100),
+            encoder_layers=getattr(config, "encoder_layers", 6),
+            decoder_layers=getattr(config, "decoder_layers", 6),
+            encoder_attention_heads=getattr(config, "encoder_attention_heads", 8),
+            decoder_attention_heads=getattr(config, "decoder_attention_heads", 8),
+            encoder_ffn_dim=getattr(config, "encoder_ffn_dim", 2048),
+            decoder_ffn_dim=getattr(config, "decoder_ffn_dim", 2048),
+            # Backbone is a fixed ResNet-50 (timm) — no nested config
+            backbone_embedding_size=64,
+            backbone_hidden_sizes=[256, 512, 1024, 2048],
+            backbone_depths=[3, 4, 6, 3],
+            backbone_layer_type="bottleneck",
+        )
+
+
+@dataclasses.dataclass
 class ResNetConfig(ArchitectureConfig):
     """Configuration for ResNet CNN backbone models.
 
@@ -1528,6 +1606,59 @@ class ResNetConfig(ArchitectureConfig):
             layer_type=getattr(config, "layer_type", "bottleneck"),
             downsample_in_bottleneck=getattr(
                 config, "downsample_in_bottleneck", False
+            ),
+        )
+
+@dataclasses.dataclass
+class MoondreamConfig(ArchitectureConfig):
+    """Configuration for Moondream vision-language models.
+
+    Moondream uses a custom config format with nested text/vision sub-configs.
+    The HF config is nearly empty — defaults are hardcoded from
+    ``vikhyatk/moondream2``'s custom Python code.
+    """
+
+    @classmethod
+    def from_transformers(cls, config, parent_config=None) -> MoondreamConfig:
+        base = ArchitectureConfig.from_transformers(config, parent_config)
+        # Moondream's HF config stores params in a nested 'config' dict
+        cfg = getattr(config, "config", None) or {}
+        text_cfg = cfg.get("text", {})
+        vision_cfg = cfg.get("vision", {})
+
+        text_dim = text_cfg.get("dim", 2048)
+        n_heads = text_cfg.get("n_heads", 32)
+        enc_dim = vision_cfg.get("enc_dim", 1152)
+        enc_ff_dim = vision_cfg.get("enc_ff_dim", 4304)
+        enc_n_layers = vision_cfg.get("enc_n_layers", 27)
+        enc_n_heads = vision_cfg.get("enc_n_heads", 16)
+        crop_size = vision_cfg.get("crop_size", 378)
+        patch_size = vision_cfg.get("enc_patch_size", 14)
+        proj_inner_dim = vision_cfg.get("proj_inner_dim", 8192)
+
+        return cls(
+            **_shallow_fields(base),
+            hidden_size=text_dim,
+            intermediate_size=text_cfg.get("ff_dim", 8192),
+            num_hidden_layers=text_cfg.get("n_layers", 24),
+            vocab_size=text_cfg.get("vocab_size", 51200),
+            num_attention_heads=n_heads,
+            num_key_value_heads=text_cfg.get("n_kv_heads", 32),
+            head_dim=text_dim // n_heads,
+            hidden_act="gelu_tanh",
+            rms_norm_eps=1e-5,
+            attn_qkv_bias=True,
+            attn_o_bias=True,
+            max_position_embeddings=text_cfg.get("max_context", 2048),
+            image_token_id=50256,  # Placeholder for ORT GenAI pipeline
+            vision=VisionConfig(
+                hidden_size=enc_dim,
+                intermediate_size=enc_ff_dim,
+                num_hidden_layers=enc_n_layers,
+                num_attention_heads=enc_n_heads,
+                image_size=crop_size,
+                patch_size=patch_size,
+                norm_eps=1e-6,
             ),
         )
 
