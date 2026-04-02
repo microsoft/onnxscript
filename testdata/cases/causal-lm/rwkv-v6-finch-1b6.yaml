@@ -1,0 +1,17 @@
+model_id: "RWKV/v6-Finch-1B6-HF"
+revision: "ba89236d95b2be90e20dcb4779271403e8b1d745"
+task_type: "rwkv6-text-generation"
+dtype: "float32"
+
+inputs:
+  prompts:
+    - "The Eiffel Tower is located in"
+
+level: "L4+L5"
+
+generation:
+  max_new_tokens: 20
+  do_sample: false
+
+skip_reason: "RWKV-6 uses custom WKV-6 recurrence with matrix state; requires dedicated runtime support."
+notes: "RWKV-6 Finch 1.6B. Linear-complexity RNN with data-dependent WKV-6 matrix recurrence. 1.6B params."

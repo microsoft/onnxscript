@@ -117,6 +117,7 @@ __all__ = [
     "ConvNextModel",
     "ResNetModel",
     "RtDetrForObjectDetection",
+    "Rwkv6CausalLMModel",
     "SD3Transformer2DModel",
     "SmolLM3CausalLMModel",
     "StarCoder2CausalLMModel",
@@ -248,6 +249,7 @@ from mobius.models.qwen_vl import (
 )
 from mobius.models.resnet import ResNetModel
 from mobius.models.rt_detr import RtDetrForObjectDetection
+from mobius.models.rwkv6 import Rwkv6CausalLMModel
 from mobius.models.smollm import SmolLM3CausalLMModel
 from mobius.models.starcoder2 import StarCoder2CausalLMModel
 from mobius.models.t5 import T5ForConditionalGeneration
