@@ -26,6 +26,8 @@ from mobius._configs import (
     BaseModelConfig,
     ConvNextConfig,
     DetrConfig,
+    RtDetrConfig,
+    RwkvConfig,
     MoondreamConfig,
     ResNetConfig,
     RtDetrConfig,
@@ -90,6 +92,7 @@ from mobius.models.bert import BertModel
 from mobius.models.blip import BlipVisionModel
 from mobius.models.blip2 import Blip2Model
 from mobius.models.clip import CLIPTextModel, CLIPVisionModel
+from mobius.models.clap import ClapAudioModel, ClapTextModel
 from mobius.models.cohere import CohereCausalLMModel
 from mobius.models.convnext import ConvNextModel
 from mobius.models.ctrl import CTRLCausalLMModel
@@ -612,6 +615,8 @@ def _create_default_registry() -> ModelRegistry:
     reg.register("clip_text_model", CLIPTextModel, task="feature-extraction")
     reg.register("layoutlmv3", LayoutLMv3Model, task="feature-extraction")
     reg.register("modernbert", ModernBertModel, task="feature-extraction")
+    reg.register("clap_text_model", ClapTextModel, task="feature-extraction")
+    reg.register("clap_audio_model", ClapAudioModel, task="clap-audio-feature-extraction")
 
     from mobius.models.clipseg import CLIPSegModel
 

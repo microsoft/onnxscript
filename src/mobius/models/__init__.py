@@ -18,6 +18,8 @@ __all__ = [
     "CTRLCausalLMModel",
     "CausalLMModel",
     "ChatGLMCausalLMModel",
+    "ClapAudioModel",
+    "ClapTextModel",
     "CodeGenCausalLMModel",
     "CogVideoXTransformer3DModel",
     "CohereCausalLMModel",
@@ -137,6 +139,7 @@ from mobius.models.base import CausalLMModel, LayerNormCausalLMModel
 from mobius.models.bert import BertModel
 from mobius.models.blip2 import Blip2Model
 from mobius.models.chatglm import ChatGLMCausalLMModel
+from mobius.models.clap import ClapAudioModel, ClapTextModel
 from mobius.models.clip import CLIPVisionModel
 from mobius.models.clipseg import CLIPSegModel
 from mobius.models.cogvideox import CogVideoXTransformer3DModel

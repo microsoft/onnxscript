@@ -3493,6 +3493,45 @@ class TestBuildJambaGraph:
         assert "model.layers.0.mamba.in_proj.weight" in result
 
 
+
+class TestBuildClapAudioGraph:
+    """Verify ClapAudioModel builds a valid ONNX graph with mel-spectrogram input."""
+
+    def _build_clap_audio(self):
+        from mobius._configs import AudioConfig
+        from mobius.models import ClapAudioModel
+        from mobius.tasks import ClapAudioFeatureExtractionTask
+
+        config = _base_config(
+            projection_dim=8,
+            audio=AudioConfig(
+                spec_size=16,
+                num_mel_bins=4,
+                patch_size=4,
+                window_size=2,
+                depths=[1, 1],
+                num_attention_heads=[2, 4],
+                patch_embeds_hidden_size=8,
+            ),
+        )
+        module = ClapAudioModel(config)
+        task = ClapAudioFeatureExtractionTask()
+        return task.build(module, config)["model"]
+
+    def test_graph_builds_without_weights(self):
+        model = self._build_clap_audio()
+        assert model.graph is not None
+        input_names = {inp.name for inp in model.graph.inputs}
+        assert "input_features" in input_names
+
+    def test_onnx_checker_passes(self):
+        pkg = {"model": self._build_clap_audio()}
+        _run_onnx_checker(pkg, "clap_audio_model")
+
+    def test_outputs_have_shapes_and_dtypes(self):
+        pkg = {"model": self._build_clap_audio()}
+        _assert_outputs_have_shapes_and_dtypes(pkg, "clap_audio_model")
+
 # ===========================================================================
 # Registry completeness
 # ===========================================================================
