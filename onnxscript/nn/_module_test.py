@@ -72,6 +72,77 @@ class ParameterTest(unittest.TestCase):
         self.assertEqual(value.name, "layer1.bias")
         self.assertIn("layer1.bias", graph.initializers)
 
+    def test_realize_in_subgraph_registers_in_root(self):
+        """Parameter realized inside a subgraph builder is stored in the root graph."""
+        from onnxscript._internal.builder import GraphBuilder
+        from onnxscript.onnx_types import FLOAT
+
+        root_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        root_builder = GraphBuilder(root_graph)
+
+        p = Parameter([3, 4], name="weight")
+
+        def body_fn(op, x):
+            # Realize param inside a sub-builder context
+            p._realize(op.builder)  # pylint: disable=protected-access
+            return op.Add(x, x)
+
+        _sub_graph = root_builder.subgraph(
+            body_fn,
+            inputs=[FLOAT[3, 4]],
+            outputs=[FLOAT[3, 4]],
+        )
+        # Parameter should be in the ROOT graph's initializers, not the subgraph's
+        self.assertIn("weight", root_graph.initializers)
+        self.assertIs(root_graph.initializers["weight"], p)
+        # The subgraph should NOT have the initializer
+        self.assertNotIn("weight", _sub_graph.initializers)
+
+    def test_realize_in_nested_subgraph_registers_in_root(self):
+        """Parameter realized in a doubly-nested subgraph goes to the root graph."""
+        from onnxscript._internal.builder import GraphBuilder, build_graph
+        from onnxscript.onnx_types import FLOAT
+
+        root_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        root_builder = GraphBuilder(root_graph)
+
+        p = Parameter([3], name="bias")
+
+        def inner_fn(op, x):
+            p._realize(op.builder)  # pylint: disable=protected-access
+            return op.Identity(x)
+
+        def outer_fn(op, x):
+            # Build a nested subgraph
+            build_graph(
+                inner_fn,
+                inputs=[FLOAT[3]],
+                outputs=[FLOAT[3]],
+                parent=op.builder,
+            )
+            return op.Identity(x)
+
+        root_builder.subgraph(
+            outer_fn,
+            inputs=[FLOAT[3]],
+            outputs=[FLOAT[3]],
+        )
+        # Even through two levels of nesting, param ends up in root
+        self.assertIn("bias", root_graph.initializers)
+        self.assertIs(root_graph.initializers["bias"], p)
+
 
 class ModuleBasicTest(unittest.TestCase):
     def test_parameter_auto_registration(self):
