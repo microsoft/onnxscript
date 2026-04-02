@@ -33,7 +33,6 @@ from mobius.components import Attention, Embedding, LayerNorm, Linear, StaticCac
 from mobius.components._vision import (
     VisionEncoder,
     VisionLayerNorm,
-    VisionMLP,
     _VisionLinear,
 )
 
@@ -208,6 +207,32 @@ class _MoondreamDecoderModel(nn.Module):
 
 
 # ---------------------------------------------------------------------------
+# Asymmetric vision-to-text projection MLP
+# ---------------------------------------------------------------------------
+
+
+class _AsymmetricMLP(nn.Module):
+    """Two-layer MLP that projects from one dimension to another.
+
+    Unlike VisionMLP (which maps hidden_size → intermediate → hidden_size),
+    this maps input_size → intermediate → output_size.  Used for the
+    Moondream vision-to-text projection where 2*enc_dim ≠ text_dim.
+    """
+
+    def __init__(
+        self, input_size: int, intermediate_size: int, output_size: int
+    ):
+        super().__init__()
+        self.fc1 = _VisionLinear(input_size, intermediate_size)
+        self.fc2 = _VisionLinear(intermediate_size, output_size)
+
+    def forward(self, op: builder.OpBuilder, hidden_states: ir.Value):
+        hidden_states = self.fc1(op, hidden_states)
+        hidden_states = op.Gelu(hidden_states, approximate="tanh")
+        return self.fc2(op, hidden_states)
+
+
+# ---------------------------------------------------------------------------
 # Vision encoder model (3-model split: "vision" graph)
 # ---------------------------------------------------------------------------
 
@@ -305,9 +330,11 @@ class _MoondreamVisionEncoderModel(nn.Module):
 
         # Projection MLP: 2*enc_dim → proj_inner → text_dim
         # (2*enc_dim because moondream concatenates global + spatial features)
+        # Note: output dim is text decoder's hidden_size, NOT 2*enc_dim.
         proj_inner = getattr(vc, "proj_inner_dim", None) or (vc.intermediate_size * 2)
-        self.proj_mlp = VisionMLP(vc.hidden_size * 2, proj_inner)
-        self._proj_out_dim = config.hidden_size
+        self.proj_mlp = _AsymmetricMLP(
+            vc.hidden_size * 2, proj_inner, config.hidden_size
+        )
 
     def forward(self, op: builder.OpBuilder, pixel_values: ir.Value):
         # Vision encoder: [B, C, H, W] → [B, num_patches, enc_dim]

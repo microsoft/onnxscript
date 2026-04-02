@@ -265,11 +265,17 @@ class _CLIPSegTextEncoder(nn.Module):
         # Build causal attention mask (lower-triangular)
         seq_len = op.Shape(input_ids, start=1, end=2)
         # Build causal mask: upper triangle = -10000, lower+diag = 0
-        neg_inf = op.Expand(
-            op.Constant(value_float=-10000.0),
-            op.Concat(seq_len, seq_len, axis=0),
+        # Step 1: upper-triangle filled with -inf (includes diagonal)
+        neg_inf_mask = op.Trilu(
+            op.Expand(
+                op.Constant(value_float=-10000.0),
+                op.Concat(seq_len, seq_len, axis=0),
+            ),
+            upper=1,
         )
-        upper_tri = op.Sub(op.Trilu(neg_inf, upper=1), op.Trilu(neg_inf, upper=0))
+        # Step 2: remove diagonal (keep only strictly-upper entries)
+        diag_mask = op.Trilu(neg_inf_mask, upper=0)
+        upper_tri = op.Sub(neg_inf_mask, diag_mask)
         causal_bias = op.Unsqueeze(upper_tri, [0, 1])  # [1, 1, seq, seq]
 
         for layer in self.encoder:
