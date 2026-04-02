@@ -28,6 +28,7 @@ from mobius._configs import (
     DetrConfig,
     MoondreamConfig,
     ResNetConfig,
+    RtDetrConfig,
     WhisperConfig,
 )
 from mobius.models import (
@@ -87,9 +88,9 @@ from mobius.models.bart import BartForConditionalGeneration
 from mobius.models.bert import BertModel
 from mobius.models.blip import BlipVisionModel
 from mobius.models.blip2 import Blip2Model
-from mobius.models.clap import ClapAudioModel, ClapTextModel
 from mobius.models.clip import CLIPTextModel, CLIPVisionModel
 from mobius.models.cohere import CohereCausalLMModel
+from mobius.models.convnext import ConvNextModel
 from mobius.models.ctrl import CTRLCausalLMModel
 from mobius.models.depth_anything import DepthAnythingForDepthEstimation
 from mobius.models.detr import DetrForObjectDetection
@@ -116,13 +117,14 @@ from mobius.models.persimmon import PersimmonCausalLMModel
 from mobius.models.qwen3_asr import Qwen3ASRForConditionalGeneration
 from mobius.models.qwen3_tts import Qwen3TTSForConditionalGeneration
 from mobius.models.qwen3_tts_tokenizer import Qwen3TTSTokenizerV2Model
-from mobius.models.convnext import ConvNextModel
 from mobius.models.resnet import ResNetModel
+from mobius.models.rt_detr import RtDetrForObjectDetection
 from mobius.models.sam2 import Sam2VisionModel
 from mobius.models.segformer import SegformerForSemanticSegmentation
 from mobius.models.starcoder2 import StarCoder2CausalLMModel
 from mobius.models.t5 import T5ForConditionalGeneration
 from mobius.models.trocr import TrOCRForConditionalGeneration
+from mobius.models.videollama3 import VideoLLaMA3Model
 from mobius.models.vit import ViTModel
 from mobius.models.wav2vec2 import Wav2Vec2Model
 from mobius.models.xlm import XLMCausalLMModel
@@ -513,6 +515,7 @@ def _create_default_registry() -> ModelRegistry:
 
     for name in ("internvl_chat", "internvl2", "internvl"):
         reg.register(name, InternVL2Model, task="vision-language")
+    reg.register("videollama3_qwen2", VideoLLaMA3Model, task="vision-language")
     reg.register("gemma3", Gemma3CausalLMModel)
     reg.register("gemma3_multimodal", Gemma3MultiModalModel, task="vision-language")
     reg.register("gemma3n", Gemma3nCausalLMModel)
@@ -603,8 +606,6 @@ def _create_default_registry() -> ModelRegistry:
         reg.register(name, BertModel, task="feature-extraction")
     reg.register("distilbert", DistilBertModel, task="feature-extraction")
     reg.register("clip_text_model", CLIPTextModel, task="feature-extraction")
-    reg.register("clap_text_model", ClapTextModel, task="feature-extraction")
-    reg.register("clap_audio_model", ClapAudioModel, task="feature-extraction")
     reg.register("layoutlmv3", LayoutLMv3Model, task="feature-extraction")
     reg.register("modernbert", ModernBertModel, task="feature-extraction")
 
@@ -719,6 +720,12 @@ def _create_default_registry() -> ModelRegistry:
         DetrForObjectDetection,
         task="object-detection",
         config_class=DetrConfig,
+    )
+    reg.register(
+        "rt_detr",
+        RtDetrForObjectDetection,
+        task="object-detection",
+        config_class=RtDetrConfig,
     )
 
     # --- Segmentation ---
@@ -930,8 +937,6 @@ _TEST_MODEL_IDS: dict[str, str] = {
     "modernbert": "answerdotai/ModernBERT-base",
     "nomic_bert": "nomic-ai/nomic-embed-text-v1.5",
     "clip_text_model": "openai/clip-vit-base-patch32",
-    "clap_text_model": "laion/clap-htsat-fused",
-    "clap_audio_model": "laion/clap-htsat-fused",
     "clipseg": "CIDAS/clipseg-rd64-refined",
     "bros": "naver-clova-ocr/bros-base-uncased",
     "camembert": "almanach/camembert-base",
@@ -1132,8 +1137,6 @@ _FAMILY_OVERRIDES: dict[str, str] = {
     "swinv2": "swin",
     "clip_text_model": "clip",
     "clip_vision_model": "clip",
-    "clap_text_model": "clap",
-    "clap_audio_model": "clap",
     "siglip_vision_model": "clip",
     "siglip2_vision_model": "clip",
     "siglip": "clip",

@@ -198,6 +198,7 @@ _COVERAGE_SKIP: dict[str, str] = {
     # --- Models requiring trust_remote_code ---
     "chatglm": "Requires trust_remote_code (custom HF modeling code)",
     "dots1": "Requires trust_remote_code (custom HF modeling code)",
+    "videollama3_qwen2": "Requires trust_remote_code (custom HF modeling code)",
     # --- Very large models without small public checkpoints ---
     "arctic": "Very large MoE (480B) — no small public checkpoint",
     "dbrx": "Large MoE (132B) — no small public checkpoint",

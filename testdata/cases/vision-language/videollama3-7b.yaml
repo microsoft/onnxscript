@@ -1,0 +1,14 @@
+model_id: "DAMO-NLP-SG/VideoLLaMA3-7B"
+revision: "main"
+task_type: "video-text-to-text"
+dtype: "float32"
+
+inputs:
+  images:
+    - "pipeline-cat-chonk.jpeg"
+
+level: "L4+L5"
+
+trust_remote_code: true
+skip_reason: "VideoLLaMA3-7B requires trust_remote_code and is 7B — too large for CI."
+notes: "VideoLLaMA3 (videollama3_qwen2): SigLIP-like ViT (27 layers, hidden=1152) + MLP projector + Qwen2 decoder."

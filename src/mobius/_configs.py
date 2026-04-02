@@ -1670,18 +1670,12 @@ class RtDetrConfig(ArchitectureConfig):
     backbone_hidden_sizes: list[int] = dataclasses.field(
         default_factory=lambda: [256, 512, 1024, 2048]
     )
-    backbone_depths: list[int] = dataclasses.field(
-        default_factory=lambda: [3, 4, 6, 3]
-    )
-    backbone_out_indices: list[int] = dataclasses.field(
-        default_factory=lambda: [1, 2, 3]
-    )
+    backbone_depths: list[int] = dataclasses.field(default_factory=lambda: [3, 4, 6, 3])
+    backbone_out_indices: list[int] = dataclasses.field(default_factory=lambda: [1, 2, 3])
     encoder_in_channels: list[int] = dataclasses.field(
         default_factory=lambda: [512, 1024, 2048]
     )
-    feat_strides: list[int] = dataclasses.field(
-        default_factory=lambda: [8, 16, 32]
-    )
+    feat_strides: list[int] = dataclasses.field(default_factory=lambda: [8, 16, 32])
 
     @classmethod
     def from_transformers(cls, config, parent_config=None) -> RtDetrConfig:
@@ -1723,9 +1717,7 @@ class RtDetrConfig(ArchitectureConfig):
             encoder_in_channels=list(
                 getattr(config, "encoder_in_channels", [512, 1024, 2048])
             ),
-            feat_strides=list(
-                getattr(config, "feat_strides", [8, 16, 32])
-            ),
+            feat_strides=list(getattr(config, "feat_strides", [8, 16, 32])),
         )
 
 
@@ -1803,7 +1795,6 @@ class MoondreamConfig(ArchitectureConfig):
         enc_n_heads = vision_cfg.get("enc_n_heads", 16)
         crop_size = vision_cfg.get("crop_size", 378)
         patch_size = vision_cfg.get("enc_patch_size", 14)
-        proj_inner_dim = vision_cfg.get("proj_inner_dim", 8192)
 
         return cls(
             **_shallow_fields(base),

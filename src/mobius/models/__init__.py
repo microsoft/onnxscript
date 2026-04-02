@@ -15,8 +15,6 @@ __all__ = [
     "BloomCausalLMModel",
     "CLIPVisionModel",
     "CLIPSegModel",
-    "ClapAudioModel",
-    "ClapTextModel",
     "CTRLCausalLMModel",
     "CausalLMModel",
     "ChatGLMCausalLMModel",
@@ -60,6 +58,7 @@ __all__ = [
     "JetMoeCausalLMModel",
     "Llama4CausalLMModel",
     "LLaVAModel",
+    "VideoLLaMA3Model",
     "LayerNormCausalLMModel",
     "LongcatFlashCausalLMModel",
     "MPTCausalLMModel",
@@ -138,12 +137,12 @@ from mobius.models.base import CausalLMModel, LayerNormCausalLMModel
 from mobius.models.bert import BertModel
 from mobius.models.blip2 import Blip2Model
 from mobius.models.chatglm import ChatGLMCausalLMModel
-from mobius.models.clap import ClapAudioModel, ClapTextModel
 from mobius.models.clip import CLIPVisionModel
 from mobius.models.clipseg import CLIPSegModel
 from mobius.models.cogvideox import CogVideoXTransformer3DModel
 from mobius.models.cohere import CohereCausalLMModel
 from mobius.models.controlnet import ControlNetModel
+from mobius.models.convnext import ConvNextModel
 from mobius.models.ctrl import CTRLCausalLMModel
 from mobius.models.deepseek import DeepSeekV3CausalLMModel
 from mobius.models.deepseek_ocr2 import DeepSeekOCR2CausalLMModel
@@ -242,7 +241,6 @@ from mobius.models.qwen_vl import (
     Qwen25VLTextModel,
     Qwen25VLVisionEncoderModel,
 )
-from mobius.models.convnext import ConvNextModel
 from mobius.models.resnet import ResNetModel
 from mobius.models.rt_detr import RtDetrForObjectDetection
 from mobius.models.smollm import SmolLM3CausalLMModel
@@ -251,6 +249,7 @@ from mobius.models.t5 import T5ForConditionalGeneration
 from mobius.models.unet import UNet2DConditionModel
 from mobius.models.vae import AutoencoderKLModel
 from mobius.models.video_vae import VideoAutoencoderModel
+from mobius.models.videollama3 import VideoLLaMA3Model
 from mobius.models.vit import ViTModel
 from mobius.models.wav2vec2 import Wav2Vec2Model
 from mobius.models.whisper import WhisperForConditionalGeneration
