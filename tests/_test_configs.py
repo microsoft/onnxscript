@@ -2088,7 +2088,7 @@ LINEAR_RNN_CONFIGS: list[tuple[str, dict, bool]] = [
             "time_mix_extra_dim": 8,
             "time_decay_extra_dim": 16,
         },
-            False,  # covered by dedicated TestBuildRwkv6Graph
+        False,  # covered by dedicated TestBuildRwkv6Graph
     ),
 ]
 
