@@ -4,24 +4,22 @@
 import unittest
 
 import numpy as np
-import onnx
 import onnx_ir as ir
 from onnx_ir.passes.common import onnx_checker, shape_inference
 from parameterized import parameterized
 
+import onnx
 from onnxscript.rewriter import MatchingTracer, MatchStatus, testing
 from onnxscript.rewriter.rules.common._fuse_reduce_arg_to_topk import (
-    reduce_max_argmax_to_topk_rule,
-    reduce_min_argmin_to_topk_rule,
+    fuse_reduce_max_argmax_to_topk_rule,
+    fuse_reduce_min_argmin_to_topk_rule,
     rules,
 )
 
+_RNG = np.random.default_rng(20260127)
+
 
 class FuseReduceArgToTopKTestBase(unittest.TestCase):
-    @property
-    def rng(self):
-        return np.random.default_rng(20260127)
-
     def clone_model(self, model: ir.Model) -> ir.Model:
         return ir.from_proto(ir.to_proto(model))
 
@@ -43,7 +41,7 @@ class FuseReduceArgToTopKTestBase(unittest.TestCase):
 
         # Check inference
         inputs = (
-            self.rng.uniform(
+            _RNG.uniform(
                 low=-10.0,
                 high=10.0,
                 size=(2, *updated_model.graph.inputs[0].shape[1:]),
@@ -82,6 +80,8 @@ class FuseReduceArgToTopKTestBase(unittest.TestCase):
 
 
 class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
+    """Test cases for ReduceMax + ArgMax → TopK(largest=1) fusion."""
+
     @parameterized.expand(
         [
             ("keepdims_1_axis_1", 1, 1),
@@ -203,7 +203,7 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
         """)
 
         self.run_failed_condition_test(
-            base_model, reduce_max_argmax_to_topk_rule, "keepdims mismatch"
+            base_model, fuse_reduce_max_argmax_to_topk_rule, "keepdims mismatch"
         )
 
     def test_fail_axis_mismatch(self):
@@ -219,7 +219,7 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
         """)
 
         self.run_failed_condition_test(
-            base_model, reduce_max_argmax_to_topk_rule, "Axis mismatch"
+            base_model, fuse_reduce_max_argmax_to_topk_rule, "Axis mismatch"
         )
 
     def test_fail_multiple_axes_reduce_max(self):
@@ -236,7 +236,7 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
 
         self.run_failed_condition_test(
             base_model,
-            reduce_max_argmax_to_topk_rule,
+            fuse_reduce_max_argmax_to_topk_rule,
             "ReduceMax must operate on a single axis",
         )
 
@@ -254,7 +254,7 @@ class TestFuseReduceMaxArgMaxToTopK(FuseReduceArgToTopKTestBase):
 
         self.run_failed_condition_test(
             base_model,
-            reduce_max_argmax_to_topk_rule,
+            fuse_reduce_max_argmax_to_topk_rule,
             "ArgMax has select_last_index=1, which is not supported by TopK.",
         )
 
@@ -450,7 +450,7 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
             }
         """)
         self.run_failed_condition_test(
-            base_model, reduce_min_argmin_to_topk_rule, "Axis mismatch"
+            base_model, fuse_reduce_min_argmin_to_topk_rule, "Axis mismatch"
         )
 
     def test_fail_keepdims_mismatch(self):
@@ -465,7 +465,7 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
             }
         """)
         self.run_failed_condition_test(
-            base_model, reduce_min_argmin_to_topk_rule, "keepdims mismatch"
+            base_model, fuse_reduce_min_argmin_to_topk_rule, "keepdims mismatch"
         )
 
     def test_fail_multiple_axes_reduce_min(self):
@@ -482,7 +482,7 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
 
         self.run_failed_condition_test(
             base_model,
-            reduce_min_argmin_to_topk_rule,
+            fuse_reduce_min_argmin_to_topk_rule,
             "ReduceMin must operate on a single axis",
         )
 
@@ -499,7 +499,7 @@ class TestFuseReduceMinArgMinToTopK(FuseReduceArgToTopKTestBase):
         """)
         self.run_failed_condition_test(
             base_model,
-            reduce_min_argmin_to_topk_rule,
+            fuse_reduce_min_argmin_to_topk_rule,
             "ArgMin has select_last_index=1, which is not supported by TopK.",
         )
 
