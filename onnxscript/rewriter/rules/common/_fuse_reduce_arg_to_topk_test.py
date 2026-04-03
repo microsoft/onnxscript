@@ -4,11 +4,11 @@
 import unittest
 
 import numpy as np
+import onnx
 import onnx_ir as ir
 from onnx_ir.passes.common import onnx_checker, shape_inference
 from parameterized import parameterized
 
-import onnx
 from onnxscript.rewriter import MatchingTracer, MatchStatus, testing
 from onnxscript.rewriter.rules.common._fuse_reduce_arg_to_topk import (
     fuse_reduce_max_argmax_to_topk_rule,
