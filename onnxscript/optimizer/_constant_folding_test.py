@@ -771,6 +771,38 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
             constant_nodes = [n for n in func.graph if n.op_type == "Constant"]
             self.assertEqual(len(constant_nodes), 1)
 
+    def test_output_size_limit_prevents_evaluation_before_running(self):
+        """Test that output_size_limit is checked before calling the (expensive) reference
+        evaluator. This is a regression test for https://github.com/microsoft/onnxscript/issues/2709
+        where Resize with cubic mode on a large output tensor caused an infinite loop/hang
+        because the reference evaluator was called before checking output size.
+        """
+        # Create a model with Resize that has a small constant input but large output
+        # sizes: [1, 2, 64, 64] -> output has 8192 elements, exceeding a small output_size_limit
+        model_text = """
+            <ir_version: 8, opset_import: [ "" : 18]>
+            agraph () => (float[1, 2, 64, 64] output)
+            <float[1, 2, 4, 4] x_const = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+                                            9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0,
+                                            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+                                            9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0}>
+            {
+                sizes = Constant <value_ints=[1, 2, 64, 64]> ()
+                output = Resize <mode="nearest"> (x_const, , , sizes)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        # With a small output_size_limit, the Resize node should NOT be folded
+        # (and more importantly, should NOT hang)
+        optimized = self._fold(
+            model,
+            onnx_shape_inference=True,
+            output_size_limit=100,  # very small limit to prevent evaluation
+        )
+        # The Resize node should remain (not folded)
+        ops = [node.op_type for node in optimized.graph]
+        self.assertIn("Resize", ops)
+
     def test_initializer_as_graph_output_is_not_removed(self):
         """Test that an initializer that is a graph output is not removed during constant folding."""
         model = """
