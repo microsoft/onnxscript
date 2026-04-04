@@ -130,6 +130,45 @@ class FoldConstantsTest(unittest.TestCase):
         self.assertEqual(optimized.graph[0].outputs[0].name, "z")
         self.assertEqual(optimized.graph[0].op_type, "Mul")
 
+    def test_fold_if_cond_with_subgraph_initializer(self):
+        """If branch initializers should be moved to the main graph when the branch is inlined."""
+        # A model with a non-constant condition; constants inside the then_branch will
+        # be folded into subgraph initializers on the first fold pass.
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[16, 16] x, bool cond) => (float[16, 16] z) {
+                two = Constant <value_float=2.0> ()
+                three = Constant <value_float=3.0> ()
+                z = If (cond) <
+                    then_branch = then_graph () => (then_z) {
+                        temp = Add (two, three)
+                        then_z = Mul (temp, x)
+                    },
+                    else_branch = else_graph () => (else_z) {
+                        else_z = Identity (x)
+                    }
+                >
+            }
+        """)
+        # First fold: 'temp = Add(2.0, 3.0)' gets folded into a subgraph initializer.
+        _constant_folding.fold_constants(model)
+        optimizer.remove_unused_nodes(model)
+        if_node = next(n for n in model.graph if n.op_type == "If")
+        then_branch = if_node.attributes["then_branch"].as_graph()
+        self.assertIn("temp", then_branch.initializers)
+        self.assertNotIn("temp", model.graph.initializers)
+
+        # Make the condition constant (True) to trigger inlining of the then_branch.
+        const_true = ir.Value(name="const_true")
+        const_true.const_value = ir.Tensor(np.array(True))
+        if_node.replace_input_with(0, const_true)
+
+        # Second fold: the If is inlined; 'temp' must be moved to the main graph.
+        _constant_folding.fold_constants(model)
+        optimizer.remove_unused_nodes(model)
+        onnx.checker.check_model(ir.serde.serialize_model(model))
+        self.assertIn("temp", model.graph.initializers)
+
     def test_fold_inside_if_branch(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>
