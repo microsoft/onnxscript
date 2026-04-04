@@ -17,6 +17,8 @@ __all__ = [
     "fuse_batchnorm_into_conv_transpose_rule",
     "fuse_batchnorm_into_gemm_rule",
     "fuse_hardswish_rules",
+    "fuse_reduce_max_argmax_to_topk_rule",
+    "fuse_reduce_min_argmin_to_topk_rule",
     "fuse_pad_into_conv_integer_rule",
     "fuse_pad_into_conv_rule",
     "min_min_rule",
@@ -93,6 +95,10 @@ from onnxscript.rewriter.rules.common._fuse_pad_into_conv import (
     fuse_pad_into_conv_rule,
     normalize_pad_format_conv_integer_rule,
     normalize_pad_format_conv_rule,
+)
+from onnxscript.rewriter.rules.common._fuse_reduce_arg_to_topk import (
+    fuse_reduce_max_argmax_to_topk_rule,
+    fuse_reduce_min_argmin_to_topk_rule,
 )
 from onnxscript.rewriter.rules.common._fuse_relus_clips import (
     successive_clip_relu_rule,
