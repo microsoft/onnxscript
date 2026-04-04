@@ -284,6 +284,45 @@ func (float[1,512] x) => (float[1,512] return_val) {
         self.assertEqual(len(optimized.graph[-2].outputs), 4)
         self.assertEqual(optimized.graph[-2].op_type, "Split")
 
+    def test_static_split_to_sequence_with_unequal_scalar_split_and_sequence_at_is_folded_as_split(
+        self,
+    ):
+        """Test that an unequal scalar split is preserved correctly (not turned into equal split).
+
+        Regression test for: SplitToSequence with scalar split that doesn't evenly divide
+        the axis dimension should produce a Split with explicit split sizes, not an equal split.
+        E.g., splitting dim=8400 with split=5000 should produce [5000, 3400], not [4200, 4200].
+        """
+        model = """
+<
+   ir_version: 8,
+   opset_import: ["" : 18]
+>
+func (float[1,8400,80] x) => (float[1,N,80] return_val) {
+   int64_5000 = Constant <value: tensor = int64 int64_5000 {5000}> ()
+   splits = SplitToSequence <axis: int = 1> (x, int64_5000)
+   int64_0 = Constant <value: tensor = int64 int64_0 {0}> ()
+   split_0 = SequenceAt (splits, int64_0)
+   int64_1 = Constant <value: tensor = int64 int64_1 {1}> ()
+   split_1 = SequenceAt (splits, int64_1)
+   return_val = Concat <axis: int = 1> (split_0, split_1)
+}"""
+
+        optimized = self._fold(model)
+        split_nodes = [n for n in optimized.graph if n.op_type == "Split"]
+        self.assertEqual(len(split_nodes), 1)
+        split_node = split_nodes[0]
+        self.assertEqual(len(split_node.outputs), 2)
+        # The Split node must have an explicit split input (not just num_outputs),
+        # so that the split is [5000, 3400] and not [4200, 4200].
+        split_sizes_input = split_node.inputs[1]
+        self.assertIsNotNone(split_sizes_input, "Split node must have explicit split sizes")
+        # Verify the actual split sizes are [5000, 3400], not [4200, 4200]
+        self.assertIsNotNone(split_sizes_input.const_value)
+        np.testing.assert_array_equal(split_sizes_input.const_value.numpy(), [5000, 3400])
+        # Check no SequenceAt remains
+        self.assertTrue(all(n.op_type != "SequenceAt" for n in optimized.graph))
+
     def test_static_split_to_sequence_with_list_split_and_squence_at_is_folded_as_split(
         self,
     ):
