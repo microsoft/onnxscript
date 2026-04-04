@@ -2515,7 +2515,7 @@ def aten_copy(
 ) -> TTensor:
     """copy(Tensor self, Tensor src, bool non_blocking=False) -> Tensor"""
 
-    return op.CastLike(src, self)
+    return op.Identity(op.CastLike(src, self))
 
 
 @torch_op("aten::_to_copy", trace_only=True)
