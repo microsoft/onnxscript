@@ -6247,7 +6247,9 @@ def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -
 
 
 @torch_op("aten::mean.dim", trace_only=True, complex=True)
-def aten_mean_dim_complex(self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1) -> TReal:
+def aten_mean_dim_complex(
+    self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1
+) -> TReal:
     """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
     if len(self.shape) == 1:
