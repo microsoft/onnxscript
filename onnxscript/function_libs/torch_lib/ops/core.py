@@ -6231,7 +6231,7 @@ def aten_mean_complex(self: TReal) -> TReal:
 
 
 @torch_op("aten::mean.dim", trace_only=True)
-def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1) -> TReal:
     """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
     if len(self.shape) == 0:
@@ -6239,11 +6239,15 @@ def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     else:
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result = op.ReduceMean(self, dims, keepdims=keepdim)
+
+    if dtype != -1 and dtype is not None:
+        result = op.Cast(result, to=dtype)
+
     return result
 
 
 @torch_op("aten::mean.dim", trace_only=True, complex=True)
-def aten_mean_dim_complex(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+def aten_mean_dim_complex(self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1) -> TReal:
     """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
     if len(self.shape) == 1:
@@ -6254,6 +6258,12 @@ def aten_mean_dim_complex(self: TReal, dim: INT64, keepdim: bool = False) -> TRe
         dim = op.Where(op.Less(dim, zero), op.Sub(dim, one), dim)
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result = op.ReduceMean(self, dims, keepdims=keepdim)
+
+    if dtype != -1 and dtype is not None:
+        raise NotImplementedError(
+            "support for the dtype argument is not implemented for complex tensors"
+        )
+
     return result
 
 
