@@ -103,6 +103,23 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
             if initializer.is_graph_input():
                 return check_result.fail(f"{initializer.name} is a graph input.")
 
+        # Check that the inbound node's weight and bias initializers are not shared
+        # with other nodes outside this matched pattern. When the fusion creates new
+        # initializers with the same name as the original shared weights, it overwrites
+        # the original initializer in the graph, leaving other nodes that reference the
+        # original value with an invalid (unregistered) input.
+        matched_nodes = {inbound_node, batchnorm_node}
+        inbound_initializers = [inbound_node.inputs[1]]
+        if len(inbound_node.inputs) > 2:
+            inbound_initializers.append(inbound_node.inputs[2])
+        for init_value in inbound_initializers:
+            for user, _ in init_value.uses():
+                if user not in matched_nodes:
+                    return check_result.fail(
+                        f"Initializer '{init_value.name}' is used by another node "
+                        f"'{user.name}' outside the matched pattern."
+                    )
+
         return check_result
 
 

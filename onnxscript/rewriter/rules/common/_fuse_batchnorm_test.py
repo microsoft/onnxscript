@@ -311,6 +311,56 @@ class FuseBatchnormTest(unittest.TestCase):
         bias_names_2 = conv_nodes[1].inputs[2].name
         self.assertNotEqual(bias_names_1, bias_names_2)
 
+    def test_fuse_batchnorm_skips_shared_weight_initializers(self):
+        """Test that BatchNorm fusion is skipped when Conv nodes share weight initializers.
+
+        Regression test for https://github.com/microsoft/onnxscript/issues/2382.
+        When two Conv+BatchNorm pairs share the same weight initializer, fusing the
+        first pair would overwrite the shared initializer, leaving the second Conv
+        node with an invalid (unregistered) weight reference.
+        """
+        model_proto = onnx.parser.parse_model("""
+            < ir_version: 7, opset_import: ["" : 17] >
+            test_model (float[N, 32, 14, 16] X1, float[N, 32, 14, 16] X2)
+                => (float [N, ?, ?, ?] Y)
+            {
+                C1 = Conv(X1, W, B)
+                BN1 = BatchNormalization(C1, gamma, beta, input_mean, input_var)
+                C2 = Conv(X2, W, B)
+                BN2 = BatchNormalization(C2, gamma, beta, input_mean, input_var)
+                Y = Add(BN1, BN2)
+            }
+        """)
+        initializers = [
+            onnx.numpy_helper.from_array(
+                np.random.randn(16, 32, 3, 3).astype(np.float32), name="W"
+            ),
+            onnx.numpy_helper.from_array(np.random.randn(16).astype(np.float32), name="B"),
+            *self._create_batchnorm_params(size=16),
+        ]
+        model_proto.graph.initializer.extend(initializers)
+        onnx.checker.check_model(model_proto, True)
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = _fuse_batchnorm.rules.apply_to_model(model)
+
+        # No fusion should be applied because the weight initializer is shared
+        self.assertEqual(count, 0)
+
+        # The model should still be valid after the (non-)optimization
+        output_model_proto = ir.serde.serialize_model(model)
+        onnx.checker.check_model(output_model_proto, True)
+
+        # Check inference produces correct results
+        testing.assert_numerically_equal(
+            model_proto,
+            model,
+            (
+                np.random.rand(1, 32, 14, 16).astype(np.float32),
+                np.random.rand(1, 32, 14, 16).astype(np.float32),
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
