@@ -514,6 +514,67 @@ class GraphBuilderTest(unittest.TestCase):
         # Add should use the CastLike output, not the raw constant
         self.assertIs(add_node.inputs[1], cast_like_node.outputs[0])
 
+    def test_int_literal_no_clash_across_typed_and_untyped_contexts(self):
+        """Test that the same int literal used in typed and untyped positions
+        does not cause an initializer name collision.
+
+        Regression test: previously, (1, None) and (1, INT64) were separate
+        cache keys but generated the same name 'const_1_i64', causing
+        register_initializer to raise ValueError.
+        """
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        x = ir.Value(name="x", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([3]))
+        graph.inputs.append(x)
+
+        graph_builder = builder.GraphBuilder(graph)
+        op = graph_builder.op
+
+        # Gather index: int literal in untyped position (Tind has no binding)
+        _ = op.Gather(x, 1, axis=0)
+        # Add: int literal in typed position (T bound to INT64 from x)
+        _ = op.Add(x, 1)
+
+        # Both ops should share the same initializer (same ir.Value object)
+        gather_node = list(graph)[0]
+        add_node = list(graph)[1]
+        self.assertIs(gather_node.inputs[1], add_node.inputs[1])
+        self.assertEqual(gather_node.inputs[1].name, "const_1_i64")
+
+    def test_int_list_no_clash_across_typed_and_untyped_contexts(self):
+        """Test that the same int list used in typed and untyped positions
+        does not cause an initializer name collision (sequence variant)."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        x = ir.Value(
+            name="x", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([2, 3])
+        )
+        graph.inputs.append(x)
+
+        graph_builder = builder.GraphBuilder(graph)
+        op = graph_builder.op
+
+        # Reshape target: int list in untyped position
+        _ = op.Reshape(x, [3, 2])
+        # Add with a constant tensor of same values in typed position
+        _ = op.Add(x, [3, 2])
+
+        # Should not raise; both should share the same initializer
+        nodes = list(graph)
+        reshape_node = nodes[0]
+        add_node = nodes[1]
+        self.assertIs(reshape_node.inputs[1], add_node.inputs[1])
+
     def test_pop_module_raises_on_empty_stack(self):
         """Test that pop_module raises RuntimeError when no module has been pushed."""
         op, _, _ = _create_builder_with_inputs()

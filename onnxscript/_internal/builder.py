@@ -346,13 +346,16 @@ class GraphBuilder:
         # For simple scalar/sequence constants, use a cache to avoid duplicate initializers.
         # These are shared across layers, so we don't qualify the name with context prefix.
         if isinstance(value, (int, float, bool, str)):
+            # Normalize dtype: when None, use the default ONNX type for the
+            # Python scalar so that (value, None) and (value, default_dtype)
+            # share one cache entry and one initializer name.
+            if dtype is None:
+                dtype = _PYTHON_TYPE_TO_DTYPE.get(type(value))
             cache_key = (value, dtype)
             if cache_key in self._constant_cache:
                 ir_value = self._constant_cache[cache_key]
             else:
-                type_suffix = (
-                    _dtype_suffix(dtype) if dtype is not None else _type_suffix(type(value))
-                )
+                type_suffix = _dtype_suffix(dtype) if dtype is not None else ""
                 name = _constant_name(value, type_suffix, len(self._constant_cache))
                 tensor = ir.tensor(value, dtype=dtype, name=name)
                 ir_value = self.initializer(tensor, name=name, qualify=False)
@@ -363,13 +366,14 @@ class GraphBuilder:
             and all(isinstance(v, type(value[0])) for v in value)
             and isinstance(value[0], (int, float, bool, str))
         ):
+            # Same normalization for sequences of scalars.
+            if dtype is None:
+                dtype = _PYTHON_TYPE_TO_DTYPE.get(type(value[0]))
             cache_key = (tuple(value), dtype)
             if cache_key in self._constant_cache:
                 ir_value = self._constant_cache[cache_key]
             else:
-                type_suffix = (
-                    _dtype_suffix(dtype) if dtype is not None else _type_suffix(type(value[0]))
-                )
+                type_suffix = _dtype_suffix(dtype) if dtype is not None else ""
                 name = _constant_name(value, type_suffix, len(self._constant_cache))
                 tensor = ir.tensor(list(value), dtype=dtype, name=name)
                 ir_value = self.initializer(tensor, name=name, qualify=False)
