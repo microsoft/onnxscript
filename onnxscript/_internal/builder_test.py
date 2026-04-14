@@ -541,14 +541,15 @@ class GraphBuilderTest(unittest.TestCase):
         _ = op.Add(x, 1)
 
         # Both ops should share the same initializer (same ir.Value object)
-        gather_node = list(graph)[0]
-        add_node = list(graph)[1]
+        gather_node = graph.node(0)
+        add_node = graph.node(1)
         self.assertIs(gather_node.inputs[1], add_node.inputs[1])
         self.assertEqual(gather_node.inputs[1].name, "const_1_i64")
 
     def test_int_list_no_clash_across_typed_and_untyped_contexts(self):
         """Test that the same int list used in typed and untyped positions
-        does not cause an initializer name collision (sequence variant)."""
+        does not cause an initializer name collision (sequence variant).
+        """
         graph = ir.Graph(
             name="test_model",
             inputs=[],
@@ -556,9 +557,7 @@ class GraphBuilderTest(unittest.TestCase):
             nodes=[],
             opset_imports={"": _default_opset_version},
         )
-        x = ir.Value(
-            name="x", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([2, 3])
-        )
+        x = ir.Value(name="x", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([2, 3]))
         graph.inputs.append(x)
 
         graph_builder = builder.GraphBuilder(graph)
