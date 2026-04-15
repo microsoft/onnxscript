@@ -318,7 +318,14 @@ class GraphBuilder:
     def initializer(
         self, tensor: ir.TensorProtocol, name: str | None = None, *, qualify: bool = True
     ) -> ir.Value:
-        """Register a tensor as a graph initializer, returning the corresponding ir.Value."""
+        """Register a tensor as a graph initializer in the **root** graph.
+
+        All initializers are stored in the root graph so that inner scopes
+        (subgraphs) can reference them via ONNX's outer-scope visibility
+        rules.  For function bodies (which cannot have initializers), apply
+        :func:`lift_initializers_to_constants` before wrapping in
+        :class:`ir.Function`.
+        """
         if name is None:
             name = tensor.name
         if qualify:
@@ -327,7 +334,7 @@ class GraphBuilder:
         value = ir.Value(
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
         )
-        self._graph.register_initializer(value)
+        self._root._graph.register_initializer(value)
         return value
 
     def input(

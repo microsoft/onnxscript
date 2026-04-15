@@ -1504,6 +1504,29 @@ class RootInitializerTest(unittest.TestCase):
         const_names = [n for n in root_graph.initializers if "const_2.0" in n]
         self.assertEqual(len(const_names), 1, f"Expected 1 shared initializer: {const_names}")
 
+    def test_direct_initializer_in_subgraph_goes_to_root(self):
+        """builder.initializer() called on a sub-builder registers in root graph."""
+        import numpy as np
+
+        root_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        root_builder = builder.GraphBuilder(root_graph)
+
+        def body(op, x):
+            tensor = ir.Tensor(np.array([1.0, 2.0], dtype=np.float32))
+            bias = op.builder.initializer(tensor, name="my_bias")
+            return op.Add(x, bias)
+
+        sub = root_builder.subgraph(body, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
+        # Initializer should be in root, not subgraph
+        self.assertIn("my_bias", root_graph.initializers)
+        self.assertEqual(len(sub.initializers), 0)
+
     def test_lift_initializers_to_constants_converts_all(self):
         """lift_initializers_to_constants replaces initializers with Constant nodes."""
         graph = ir.Graph(
