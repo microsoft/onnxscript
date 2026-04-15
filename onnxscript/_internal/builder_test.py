@@ -17,7 +17,7 @@ from onnxscript.onnx_types import DOUBLE, FLOAT, INT64
 _default_opset_version = 23
 
 # Convenience alias for tests — creates an ir.Value from (name, TypeSpec).
-_input = builder.make_input
+_input = builder.make_value
 
 
 def _resolve_type_spec(spec: builder.TypeSpec) -> ir.TypeAndShape:
@@ -1857,26 +1857,26 @@ class BuildFunctionTest(unittest.TestCase):
         self.assertGreater(len(const_nodes), 0)
 
 
-class MakeInputTest(unittest.TestCase):
-    """Tests for the make_input() convenience helper."""
+class MakeValueTest(unittest.TestCase):
+    """Tests for the make_value() convenience helper."""
 
-    def test_make_input_name_only(self):
-        """make_input with just a name creates an untyped Value."""
-        v = builder.make_input("x")
+    def test_make_value_name_only(self):
+        """make_value with just a name creates an untyped Value."""
+        v = builder.make_value("x")
         self.assertEqual(v.name, "x")
         self.assertIsNone(v.type)
         self.assertIsNone(v.shape)
 
-    def test_make_input_with_type_spec(self):
-        """make_input with a TypeSpec sets type and shape."""
-        v = builder.make_input("x", FLOAT[3, 4])
+    def test_make_value_with_type_spec(self):
+        """make_value with a TypeSpec sets type and shape."""
+        v = builder.make_value("x", FLOAT[3, 4])
         self.assertEqual(v.name, "x")
         self.assertIsNotNone(v.type)
         self.assertIsNotNone(v.shape)
 
-    def test_make_input_with_dynamic_shape(self):
-        """make_input with symbolic dims works."""
-        v = builder.make_input("x", FLOAT["B", "T"])
+    def test_make_value_with_dynamic_shape(self):
+        """make_value with symbolic dims works."""
+        v = builder.make_value("x", FLOAT["B", "T"])
         self.assertEqual(v.name, "x")
         self.assertIsNotNone(v.shape)
 

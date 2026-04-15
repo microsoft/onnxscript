@@ -74,7 +74,7 @@ class ParameterTest(unittest.TestCase):
 
     def test_realize_in_subgraph_registers_in_root(self):
         """Parameter realized inside a subgraph builder is stored in the root graph."""
-        from onnxscript._internal.builder import GraphBuilder, make_input
+        from onnxscript._internal.builder import GraphBuilder, make_value
         from onnxscript.onnx_types import FLOAT
 
         root_graph = ir.Graph(
@@ -95,8 +95,8 @@ class ParameterTest(unittest.TestCase):
 
         _sub_graph = root_builder.subgraph(
             body_fn,
-            inputs=[make_input("x", FLOAT[3, 4])],
-            outputs=[make_input("y", FLOAT[3, 4])],
+            inputs=[make_value("x", FLOAT[3, 4])],
+            outputs=[make_value("y", FLOAT[3, 4])],
         )
         # Parameter should be in the ROOT graph's initializers, not the subgraph's
         self.assertIn("weight", root_graph.initializers)
@@ -106,7 +106,7 @@ class ParameterTest(unittest.TestCase):
 
     def test_realize_in_nested_subgraph_registers_in_root(self):
         """Parameter realized in a doubly-nested subgraph goes to the root graph."""
-        from onnxscript._internal.builder import GraphBuilder, build_graph, make_input
+        from onnxscript._internal.builder import GraphBuilder, build_graph, make_value
         from onnxscript.onnx_types import FLOAT
 
         root_graph = ir.Graph(
@@ -128,16 +128,16 @@ class ParameterTest(unittest.TestCase):
             # Build a nested subgraph
             build_graph(
                 inner_fn,
-                inputs=[make_input("x", FLOAT[3])],
-                outputs=[make_input("y", FLOAT[3])],
+                inputs=[make_value("x", FLOAT[3])],
+                outputs=[make_value("y", FLOAT[3])],
                 parent=op.builder,
             )
             return op.Identity(x)
 
         root_builder.subgraph(
             outer_fn,
-            inputs=[make_input("x", FLOAT[3])],
-            outputs=[make_input("y", FLOAT[3])],
+            inputs=[make_value("x", FLOAT[3])],
+            outputs=[make_value("y", FLOAT[3])],
         )
         # Even through two levels of nesting, param ends up in root
         self.assertIn("bias", root_graph.initializers)

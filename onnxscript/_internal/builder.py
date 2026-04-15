@@ -144,7 +144,7 @@ def _resolve_type_spec(spec: TypeSpec) -> ir.TypeAndShape:
     ``FLOAT[1024]`` or ``FLOAT['M', 'N']``).
 
     .. deprecated::
-        Use :func:`make_input` or construct ``ir.Value`` directly instead.
+        Use :func:`make_value` or construct ``ir.Value`` directly instead.
     """
     if isinstance(spec, ir.TypeAndShape):
         return spec
@@ -162,19 +162,19 @@ def _resolve_type_spec(spec: TypeSpec) -> ir.TypeAndShape:
     )
 
 
-def make_input(name: str, type_spec: TypeSpec | None = None) -> ir.Value:
+def make_value(name: str, type_spec: TypeSpec | None = None) -> ir.Value:
     """Create an :class:`ir.Value` from a name and optional :data:`TypeSpec`.
 
-    This is a convenience for constructing graph/function inputs without
-    manually building ``ir.TensorType`` and ``ir.Shape`` objects.
+    Similar to :func:`onnx_ir.val` but accepts a :data:`TypeSpec` (e.g.
+    ``FLOAT[3, 4]``) instead of separate *dtype* and *shape* arguments.
 
     Example::
 
-        x = make_input("x", FLOAT[3, 4])
-        y = make_input("y")  # untyped
+        x = make_value("x", FLOAT[3, 4])
+        y = make_value("y")  # untyped
 
     Args:
-        name: The input name.
+        name: The value name.
         type_spec: Optional type specification.  Accepts an
             :class:`ir.TypeAndShape`, or a
             :class:`~onnxscript.onnx_types.TensorType` subclass
@@ -235,8 +235,8 @@ def build_graph(
 
         body = build_graph(
             lambda op, x, y: op.Add(x, y),
-            inputs=[make_input("x", FLOAT[3, 4]), make_input("y", FLOAT[3, 4])],
-            outputs=[make_input("sum", FLOAT[3, 4])],
+            inputs=[make_value("x", FLOAT[3, 4]), make_value("y", FLOAT[3, 4])],
+            outputs=[make_value("sum", FLOAT[3, 4])],
         )
 
     Args:
@@ -328,7 +328,7 @@ def build_function(
 
         fn = build_function(
             lambda op, x, y: op.Add(x, y),
-            [make_input("x"), make_input("y")],
+            [make_value("x"), make_value("y")],
             domain="com.example",
             name="MyAdd",
         )
@@ -747,8 +747,8 @@ class GraphBuilder:
 
             body = graph_builder.subgraph(
                 lambda op, x, y: op.Add(x, y),
-                inputs=[make_input("x", FLOAT[...]), make_input("y", FLOAT[...])],
-                outputs=[make_input("sum", FLOAT[...])],
+                inputs=[make_value("x", FLOAT[...]), make_value("y", FLOAT[...])],
+                outputs=[make_value("sum", FLOAT[...])],
             )
 
         Args:
