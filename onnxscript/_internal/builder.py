@@ -112,6 +112,7 @@ def lift_initializers_to_constants(graph: ir.Graph) -> None:
             attributes=[ir.Attr("value", ir.AttributeType.TENSOR, tensor)],
             outputs=[value],
             version=opset_version,
+            name=f"initializer_{value.name}",
         )
         graph.initializers.pop(value.name)
         new_nodes.append(node)
