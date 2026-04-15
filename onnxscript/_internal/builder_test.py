@@ -1441,10 +1441,6 @@ class PartitionInputsAttributesTest(unittest.TestCase):
             )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class RootInitializerTest(unittest.TestCase):
     """Tests for root-graph initializer storage and lift_initializers_to_constants."""
 
@@ -1485,17 +1481,11 @@ class RootInitializerTest(unittest.TestCase):
         )
         root_builder = builder.GraphBuilder(root_graph)
 
-        captured_values = []
-
         def body1(op, x):
-            result = op.Add(x, 2.0)
-            captured_values.append(result)
-            return result
+            return op.Add(x, 2.0)
 
         def body2(op, x):
-            result = op.Mul(x, 2.0)
-            captured_values.append(result)
-            return result
+            return op.Mul(x, 2.0)
 
         root_builder.subgraph(body1, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
         root_builder.subgraph(body2, inputs=[FLOAT[3]], outputs=[FLOAT[3]])

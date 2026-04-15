@@ -102,7 +102,8 @@ def lift_initializers_to_constants(graph: ir.Graph) -> None:
     new_nodes: list[ir.Node] = []
     for value in to_lift:
         tensor = value.const_value
-        assert tensor is not None, f"Initializer {value.name!r} has no const_value"
+        if tensor is None:
+            raise ValueError(f"Initializer {value.name!r} has no const_value")
         # Build a Constant node whose output is the *same* ir.Value so
         # that every existing reference keeps working.
         node = ir.Node(
@@ -320,9 +321,12 @@ class GraphBuilder:
     ) -> ir.Value:
         """Register a tensor as a graph initializer in the **root** graph.
 
-        All initializers are stored in the root graph so that inner scopes
-        (subgraphs) can reference them via ONNX's outer-scope visibility
-        rules.  For function bodies (which cannot have initializers), apply
+        Initializers created through this method are stored in the root graph
+        so that inner scopes (subgraphs) can reference them via ONNX's
+        outer-scope visibility rules.  This does not apply to the ONNX
+        default-input pattern created via :meth:`input` with ``const_value``,
+        which registers an initializer on the owning graph.  For function
+        bodies (which cannot have initializers), apply
         :func:`lift_initializers_to_constants` before wrapping in
         :class:`ir.Function`.
         """
@@ -430,7 +434,7 @@ class GraphBuilder:
         # For other types (TensorProtocol, numpy arrays, torch tensors, etc.),
         # ir.tensor() handles the conversion.
         # TODO(rama): Consider caching for other tensor values.
-        return root.initializer(ir.tensor(value, dtype=dtype))
+        return self.initializer(ir.tensor(value, dtype=dtype))
 
     def _input_to_ir_value(
         self, value: VALUE_LIKE, like_type: ir.Value | None = None
