@@ -1532,7 +1532,7 @@ class RootInitializerTest(unittest.TestCase):
         gb.add_output(result, "y")
 
         # Before lift: should have an initializer
-        self.assertTrue(len(graph.initializers) > 0)
+        self.assertGreater(len(graph.initializers), 0)
 
         builder.lift_initializers_to_constants(graph)
 

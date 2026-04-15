@@ -92,11 +92,9 @@ def lift_initializers_to_constants(graph: ir.Graph) -> None:
     ONNX pattern for optional inputs with default values) are skipped
     because they are explicit function parameters, not embedded constants.
     """
-    graph_input_set = set(id(v) for v in graph.inputs)
+    graph_input_set = {id(v) for v in graph.inputs}
     to_lift: list[ir.Value] = [
-        v
-        for v in list(graph.initializers.values())
-        if id(v) not in graph_input_set
+        v for v in list(graph.initializers.values()) if id(v) not in graph_input_set
     ]
     opset_version = graph.opset_imports.get("", 1)
     new_nodes: list[ir.Node] = []
