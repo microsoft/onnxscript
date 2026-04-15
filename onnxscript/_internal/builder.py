@@ -129,13 +129,10 @@ def lift_initializers_to_constants(graph: ir.Graph) -> None:
 # :meth:`GraphBuilder.subgraph`.  Can be an already-resolved
 # :class:`ir.TypeAndShape`, or a
 # :class:`~onnxscript.onnx_types.TensorType` subclass such as ``FLOAT[1024]``.
+#
+# .. deprecated::
+#     Use ``ir.Value`` with name/type/shape directly instead.
 TypeSpec = Union[ir.TypeAndShape, Any]
-
-# Acceptable collection forms for *inputs* / *outputs* in
-# :meth:`GraphBuilder.subgraph`.  A :class:`Sequence` of :data:`TypeSpec`
-# auto-names entries (``input_0``, ``input_1``, …), while a :class:`Mapping`
-# from :class:`str` to :data:`TypeSpec` uses the keys as explicit names.
-InputOutputSpec = Union[Sequence[TypeSpec], Mapping[str, TypeSpec]]
 
 
 def _resolve_type_spec(spec: TypeSpec) -> ir.TypeAndShape:
@@ -145,6 +142,9 @@ def _resolve_type_spec(spec: TypeSpec) -> ir.TypeAndShape:
     ``to_ir_type_and_shape()`` method (e.g. a
     :class:`~onnxscript.onnx_types.TensorType` subclass such as
     ``FLOAT[1024]`` or ``FLOAT['M', 'N']``).
+
+    .. deprecated::
+        Use :func:`make_input` or construct ``ir.Value`` directly instead.
     """
     if isinstance(spec, ir.TypeAndShape):
         return spec
@@ -162,24 +162,64 @@ def _resolve_type_spec(spec: TypeSpec) -> ir.TypeAndShape:
     )
 
 
-def _normalize_io_spec(
-    spec: InputOutputSpec, default_prefix: str
-) -> list[tuple[str, ir.TypeAndShape]]:
-    """Normalize an *InputOutputSpec* into a list of ``(name, TypeAndShape)`` pairs.
+def make_input(name: str, type_spec: TypeSpec | None = None) -> ir.Value:
+    """Create an :class:`ir.Value` from a name and optional :data:`TypeSpec`.
 
-    When *spec* is a :class:`Mapping`, the keys are used as names.  When it is
-    a plain :class:`Sequence`, names are generated as
-    ``{default_prefix}_0``, ``{default_prefix}_1``, etc.
+    This is a convenience for constructing graph/function inputs without
+    manually building ``ir.TensorType`` and ``ir.Shape`` objects.
+
+    Example::
+
+        x = make_input("x", FLOAT[3, 4])
+        y = make_input("y")  # untyped
+
+    Args:
+        name: The input name.
+        type_spec: Optional type specification.  Accepts an
+            :class:`ir.TypeAndShape`, or a
+            :class:`~onnxscript.onnx_types.TensorType` subclass
+            (e.g. ``FLOAT[3, 4]``).
+
+    Returns:
+        A fresh :class:`ir.Value` with the given name and optional type/shape.
     """
-    if isinstance(spec, Mapping):
-        return [(name, _resolve_type_spec(ts)) for name, ts in spec.items()]
-    return [(f"{default_prefix}_{i}", _resolve_type_spec(ts)) for i, ts in enumerate(spec)]
+    if type_spec is not None:
+        ts = _resolve_type_spec(type_spec)
+        return ir.Value(name=name, type=ts.type, shape=ts.shape)
+    return ir.Value(name=name)
+
+
+def _split_optional_inputs(
+    inputs: Sequence[ir.Value | None],
+) -> tuple[list[ir.Value | None], list[ir.Value]]:
+    """Split an input list into trace args and graph inputs.
+
+    Returns:
+        A tuple of (trace_args, graph_inputs) where trace_args preserves
+        ``None`` holes and graph_inputs contains only non-``None`` values.
+
+    Raises:
+        ValueError: If any non-None input already has a producer or is
+            already attached to a graph.
+    """
+    trace_args: list[ir.Value | None] = list(inputs)
+    graph_inputs: list[ir.Value] = []
+    for v in trace_args:
+        if v is None:
+            continue
+        if v.producer() is not None:
+            raise ValueError(
+                f"Input {v.name!r} already has a producer node. "
+                f"Pass freshly created ir.Value objects."
+            )
+        graph_inputs.append(v)
+    return trace_args, graph_inputs
 
 
 def build_graph(
     trace_function: Callable,
-    inputs: InputOutputSpec,
-    outputs: InputOutputSpec,
+    inputs: Sequence[ir.Value | None],
+    outputs: Sequence[ir.Value],
     *,
     opset_imports: dict[str, int] | None = None,
     name: str = "subgraph",
@@ -195,24 +235,24 @@ def build_graph(
 
         body = build_graph(
             lambda op, x, y: op.Add(x, y),
-            inputs={"x": FLOAT[...], "y": FLOAT[...]},
-            outputs={"sum": FLOAT[...]},
+            inputs=[make_input("x", FLOAT[3, 4]), make_input("y", FLOAT[3, 4])],
+            outputs=[make_input("sum", FLOAT[3, 4])],
         )
 
     Args:
         trace_function: A callable with signature
-            ``(op: OpBuilder, *inputs: ir.Value) -> ir.Value | Sequence[ir.Value]``.
+            ``(op: OpBuilder, *inputs: ir.Value | None) -> ir.Value | Sequence[ir.Value]``.
             It is called once with freshly created placeholder inputs to record the
-            graph topology.
-        inputs: Types (and optionally names) for each graph input.  May be a
-            :class:`Sequence` of :data:`TypeSpec` values (names are auto-generated
-            as ``input_0``, ``input_1``, …) **or** a :class:`Mapping` from
-            :class:`str` names to :data:`TypeSpec` values.  Each :data:`TypeSpec`
-            can be an :class:`ir.TypeAndShape` or a
-            :class:`~onnxscript.onnx_types.TensorType` subclass (e.g.
-            ``FLOAT[1024]`` or ``FLOAT['M', 'N']``).
-        outputs: Types (and optionally names) for each graph output, in the
-            same format as *inputs*.
+            graph topology.  ``None`` entries in *inputs* are passed through as ``None``
+            to support optional inputs.
+        inputs: A :class:`Sequence` of :class:`ir.Value` (or ``None`` for
+            absent optional inputs).  Each ``ir.Value`` should be freshly
+            created with a name and optional type/shape.  ``None`` entries
+            are excluded from the graph inputs but passed as ``None`` to
+            *trace_function*.
+        outputs: A :class:`Sequence` of :class:`ir.Value` objects declaring
+            the expected outputs.  After tracing, the name and type of each
+            declared output are applied to the corresponding returned value.
         opset_imports: Opset version map for the subgraph (e.g.
             ``{"": 23}``).  Defaults to ``{"": 23}`` when *None*.
         name: Name of the resulting :class:`ir.Graph`.
@@ -229,38 +269,140 @@ def build_graph(
     """
     if opset_imports is None:
         opset_imports = {"": 23}
-    resolved_inputs = _normalize_io_spec(inputs, "input")
-    resolved_outputs = _normalize_io_spec(outputs, "output")
+
+    trace_args, graph_inputs = _split_optional_inputs(inputs)
 
     subgraph = ir.Graph(
         name=name,
-        inputs=[],
+        inputs=graph_inputs,
         outputs=[],
         nodes=[],
         opset_imports=opset_imports,
     )
 
-    for input_name, ts in resolved_inputs:
-        subgraph.inputs.append(ir.Value(name=input_name, type=ts.type, shape=ts.shape))
-
     sub_builder = GraphBuilder(subgraph, parent=parent)
     if parent is not None:
         sub_builder._scope_stack = list(parent._scope_stack)
-    trace_outputs = trace_function(sub_builder.op, *subgraph.inputs)
+    trace_outputs = trace_function(sub_builder.op, *trace_args)
     if not isinstance(trace_outputs, Sequence):
         trace_outputs = [trace_outputs]
-    if len(trace_outputs) != len(resolved_outputs):
+    if len(trace_outputs) != len(outputs):
         raise ValueError(
             f"trace_function returned {len(trace_outputs)} output(s), "
-            f"but {len(resolved_outputs)} were declared in outputs."
+            f"but {len(outputs)} were declared in outputs."
         )
-    for output, (output_name, ts) in zip(trace_outputs, resolved_outputs):
-        output.name = output_name
-        output.type = ts.type
-        output.merge_shapes(ts.shape)
+    for returned_val, declared_val in zip(trace_outputs, outputs):
+        if declared_val.name:
+            returned_val.name = declared_val.name
+        if declared_val.type is not None:
+            if returned_val.type is not None and returned_val.type != declared_val.type:
+                raise ValueError(
+                    f"Output {declared_val.name!r}: traced type "
+                    f"{returned_val.type} conflicts with declared type "
+                    f"{declared_val.type}."
+                )
+            returned_val.type = declared_val.type
+        if declared_val.shape is not None:
+            returned_val.merge_shapes(declared_val.shape)
 
     subgraph.outputs.extend(trace_outputs)
     return subgraph
+
+
+def build_function(
+    trace_function: Callable,
+    inputs: Sequence[ir.Value | None],
+    *,
+    domain: str,
+    name: str,
+    attributes: Mapping[str, ir.Attr] | Sequence[ir.Attr] | None = None,
+    opset_imports: dict[str, int] | None = None,
+) -> ir.Function:
+    """Build an :class:`ir.Function` by tracing *trace_function*.
+
+    This utility handles all boilerplate for constructing an ``ir.Function``:
+    graph creation, input/output wiring, initializer lifting (so that Python
+    literals work correctly inside function bodies), and attribute packaging.
+
+    Example::
+
+        fn = build_function(
+            lambda op, x, y: op.Add(x, y),
+            [make_input("x"), make_input("y")],
+            domain="com.example",
+            name="MyAdd",
+        )
+
+    Args:
+        trace_function: A callable with signature
+            ``(op: OpBuilder, *inputs: ir.Value | None) -> ir.Value | Sequence[ir.Value] | None``.
+            It is called once to trace the function body.  Return value(s)
+            become function outputs.  If ``None`` is returned, the function
+            uses whatever outputs were appended to ``graph.outputs`` by the
+            trace function directly.
+        inputs: A :class:`Sequence` of :class:`ir.Value` (or ``None`` for
+            absent optional inputs).  ``None`` entries are excluded from the
+            function's formal inputs but passed as ``None`` to
+            *trace_function* so the body can branch with ``if x is None``.
+        domain: Function domain (e.g. ``"com.microsoft"``).
+        name: Function name (e.g. ``"LinearAttention"``).
+        attributes: Function-level attributes.  Accepts a
+            :class:`Mapping` from name to :class:`ir.Attr`, a
+            :class:`Sequence` of :class:`ir.Attr`, or ``None``.
+        opset_imports: Opset version map.  Defaults to ``{"": 23}``.
+
+    Returns:
+        An :class:`ir.Function` with initializers automatically lifted to
+        ``Constant`` nodes.
+    """
+    if opset_imports is None:
+        opset_imports = {"": 23}
+
+    trace_args, graph_inputs = _split_optional_inputs(inputs)
+
+    graph = ir.Graph(
+        inputs=graph_inputs,
+        outputs=[],
+        nodes=[],
+        name=f"{name}_body",
+        opset_imports=opset_imports,
+    )
+
+    gb = GraphBuilder(graph)  # No parent — function is self-contained
+    trace_outputs = trace_function(gb.op, *trace_args)
+
+    # Normalize outputs: either returned or appended directly, not both.
+    if trace_outputs is not None:
+        if not isinstance(trace_outputs, Sequence):
+            trace_outputs = [trace_outputs]
+        if graph.outputs:
+            raise ValueError(
+                "trace_function both returned output values and appended "
+                "to graph.outputs. Use one approach, not both."
+            )
+        graph.outputs.extend(trace_outputs)
+    elif not graph.outputs:
+        raise ValueError(
+            "trace_function returned None and did not append any outputs to graph.outputs."
+        )
+
+    # Lift initializers → Constant nodes (required for ir.Function bodies).
+    lift_initializers_to_constants(graph)
+
+    # Build attributes dict.
+    if attributes is None:
+        attr_dict: dict[str, ir.Attr] = {}
+    elif isinstance(attributes, Mapping):
+        attr_dict = dict(attributes)
+    else:
+        attr_dict = {a.name: a for a in attributes}
+
+    return ir.Function(
+        domain=domain,
+        name=name,
+        graph=graph,
+        attributes=attr_dict,
+    )
 
 
 class GraphBuilder:
@@ -590,8 +732,8 @@ class GraphBuilder:
     def subgraph(
         self,
         trace_function: Callable,
-        inputs: InputOutputSpec,
-        outputs: InputOutputSpec,
+        inputs: Sequence[ir.Value | None],
+        outputs: Sequence[ir.Value],
         *,
         name: str = "subgraph",
     ) -> ir.Graph:
@@ -605,33 +747,20 @@ class GraphBuilder:
 
             body = graph_builder.subgraph(
                 lambda op, x, y: op.Add(x, y),
-                inputs=[FLOAT[...], FLOAT[...]],
-                outputs=[FLOAT[...]],
-            )
-
-        Inputs and outputs can also be given as a :class:`dict` to assign
-        explicit names::
-
-            body = graph_builder.subgraph(
-                lambda op, x, y: op.Add(x, y),
-                inputs={"x": FLOAT[...], "y": FLOAT[...]},
-                outputs={"sum": FLOAT[...]},
+                inputs=[make_input("x", FLOAT[...]), make_input("y", FLOAT[...])],
+                outputs=[make_input("sum", FLOAT[...])],
             )
 
         Args:
             trace_function: A callable with signature
-                ``(op: OpBuilder, *inputs: ir.Value) -> ir.Value | Sequence[ir.Value]``.
+                ``(op: OpBuilder, *inputs: ir.Value | None) -> ir.Value | Sequence[ir.Value]``.
                 It is called once with freshly created placeholder inputs to record the
                 graph topology.
-            inputs: Types (and optionally names) for each graph input.  May be a
-                :class:`Sequence` of :data:`TypeSpec` values (names are auto-generated
-                as ``input_0``, ``input_1``, …) **or** a :class:`Mapping` from
-                :class:`str` names to :data:`TypeSpec` values.  Each :data:`TypeSpec`
-                can be an :class:`ir.TypeAndShape` or a
-                :class:`~onnxscript.onnx_types.TensorType` subclass (e.g.
-                ``FLOAT[1024]`` or ``FLOAT['M', 'N']``).
-            outputs: Types (and optionally names) for each graph output, in the
-                same format as *inputs*.
+            inputs: A :class:`Sequence` of :class:`ir.Value` (or ``None``
+                for absent optional inputs).  Each ``ir.Value`` should be
+                freshly created with a name and optional type/shape.
+            outputs: A :class:`Sequence` of :class:`ir.Value` objects
+                declaring the expected outputs.
             name: Name of the resulting :class:`ir.Graph`.
 
         Returns:

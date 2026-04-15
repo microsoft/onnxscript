@@ -16,6 +16,9 @@ from onnxscript.onnx_types import DOUBLE, FLOAT, INT64
 
 _default_opset_version = 23
 
+# Convenience alias for tests — creates an ir.Value from (name, TypeSpec).
+_input = builder.make_input
+
 
 def _resolve_type_spec(spec: builder.TypeSpec) -> ir.TypeAndShape:
     """Convert a *TypeSpec* to an :class:`ir.TypeAndShape`.
@@ -24,8 +27,7 @@ def _resolve_type_spec(spec: builder.TypeSpec) -> ir.TypeAndShape:
     :class:`~onnxscript.onnx_types.TensorType` subclass (e.g. ``FLOAT[1024]``
     or ``FLOAT['M', 'N']``).
 
-    NOTE: This is a local copy of :func:`builder._resolve_type_spec` so that
-    tests do not reference a private helper directly.
+    NOTE: This is a local helper used by the legacy ``_build()`` test utility.
     """
     from onnxscript.onnx_types import TensorType  # pylint: disable=import-outside-toplevel
 
@@ -37,9 +39,9 @@ def _resolve_type_spec(spec: builder.TypeSpec) -> ir.TypeAndShape:
 
 
 def _build(
-    input_types: Sequence[builder.TypeSpec],
+    input_types: Sequence,
     trace_function=None,
-    output_types: Sequence[builder.TypeSpec] | None = None,
+    output_types: Sequence | None = None,
 ) -> ir.Graph:
     graph = ir.Graph(
         name="test_model",
@@ -1061,8 +1063,8 @@ class BuildSubgraphTest(unittest.TestCase):
         gb = self._make_builder()
         graph = gb.subgraph(
             _add,
-            inputs=[FLOAT[3, 4], FLOAT[3, 4]],
-            outputs=[FLOAT[3, 4]],
+            inputs=[_input("x", FLOAT[3, 4]), _input("y", FLOAT[3, 4])],
+            outputs=[_input("sum", FLOAT[3, 4])],
         )
         self.assertIsInstance(graph, ir.Graph)
         self.assertEqual(len(graph.inputs), 2)
@@ -1075,23 +1077,39 @@ class BuildSubgraphTest(unittest.TestCase):
         gb = self._make_builder(opset_version=17)
         graph = gb.subgraph(
             lambda op, x: op.Identity(x),
-            inputs=[FLOAT[...]],
-            outputs=[FLOAT[...]],
+            inputs=[_input("x", FLOAT[...])],
+            outputs=[_input("y", FLOAT[...])],
         )
         self.assertEqual(graph.opset_imports[""], 17)
 
     def test_subgraph_with_ir_type_and_shape(self):
-        """Subgraph also accepts ir.TypeAndShape directly."""
+        """Subgraph also accepts ir.Value with ir.TypeAndShape-derived types."""
 
         def _mul(op, x, y):
             return op.Mul(x, y)
 
-        float_2d = ir.TypeAndShape(ir.TensorType(ir.DataType.FLOAT), ir.Shape([2, 3]))
         gb = self._make_builder()
         graph = gb.subgraph(
             _mul,
-            inputs=[float_2d, float_2d],
-            outputs=[float_2d],
+            inputs=[
+                ir.Value(
+                    name="x",
+                    type=ir.TensorType(ir.DataType.FLOAT),
+                    shape=ir.Shape([2, 3]),
+                ),
+                ir.Value(
+                    name="y",
+                    type=ir.TensorType(ir.DataType.FLOAT),
+                    shape=ir.Shape([2, 3]),
+                ),
+            ],
+            outputs=[
+                ir.Value(
+                    name="z",
+                    type=ir.TensorType(ir.DataType.FLOAT),
+                    shape=ir.Shape([2, 3]),
+                ),
+            ],
         )
         self.assertIsInstance(graph, ir.Graph)
         self.assertEqual(len(list(graph)), 1)
@@ -1103,12 +1121,11 @@ class BuildSubgraphTest(unittest.TestCase):
         def _add_and_mul(op, x, y):
             return op.Add(x, y), op.Mul(x, y)
 
-        ts = FLOAT[...]
         gb = self._make_builder()
         graph = gb.subgraph(
             _add_and_mul,
-            inputs=[ts, ts],
-            outputs=[ts, ts],
+            inputs=[_input("x", FLOAT[...]), _input("y", FLOAT[...])],
+            outputs=[_input("sum", FLOAT[...]), _input("prod", FLOAT[...])],
         )
         self.assertEqual(len(graph.outputs), 2)
 
@@ -1122,8 +1139,11 @@ class BuildSubgraphTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             gb.subgraph(
                 _returns_one,
-                inputs=[FLOAT[...], FLOAT[...]],
-                outputs=[FLOAT[...], FLOAT[...]],  # expects 2, gets 1
+                inputs=[_input("x", FLOAT[...]), _input("y", FLOAT[...])],
+                outputs=[
+                    _input("a", FLOAT[...]),
+                    _input("b", FLOAT[...]),
+                ],  # expects 2, gets 1
             )
 
     def test_subgraph_custom_name(self):
@@ -1135,28 +1155,32 @@ class BuildSubgraphTest(unittest.TestCase):
         gb = self._make_builder()
         graph = gb.subgraph(
             _id,
-            inputs=[DOUBLE[...]],
-            outputs=[DOUBLE[...]],
+            inputs=[_input("x", DOUBLE[...])],
+            outputs=[_input("y", DOUBLE[...])],
             name="scan_body",
         )
         self.assertEqual(graph.name, "scan_body")
 
-    def test_invalid_type_spec_raises(self):
-        """Subgraph raises TypeError for an unrecognised type specification."""
+    def test_subgraph_input_with_producer_raises(self):
+        """Subgraph raises ValueError for inputs that already have a producer."""
 
         def _id(op, x):
             return op.Identity(x)
 
         gb = self._make_builder()
-        with self.assertRaises(TypeError):
+        # Create a value with a producer node
+        node = ir.Node("", "Dummy", inputs=[], num_outputs=1)
+        used_value = node.outputs[0]
+        used_value.name = "bad_input"
+        with self.assertRaises(ValueError):
             gb.subgraph(
                 _id,
-                inputs=["not_a_type_spec"],
-                outputs=["not_a_type_spec"],
+                inputs=[used_value],
+                outputs=[_input("y", FLOAT[...])],
             )
 
-    def test_subgraph_dict_inputs_outputs(self):
-        """Subgraph accepts a dict to name inputs and outputs."""
+    def test_subgraph_named_inputs_outputs(self):
+        """Subgraph accepts ir.Value objects with names."""
 
         def _add(op, x, y):
             return op.Add(x, y)
@@ -1164,8 +1188,8 @@ class BuildSubgraphTest(unittest.TestCase):
         gb = self._make_builder()
         graph = gb.subgraph(
             _add,
-            inputs={"x": FLOAT[3, 4], "y": FLOAT[3, 4]},
-            outputs={"sum": FLOAT[3, 4]},
+            inputs=[_input("x", FLOAT[3, 4]), _input("y", FLOAT[3, 4])],
+            outputs=[_input("sum", FLOAT[3, 4])],
         )
         self.assertIsInstance(graph, ir.Graph)
         self.assertEqual(len(graph.inputs), 2)
@@ -1174,8 +1198,8 @@ class BuildSubgraphTest(unittest.TestCase):
         self.assertEqual(len(graph.outputs), 1)
         self.assertEqual(graph.outputs[0].name, "sum")
 
-    def test_subgraph_list_auto_names(self):
-        """List-based inputs/outputs get auto-generated names."""
+    def test_subgraph_untyped_inputs(self):
+        """Subgraph accepts ir.Value objects without type/shape."""
 
         def _id(op, x):
             return op.Identity(x)
@@ -1183,11 +1207,11 @@ class BuildSubgraphTest(unittest.TestCase):
         gb = self._make_builder()
         graph = gb.subgraph(
             _id,
-            inputs=[FLOAT[...]],
-            outputs=[FLOAT[...]],
+            inputs=[ir.Value(name="x")],
+            outputs=[ir.Value(name="y")],
         )
-        self.assertEqual(graph.inputs[0].name, "input_0")
-        self.assertEqual(graph.outputs[0].name, "output_0")
+        self.assertEqual(graph.inputs[0].name, "x")
+        self.assertEqual(graph.outputs[0].name, "y")
 
 
 class BuildGraphFunctionTest(unittest.TestCase):
@@ -1197,8 +1221,8 @@ class BuildGraphFunctionTest(unittest.TestCase):
         """build_graph works without a parent GraphBuilder."""
         graph = builder.build_graph(
             lambda op, x, y: op.Add(x, y),
-            inputs={"x": FLOAT[3, 4], "y": FLOAT[3, 4]},
-            outputs={"sum": FLOAT[3, 4]},
+            inputs=[_input("x", FLOAT[3, 4]), _input("y", FLOAT[3, 4])],
+            outputs=[_input("sum", FLOAT[3, 4])],
             opset_imports={"": 20},
         )
         self.assertIsInstance(graph, ir.Graph)
@@ -1211,8 +1235,8 @@ class BuildGraphFunctionTest(unittest.TestCase):
         """build_graph passes name to the ir.Graph."""
         graph = builder.build_graph(
             lambda op, x: op.Identity(x),
-            inputs=[FLOAT[...]],
-            outputs=[FLOAT[...]],
+            inputs=[_input("x", FLOAT[...])],
+            outputs=[_input("y", FLOAT[...])],
             name="loop_body",
         )
         self.assertEqual(graph.name, "loop_body")
@@ -1235,8 +1259,8 @@ class BuildGraphFunctionTest(unittest.TestCase):
 
         builder.build_graph(
             body,
-            inputs=[FLOAT[3]],
-            outputs=[FLOAT[3]],
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
             parent=parent_builder,
         )
 
@@ -1256,7 +1280,11 @@ class BuildGraphFunctionTest(unittest.TestCase):
             self.assertIs(op.builder.root, parent_builder)
             return op.Identity(x)
 
-        parent_builder.subgraph(body, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
+        parent_builder.subgraph(
+            body,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+        )
 
     def test_build_graph_inherits_parent_scope_stack(self):
         """build_graph copies the parent's scope stack so nodes in the subgraph carry scoped names."""
@@ -1273,8 +1301,8 @@ class BuildGraphFunctionTest(unittest.TestCase):
 
         subgraph = builder.build_graph(
             lambda op, x: op.Relu(x),
-            inputs={"x": FLOAT[3, 4]},
-            outputs={"y": FLOAT[3, 4]},
+            inputs=[_input("x", FLOAT[3, 4])],
+            outputs=[_input("y", FLOAT[3, 4])],
             parent=parent_builder,
         )
 
@@ -1458,7 +1486,11 @@ class RootInitializerTest(unittest.TestCase):
         def body(op, x):
             return op.Add(x, 1.0)
 
-        sub = root_builder.subgraph(body, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
+        sub = root_builder.subgraph(
+            body,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+        )
         # Initializer should be in the root graph, not in the subgraph.
         self.assertTrue(
             any("const_1.0" in name for name in root_graph.initializers),
@@ -1487,8 +1519,16 @@ class RootInitializerTest(unittest.TestCase):
         def body2(op, x):
             return op.Mul(x, 2.0)
 
-        root_builder.subgraph(body1, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
-        root_builder.subgraph(body2, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
+        root_builder.subgraph(
+            body1,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+        )
+        root_builder.subgraph(
+            body2,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+        )
 
         # Only one initializer should exist (shared via cache).
         const_names = [n for n in root_graph.initializers if "const_2.0" in n]
@@ -1512,7 +1552,11 @@ class RootInitializerTest(unittest.TestCase):
             bias = op.builder.initializer(tensor, name="my_bias")
             return op.Add(x, bias)
 
-        sub = root_builder.subgraph(body, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
+        sub = root_builder.subgraph(
+            body,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+        )
         # Initializer should be in root, not subgraph
         self.assertIn("my_bias", root_graph.initializers)
         self.assertEqual(len(sub.initializers), 0)
@@ -1629,6 +1673,212 @@ class RootInitializerTest(unittest.TestCase):
         # Should have a Constant node
         const_nodes = [n for n in func.graph if n.op_type == "Constant"]
         self.assertEqual(len(const_nodes), 1)
+
+
+class BuildFunctionTest(unittest.TestCase):
+    """Tests for the module-level build_function() utility."""
+
+    def test_build_function_basic(self):
+        """build_function creates an ir.Function with correct domain/name."""
+        fn = builder.build_function(
+            lambda op, x, y: op.Add(x, y),
+            [_input("x", FLOAT[3, 4]), _input("y", FLOAT[3, 4])],
+            domain="com.test",
+            name="MyAdd",
+        )
+        self.assertIsInstance(fn, ir.Function)
+        self.assertEqual(fn.domain, "com.test")
+        self.assertEqual(fn.name, "MyAdd")
+        self.assertEqual(len(fn.graph.inputs), 2)
+        self.assertEqual(fn.graph.inputs[0].name, "x")
+        self.assertEqual(fn.graph.inputs[1].name, "y")
+        self.assertEqual(len(fn.graph.outputs), 1)
+
+    def test_build_function_multiple_outputs(self):
+        """build_function handles multiple return values."""
+
+        def body(op, x, y):
+            return op.Add(x, y), op.Mul(x, y)
+
+        fn = builder.build_function(
+            body,
+            [_input("x"), _input("y")],
+            domain="com.test",
+            name="AddAndMul",
+        )
+        self.assertEqual(len(fn.graph.outputs), 2)
+
+    def test_build_function_with_attributes(self):
+        """build_function passes attributes to ir.Function."""
+        fn = builder.build_function(
+            lambda op, x: op.Identity(x),
+            [_input("x")],
+            domain="com.test",
+            name="WithAttr",
+            attributes=[
+                ir.Attr("scale", ir.AttributeType.FLOAT, 0.5),
+                ir.Attr("mode", ir.AttributeType.STRING, "fast"),
+            ],
+        )
+        self.assertIn("scale", fn.attributes)
+        self.assertIn("mode", fn.attributes)
+
+    def test_build_function_attributes_as_dict(self):
+        """build_function accepts attributes as Mapping[str, ir.Attr]."""
+        attr = ir.Attr("scale", ir.AttributeType.FLOAT, 1.0)
+        fn = builder.build_function(
+            lambda op, x: op.Identity(x),
+            [_input("x")],
+            domain="com.test",
+            name="DictAttr",
+            attributes={"scale": attr},
+        )
+        self.assertIn("scale", fn.attributes)
+
+    def test_build_function_lifts_initializers(self):
+        """build_function lifts initializers to Constant nodes automatically."""
+        fn = builder.build_function(
+            lambda op, x: op.Add(x, 1.5),
+            [_input("x", FLOAT[3])],
+            domain="com.test",
+            name="WithLiteral",
+        )
+        # No initializers in function body
+        self.assertEqual(len(fn.graph.initializers), 0)
+        # Should have a Constant node for the literal
+        const_nodes = [n for n in fn.graph if n.op_type == "Constant"]
+        self.assertGreater(len(const_nodes), 0)
+
+    def test_build_function_optional_inputs_none(self):
+        """build_function passes None for absent optional inputs."""
+
+        def body(op, x, y, z):
+            self.assertIsNotNone(x)
+            self.assertIsNone(y)
+            self.assertIsNotNone(z)
+            return op.Add(x, z)
+
+        fn = builder.build_function(
+            body,
+            [_input("x", FLOAT[3]), None, _input("z", FLOAT[3])],
+            domain="com.test",
+            name="OptionalInputs",
+        )
+        # Graph should have only 2 inputs (x and z), not 3
+        self.assertEqual(len(fn.graph.inputs), 2)
+        self.assertEqual(fn.graph.inputs[0].name, "x")
+        self.assertEqual(fn.graph.inputs[1].name, "z")
+
+    def test_build_function_trace_appends_outputs(self):
+        """build_function supports trace functions that append outputs directly."""
+
+        def body(op, x):
+            result = op.Identity(x)
+            result.name = "result"
+            op.builder._graph.outputs.append(result)
+            return None
+
+        fn = builder.build_function(
+            body,
+            [_input("x")],
+            domain="com.test",
+            name="AppendOutputs",
+        )
+        self.assertEqual(len(fn.graph.outputs), 1)
+        self.assertEqual(fn.graph.outputs[0].name, "result")
+
+    def test_build_function_mixed_output_raises(self):
+        """build_function raises if trace both returns and appends outputs."""
+
+        def body(op, x):
+            result = op.Identity(x)
+            op.builder._graph.outputs.append(result)
+            return op.Identity(x)  # also returns — should raise
+
+        with self.assertRaises(ValueError):
+            builder.build_function(
+                body,
+                [_input("x")],
+                domain="com.test",
+                name="MixedOutputs",
+            )
+
+    def test_build_function_no_outputs_raises(self):
+        """build_function raises if trace returns None and appends nothing."""
+
+        def body(op, x):
+            op.Identity(x)
+            return None
+
+        with self.assertRaises(ValueError):
+            builder.build_function(
+                body,
+                [_input("x")],
+                domain="com.test",
+                name="NoOutputs",
+            )
+
+    def test_build_function_input_with_producer_raises(self):
+        """build_function raises for inputs that already have a producer."""
+        node = ir.Node("", "Dummy", inputs=[], num_outputs=1)
+        used_value = node.outputs[0]
+        used_value.name = "bad"
+
+        with self.assertRaises(ValueError):
+            builder.build_function(
+                lambda op, x: op.Identity(x),
+                [used_value],
+                domain="com.test",
+                name="BadInput",
+            )
+
+    def test_build_function_custom_opset(self):
+        """build_function passes custom opset_imports to the graph."""
+        fn = builder.build_function(
+            lambda op, x: op.Identity(x),
+            [_input("x")],
+            domain="com.test",
+            name="CustomOpset",
+            opset_imports={"": 20},
+        )
+        self.assertEqual(fn.graph.opset_imports[""], 20)
+
+    def test_build_function_no_parent_isolation(self):
+        """build_function has no parent — literals stay in the function graph."""
+        fn = builder.build_function(
+            lambda op, x: op.Mul(x, 2.0),
+            [_input("x", FLOAT[3])],
+            domain="com.test",
+            name="Isolated",
+        )
+        # After lifting, there should be a Constant node and no initializers
+        self.assertEqual(len(fn.graph.initializers), 0)
+        const_nodes = [n for n in fn.graph if n.op_type == "Constant"]
+        self.assertGreater(len(const_nodes), 0)
+
+
+class MakeInputTest(unittest.TestCase):
+    """Tests for the make_input() convenience helper."""
+
+    def test_make_input_name_only(self):
+        """make_input with just a name creates an untyped Value."""
+        v = builder.make_input("x")
+        self.assertEqual(v.name, "x")
+        self.assertIsNone(v.type)
+        self.assertIsNone(v.shape)
+
+    def test_make_input_with_type_spec(self):
+        """make_input with a TypeSpec sets type and shape."""
+        v = builder.make_input("x", FLOAT[3, 4])
+        self.assertEqual(v.name, "x")
+        self.assertIsNotNone(v.type)
+        self.assertIsNotNone(v.shape)
+
+    def test_make_input_with_dynamic_shape(self):
+        """make_input with symbolic dims works."""
+        v = builder.make_input("x", FLOAT["B", "T"])
+        self.assertEqual(v.name, "x")
+        self.assertIsNotNone(v.shape)
 
 
 if __name__ == "__main__":
