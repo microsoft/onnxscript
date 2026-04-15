@@ -15,6 +15,7 @@ from onnxscript import script
 from onnxscript.onnx_types import DOUBLE, FLOAT, INT64
 
 _default_opset_version = 23
+_opset = {"": _default_opset_version}
 
 # Convenience alias for tests — creates an ir.Value from (name, TypeSpec).
 _input = builder.make_value
@@ -1238,6 +1239,7 @@ class BuildGraphFunctionTest(unittest.TestCase):
             inputs=[_input("x", FLOAT[...])],
             outputs=[_input("y", FLOAT[...])],
             name="loop_body",
+            opset_imports=_opset,
         )
         self.assertEqual(graph.name, "loop_body")
 
@@ -1262,6 +1264,7 @@ class BuildGraphFunctionTest(unittest.TestCase):
             inputs=[_input("x", FLOAT[3])],
             outputs=[_input("y", FLOAT[3])],
             parent=parent_builder,
+            opset_imports=_opset,
         )
 
     def test_subgraph_sets_parent_and_root(self):
@@ -1304,8 +1307,8 @@ class BuildGraphFunctionTest(unittest.TestCase):
             inputs=[_input("x", FLOAT[3, 4])],
             outputs=[_input("y", FLOAT[3, 4])],
             parent=parent_builder,
+            opset_imports=_opset,
         )
-
         # The single node created inside the subgraph should carry the
         # parent's scope prefix in its name and metadata.
         node = subgraph.node(0)
@@ -1685,6 +1688,7 @@ class BuildFunctionTest(unittest.TestCase):
             [_input("x", FLOAT[3, 4]), _input("y", FLOAT[3, 4])],
             domain="com.test",
             name="MyAdd",
+            opset_imports=_opset,
         )
         self.assertIsInstance(fn, ir.Function)
         self.assertEqual(fn.domain, "com.test")
@@ -1705,6 +1709,7 @@ class BuildFunctionTest(unittest.TestCase):
             [_input("x"), _input("y")],
             domain="com.test",
             name="AddAndMul",
+            opset_imports=_opset,
         )
         self.assertEqual(len(fn.graph.outputs), 2)
 
@@ -1719,6 +1724,7 @@ class BuildFunctionTest(unittest.TestCase):
                 ir.Attr("scale", ir.AttributeType.FLOAT, 0.5),
                 ir.Attr("mode", ir.AttributeType.STRING, "fast"),
             ],
+            opset_imports=_opset,
         )
         self.assertIn("scale", fn.attributes)
         self.assertIn("mode", fn.attributes)
@@ -1732,6 +1738,7 @@ class BuildFunctionTest(unittest.TestCase):
             domain="com.test",
             name="DictAttr",
             attributes={"scale": attr},
+            opset_imports=_opset,
         )
         self.assertIn("scale", fn.attributes)
 
@@ -1742,6 +1749,7 @@ class BuildFunctionTest(unittest.TestCase):
             [_input("x", FLOAT[3])],
             domain="com.test",
             name="WithLiteral",
+            opset_imports=_opset,
         )
         # No initializers in function body
         self.assertEqual(len(fn.graph.initializers), 0)
@@ -1763,6 +1771,7 @@ class BuildFunctionTest(unittest.TestCase):
             [_input("x", FLOAT[3]), None, _input("z", FLOAT[3])],
             domain="com.test",
             name="OptionalInputs",
+            opset_imports=_opset,
         )
         # Graph has 3 inputs: x, a placeholder for the absent y, and z
         self.assertEqual(len(fn.graph.inputs), 3)
@@ -1785,6 +1794,7 @@ class BuildFunctionTest(unittest.TestCase):
             [_input("x")],
             domain="com.test",
             name="AppendOutputs",
+            opset_imports=_opset,
         )
         self.assertEqual(len(fn.graph.outputs), 1)
         self.assertEqual(fn.graph.outputs[0].name, "result")
@@ -1803,6 +1813,7 @@ class BuildFunctionTest(unittest.TestCase):
                 [_input("x")],
                 domain="com.test",
                 name="MixedOutputs",
+            opset_imports=_opset,
             )
 
     def test_build_function_no_outputs_raises(self):
@@ -1818,6 +1829,7 @@ class BuildFunctionTest(unittest.TestCase):
                 [_input("x")],
                 domain="com.test",
                 name="NoOutputs",
+            opset_imports=_opset,
             )
 
     def test_build_function_input_with_producer_raises(self):
@@ -1832,6 +1844,7 @@ class BuildFunctionTest(unittest.TestCase):
                 [used_value],
                 domain="com.test",
                 name="BadInput",
+            opset_imports=_opset,
             )
 
     def test_build_function_custom_opset(self):
@@ -1852,6 +1865,7 @@ class BuildFunctionTest(unittest.TestCase):
             [_input("x", FLOAT[3])],
             domain="com.test",
             name="Isolated",
+            opset_imports=_opset,
         )
         # After lifting, there should be a Constant node and no initializers
         self.assertEqual(len(fn.graph.initializers), 0)

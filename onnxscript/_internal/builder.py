@@ -230,7 +230,7 @@ def build_graph(
     inputs: Sequence[ir.Value | None],
     outputs: Sequence[ir.Value],
     *,
-    opset_imports: dict[str, int] | None = None,
+    opset_imports: dict[str, int],
     name: str = "subgraph",
     parent: GraphBuilder | None = None,
 ) -> ir.Graph:
@@ -246,6 +246,7 @@ def build_graph(
             lambda op, x, y: op.Add(x, y),
             inputs=[make_value("x", FLOAT[3, 4]), make_value("y", FLOAT[3, 4])],
             outputs=[make_value("sum", FLOAT[3, 4])],
+            opset_imports={"": 23},
         )
 
     Args:
@@ -263,7 +264,7 @@ def build_graph(
             the expected outputs.  After tracing, the name and type of each
             declared output are applied to the corresponding returned value.
         opset_imports: Opset version map for the subgraph (e.g.
-            ``{"": 23}``).  Defaults to ``{"": 23}`` when *None*.
+            ``{"": 23}``).
         name: Name of the resulting :class:`ir.Graph`.
         parent: Optional parent :class:`GraphBuilder`.  When provided, the
             sub-builder's ``_root`` points to the root builder of the parent,
@@ -276,9 +277,6 @@ def build_graph(
         passed directly as a graph-valued attribute (e.g. the ``body`` attribute of
         a ``Scan`` or ``Loop`` node).
     """
-    if opset_imports is None:
-        opset_imports = {"": 23}
-
     trace_args, graph_inputs = _split_optional_inputs(inputs)
 
     subgraph = ir.Graph(
@@ -325,7 +323,7 @@ def build_function(
     domain: str,
     name: str,
     attributes: Mapping[str, ir.Attr] | Sequence[ir.Attr] | None = None,
-    opset_imports: dict[str, int] | None = None,
+    opset_imports: dict[str, int],
 ) -> ir.Function:
     """Build an :class:`ir.Function` by tracing *trace_function*.
 
@@ -340,6 +338,7 @@ def build_function(
             [make_value("x"), make_value("y")],
             domain="com.example",
             name="MyAdd",
+            opset_imports={"": 23},
         )
 
     Args:
@@ -358,15 +357,12 @@ def build_function(
         attributes: Function-level attributes.  Accepts a
             :class:`Mapping` from name to :class:`ir.Attr`, a
             :class:`Sequence` of :class:`ir.Attr`, or ``None``.
-        opset_imports: Opset version map.  Defaults to ``{"": 23}``.
+        opset_imports: Opset version map (e.g. ``{"": 23}``).
 
     Returns:
         An :class:`ir.Function` with initializers automatically lifted to
         ``Constant`` nodes.
     """
-    if opset_imports is None:
-        opset_imports = {"": 23}
-
     trace_args, graph_inputs = _split_optional_inputs(inputs)
 
     graph = ir.Graph(

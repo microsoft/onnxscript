@@ -131,6 +131,7 @@ class ParameterTest(unittest.TestCase):
                 inputs=[make_value("x", FLOAT[3])],
                 outputs=[make_value("y", FLOAT[3])],
                 parent=op.builder,
+                opset_imports={"": 23},
             )
             return op.Identity(x)
 
