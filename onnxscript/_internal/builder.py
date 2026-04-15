@@ -75,6 +75,56 @@ def _constant_name(
     return f"const_1d_{num}"
 
 
+def lift_initializers_to_constants(graph: ir.Graph) -> None:
+    """Replace every initializer in *graph* with a ``Constant`` node.
+
+    ONNX ``ir.Function`` bodies do not support initializers — all values
+    must be produced by nodes.  Call this on the function-body graph
+    **before** wrapping it in :class:`ir.Function` so that any constant
+    initializers (e.g. from Python literals promoted by
+    :class:`GraphBuilder`) become valid ``Constant`` nodes.
+
+    The function preserves ``ir.Value`` identity: it reuses each existing
+    ``ir.Value`` object as the output of the new ``Constant`` node so that
+    all downstream references remain valid.
+
+    Graph inputs that are *also* registered as initializers (the standard
+    ONNX pattern for optional inputs with default values) are skipped
+    because they are explicit function parameters, not embedded constants.
+    """
+    graph_input_set = set(id(v) for v in graph.inputs)
+    to_lift: list[ir.Value] = [
+        v
+        for v in list(graph.initializers.values())
+        if id(v) not in graph_input_set
+    ]
+    opset_version = graph.opset_imports.get("", 1)
+    new_nodes: list[ir.Node] = []
+    for value in to_lift:
+        tensor = value.const_value
+        assert tensor is not None, f"Initializer {value.name!r} has no const_value"
+        # Build a Constant node whose output is the *same* ir.Value so
+        # that every existing reference keeps working.
+        node = ir.Node(
+            "",
+            "Constant",
+            inputs=[],
+            attributes=[ir.Attr("value", ir.AttributeType.TENSOR, tensor)],
+            outputs=[value],
+            version=opset_version,
+        )
+        graph.initializers.pop(value.name)
+        new_nodes.append(node)
+    # Insert all Constant nodes at the beginning of the graph.
+    if new_nodes:
+        first_existing = graph.node(0) if graph.num_nodes() > 0 else None
+        if first_existing is not None:
+            graph.insert_before(first_existing, new_nodes)
+        else:
+            for n in new_nodes:
+                graph.append(n)
+
+
 # Type accepted as an element of *inputs* / *outputs* by
 # :meth:`GraphBuilder.subgraph`.  Can be an already-resolved
 # :class:`ir.TypeAndShape`, or a
@@ -234,10 +284,13 @@ class GraphBuilder:
         # class_name is the qualified class name (e.g. "Gemma3DecoderLayer").
         self._scope_stack: list[tuple[str, str]] = []
 
-        # Cache for constant initializers (scalars and sequences), keyed by (value, dtype).
-        # This avoids creating duplicate initializers for the same constant
-        # and allows sharing them across different layers/contexts.
-        self._constant_cache: dict[tuple[Any, ir.DataType | None], ir.Value] = {}
+        # Cache for constant initializers (scalars and sequences), keyed by
+        # (value, dtype).  Only the **root** builder owns a cache; child
+        # builders delegate to ``self._root`` so that all constant
+        # initializers live in the root graph (outer-scope initializers are
+        # visible to subgraphs per the ONNX spec).
+        if parent is None:
+            self._constant_cache: dict[tuple[Any, ir.DataType | None], ir.Value] = {}
 
     def opset(self, domain: str, version: int = 1) -> OpBuilder:
         """Create an OpBuilder bound to the given domain and version."""
@@ -324,6 +377,53 @@ class GraphBuilder:
             value.name = name
         self._graph.outputs.append(value)
 
+    def _get_or_create_constant(
+        self, value: VALUE_LIKE, dtype: ir.DataType | None
+    ) -> ir.Value:
+        """Materialise a constant as an initializer in the **root** graph.
+
+        Child builders delegate to the root so that all constant initializers
+        live in the root graph.  For subgraphs this is correct because ONNX
+        allows inner scopes to reference outer-scope initializers.  For
+        function bodies (which cannot reference outer initializers) callers
+        should apply :func:`lift_initializers_to_constants` before wrapping
+        the graph in :class:`ir.Function`.
+        """
+        root = self._root
+        if isinstance(value, (int, float, bool, str)):
+            if dtype is None:
+                dtype = _PYTHON_TYPE_TO_DTYPE.get(type(value))
+            cache_key = (value, dtype)
+            if cache_key in root._constant_cache:
+                return root._constant_cache[cache_key]
+            type_suffix = _dtype_suffix(dtype) if dtype is not None else ""
+            name = _constant_name(value, type_suffix, len(root._constant_cache))
+            tensor = ir.tensor(value, dtype=dtype, name=name)
+            ir_value = root.initializer(tensor, name=name, qualify=False)
+            root._constant_cache[cache_key] = ir_value
+            return ir_value
+        if (
+            isinstance(value, (list, tuple))
+            and value
+            and all(isinstance(v, type(value[0])) for v in value)
+            and isinstance(value[0], (int, float, bool, str))
+        ):
+            if dtype is None:
+                dtype = _PYTHON_TYPE_TO_DTYPE.get(type(value[0]))
+            cache_key = (tuple(value), dtype)
+            if cache_key in root._constant_cache:
+                return root._constant_cache[cache_key]
+            type_suffix = _dtype_suffix(dtype) if dtype is not None else ""
+            name = _constant_name(value, type_suffix, len(root._constant_cache))
+            tensor = ir.tensor(list(value), dtype=dtype, name=name)
+            ir_value = root.initializer(tensor, name=name, qualify=False)
+            root._constant_cache[cache_key] = ir_value
+            return ir_value
+        # For other types (TensorProtocol, numpy arrays, torch tensors, etc.),
+        # ir.tensor() handles the conversion.
+        # TODO(rama): Consider caching for other tensor values.
+        return root.initializer(ir.tensor(value, dtype=dtype))
+
     def _input_to_ir_value(
         self, value: VALUE_LIKE, like_type: ir.Value | None = None
     ) -> ir.Value | None:
@@ -343,48 +443,11 @@ class GraphBuilder:
             else None
         )
         needs_dynamic_cast = like_type is not None and dtype is None
-        # For simple scalar/sequence constants, use a cache to avoid duplicate initializers.
-        # These are shared across layers, so we don't qualify the name with context prefix.
-        if isinstance(value, (int, float, bool, str)):
-            # Normalize dtype: when None, use the default ONNX type for the
-            # Python scalar so that (value, None) and (value, default_dtype)
-            # share one cache entry and one initializer name.
-            if dtype is None:
-                dtype = _PYTHON_TYPE_TO_DTYPE.get(type(value))
-            cache_key = (value, dtype)
-            if cache_key in self._constant_cache:
-                ir_value = self._constant_cache[cache_key]
-            else:
-                type_suffix = _dtype_suffix(dtype) if dtype is not None else ""
-                name = _constant_name(value, type_suffix, len(self._constant_cache))
-                tensor = ir.tensor(value, dtype=dtype, name=name)
-                ir_value = self.initializer(tensor, name=name, qualify=False)
-                self._constant_cache[cache_key] = ir_value
-        elif (
-            isinstance(value, (list, tuple))
-            and value
-            and all(isinstance(v, type(value[0])) for v in value)
-            and isinstance(value[0], (int, float, bool, str))
-        ):
-            # Same normalization for sequences of scalars.
-            if dtype is None:
-                dtype = _PYTHON_TYPE_TO_DTYPE.get(type(value[0]))
-            cache_key = (tuple(value), dtype)
-            if cache_key in self._constant_cache:
-                ir_value = self._constant_cache[cache_key]
-            else:
-                type_suffix = _dtype_suffix(dtype) if dtype is not None else ""
-                name = _constant_name(value, type_suffix, len(self._constant_cache))
-                tensor = ir.tensor(list(value), dtype=dtype, name=name)
-                ir_value = self.initializer(tensor, name=name, qualify=False)
-                self._constant_cache[cache_key] = ir_value
-        else:
-            # For other types (TensorProtocol, numpy arrays, torch tensors, etc.),
-            # ir.tensor() handles the conversion.
-            # TODO(rama): Consider caching for other tensor values.
-            ir_value = self.initializer(ir.tensor(value, dtype=dtype))
+        ir_value = self._get_or_create_constant(value, dtype)
         # If like_type is provided but its type is unknown, insert a dynamic CastLike
         # so the constant is cast to match like_type's type at runtime.
+        # The CastLike node is created in THIS builder's graph (not root),
+        # so that it lives in the correct scope (subgraph or function body).
         if needs_dynamic_cast:
             ir_value = self.op.CastLike(ir_value, like_type)
         return ir_value

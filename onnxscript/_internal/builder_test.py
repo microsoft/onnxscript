@@ -1443,3 +1443,180 @@ class PartitionInputsAttributesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RootInitializerTest(unittest.TestCase):
+    """Tests for root-graph initializer storage and lift_initializers_to_constants."""
+
+    def test_subgraph_literal_creates_initializer_in_root(self):
+        """A literal used inside a subgraph creates an initializer in the root graph."""
+        root_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        root_builder = builder.GraphBuilder(root_graph)
+
+        def body(op, x):
+            return op.Add(x, 1.0)
+
+        sub = root_builder.subgraph(body, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
+        # Initializer should be in the root graph, not in the subgraph.
+        self.assertTrue(
+            any("const_1.0" in name for name in root_graph.initializers),
+            f"Expected const_1.0 in root initializers: {list(root_graph.initializers)}",
+        )
+        self.assertEqual(
+            len(sub.initializers),
+            0,
+            f"Subgraph should have no initializers: {list(sub.initializers)}",
+        )
+
+    def test_sibling_subgraphs_share_root_cache(self):
+        """Two subgraphs using the same literal share one root initializer."""
+        root_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        root_builder = builder.GraphBuilder(root_graph)
+
+        captured_values = []
+
+        def body1(op, x):
+            result = op.Add(x, 2.0)
+            captured_values.append(result)
+            return result
+
+        def body2(op, x):
+            result = op.Mul(x, 2.0)
+            captured_values.append(result)
+            return result
+
+        root_builder.subgraph(body1, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
+        root_builder.subgraph(body2, inputs=[FLOAT[3]], outputs=[FLOAT[3]])
+
+        # Only one initializer should exist (shared via cache).
+        const_names = [n for n in root_graph.initializers if "const_2.0" in n]
+        self.assertEqual(len(const_names), 1, f"Expected 1 shared initializer: {const_names}")
+
+    def test_lift_initializers_to_constants_converts_all(self):
+        """lift_initializers_to_constants replaces initializers with Constant nodes."""
+        graph = ir.Graph(
+            name="func_body",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        gb = builder.GraphBuilder(graph)
+        x = gb.input("x", ir.DataType.FLOAT, ir.Shape([3]))
+        result = gb.op.Add(x, 1.5)
+        gb.add_output(result, "y")
+
+        # Before lift: should have an initializer
+        self.assertTrue(len(graph.initializers) > 0)
+
+        builder.lift_initializers_to_constants(graph)
+
+        # After lift: no initializers, but a Constant node at the start
+        self.assertEqual(len(graph.initializers), 0)
+        first_node = graph.node(0)
+        self.assertEqual(first_node.op_type, "Constant")
+
+    def test_lift_preserves_value_identity(self):
+        """lift_initializers_to_constants reuses existing ir.Value objects."""
+        graph = ir.Graph(
+            name="func_body",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        gb = builder.GraphBuilder(graph)
+        x = gb.input("x", ir.DataType.FLOAT, ir.Shape([3]))
+        # Use the literal 3.14 in two ops so the same ir.Value feeds both
+        const_val = gb.op.Add(x, 3.14)
+        result = gb.op.Mul(const_val, 3.14)
+        gb.add_output(result, "y")
+
+        # Grab the initializer value before lifting
+        init_values = list(graph.initializers.values())
+        self.assertEqual(len(init_values), 1)
+        original_value = init_values[0]
+
+        builder.lift_initializers_to_constants(graph)
+
+        # The Constant node's output should be the same ir.Value object
+        const_node = graph.node(0)
+        self.assertEqual(const_node.op_type, "Constant")
+        self.assertIs(const_node.outputs[0], original_value)
+
+    def test_lift_skips_graph_inputs_that_are_initializers(self):
+        """Graph inputs that are also initializers are NOT lifted."""
+        graph = ir.Graph(
+            name="func_body",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        gb = builder.GraphBuilder(graph)
+        # Create an input that is also an initializer (default value pattern)
+        import numpy as np
+
+        default_tensor = ir.Tensor(np.array([1.0, 2.0, 3.0], dtype=np.float32))
+        input_with_default = gb.input(
+            "bias", ir.DataType.FLOAT, ir.Shape([3]), const_value=default_tensor
+        )
+        x = gb.input("x", ir.DataType.FLOAT, ir.Shape([3]))
+        result = gb.op.Add(x, input_with_default)
+        gb.add_output(result, "y")
+
+        self.assertEqual(len(graph.initializers), 1)
+
+        builder.lift_initializers_to_constants(graph)
+
+        # The input/initializer should NOT have been lifted
+        self.assertEqual(len(graph.initializers), 1)
+        # No Constant nodes should have been created
+        for node in graph:
+            self.assertNotEqual(node.op_type, "Constant")
+
+    def test_function_body_with_literal_after_lift(self):
+        """End-to-end: build a function body with a literal, lift, wrap in ir.Function."""
+        graph = ir.Graph(
+            name="MyFunc_body",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        gb = builder.GraphBuilder(graph)
+        x = gb.input("x", ir.DataType.FLOAT, ir.Shape([3]))
+        # Use a float literal — this creates an initializer
+        scaled = gb.op.Mul(x, 0.5)
+        gb.add_output(scaled, "y")
+
+        # Lift before wrapping in ir.Function
+        builder.lift_initializers_to_constants(graph)
+
+        func = ir.Function(
+            domain="test.domain",
+            name="MyFunc",
+            graph=graph,
+            attributes={},
+        )
+        # Validate: function body should have no initializers
+        self.assertEqual(len(func.graph.initializers), 0)
+        # Should have a Constant node
+        const_nodes = [n for n in func.graph if n.op_type == "Constant"]
+        self.assertEqual(len(const_nodes), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
