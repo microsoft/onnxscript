@@ -1813,7 +1813,7 @@ class BuildFunctionTest(unittest.TestCase):
                 [_input("x")],
                 domain="com.test",
                 name="MixedOutputs",
-            opset_imports=_opset,
+                opset_imports=_opset,
             )
 
     def test_build_function_no_outputs_raises(self):
@@ -1829,7 +1829,7 @@ class BuildFunctionTest(unittest.TestCase):
                 [_input("x")],
                 domain="com.test",
                 name="NoOutputs",
-            opset_imports=_opset,
+                opset_imports=_opset,
             )
 
     def test_build_function_input_with_producer_raises(self):
@@ -1844,7 +1844,7 @@ class BuildFunctionTest(unittest.TestCase):
                 [used_value],
                 domain="com.test",
                 name="BadInput",
-            opset_imports=_opset,
+                opset_imports=_opset,
             )
 
     def test_build_function_custom_opset(self):
