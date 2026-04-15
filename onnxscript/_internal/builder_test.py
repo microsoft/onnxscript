@@ -1750,7 +1750,7 @@ class BuildFunctionTest(unittest.TestCase):
         self.assertGreater(len(const_nodes), 0)
 
     def test_build_function_optional_inputs_none(self):
-        """build_function passes None for absent optional inputs."""
+        """build_function passes None for absent optional inputs but declares them."""
 
         def body(op, x, y, z):
             self.assertIsNotNone(x)
@@ -1764,10 +1764,12 @@ class BuildFunctionTest(unittest.TestCase):
             domain="com.test",
             name="OptionalInputs",
         )
-        # Graph should have only 2 inputs (x and z), not 3
-        self.assertEqual(len(fn.graph.inputs), 2)
+        # Graph has 3 inputs: x, a placeholder for the absent y, and z
+        self.assertEqual(len(fn.graph.inputs), 3)
         self.assertEqual(fn.graph.inputs[0].name, "x")
-        self.assertEqual(fn.graph.inputs[1].name, "z")
+        self.assertEqual(fn.graph.inputs[1].name, "input_1")  # placeholder
+        self.assertIsNone(fn.graph.inputs[1].type)  # untyped
+        self.assertEqual(fn.graph.inputs[2].name, "z")
 
     def test_build_function_trace_appends_outputs(self):
         """build_function supports trace functions that append outputs directly."""

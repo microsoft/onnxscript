@@ -194,9 +194,16 @@ def _split_optional_inputs(
 ) -> tuple[list[ir.Value | None], list[ir.Value]]:
     """Split an input list into trace args and graph inputs.
 
+    For each ``None`` entry, a placeholder :class:`ir.Value` with a generated
+    name (``input_0``, ``input_1``, …) is created and added to
+    *graph_inputs* so that the function/graph signature declares the formal
+    parameter.  The corresponding *trace_args* entry remains ``None`` so that
+    the trace function can branch with ``if x is None:``.
+
     Returns:
         A tuple of (trace_args, graph_inputs) where trace_args preserves
-        ``None`` holes and graph_inputs contains only non-``None`` values.
+        ``None`` holes and graph_inputs includes placeholders for absent
+        optional inputs.
 
     Raises:
         ValueError: If any non-None input already has a producer or is
@@ -204,15 +211,17 @@ def _split_optional_inputs(
     """
     trace_args: list[ir.Value | None] = list(inputs)
     graph_inputs: list[ir.Value] = []
-    for v in trace_args:
+    for i, v in enumerate(trace_args):
         if v is None:
-            continue
-        if v.producer() is not None:
-            raise ValueError(
-                f"Input {v.name!r} already has a producer node. "
-                f"Pass freshly created ir.Value objects."
-            )
-        graph_inputs.append(v)
+            # Placeholder: declared in function signature but unused in body.
+            graph_inputs.append(ir.Value(name=f"input_{i}"))
+        else:
+            if v.producer() is not None:
+                raise ValueError(
+                    f"Input {v.name!r} already has a producer node. "
+                    f"Pass freshly created ir.Value objects."
+                )
+            graph_inputs.append(v)
     return trace_args, graph_inputs
 
 
