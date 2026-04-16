@@ -221,6 +221,11 @@ def _split_optional_inputs(
                     f"Input {v.name!r} already has a producer node. "
                     f"Pass freshly created ir.Value objects."
                 )
+            if v.graph is not None:
+                raise ValueError(
+                    f"Input {v.name!r} is already attached to a graph. "
+                    f"Pass freshly created ir.Value objects."
+                )
             graph_inputs.append(v)
     return trace_args, graph_inputs
 
@@ -257,9 +262,10 @@ def build_graph(
             to support optional inputs.
         inputs: A :class:`Sequence` of :class:`ir.Value` (or ``None`` for
             absent optional inputs).  Each ``ir.Value`` should be freshly
-            created with a name and optional type/shape.  ``None`` entries
-            are excluded from the graph inputs but passed as ``None`` to
-            *trace_function*.
+            created with a name and optional type/shape.  For ``None``
+            entries, placeholder values are declared as formal graph inputs,
+            while ``None`` is passed to *trace_function* for the
+            corresponding argument position.
         outputs: A :class:`Sequence` of :class:`ir.Value` objects declaring
             the expected outputs.  After tracing, the name and type of each
             declared output are applied to the corresponding returned value.
@@ -349,9 +355,11 @@ def build_function(
             uses whatever outputs were appended to ``graph.outputs`` by the
             trace function directly.
         inputs: A :class:`Sequence` of :class:`ir.Value` (or ``None`` for
-            absent optional inputs).  ``None`` entries are excluded from the
-            function's formal inputs but passed as ``None`` to
-            *trace_function* so the body can branch with ``if x is None``.
+            absent optional inputs).  ``None`` entries are represented by
+            placeholder formal inputs in the generated function signature,
+            while ``None`` is passed through to *trace_function* in the
+            corresponding positions so the body can branch with
+            ``if x is None``.
         domain: Function domain (e.g. ``"com.microsoft"``).
         name: Function name (e.g. ``"LinearAttention"``).
         attributes: Function-level attributes.  Accepts a

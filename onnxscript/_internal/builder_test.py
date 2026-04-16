@@ -1847,6 +1847,27 @@ class BuildFunctionTest(unittest.TestCase):
                 opset_imports=_opset,
             )
 
+    def test_build_function_input_attached_to_graph_raises(self):
+        """build_function raises for inputs already attached to a graph."""
+        graph = ir.Graph(
+            name="other",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        attached = ir.Value(name="attached")
+        graph.inputs.append(attached)
+
+        with self.assertRaises(ValueError):
+            builder.build_function(
+                lambda op, x: op.Identity(x),
+                [attached],
+                domain="com.test",
+                name="AttachedInput",
+                opset_imports=_opset,
+            )
+
     def test_build_function_custom_opset(self):
         """build_function passes custom opset_imports to the graph."""
         fn = builder.build_function(
