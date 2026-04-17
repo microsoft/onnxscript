@@ -435,8 +435,8 @@ class GraphBuilderOptions:
     shape_inference: bool = True
     """Run ``infer_outputs`` (shape and type inference) on each node after creation."""
 
-    auto_cast_inputs: bool = True
-    """Use ONNX schema to auto-cast Python literals and match sibling input types."""
+    auto_cast_parameters: bool = True
+    """Use ONNX schema to partition and auto-cast inputs and attributes."""
 
     scope_metadata: bool = True
     """Attach namespace / class_hierarchy / name_scopes metadata_props to nodes."""
@@ -452,7 +452,7 @@ EXPORT_OPTIONS = GraphBuilderOptions()
 TAPE_COMPATIBLE_OPTIONS = GraphBuilderOptions(
     constant_propagation=False,
     shape_inference=False,
-    auto_cast_inputs=False,
+    auto_cast_parameters=False,
     scope_metadata=False,
     auto_name_nodes=False,
 )
@@ -875,7 +875,7 @@ class GraphBuilder:
 
         output_values = self._adapt_outputs(outputs, op_type)
 
-        if self._options.auto_cast_inputs:
+        if self._options.auto_cast_parameters:
             schema = self._get_schema(op_type, domain, version)
             inputs, attributes = self._partition_inputs_attributes(schema, inputs, kwargs)
             inputs = self._cast_inputs(schema, inputs)

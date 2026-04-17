@@ -2031,7 +2031,7 @@ class GraphBuilderOptionsTest(unittest.TestCase):
         opts = builder.GraphBuilderOptions(
             constant_propagation=False,
             shape_inference=True,
-            auto_cast_inputs=False,
+            auto_cast_parameters=False,
             scope_metadata=False,
             auto_name_nodes=True,
         )
