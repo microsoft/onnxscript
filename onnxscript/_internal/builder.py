@@ -894,7 +894,8 @@ class GraphBuilder:
         if isinstance(function, ir.Function):
             graph = function.graph
         elif isinstance(function, onnxscript.OnnxFunction):
-            graph = function.graph()
+            # TODO(justinchuby): Reason about support for outer-scope values in inlined function bodies.
+            graph = function.graph().clone(allow_outer_scope_values=True)
         else:
             raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
         if _outputs is not None:

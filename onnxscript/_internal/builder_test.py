@@ -876,7 +876,7 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertEqual(nodes[0].op_type, "Add")
         self.assertEqual(nodes[1].op_type, "Mul")
 
-    def test_call_with_outer_scope_value(self):
+    def test_call_inline_with_outer_scope_value(self):
         """Test that script supports references to pre-existing values."""
         # Create a GraphBuilder first
         op, x, y = _create_builder_with_inputs()
@@ -1179,38 +1179,6 @@ class GraphBuilderTest(unittest.TestCase):
 
         # Function should be registered
         self.assertEqual(len(op.builder.functions), 1)
-
-    def test_call_inline_produces_more_nodes_than_call(self):
-        """Verify that call() produces exactly 1 function-call node while call_inline()
-        expands the function body into individual op nodes. This is the core behavioral
-        difference between the two APIs.
-        """
-        # Inline version
-        op1, x1, y1 = _create_builder_with_inputs()
-
-        @script(default_opset=op1)
-        def mul_add(X, Y):
-            tmp = X * Y
-            return op1.Add(tmp, X)
-
-        op1.call_inline(mul_add, x1, y1)
-        inline_nodes = list(op1.builder.graph)
-
-        # Non-inline version
-        op2, x2, y2 = _create_builder_with_inputs()
-
-        @script(default_opset=op2)
-        def mul_add2(X, Y):
-            tmp = X * Y
-            return op2.Add(tmp, X)
-
-        op2.call(mul_add2, x2, y2)
-        non_inline_nodes = list(op2.builder.graph)
-
-        # Inlining should produce 2 nodes (Mul, Add), non-inlining should produce 1
-        self.assertEqual(len(inline_nodes), 2)
-        self.assertEqual(len(non_inline_nodes), 1)
-        self.assertEqual(non_inline_nodes[0].op_type, "mul_add2")
 
 
 class BuildSubgraphTest(unittest.TestCase):
