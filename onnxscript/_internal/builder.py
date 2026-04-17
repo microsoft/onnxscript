@@ -10,6 +10,7 @@ creation. The OpBuilder class provides dynamic op dispatching via attribute acce
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any, Callable, Mapping, Sequence, Union
 
 import onnx
@@ -418,13 +419,67 @@ def build_function(
     )
 
 
+@dataclasses.dataclass(frozen=True)
+class GraphBuilderOptions:
+    """Controls optional behaviours in :class:`GraphBuilder`.
+
+    All options default to ``True`` for backwards compatibility with the
+    existing ``GraphBuilder`` (used in tracing / export).  For a
+    tape-equivalent builder (matching ``_tape.Builder`` behaviour), use
+    :data:`TAPE_COMPATIBLE_OPTIONS` which sets every option to ``False``.
+    """
+
+    constant_propagation: bool = True
+    """Run ``basic_constant_propagation`` on each node after creation."""
+
+    shape_inference: bool = True
+    """Run ``infer_outputs`` (shape and type inference) on each node after creation."""
+
+    auto_cast_inputs: bool = True
+    """Use ONNX schema to auto-cast Python literals and match sibling input types."""
+
+    scope_metadata: bool = True
+    """Attach namespace / class_hierarchy / name_scopes metadata_props to nodes."""
+
+    auto_name_nodes: bool = True
+    """Auto-generate qualified node names when no explicit ``_name`` kwarg is given.
+    When ``False``, the node name is ``None`` unless ``_name`` is provided."""
+
+
+EXPORT_OPTIONS = GraphBuilderOptions()
+"""Default options for tracing / export — all features enabled."""
+
+TAPE_COMPATIBLE_OPTIONS = GraphBuilderOptions(
+    constant_propagation=False,
+    shape_inference=False,
+    auto_cast_inputs=False,
+    scope_metadata=False,
+    auto_name_nodes=False,
+)
+"""Options that replicate ``_tape.Builder`` behaviour — all enhanced features disabled."""
+
+
 class GraphBuilder:
     """Imperative builder for constructing ONNX IR graphs with automatic constant promotion, type casting, and shape inference."""
 
-    def __init__(self, graph: ir.Graph, *, parent: GraphBuilder | None = None) -> None:
+    def __init__(
+        self,
+        graph: ir.Graph,
+        *,
+        parent: GraphBuilder | None = None,
+        options: GraphBuilderOptions | None = None,
+    ) -> None:
         self._graph = graph
         self._parent = parent
         self._root: GraphBuilder = parent._root if parent is not None else self
+
+        # Resolve options: explicit > inherited from parent > default
+        if options is not None:
+            self._options = options
+        elif parent is not None:
+            self._options = parent._options
+        else:
+            self._options = EXPORT_OPTIONS
 
         # Get the opset version for "" (default domain) from the graph
         if "" not in graph.opset_imports:
@@ -454,6 +509,11 @@ class GraphBuilder:
     @property
     def op(self) -> OpBuilder:
         return self._op_builder
+
+    @property
+    def options(self) -> GraphBuilderOptions:
+        """The options controlling this builder's behaviour."""
+        return self._options
 
     @property
     def parent(self) -> GraphBuilder | None:
@@ -737,10 +797,12 @@ class GraphBuilder:
         return attributes if attributes is not None else {}
 
     def add_node(self, node: ir.Node) -> None:
-        """Append a node to the graph, run constant propagation and shape inference."""
+        """Append a node to the graph and optionally run constant propagation and shape inference."""
         self.graph.append(node)
-        onnxscript.optimizer.basic_constant_propagation([node])
-        inference.infer_outputs(node)
+        if self._options.constant_propagation:
+            onnxscript.optimizer.basic_constant_propagation([node])
+        if self._options.shape_inference:
+            inference.infer_outputs(node)
 
     def subgraph(
         self,
@@ -801,16 +863,25 @@ class GraphBuilder:
         domain = kwargs.pop("_domain", "")
         version = kwargs.pop("_version", None)
         outputs = kwargs.pop("_outputs", 1)
+        name = kwargs.pop("_name", None)
 
-        count = self.graph.num_nodes()
-        node_name = self._qualify_node_name(f"{op_type}_node_{count}")
+        # Node naming: explicit _name wins; otherwise auto-generate or None.
+        if name is None and self._options.auto_name_nodes:
+            count = self.graph.num_nodes()
+            name = self._qualify_node_name(f"{op_type}_node_{count}")
 
         output_values = self._adapt_outputs(outputs, op_type)
 
-        schema = self._get_schema(op_type, domain, version)
-        inputs, attributes = self._partition_inputs_attributes(schema, inputs, kwargs)
-        inputs = self._cast_inputs(schema, inputs)
-        attributes = self._cast_attributes(schema, attributes)
+        if self._options.auto_cast_inputs:
+            schema = self._get_schema(op_type, domain, version)
+            inputs, attributes = self._partition_inputs_attributes(schema, inputs, kwargs)
+            inputs = self._cast_inputs(schema, inputs)
+            attributes = self._cast_attributes(schema, attributes)
+        else:
+            # Tape-compatible: convert inputs to ir.Value without schema-driven
+            # casting, and treat remaining kwargs as attributes directly.
+            inputs = [self._input_to_ir_value(i) for i in inputs]
+            attributes = kwargs
 
         node = ir.node(
             op_type,
@@ -819,13 +890,13 @@ class GraphBuilder:
             domain=domain,
             outputs=output_values,
             version=version,
-            name=node_name,
+            name=name,
         )
 
-        # Attach scope metadata to the node
-        node.metadata_props["namespace"] = self._build_namespace()
-        node.metadata_props["pkg.onnxscript.class_hierarchy"] = repr(self._scope_classes())
-        node.metadata_props["pkg.onnxscript.name_scopes"] = repr(self._scope_names())
+        if self._options.scope_metadata:
+            node.metadata_props["namespace"] = self._build_namespace()
+            node.metadata_props["pkg.onnxscript.class_hierarchy"] = repr(self._scope_classes())
+            node.metadata_props["pkg.onnxscript.name_scopes"] = repr(self._scope_names())
 
         self.add_node(node)
 

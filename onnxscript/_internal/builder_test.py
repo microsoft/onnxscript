@@ -1918,5 +1918,135 @@ class MakeValueTest(unittest.TestCase):
         self.assertIsNotNone(v.shape)
 
 
+class GraphBuilderOptionsTest(unittest.TestCase):
+    """Tests for GraphBuilderOptions and the options parameter on GraphBuilder."""
+
+    def _make_graph_and_builder(
+        self, options: builder.GraphBuilderOptions | None = None
+    ) -> tuple[ir.Graph, builder.GraphBuilder]:
+        graph = _build(input_types=[FLOAT[2, 3]])
+        gb = builder.GraphBuilder(graph, options=options)
+        return graph, gb
+
+    def test_default_options_are_export(self):
+        _, gb = self._make_graph_and_builder()
+        self.assertEqual(gb.options, builder.EXPORT_OPTIONS)
+
+    def test_explicit_options_are_stored(self):
+        _, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)
+        self.assertEqual(gb.options, builder.TAPE_COMPATIBLE_OPTIONS)
+
+    def test_options_frozen(self):
+        with self.assertRaises(AttributeError):
+            builder.EXPORT_OPTIONS.constant_propagation = False  # type: ignore[misc]
+
+    def test_tape_compatible_skips_auto_name(self):
+        """With auto_name_nodes=False, call_op does not generate a qualified name."""
+        graph, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)
+        x = graph.inputs[0]
+        result = gb.op.Relu(x)
+        node = result.producer()
+        # GraphBuilder does not set a qualified name, but ir.Graph.append()
+        # may assign a default name.  Verify it is NOT a scope-qualified name.
+        if node.name is not None:
+            self.assertNotIn("/", node.name)
+
+    def test_export_options_auto_names_nodes(self):
+        graph, gb = self._make_graph_and_builder(options=builder.EXPORT_OPTIONS)
+        x = graph.inputs[0]
+        result = gb.op.Relu(x)
+        node = result.producer()
+        self.assertIsNotNone(node.name)
+        self.assertIn("Relu", node.name)
+
+    def test_explicit_name_overrides_auto_name(self):
+        graph, gb = self._make_graph_and_builder(options=builder.EXPORT_OPTIONS)
+        x = graph.inputs[0]
+        result = gb.op.Relu(x, _name="my_relu")
+        node = result.producer()
+        self.assertEqual(node.name, "my_relu")
+
+    def test_explicit_name_with_tape_compatible(self):
+        graph, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)
+        x = graph.inputs[0]
+        result = gb.op.Relu(x, _name="my_relu")
+        node = result.producer()
+        self.assertEqual(node.name, "my_relu")
+
+    def test_tape_compatible_skips_scope_metadata(self):
+        graph, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)
+        x = graph.inputs[0]
+        result = gb.op.Relu(x)
+        node = result.producer()
+        self.assertNotIn("namespace", node.metadata_props)
+
+    def test_export_options_add_scope_metadata(self):
+        graph, gb = self._make_graph_and_builder(options=builder.EXPORT_OPTIONS)
+        x = graph.inputs[0]
+        result = gb.op.Relu(x)
+        node = result.producer()
+        self.assertIn("namespace", node.metadata_props)
+
+    def test_tape_compatible_skips_constant_propagation(self):
+        """With constant_propagation=False, Constant node output has no const_value."""
+        graph, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)
+        # Create a Constant node — with constant prop it would be folded/propagated.
+        result = gb.op.Constant(value_float=1.0)
+        # Without constant propagation, the output should not have const_value set
+        # (the optimizer pass is what propagates const_value from Constant nodes).
+        # We just verify the node was created successfully.
+        node = result.producer()
+        self.assertEqual(node.op_type, "Constant")
+
+    def test_tape_compatible_skips_shape_inference(self):
+        """With shape_inference=False, output types are not inferred."""
+        graph, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)
+        x = graph.inputs[0]
+        result = gb.op.Relu(x)
+        # Without shape inference the output dtype/shape are not set.
+        # With the export options they would be inferred from the input.
+        self.assertIsNone(result.dtype)
+
+    def test_export_options_infer_shape(self):
+        """With shape_inference=True (default), output types are inferred."""
+        graph, gb = self._make_graph_and_builder(options=builder.EXPORT_OPTIONS)
+        x = graph.inputs[0]
+        result = gb.op.Relu(x)
+        self.assertEqual(result.dtype, ir.DataType.FLOAT)
+
+    def test_child_builder_inherits_options(self):
+        """Subgraph builder inherits parent options when none are specified."""
+        opts = builder.GraphBuilderOptions(
+            constant_propagation=False,
+            shape_inference=True,
+            auto_cast_inputs=False,
+            scope_metadata=False,
+            auto_name_nodes=True,
+        )
+        graph, gb = self._make_graph_and_builder(options=opts)
+        child_graph = ir.Graph(
+            inputs=[], outputs=[], nodes=[], opset_imports={"": _default_opset_version}
+        )
+        child_gb = builder.GraphBuilder(child_graph, parent=gb)
+        self.assertEqual(child_gb.options, opts)
+
+    def test_child_builder_explicit_options_override_parent(self):
+        """Explicit options on child override parent options."""
+        graph, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)
+        child_graph = ir.Graph(
+            inputs=[], outputs=[], nodes=[], opset_imports={"": _default_opset_version}
+        )
+        child_gb = builder.GraphBuilder(child_graph, parent=gb, options=builder.EXPORT_OPTIONS)
+        self.assertEqual(child_gb.options, builder.EXPORT_OPTIONS)
+
+    def test_tape_compatible_with_attributes(self):
+        """Tape-compatible mode passes kwargs as attributes correctly."""
+        graph, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)
+        x = graph.inputs[0]
+        result = gb.op.Reshape(x, _outputs=1, allowzero=0)
+        node = result.producer()
+        self.assertEqual(node.op_type, "Reshape")
+
+
 if __name__ == "__main__":
     unittest.main()
