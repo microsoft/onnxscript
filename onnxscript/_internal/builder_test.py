@@ -1079,6 +1079,24 @@ class GraphBuilderTest(unittest.TestCase):
         registered = next(iter(op.builder.functions.values()))
         self.assertEqual(registered.name, "simple_add")
 
+    def test_call_same_function_twice(self):
+        """Test that calling the same function twice creates two nodes but registers the function only once."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        op.call(simple_add, x, y)
+        op.call(simple_add, x, y)
+
+        # Two function call nodes should be created
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 2)
+
+        # The function should be registered only once
+        self.assertEqual(len(op.builder.functions), 1)
+
     def test_call_inline_does_not_register_function(self):
         """Test that GraphBuilder.call_inline does not register the function."""
         op, x, y = _create_builder_with_inputs()
@@ -1163,7 +1181,10 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertEqual(len(op.builder.functions), 1)
 
     def test_call_inline_produces_more_nodes_than_call(self):
-        """Test that call_inline produces op nodes while call produces one function node."""
+        """Verify that call() produces exactly 1 function-call node while call_inline()
+        expands the function body into individual op nodes. This is the core behavioral
+        difference between the two APIs.
+        """
         # Inline version
         op1, x1, y1 = _create_builder_with_inputs()
 

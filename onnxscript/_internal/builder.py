@@ -446,8 +446,7 @@ class GraphBuilder:
         # visible to subgraphs per the ONNX spec).
         if parent is None:
             self._constant_cache: dict[tuple[Any, ir.DataType | None], ir.Value] = {}
-
-        self._functions: dict[ir.OperatorIdentifier, ir.Function] = {}
+            self._functions: dict[ir.OperatorIdentifier, ir.Function] = {}
 
     def opset(self, domain: str, version: int = 1) -> OpBuilder:
         """Create an OpBuilder bound to the given domain and version."""
@@ -473,7 +472,7 @@ class GraphBuilder:
 
     @property
     def functions(self) -> dict[ir.OperatorIdentifier, ir.Function]:
-        return self._functions
+        return self._root._functions
 
     def initializer(
         self, tensor: ir.TensorProtocol, name: str | None = None, *, qualify: bool = True
@@ -801,7 +800,7 @@ class GraphBuilder:
         self,
         op_type: str,
         inputs: Sequence[ir.Value | ir.TensorProtocol | None],
-        kwargs: dict[str, ir.Value | ir.TensorProtocol],
+        kwargs: dict[str, Any],
         /,
         domain: str = "",
         version: int | None = None,
@@ -877,8 +876,10 @@ class GraphBuilder:
         node.metadata_props["pkg.onnxscript.name_scopes"] = repr(self._scope_names())
 
         self.add_node(node)
-        self._functions[function.identifier()] = function
+        self._root._functions[function.identifier()] = function
 
+        if len(node.outputs) == 0:
+            return ()
         return node.outputs if len(node.outputs) > 1 else node.outputs[0]
 
     def call_inline(
@@ -939,6 +940,8 @@ class GraphBuilder:
 
         if _prefix:
             self.pop_module()
+        if len(outputs) == 0:
+            return ()
         return outputs if len(outputs) > 1 else outputs[0]
 
     def push_module(self, module: str, class_name: str = "") -> None:
