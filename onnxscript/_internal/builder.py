@@ -567,9 +567,12 @@ class GraphBuilder:
             _outputs = len(graph.outputs)
         output_values = self._adapt_outputs(_outputs, function.name)
 
+        # Adapt inputs similarly to call_op: promote constants/tensors to ir.Value.
+        adapted_args = [self._input_to_ir_value(arg) for arg in args]
+
         node = ir.node(
             op_type=function.name,
-            inputs=args,
+            inputs=adapted_args,
             attributes=kwargs or None,
             outputs=output_values,
             domain=function.domain,
