@@ -895,18 +895,19 @@ class GraphBuilder:
             graph = function.graph()
         else:
             raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
-        output_renaming: dict[str, str] = {}
         if _outputs is not None:
             if len(_outputs) != len(graph.outputs):
                 raise ValueError(
                     f"Number of provided output names {_outputs} does not match "
                     f"number of function outputs {len(graph.outputs)}."
                 )
-            for output, name in zip(graph.outputs, _outputs):
-                output_renaming[output.name] = self._qualify_value_name(name)
+            # Compute desired output names before pushing prefix scope so they
+            # are not affected by the prefix.
+            desired_output_names: list[str] = [
+                self._qualify_value_name(name) for name in _outputs
+            ]
         else:
-            for output in graph.outputs:
-                output_renaming[output.name] = self._qualify_value_name(output.name)
+            desired_output_names = []
 
         if _prefix:
             self.push_module(_prefix)
@@ -915,14 +916,26 @@ class GraphBuilder:
         node_name_prefix = self._qualify_node_name(f"{function.name}_node_{count}/")
         nodes, outputs = _inliner.instantiate(graph, args, kwargs, prefix=node_name_prefix)
 
+        # Track final output values so we can rename them separately.
+        # The inliner prefixes all names, which would prevent name-based lookup
+        # from matching the original graph output names.
+        output_value_ids = {id(v) for v in outputs if v is not None}
+
         for node in nodes:
             for output in node.outputs:
-                if output.name:
-                    if output.name in output_renaming:
-                        output.name = output_renaming[output.name]
-                    else:
-                        output.name = self._qualify_value_name(output.name)
+                if output.name and id(output) not in output_value_ids:
+                    output.name = self._qualify_value_name(output.name)
             self.add_node(node)
+
+        # Apply names to final output values
+        if desired_output_names:
+            for output_val, name in zip(outputs, desired_output_names):
+                if output_val is not None:
+                    output_val.name = name
+        else:
+            for output_val in outputs:
+                if output_val is not None and output_val.name:
+                    output_val.name = self._qualify_value_name(output_val.name)
 
         if _prefix:
             self.pop_module()
