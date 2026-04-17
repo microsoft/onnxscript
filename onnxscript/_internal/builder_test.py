@@ -1959,12 +1959,24 @@ class GraphBuilderOptionsTest(unittest.TestCase):
         self.assertIsNotNone(node.name)
         self.assertIn("Relu", node.name)
 
-    def test_explicit_name_overrides_auto_name(self):
+    def test_explicit_name_qualified_with_auto_name(self):
+        """Explicit _name is scope-qualified when auto_name_nodes=True."""
         graph, gb = self._make_graph_and_builder(options=builder.EXPORT_OPTIONS)
         x = graph.inputs[0]
         result = gb.op.Relu(x, _name="my_relu")
         node = result.producer()
+        # No scope pushed, so qualification is just the name itself.
         self.assertEqual(node.name, "my_relu")
+
+    def test_explicit_name_qualified_with_scope(self):
+        """Explicit _name gets scope prefix when a module scope is active."""
+        graph, gb = self._make_graph_and_builder(options=builder.EXPORT_OPTIONS)
+        gb.push_module("encoder", "Encoder")
+        x = graph.inputs[0]
+        result = gb.op.Relu(x, _name="my_relu")
+        node = result.producer()
+        self.assertIn("encoder", node.name)
+        self.assertTrue(node.name.endswith("my_relu"))
 
     def test_explicit_name_with_tape_compatible(self):
         graph, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)

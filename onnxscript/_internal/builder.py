@@ -865,10 +865,13 @@ class GraphBuilder:
         outputs = kwargs.pop("_outputs", 1)
         name = kwargs.pop("_name", None)
 
-        # Node naming: explicit _name wins; otherwise auto-generate or None.
+        # Node naming: auto-generate a local name if none provided, then
+        # qualify with scope context when auto_name_nodes is enabled.
         if name is None and self._options.auto_name_nodes:
             count = self.graph.num_nodes()
             name = self._qualify_node_name(f"{op_type}_node_{count}")
+        elif name is not None and self._options.auto_name_nodes:
+            name = self._qualify_node_name(name)
 
         output_values = self._adapt_outputs(outputs, op_type)
 
