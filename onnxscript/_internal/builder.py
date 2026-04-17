@@ -597,7 +597,6 @@ class GraphBuilder:
             graph = function.graph
         elif isinstance(function, onnxscript.OnnxFunction):
             graph = function.graph()
-            function = function.function_ir
         else:
             raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
         output_renaming: dict[str, str] = {}
@@ -734,6 +733,7 @@ class OpBuilder:
     def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
         return self._builder.initializer(tensor, name)
 
+    @property
     def functions(self) -> dict[ir.OperatorIdentifier, ir.Function]:
         return self._builder.functions
 
