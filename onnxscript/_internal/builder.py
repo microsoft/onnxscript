@@ -860,13 +860,16 @@ class GraphBuilder:
         # Adapt inputs similarly to call_op: promote constants/tensors to ir.Value.
         adapted_args = [self._input_to_ir_value(arg) for arg in args]
 
+        count = self.graph.num_nodes()
+        node_name = self._qualify_node_name(f"{function.name}_node_{count}")
+
         node = ir.node(
             op_type=function.name,
             inputs=adapted_args,
             attributes=kwargs or None,
             outputs=output_values,
             domain=function.domain,
-            name=self._qualify_node_name(function.name),
+            name=node_name,
         )
         # Attach scope metadata to the node
         node.metadata_props["namespace"] = self._build_namespace()
@@ -905,13 +908,14 @@ class GraphBuilder:
             for output in graph.outputs:
                 output_renaming[output.name] = self._qualify_value_name(output.name)
 
-        nodes, outputs = _inliner.instantiate(graph, args, kwargs)
-
         if _prefix:
             self.push_module(_prefix)
 
+        count = self.graph.num_nodes()
+        node_name_prefix = self._qualify_node_name(f"{function.name}_node_{count}/")
+        nodes, outputs = _inliner.instantiate(graph, args, kwargs, prefix=node_name_prefix)
+
         for node in nodes:
-            node.name = self._qualify_node_name(node.name)
             for output in node.outputs:
                 if output.name:
                     if output.name in output_renaming:
