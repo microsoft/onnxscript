@@ -7618,20 +7618,38 @@ def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
 @torch_op("aten::pixel_unshuffle", trace_only=True)
 def aten_pixel_unshuffle(self: TReal, downscale_factor: int) -> TReal:
     """pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor"""
-    if len(self.shape) == 4:
-        return op.SpaceToDepth(self, blocksize=downscale_factor)
+    # pixel_unshuffle is the inverse of pixel_shuffle (which uses DepthToSpace with mode="CRD").
+    # SpaceToDepth only supports DCR channel ordering, so we implement via Reshape->Transpose->Reshape
+    # to get the correct CRD ordering.
+    # Input: [..., C, H*r, W*r] -> Output: [..., C*r*r, H, W]
 
     # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
     batch_dims = op.Shape(self, end=-3)
     chw_in_dims = op.Shape(self, start=-3)
+    self_4d = op.Reshape(self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0))
 
-    reshaped_self = op.Reshape(
-        self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0)
-    )
-    space_to_depth = op.SpaceToDepth(reshaped_self, blocksize=downscale_factor)
-    final_dims = op.Shape(space_to_depth, start=1)
+    r = op.Constant(value_ints=[downscale_factor])
+    c = op.Shape(self_4d, start=1, end=2)
+    h_r = op.Shape(self_4d, start=2, end=3)
+    w_r = op.Shape(self_4d, start=3, end=4)
+    h = op.Div(h_r, r)
+    w = op.Div(w_r, r)
+
+    # Step 1: Reshape to [batch, C, H, r, W, r]
+    shape_6d = op.Concat(op.Constant(value_ints=[-1]), c, h, r, w, r, axis=0)
+    tmp = op.Reshape(self_4d, shape_6d)
+
+    # Step 2: Transpose to [batch, C, r, r, H, W] (inverse of CRD DepthToSpace transpose)
+    tmp = op.Transpose(tmp, perm=[0, 1, 3, 5, 2, 4])
+
+    # Step 3: Reshape to [batch, C*r*r, H, W]
+    c_out = op.Mul(c, op.Mul(r, r))
+    shape_4d_out = op.Concat(op.Constant(value_ints=[-1]), c_out, h, w, axis=0)
+    pixel_unshuffled = op.Reshape(tmp, shape_4d_out)
+
+    final_dims = op.Shape(pixel_unshuffled, start=1)
     output_shape = op.Concat(batch_dims, final_dims, axis=0)
-    return op.Reshape(space_to_depth, output_shape, allowzero=True)
+    return op.Reshape(pixel_unshuffled, output_shape, allowzero=True)
 
 
 def aten_poisson(self: TensorType, generator: Optional[str] = None) -> TensorType:
