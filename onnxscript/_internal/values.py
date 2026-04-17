@@ -223,6 +223,10 @@ class Op(OpLike):
         return self._name
 
     @property
+    def domain(self) -> str:
+        return self._opset.domain
+
+    @property
     def opset(self) -> Opset:
         return self._opset
 

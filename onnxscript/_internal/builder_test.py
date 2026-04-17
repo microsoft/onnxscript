@@ -811,8 +811,8 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertEqual(strs_attr.type, ir.AttributeType.STRINGS)
         self.assertEqual(list(strs_attr.value), ["a", "b", "c"])
 
-    def test_call_inlines_onnxscript_function(self):
-        """Test that GraphBuilder.call inlines an @onnxscript.script function."""
+    def test_call_inline_inlines_onnxscript_function(self):
+        """Test that GraphBuilder.call_inline inlines an @onnxscript.script function."""
         # Create a GraphBuilder first
         op, x, y = _create_builder_with_inputs()
 
@@ -823,7 +823,7 @@ class GraphBuilderTest(unittest.TestCase):
             tmp = tmp + X
             return op.Relu(tmp)
 
-        result = op.call(mul_add_relu, x, y)
+        result = op.call_inline(mul_add_relu, x, y)
 
         # The inlined function should produce 3 nodes: Mul, Add, Relu
         nodes = list(op.builder.graph)
@@ -847,8 +847,8 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertIs(mul_node.inputs[0], x)
         self.assertIs(mul_node.inputs[1], y)
 
-    def test_call_with_outputs_option(self):
-        """Test that GraphBuilder.call respects the _outputs option for renaming."""
+    def test_call_inline_with_outputs_option(self):
+        """Test that GraphBuilder.call_inline respects the _outputs option for renaming."""
         # Create a GraphBuilder first
         op, x, y = _create_builder_with_inputs()
 
@@ -859,7 +859,7 @@ class GraphBuilderTest(unittest.TestCase):
             b = X * Y
             return a, b
 
-        result = op.call(add_mul, x, y, _outputs=["sum_result", "product_result"])
+        result = op.call_inline(add_mul, x, y, _outputs=["sum_result", "product_result"])
 
         # The result should be a list of 2 ir.Values (when function returns multiple outputs)
         self.assertIsInstance(result, list)
@@ -876,7 +876,7 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertEqual(nodes[0].op_type, "Add")
         self.assertEqual(nodes[1].op_type, "Mul")
 
-    def test_call_with_outer_scope_value(self):
+    def test_call_inline_with_outer_scope_value(self):
         """Test that script supports references to pre-existing values."""
         # Create a GraphBuilder first
         op, x, y = _create_builder_with_inputs()
@@ -886,8 +886,8 @@ class GraphBuilderTest(unittest.TestCase):
         def add_product(X):
             return op.Add(X, product)  # Reference to 'product' from outer scope
 
-        x_plus = op.call(add_product, x, _outputs=["x_plus"])
-        y_plus = op.call(add_product, y, _outputs=["y_plus"])
+        x_plus = op.call_inline(add_product, x, _outputs=["x_plus"])
+        y_plus = op.call_inline(add_product, y, _outputs=["y_plus"])
 
         op.builder.graph.outputs.extend([x_plus, y_plus])
 
@@ -901,8 +901,8 @@ class GraphBuilderTest(unittest.TestCase):
         # Verify that the two graphs are structurally equivalent
         onnxscript.testing.assert_isomorphic_graph(op.builder.graph, op2.builder.graph)
 
-    def test_call_with_prefix_option(self):
-        """Test that GraphBuilder.call respects the _prefix option for hierarchical naming."""
+    def test_call_inline_with_prefix_option(self):
+        """Test that GraphBuilder.call_inline respects the _prefix option for hierarchical naming."""
         # Create a GraphBuilder first
         op, x, y = _create_builder_with_inputs()
 
@@ -913,7 +913,7 @@ class GraphBuilderTest(unittest.TestCase):
             tmp = tmp + X
             return op.Relu(tmp)
 
-        result = op.call(mul_add_relu, x, y, _prefix="layer1")
+        result = op.call_inline(mul_add_relu, x, y, _prefix="layer1")
 
         # The nodes should have the prefix in their names
         nodes = list(op.builder.graph)
@@ -929,8 +929,8 @@ class GraphBuilderTest(unittest.TestCase):
         # Verify the result is a single ir.Value
         self.assertIsInstance(result, ir.Value)
 
-    def test_call_with_outputs_and_prefix_options(self):
-        """Test that GraphBuilder.call respects both _outputs and _prefix options together.
+    def test_call_inline_with_outputs_and_prefix_options(self):
+        """Test that GraphBuilder.call_inline respects both _outputs and _prefix options together.
 
         Note: _outputs names are set before the prefix context is applied, so they don't get
         the prefix in their names. However, the inlined nodes do get the prefix applied, and
@@ -950,7 +950,7 @@ class GraphBuilderTest(unittest.TestCase):
             b = XSquare * YSquare
             return a, b
 
-        result = op.call(
+        result = op.call_inline(
             add_mul, x, y, _outputs=["custom_sum", "custom_product"], _prefix="math_ops"
         )
 
@@ -989,8 +989,8 @@ class GraphBuilderTest(unittest.TestCase):
             f"Intermediate value {y_square.name} should have prefix",
         )
 
-    def test_call_outputs_mismatch_error(self):
-        """Test that GraphBuilder.call raises an error if _outputs has wrong count."""
+    def test_call_inline_outputs_mismatch_error(self):
+        """Test that GraphBuilder.call_inline raises an error if _outputs has wrong count."""
         # Create a GraphBuilder first
         op, x, y = _create_builder_with_inputs()
 
@@ -1003,7 +1003,7 @@ class GraphBuilderTest(unittest.TestCase):
 
         # The function returns 2 outputs, but we provide only 1 name
         with self.assertRaises(ValueError) as cm:
-            op.call(add_mul, x, y, _outputs=["only_one_name"])
+            op.call_inline(add_mul, x, y, _outputs=["only_one_name"])
 
         self.assertIn("does not match", str(cm.exception))
 
@@ -1039,6 +1039,146 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertIsNone(node.inputs[1])
         self.assertIs(node.inputs[2], y)
         self.assertIsNotNone(result)
+
+    def test_call_creates_single_function_node(self):
+        """Test that GraphBuilder.call creates a single function call node."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op.Relu(tmp)
+
+        result = op.call(mul_add_relu, x, y)
+
+        # Only a single node should be created (the function call)
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+
+        node = nodes[0]
+        self.assertEqual(node.op_type, "mul_add_relu")
+        self.assertEqual(list(node.inputs), [x, y])
+
+        # The result should be a single ir.Value
+        self.assertIsInstance(result, ir.Value)
+        self.assertIs(result, node.outputs[0])
+
+    def test_call_registers_function(self):
+        """Test that GraphBuilder.call registers the function in GraphBuilder.functions."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        op.call(simple_add, x, y)
+
+        # The function should be registered
+        self.assertEqual(len(op.builder.functions), 1)
+        registered = next(iter(op.builder.functions.values()))
+        self.assertEqual(registered.name, "simple_add")
+
+    def test_call_same_function_twice(self):
+        """Test that calling the same function twice creates two nodes but registers the function only once."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        op.call(simple_add, x, y)
+        op.call(simple_add, x, y)
+
+        # Two function call nodes should be created
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 2)
+
+        # The function should be registered only once
+        self.assertEqual(len(op.builder.functions), 1)
+
+    def test_call_inline_does_not_register_function(self):
+        """Test that GraphBuilder.call_inline does not register the function."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        op.call_inline(simple_add, x, y)
+
+        # No function should be registered when inlining
+        self.assertEqual(len(op.builder.functions), 0)
+
+    def test_call_with_outputs_option(self):
+        """Test that GraphBuilder.call respects the _outputs option for renaming."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def add_mul(X, Y):
+            a = X + Y
+            b = X * Y
+            return a, b
+
+        result = op.call(add_mul, x, y, _outputs=["sum_result", "product_result"])
+
+        # The result should be a sequence of 2 ir.Values
+        self.assertEqual(len(result), 2)
+        sum_result, product_result = result
+
+        # Verify output names
+        self.assertEqual(sum_result.name, "v_sum_result")
+        self.assertEqual(product_result.name, "v_product_result")
+
+        # Only one node (the function call)
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(nodes[0].op_type, "add_mul")
+
+    def test_call_with_push_module_prefix(self):
+        """Test that GraphBuilder.call respects push_module for hierarchical naming."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op.Relu(tmp)
+
+        op.builder.push_module("layer1")
+        result = op.call(mul_add_relu, x, y)
+        op.builder.pop_module()
+
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+
+        # The node name should have the prefix
+        self.assertTrue(
+            nodes[0].name.startswith("layer1/"),
+            f"Node name {nodes[0].name} should start with layer1/",
+        )
+
+        self.assertIsInstance(result, ir.Value)
+
+    def test_call_via_op_builder(self):
+        """Test that GraphBuilder.call works when called through OpBuilder.call."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        # Call through OpBuilder (not GraphBuilder directly)
+        result = op.call(simple_add, x, y)
+
+        # Should produce a single function call node
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(nodes[0].op_type, "simple_add")
+        self.assertIsInstance(result, ir.Value)
+
+        # Function should be registered
+        self.assertEqual(len(op.builder.functions), 1)
 
 
 class BuildSubgraphTest(unittest.TestCase):
