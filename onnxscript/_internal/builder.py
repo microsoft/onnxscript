@@ -838,7 +838,7 @@ class GraphBuilder:
 
     def call(
         self,
-        function: ir.Function | onnxscript.OnnxFunction,
+        function: ir.Function,
         *args,
         _outputs: int | Sequence[str | ir.Value] | None = None,
         **kwargs,
@@ -846,11 +846,8 @@ class GraphBuilder:
         """Call a function as a single function node."""
         if isinstance(function, ir.Function):
             graph = function.graph
-        elif isinstance(function, onnxscript.OnnxFunction):
-            graph = function.graph()
-            function = function.function_ir
         else:
-            raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
+            raise TypeError("Function must be an ir.Function")
 
         if _outputs is None:
             _outputs = len(graph.outputs)
@@ -869,6 +866,7 @@ class GraphBuilder:
             outputs=output_values,
             domain=function.domain,
             name=node_name,
+            overload=function.overload,
         )
         # Attach scope metadata to the node
         node.metadata_props["namespace"] = self._build_namespace()
@@ -899,7 +897,7 @@ class GraphBuilder:
         if _outputs is not None:
             if len(_outputs) != len(graph.outputs):
                 raise ValueError(
-                    f"Number of provided output names {_outputs} does not match "
+                    f"Number of rovided output names {_outputs} does not match "
                     f"number of function outputs {len(graph.outputs)}."
                 )
             # Compute desired output names before pushing prefix scope so they
