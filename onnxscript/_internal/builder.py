@@ -838,7 +838,7 @@ class GraphBuilder:
 
     def call(
         self,
-        function: ir.Function,
+        function: ir.Function | onnxscript.OnnxFunction,
         *args,
         _outputs: int | Sequence[str | ir.Value] | None = None,
         **kwargs,
@@ -846,8 +846,11 @@ class GraphBuilder:
         """Call a function as a single function node."""
         if isinstance(function, ir.Function):
             graph = function.graph
+        elif isinstance(function, onnxscript.OnnxFunction):
+            graph = function.graph()
+            function = function.function_ir
         else:
-            raise TypeError("Function must be an ir.Function")
+            raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
 
         if _outputs is None:
             _outputs = len(graph.outputs)
