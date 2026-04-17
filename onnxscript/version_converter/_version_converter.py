@@ -11,7 +11,7 @@ from typing import Callable, Sequence, Union
 
 import onnx_ir.convenience as ir_convenience
 
-import onnxscript.ir._tape as _tape
+import onnxscript._internal.builder as _builder
 import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
 
@@ -56,7 +56,7 @@ class Replacement:
 # A version-adapter function takes a node, a RewriterContext and returns
 # a Replacement for the node or None (if no replacement is needed).
 
-RewriterContext = _tape.Builder
+RewriterContext = _builder.RewriterBuilder
 ReturnValue = Union[Sequence[ir.Value], ir.Value, None]
 AdapterFunction = Callable[[ir.Node, RewriterContext], ReturnValue]
 

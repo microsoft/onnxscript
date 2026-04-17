@@ -17,7 +17,6 @@ import onnx
 import onnx_ir as ir
 
 import onnxscript._internal._inference as inference
-import onnxscript.optimizer
 from onnxscript._internal import _inliner, param_manipulation
 
 # A permissible value for an op input, which can be converted to an ir.Value.
@@ -800,6 +799,8 @@ class GraphBuilder:
         """Append a node to the graph and optionally run constant propagation and shape inference."""
         self.graph.append(node)
         if self._options.constant_propagation:
+            import onnxscript.optimizer
+
             onnxscript.optimizer.basic_constant_propagation([node])
         if self._options.shape_inference:
             inference.infer_outputs(node)
@@ -915,10 +916,13 @@ class GraphBuilder:
     ):
         if isinstance(function, ir.Function):
             graph = function.graph
-        elif isinstance(function, onnxscript.OnnxFunction):
-            graph = function.graph()
         else:
-            raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
+            import onnxscript
+
+            if isinstance(function, onnxscript.OnnxFunction):
+                graph = function.graph()
+            else:
+                raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
         output_renaming: dict[str, str] = {}
         if _outputs is not None:
             if len(_outputs) != len(graph.outputs):
@@ -1072,3 +1076,209 @@ class OpBuilder:
         return self._builder.call(
             function, *args, _outputs=_outputs, _prefix=_prefix, **kwargs
         )
+
+
+# Default opset version used by RewriterBuilder's scratch graph.
+_DEFAULT_REWRITER_OPSET_VERSION = 18
+
+# Type alias for the set of (domain, version) pairs used by a builder.
+UsedOpsets = set[tuple[str, int | None]]
+
+
+class RewriterBuilder(GraphBuilder):
+    """A tape-compatible builder for use in rewriter / optimizer / version-converter.
+
+    Unlike :class:`GraphBuilder`, which appends nodes directly to a graph,
+    ``RewriterBuilder`` collects created nodes, initializers and used opsets
+    into lists that can be retrieved after the replacement function runs.
+    This matches the protocol expected by ``ReplacementSubgraph`` and
+    ``Replacement`` in the rewriter and optimizer.
+
+    Usage::
+
+        builder = RewriterBuilder()
+        out = builder.Relu(x)
+        # builder.nodes, builder.initializers, builder.used_opsets
+    """
+
+    def __init__(self, opset_version: int = _DEFAULT_REWRITER_OPSET_VERSION) -> None:
+        scratch_graph = ir.Graph(
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": opset_version},
+        )
+        super().__init__(scratch_graph, options=TAPE_COMPATIBLE_OPTIONS)
+        self._collected_nodes: list[ir.Node] = []
+        self._collected_initializers: list[ir.Value] = []
+        self._used_opsets: UsedOpsets = set()
+        # Override the default OpBuilder so that it does not inject _version
+        # into kwargs — matching old _tape.Builder behaviour where version
+        # tracking is purely explicit (via _version kwarg in op calls).
+        self._op_builder = OpBuilder(self, "", version=None)
+
+    # -- Override _adapt_outputs for tape-compatible output naming -------------
+
+    def _adapt_outputs(
+        self, outputs: int | Sequence[str | ir.Value], op_type: str = ""
+    ) -> Sequence[ir.Value]:
+        """Create output values without scope-qualified names.
+
+        The old ``_tape.Builder`` creates outputs with ``None`` names (when
+        ``_outputs`` is an int) or assigns user-provided names verbatim (when
+        ``_outputs`` is a list of strings).  We replicate that here.
+        """
+        if isinstance(outputs, int):
+            if outputs < 0:
+                raise ValueError(f"Number of outputs must be non-negative, got {outputs}")
+            return [ir.Value() for _ in range(outputs)]
+        adapted: list[ir.Value] = []
+        for output in outputs:
+            if isinstance(output, ir.Value):
+                adapted.append(output)
+            elif isinstance(output, str):
+                adapted.append(ir.Value(name=output))
+            else:
+                raise TypeError("Output type not supported.")
+        return adapted
+
+    # -- Override add_node to collect rather than append to the graph --------
+
+    def add_node(self, node: ir.Node) -> None:
+        """Collect the node without appending it to any graph."""
+        self._collected_nodes.append(node)
+        if self._options.constant_propagation:
+            import onnxscript.optimizer
+
+            onnxscript.optimizer.basic_constant_propagation([node])
+        if self._options.shape_inference:
+            import onnxscript._internal._inference as _inf
+
+            _inf.infer_outputs(node)
+
+    # -- Override initializer to collect rather than register in graph -------
+
+    def initializer(
+        self, tensor: ir.TensorProtocol, name: str | None = None, *, qualify: bool = True
+    ) -> ir.Value:
+        if name is None:
+            name = tensor.name
+        if qualify:
+            name = self._qualify_initializer_name(name)
+        shape = ir.Shape(tensor.shape)
+        value = ir.Value(
+            name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
+        )
+        self._collected_initializers.append(value)
+        return value
+
+    # -- Override call_op to track used opsets --------------------------------
+
+    def call_op(
+        self,
+        op_type: str,
+        inputs: Sequence[ir.Value | ir.TensorProtocol | None],
+        kwargs: dict[str, Any],
+    ):
+        result = super().call_op(op_type, inputs, kwargs)
+        # Track (domain, version) after super() has popped _domain/_version.
+        # The node itself records the authoritative values.
+        node = result.producer() if isinstance(result, ir.Value) else result[0].producer()
+        self._used_opsets.add((node.domain, node.version))
+        return result
+
+    # -- Tape-compatible properties ------------------------------------------
+
+    @property
+    def nodes(self) -> tuple[ir.Node, ...]:
+        """The nodes created by this builder."""
+        return tuple(self._collected_nodes)
+
+    @property
+    def initializers(self) -> tuple[ir.Value, ...]:
+        """The initializers created by this builder."""
+        return tuple(self._collected_initializers)
+
+    @property
+    def used_opsets(self) -> UsedOpsets:
+        """The set of (domain, version) pairs used by this builder."""
+        return self._used_opsets
+
+    # -- Tape.op / Tape.op_multi_out compatibility ----------------------------
+    #
+    # Rewriter rules call ``op.op(op_type, inputs, attributes, domain=..., name=...)``
+    # using the ``Tape.op`` signature.  Since ``GraphBuilder.op`` is a *property*
+    # that returns an ``OpBuilder``, we shadow it here with a regular method so
+    # that ``builder.op(...)`` is callable while ``builder.Relu(x)`` still works
+    # via ``__getattr__``.
+
+    def op(  # type: ignore[override]
+        self,
+        op_type: str,
+        inputs: Sequence[ir.Value | None],
+        attributes: Mapping[str, Any] | None = None,
+        *,
+        domain: str = "",
+        overload: str = "",
+        version: int | None = None,
+        graph: ir.Graph | None = None,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+        output: ir.Value | None = None,
+    ) -> ir.Value:
+        """Create a single-output node (Tape.op compatible signature)."""
+        kwargs: dict[str, Any] = {
+            "_domain": domain,
+            "_version": version,
+            "_outputs": [output] if output is not None else 1,
+            "_name": name,
+        }
+        if attributes:
+            kwargs.update(attributes)
+        result = self.call_op(op_type, list(inputs), kwargs)
+        if isinstance(result, ir.Value):
+            return result
+        return result[0]
+
+    def op_multi_out(
+        self,
+        op_type: str,
+        inputs: Sequence[ir.Value | None],
+        attributes: Mapping[str, Any] | None = None,
+        *,
+        num_outputs: int | None = None,
+        outputs: Sequence[ir.Value] | None = None,
+        domain: str = "",
+        overload: str = "",
+        version: int | None = None,
+        graph: ir.Graph | None = None,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> Sequence[ir.Value]:
+        """Create a multi-output node (Tape.op_multi_out compatible signature)."""
+        if outputs is not None:
+            _outputs_val: int | list[ir.Value] = list(outputs)
+        elif num_outputs is not None:
+            _outputs_val = num_outputs
+        else:
+            _outputs_val = 1
+        kwargs: dict[str, Any] = {
+            "_domain": domain,
+            "_version": version,
+            "_outputs": _outputs_val,
+            "_name": name,
+        }
+        if attributes:
+            kwargs.update(attributes)
+        result = self.call_op(op_type, list(inputs), kwargs)
+        if isinstance(result, ir.Value):
+            return [result]
+        return list(result)
+
+    # -- Dynamic dispatch (same as _tape.Builder) ----------------------------
+
+    def __getattr__(self, op_type: str) -> Callable:
+        """Allow ``builder.Relu(x)`` as shorthand for ``builder.op.Relu(x)``."""
+        return lambda *args, **kwargs: self._op_builder._call_op(op_type, args, kwargs)

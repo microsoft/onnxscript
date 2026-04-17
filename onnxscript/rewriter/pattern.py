@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from onnxscript.ir import _tape
+from onnxscript._internal.builder import RewriterBuilder
 from onnxscript.rewriter._basics import MatchingTracer, MatchResult, MatchStatus
 from onnxscript.rewriter._matcher import PatternMatcher, SimplePatternMatcher
 from onnxscript.rewriter._pattern_ir import (
@@ -23,7 +23,7 @@ from onnxscript.rewriter._rewrite_rule import (
     RewriteRuleSet,
 )
 
-RewriterContext = _tape.Builder
+RewriterContext = RewriterBuilder
 
 __all__ = [
     "ANY_VALUE",

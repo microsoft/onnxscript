@@ -2035,7 +2035,7 @@ class GraphBuilderOptionsTest(unittest.TestCase):
             scope_metadata=False,
             auto_name_nodes=True,
         )
-        graph, gb = self._make_graph_and_builder(options=opts)
+        _graph, gb = self._make_graph_and_builder(options=opts)
         child_graph = ir.Graph(
             inputs=[], outputs=[], nodes=[], opset_imports={"": _default_opset_version}
         )
@@ -2044,7 +2044,7 @@ class GraphBuilderOptionsTest(unittest.TestCase):
 
     def test_child_builder_explicit_options_override_parent(self):
         """Explicit options on child override parent options."""
-        graph, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)
+        _graph, gb = self._make_graph_and_builder(options=builder.TAPE_COMPATIBLE_OPTIONS)
         child_graph = ir.Graph(
             inputs=[], outputs=[], nodes=[], opset_imports={"": _default_opset_version}
         )

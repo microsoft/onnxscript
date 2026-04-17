@@ -24,7 +24,7 @@ import onnx.reference.ops
 import onnx_ir as ir
 
 import onnxscript.utils.utils as utils
-from onnxscript.ir import _tape
+from onnxscript._internal.builder import RewriterBuilder
 
 DEFAULT_CONSTANT_FOLD_BLACKLIST = [
     # ConstantOfShape is preserved to avoid increasing model size unnecessarily
@@ -216,7 +216,8 @@ class OptimizerState:
 # the ir.Value or ir.Values to replace the output values of the node, when the new nodes
 # can be inferred from the RewriterContext used to build the new nodes.
 
-RewriterContext = _tape.Builder
+
+RewriterContext = RewriterBuilder
 ReturnValue = Union[Replacement, Sequence[ir.Value], ir.Value, None]
 PartialEvaluatorFunction = Callable[[ir.Node, RewriterContext, OptimizerState], ReturnValue]
 

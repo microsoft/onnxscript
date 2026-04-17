@@ -20,11 +20,12 @@ import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
 import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
-from onnxscript.ir import _tape, convenience
+from onnxscript._internal.builder import RewriterBuilder, UsedOpsets
+from onnxscript.ir import convenience
 
 T = TypeVar("T")
 
-RewriterContext = _tape.Builder
+RewriterContext = RewriterBuilder
 
 # TODO(rama): Standardize metadata property keys. May be worth standardizing at ONNX level for
 # source/producer metadata.
@@ -40,7 +41,7 @@ class ReplacementSubgraph:
     new_outputs: Sequence[ir.Value]
     new_nodes: Sequence[ir.Node]
     new_initializers: Sequence[ir.Value]
-    used_opsets: _tape.UsedOpsets
+    used_opsets: UsedOpsets
 
 
 def always_true(*args, **kwargs) -> bool:
