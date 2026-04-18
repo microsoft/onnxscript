@@ -14,14 +14,13 @@ import unittest
 import numpy as np
 import onnx_ir as ir
 
-import onnxscript
-import onnxscript.rewriter.ort_fusions._test_utils as test_utils
-from onnxscript import FLOAT, INT32, script
+from onnxscript import FLOAT, INT32, script, values
 from onnxscript import opset18 as op
 from onnxscript.optimizer import optimize
+from onnxscript.rewriter.ort_fusions import _test_utils as test_utils
 from onnxscript.rewriter.ort_fusions.mha_bias import fuse_mha_bias
 
-msft_op = onnxscript.values.Opset("com.microsoft", 1)
+msft_op = values.Opset("com.microsoft", 1)
 
 _B, _S, _D, _Dk, _Dv = 2, 8, 16, 16, 16
 _NUM_HEADS = 4
