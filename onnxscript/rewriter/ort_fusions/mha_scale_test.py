@@ -29,15 +29,24 @@ _NUM_HEADS = 4
 _HEAD_SIZE = _D // _NUM_HEADS
 _DEFAULT_SCALE = 1.0 / math.sqrt(_HEAD_SIZE)
 
-# Pre-computed constant for use inside @script functions
-_SCALE_VALUE = 0.25
+# Constants for use inside @script functions
+_SCALE_TENSOR_025 = ir.tensor(np.array([0.25], dtype=np.float32))
+_SCALE_TENSOR_2 = ir.tensor(np.array([2.0], dtype=np.float32))
 
 
 # --- Script models ---
 
 
 @script()
-def _mha_with_scalar_scale(query, key, value, scale):
+def _mha_with_scale_025(query, key, value):
+    scale = op.Constant(value=_SCALE_TENSOR_025)
+    scaled_q = op.Mul(query, scale)
+    return msft_op.MultiHeadAttention(scaled_q, key, value, num_heads=_NUM_HEADS)
+
+
+@script()
+def _mha_with_scale_2(query, key, value):
+    scale = op.Constant(value=_SCALE_TENSOR_2)
     scaled_q = op.Mul(query, scale)
     return msft_op.MultiHeadAttention(scaled_q, key, value, num_heads=_NUM_HEADS)
 
@@ -74,46 +83,15 @@ class FuseMHAScaleTest(unittest.TestCase):
                 return node
         return None
 
-    def _make_scale_constant(self, model: ir.Model, scale_value: float):
-        """Convert the ``scale`` graph input into a constant initializer."""
-        for node in model.graph:
-            if node.op_type == "Mul":
-                scale_input = node.inputs[1]
-                assert scale_input is not None
-                scale_input.const_value = ir.tensor(np.array([scale_value], dtype=np.float32))
-                model.graph.inputs.pop()
-                return
-        raise RuntimeError("Mul node not found")
+    _3D = [FLOAT["B", "S", _D]] * 3
+    _OUT = [FLOAT["B", "S", _D]]
 
-    def _check_numerical_equivalence(
-        self, model: ir.Model, inputs: dict, scale_value: float, expected_count: int
-    ):
-        # Run original model *before* making scale constant (scale is a graph input)
-        inputs_with_scale = {
-            **inputs,
-            "scale": np.array([scale_value], dtype=np.float32),
-        }
-        original_output = test_utils.ort_run("Original", model, inputs_with_scale)
-        # Now convert scale to constant and apply fusion
-        self._make_scale_constant(model, scale_value)
+    def _check_numerical_equivalence(self, model: ir.Model, inputs: dict, expected_count: int):
+        original_output = test_utils.ort_run("Original", model, inputs)
         count = self._apply(model)
         self.assertEqual(count, expected_count)
         fused_output = test_utils.ort_run("Fused", model, inputs)
         test_utils.assert_allclose(original_output, fused_output)
-
-    # --- Positive tests ---
-
-    def _build_scale_model(self):
-        return self._build(
-            _mha_with_scalar_scale,
-            input_types=[
-                FLOAT["B", "S", _D],
-                FLOAT["B", "S", _D],
-                FLOAT["B", "S", _D],
-                FLOAT[1],
-            ],
-            output_types=[FLOAT["B", "S", _D]],
-        )
 
     def _make_inputs(self):
         return {
@@ -122,25 +100,26 @@ class FuseMHAScaleTest(unittest.TestCase):
             "value": np.random.randn(_B, _S, _D).astype(np.float32),
         }
 
+    # --- Positive tests ---
+
     def test_scalar_scale_fused(self):
         """Mul(query, scalar_constant) before MHA → scale absorbed into attribute."""
-        model = self._build_scale_model()
+        model = self._build(_mha_with_scale_025, self._3D, self._OUT)
         inputs = self._make_inputs()
-        self._check_numerical_equivalence(model, inputs, _SCALE_VALUE, expected_count=1)
-        # Verify Mul is gone and MHA has scale attribute
+        self._check_numerical_equivalence(model, inputs, expected_count=1)
         self.assertFalse(any(n.op_type == "Mul" for n in model.graph), "Mul should be removed")
         mha_node = self._get_mha_node(model)
         self.assertIsNotNone(mha_node)
         scale_attr = mha_node.attributes.get_float("scale", None)
         self.assertIsNotNone(scale_attr)
-        expected = _SCALE_VALUE * _DEFAULT_SCALE
+        expected = 0.25 * _DEFAULT_SCALE
         self.assertAlmostEqual(scale_attr, expected, places=5)
 
     def test_integer_scale_fused(self):
-        """Integer scale constant (e.g. 2) → still fused."""
-        model = self._build_scale_model()
+        """Scale constant of 2.0 → still fused."""
+        model = self._build(_mha_with_scale_2, self._3D, self._OUT)
         inputs = self._make_inputs()
-        self._check_numerical_equivalence(model, inputs, 2.0, expected_count=1)
+        self._check_numerical_equivalence(model, inputs, expected_count=1)
         mha_node = self._get_mha_node(model)
         self.assertIsNotNone(mha_node)
         scale_attr = mha_node.attributes.get_float("scale", None)
@@ -150,31 +129,26 @@ class FuseMHAScaleTest(unittest.TestCase):
 
     def test_scale_combined_with_existing_scale_attr(self):
         """MHA already has a scale attribute → external scale is multiplied with it."""
-        model = self._build_scale_model()
-        # Set existing MHA scale attribute before any ORT run
+        model = self._build(_mha_with_scale_025, self._3D, self._OUT)
         existing_scale = 0.1
         for node in model.graph:
             if node.op_type == "MultiHeadAttention" and node.domain == "com.microsoft":
                 node.attributes["scale"] = ir.AttrFloat32("scale", existing_scale)
 
         inputs = self._make_inputs()
-        self._check_numerical_equivalence(model, inputs, _SCALE_VALUE, expected_count=1)
+        self._check_numerical_equivalence(model, inputs, expected_count=1)
         mha_node = self._get_mha_node(model)
         self.assertIsNotNone(mha_node)
         scale_attr = mha_node.attributes.get_float("scale", None)
         self.assertIsNotNone(scale_attr)
-        expected = _SCALE_VALUE * existing_scale
+        expected = 0.25 * existing_scale
         self.assertAlmostEqual(scale_attr, expected, places=5)
 
     # --- Negative tests ---
 
     def test_no_mul_no_fusion(self):
         """No Mul before MHA → rule does not match."""
-        model = self._build(
-            _mha_no_scale,
-            input_types=[FLOAT["B", "S", _D], FLOAT["B", "S", _D], FLOAT["B", "S", _D]],
-            output_types=[FLOAT["B", "S", _D]],
-        )
+        model = self._build(_mha_no_scale, self._3D, self._OUT)
         count = self._apply(model)
         self.assertEqual(count, 0)
 
@@ -182,13 +156,8 @@ class FuseMHAScaleTest(unittest.TestCase):
         """Scale is a non-constant graph input → check rejects."""
         model = self._build(
             _mha_with_dynamic_scale,
-            input_types=[
-                FLOAT["B", "S", _D],
-                FLOAT["B", "S", _D],
-                FLOAT["B", "S", _D],
-                FLOAT[1],
-            ],
-            output_types=[FLOAT["B", "S", _D]],
+            input_types=[*self._3D, FLOAT[1]],
+            output_types=self._OUT,
         )
         count = self._apply(model)
         self.assertEqual(count, 0)
