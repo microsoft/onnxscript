@@ -83,8 +83,8 @@ class FuseMHAScaleTest(unittest.TestCase):
                 return node
         return None
 
-    _3D = [FLOAT["B", "S", _D]] * 3
-    _OUT = [FLOAT["B", "S", _D]]
+    _3D = (FLOAT["B", "S", _D],) * 3
+    _OUT = (FLOAT["B", "S", _D],)
 
     def _check_numerical_equivalence(self, model: ir.Model, inputs: dict, expected_count: int):
         original_output = test_utils.ort_run("Original", model, inputs)
