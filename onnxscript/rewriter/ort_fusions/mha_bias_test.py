@@ -118,14 +118,14 @@ class FuseBiasMHATest(unittest.TestCase):
         model = self._build(
             _mha_all_biases,
             input_types=[
-                FLOAT[_B, _S, _D],
-                FLOAT[_B, _S, _Dk],
-                FLOAT[_B, _S, _Dv],
+                FLOAT["B", "S", _D],
+                FLOAT["B", "S", _Dk],
+                FLOAT["B", "S", _Dv],
                 FLOAT[_D],
                 FLOAT[_Dk],
                 FLOAT[_Dv],
             ],
-            output_types=[FLOAT[_B, _S, _D]],
+            output_types=[FLOAT["B", "S", _D]],
         )
         inputs = {
             "query_matmul": np.random.randn(_B, _S, _D).astype(np.float32),
@@ -145,12 +145,12 @@ class FuseBiasMHATest(unittest.TestCase):
         model = self._build(
             _mha_q_bias_only,
             input_types=[
-                FLOAT[_B, _S, _D],
-                FLOAT[_B, _S, _Dk],
-                FLOAT[_B, _S, _Dv],
+                FLOAT["B", "S", _D],
+                FLOAT["B", "S", _Dk],
+                FLOAT["B", "S", _Dv],
                 FLOAT[_D],
             ],
-            output_types=[FLOAT[_B, _S, _D]],
+            output_types=[FLOAT["B", "S", _D]],
         )
         inputs = {
             "query_matmul": np.random.randn(_B, _S, _D).astype(np.float32),
@@ -167,12 +167,12 @@ class FuseBiasMHATest(unittest.TestCase):
         model = self._build(
             _mha_k_bias_only,
             input_types=[
-                FLOAT[_B, _S, _D],
-                FLOAT[_B, _S, _Dk],
-                FLOAT[_B, _S, _Dv],
+                FLOAT["B", "S", _D],
+                FLOAT["B", "S", _Dk],
+                FLOAT["B", "S", _Dv],
                 FLOAT[_Dk],
             ],
-            output_types=[FLOAT[_B, _S, _D]],
+            output_types=[FLOAT["B", "S", _D]],
         )
         inputs = {
             "query_matmul": np.random.randn(_B, _S, _D).astype(np.float32),
@@ -188,12 +188,12 @@ class FuseBiasMHATest(unittest.TestCase):
         model = self._build(
             _mha_v_bias_only,
             input_types=[
-                FLOAT[_B, _S, _D],
-                FLOAT[_B, _S, _Dk],
-                FLOAT[_B, _S, _Dv],
+                FLOAT["B", "S", _D],
+                FLOAT["B", "S", _Dk],
+                FLOAT["B", "S", _Dv],
                 FLOAT[_Dv],
             ],
-            output_types=[FLOAT[_B, _S, _D]],
+            output_types=[FLOAT["B", "S", _D]],
         )
         inputs = {
             "query_matmul": np.random.randn(_B, _S, _D).astype(np.float32),
@@ -209,13 +209,13 @@ class FuseBiasMHATest(unittest.TestCase):
         model = self._build(
             _mha_qk_biases,
             input_types=[
-                FLOAT[_B, _S, _D],
-                FLOAT[_B, _S, _Dk],
-                FLOAT[_B, _S, _Dv],
+                FLOAT["B", "S", _D],
+                FLOAT["B", "S", _Dk],
+                FLOAT["B", "S", _Dv],
                 FLOAT[_D],
                 FLOAT[_Dk],
             ],
-            output_types=[FLOAT[_B, _S, _D]],
+            output_types=[FLOAT["B", "S", _D]],
         )
         inputs = {
             "query_matmul": np.random.randn(_B, _S, _D).astype(np.float32),
@@ -232,8 +232,8 @@ class FuseBiasMHATest(unittest.TestCase):
         """No bias Adds at all → rule should not apply."""
         model = self._build(
             _mha_no_biases,
-            input_types=[FLOAT[_B, _S, _D], FLOAT[_B, _S, _Dk], FLOAT[_B, _S, _Dv]],
-            output_types=[FLOAT[_B, _S, _D]],
+            input_types=[FLOAT["B", "S", _D], FLOAT["B", "S", _Dk], FLOAT["B", "S", _Dv]],
+            output_types=[FLOAT["B", "S", _D]],
         )
         count = self._apply(model)
         self.assertEqual(count, 0)
@@ -244,12 +244,12 @@ class FuseBiasMHATest(unittest.TestCase):
         model = self._build(
             _mha_int32_with_bias,
             input_types=[
-                INT32[_B, _S, _D],
-                INT32[_B, _S, _Dk],
-                INT32[_B, _S, _Dv],
+                INT32["B", "S", _D],
+                INT32["B", "S", _Dk],
+                INT32["B", "S", _Dv],
                 INT32[_D],
             ],
-            output_types=[INT32[_B, _S, _D]],
+            output_types=[INT32["B", "S", _D]],
         )
         count = self._apply(model)
         self.assertEqual(count, 0)
@@ -259,12 +259,12 @@ class FuseBiasMHATest(unittest.TestCase):
         model = self._build(
             _mha_rank2_query_with_bias,
             input_types=[
-                FLOAT[_S, _D],
-                FLOAT[_B, _S, _Dk],
-                FLOAT[_B, _S, _Dv],
+                FLOAT["S", _D],
+                FLOAT["B", "S", _Dk],
+                FLOAT["B", "S", _Dv],
                 FLOAT[_D],
             ],
-            output_types=[FLOAT[_B, _S, _D]],
+            output_types=[FLOAT["B", "S", _D]],
         )
         count = self._apply(model)
         self.assertEqual(count, 0)
