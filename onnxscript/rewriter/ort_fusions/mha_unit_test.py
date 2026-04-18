@@ -254,6 +254,18 @@ class MultiHeadAttentionFusionTest(unittest.TestCase):
         count = self._apply(model)
         self.assertEqual(count, 0)
 
+    def test_wrong_query_transpose_perm_no_fusion(self):
+        """Corrupted query Transpose perm → pattern should not match."""
+        model = self._build(_mha_basic_key_transposed, self._3D, self._OUT_1)
+        for node in model.graph:
+            if node.op_type == "Transpose":
+                perm = node.attributes.get_ints("perm")
+                if perm == (0, 2, 1, 3):
+                    node.attributes["perm"] = ir.AttrInt64s("perm", [0, 1, 2, 3])
+                    break
+        count = self._apply(model)
+        self.assertEqual(count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
