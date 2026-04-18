@@ -29,8 +29,6 @@ fusion_op = values.Opset("ai.onnxruntime._fusion", 1)
 
 _B, _S, _H, _Dh = 2, 8, 4, 4
 _D = _H * _Dh  # 16
-_Skv = 8
-_Spast = 4
 
 _RESHAPE_Q = ir.tensor(np.array([0, 0, _H, _Dh], dtype=np.int64))
 _RESHAPE_K = ir.tensor(np.array([0, 0, _H, _Dh], dtype=np.int64))
