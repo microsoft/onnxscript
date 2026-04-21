@@ -30,7 +30,6 @@ from onnxscript.rewriter.ort_fusions.skip_normalization import (
 )
 
 _B, _S, _D = 2, 8, 16
-_EPS_F = ir.tensor(np.array([1e-6], dtype=np.float32))
 
 
 # ========== Skip RMS Norm patterns ==========

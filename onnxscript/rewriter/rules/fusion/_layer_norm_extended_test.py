@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import unittest
 
-import numpy as np
 import onnx_ir as ir
 
 import onnxscript.optimizer
@@ -159,10 +158,6 @@ class LayerNormFusionExtendedTest(unittest.TestCase):
     def test_double_precision(self):
         """Double-precision inputs → fuses (double is a valid compute type)."""
         model_proto = _ln_double.to_model_proto()
-        input_data = {
-            "x": np.random.randn(2, 4, 8).astype(np.float64),
-            "scale": np.random.randn(8).astype(np.float64),
-        }
         model = ir.serde.deserialize_model(model_proto)
         count = fuse_layer_normalization(model)
         self.assertGreater(count, 0)
