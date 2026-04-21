@@ -18,6 +18,7 @@ from parameterized import parameterized
 from onnxscript import DOUBLE, FLOAT, FLOAT16, script
 from onnxscript import opset18 as op
 from onnxscript.optimizer import optimize
+from onnxscript.rewriter import testing as rewriter_testing
 from onnxscript.rewriter.rules.fusion._rms_normalization import fuse_rms_normalization
 
 _EPS = ir.tensor(np.array([1e-6], dtype=np.float32))
@@ -100,6 +101,8 @@ def _rms_int_input(x, scale):
 class RmsNormOnnxFusionExtendedTest(unittest.TestCase):
     """Extended tests for RmsNormFusion (rules/fusion variant producing RMSNormalization)."""
 
+    _B, _S, _D = 2, 4, 16
+
     def _build(self, script_fn, input_types, output_types) -> ir.Model:
         model_proto = script_fn.to_model_proto(
             input_types=input_types, output_types=output_types
@@ -110,6 +113,20 @@ class RmsNormOnnxFusionExtendedTest(unittest.TestCase):
 
     def _count_op(self, model: ir.Model, op_type: str) -> int:
         return sum(1 for n in model.graph if n.op_type == op_type)
+
+    def _check_numerical_equivalence(self, model: ir.Model, inputs: dict, expected_count: int):
+        """Apply fusion and verify numerical equivalence using ONNX reference impl.
+
+        ORT does not yet have a kernel for RMSNormalization, so we use
+        the ONNX reference implementation for validation.
+        """
+        original_proto = ir.serde.serialize_model(model)
+        count = fuse_rms_normalization(model)
+        self.assertEqual(count, expected_count)
+        fused_proto = ir.serde.serialize_model(model)
+        rewriter_testing.assert_numerically_equal(
+            original_proto, fused_proto, args=inputs, use_reference=True
+        )
 
     # --- Positive tests ---
 
@@ -123,11 +140,14 @@ class RmsNormOnnxFusionExtendedTest(unittest.TestCase):
         """Both Mul orderings should fuse to RMSNormalization."""
         model = self._build(
             script_fn,
-            input_types=[FLOAT["B", "S", 16], FLOAT[16]],
-            output_types=[FLOAT["B", "S", 16]],
+            input_types=[FLOAT[self._B, self._S, self._D], FLOAT[self._D]],
+            output_types=[FLOAT[self._B, self._S, self._D]],
         )
-        count = fuse_rms_normalization(model)
-        self.assertEqual(count, 1)
+        inputs = {
+            "x": np.random.randn(self._B, self._S, self._D).astype(np.float32),
+            "scale": np.random.randn(self._D).astype(np.float32),
+        }
+        self._check_numerical_equivalence(model, inputs, expected_count=1)
         self.assertEqual(self._count_op(model, "RMSNormalization"), 1)
         self.assertEqual(self._count_op(model, "Pow"), 0)
 
@@ -135,19 +155,26 @@ class RmsNormOnnxFusionExtendedTest(unittest.TestCase):
         """fp16 input Cast to fp32 for compute, Cast back → fuses."""
         model = self._build(
             _rms_mixed_precision,
-            input_types=[FLOAT16["B", "S", 16], FLOAT16[16]],
-            output_types=[FLOAT16["B", "S", 16]],
+            input_types=[FLOAT16[self._B, self._S, self._D], FLOAT16[self._D]],
+            output_types=[FLOAT16[self._B, self._S, self._D]],
         )
-        count = fuse_rms_normalization(model)
-        self.assertEqual(count, 1)
+        inputs = {
+            "x": np.random.randn(self._B, self._S, self._D).astype(np.float16),
+            "scale": np.random.randn(self._D).astype(np.float16),
+        }
+        self._check_numerical_equivalence(model, inputs, expected_count=1)
         self.assertEqual(self._count_op(model, "RMSNormalization"), 1)
 
     def test_double_precision(self):
-        """Double-precision inputs → fuses (double is a valid compute type)."""
+        """Double-precision inputs → fuses (double is a valid compute type).
+
+        Structural check only: ONNX reference impl does not support
+        RMSNormalization with stash_type=DOUBLE.
+        """
         model = self._build(
             _rms_double,
-            input_types=[DOUBLE["B", "S", 16], DOUBLE[16]],
-            output_types=[DOUBLE["B", "S", 16]],
+            input_types=[DOUBLE[self._B, self._S, self._D], DOUBLE[self._D]],
+            output_types=[DOUBLE[self._B, self._S, self._D]],
         )
         count = fuse_rms_normalization(model)
         self.assertEqual(count, 1)
