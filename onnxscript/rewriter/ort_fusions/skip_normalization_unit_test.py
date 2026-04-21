@@ -23,6 +23,7 @@ from parameterized import parameterized
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
 from onnxscript.optimizer import optimize
+from onnxscript.rewriter.ort_fusions import _test_utils as test_utils
 from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
     fuse_skip_rms_normalization,
@@ -111,8 +112,27 @@ class SkipNormalizationTest(unittest.TestCase):
     def _count_op(self, model: ir.Model, op_type: str, domain: str = "") -> int:
         return sum(1 for n in model.graph if n.op_type == op_type and n.domain == domain)
 
-    _3D = FLOAT["B", "S", _D]
+    def _check_numerical_equivalence(
+        self, model: ir.Model, inputs: dict, fuse_fn, expected_count: int
+    ):
+        original_output = test_utils.ort_run("Original", model, inputs)
+        count = fuse_fn(model)
+        self.assertGreaterEqual(count, expected_count)
+        fused_output = test_utils.ort_run("Fused", model, inputs)
+        test_utils.assert_allclose(original_output, fused_output)
+
+    _3D = FLOAT[_B, _S, _D]
     _1D = FLOAT[_D]
+
+    def _make_inputs(self, *names):
+        shapes = {
+            "input": (_B, _S, _D),
+            "skip": (_B, _S, _D),
+            "gamma": (_D,),
+            "beta": (_D,),
+            "bias": (_D,),
+        }
+        return {n: np.random.randn(*shapes[n]).astype(np.float32) for n in names}
 
     # ---- Skip RMS Norm positive tests ----
 
@@ -129,8 +149,10 @@ class SkipNormalizationTest(unittest.TestCase):
             input_types=[self._3D, self._3D, self._1D],
             output_types=[self._3D],
         )
-        count = fuse_skip_rms_normalization(model)
-        self.assertGreater(count, 0)
+        inputs = self._make_inputs("input", "skip", "gamma")
+        self._check_numerical_equivalence(
+            model, inputs, fuse_skip_rms_normalization, expected_count=1
+        )
         self.assertEqual(
             self._count_op(model, "SkipSimplifiedLayerNormalization", "com.microsoft"), 1
         )
@@ -143,8 +165,10 @@ class SkipNormalizationTest(unittest.TestCase):
             input_types=[self._3D, self._3D, self._1D, self._1D],
             output_types=[self._3D],
         )
-        count = fuse_skip_rms_normalization(model)
-        self.assertGreater(count, 0)
+        inputs = self._make_inputs("input", "skip", "gamma", "bias")
+        self._check_numerical_equivalence(
+            model, inputs, fuse_skip_rms_normalization, expected_count=1
+        )
         self.assertEqual(
             self._count_op(model, "SkipSimplifiedLayerNormalization", "com.microsoft"), 1
         )
@@ -156,8 +180,10 @@ class SkipNormalizationTest(unittest.TestCase):
             input_types=[self._3D, self._3D, self._1D, self._1D],
             output_types=[self._3D],
         )
-        count = fuse_skip_rms_normalization(model)
-        self.assertGreater(count, 0)
+        inputs = self._make_inputs("input", "skip", "gamma", "bias")
+        self._check_numerical_equivalence(
+            model, inputs, fuse_skip_rms_normalization, expected_count=1
+        )
         self.assertEqual(
             self._count_op(model, "SkipSimplifiedLayerNormalization", "com.microsoft"), 1
         )
@@ -171,8 +197,10 @@ class SkipNormalizationTest(unittest.TestCase):
             input_types=[self._3D, self._3D, self._1D, self._1D],
             output_types=[self._3D],
         )
-        count = fuse_skip_layer_normalization(model)
-        self.assertGreater(count, 0)
+        inputs = self._make_inputs("input", "skip", "gamma", "beta")
+        self._check_numerical_equivalence(
+            model, inputs, fuse_skip_layer_normalization, expected_count=1
+        )
         self.assertEqual(self._count_op(model, "SkipLayerNormalization", "com.microsoft"), 1)
         self.assertEqual(self._count_op(model, "LayerNormalization"), 0)
 
@@ -183,8 +211,10 @@ class SkipNormalizationTest(unittest.TestCase):
             input_types=[self._3D, self._3D, self._1D, self._1D, self._1D],
             output_types=[self._3D],
         )
-        count = fuse_skip_layer_normalization(model)
-        self.assertGreater(count, 0)
+        inputs = self._make_inputs("input", "skip", "gamma", "beta", "bias")
+        self._check_numerical_equivalence(
+            model, inputs, fuse_skip_layer_normalization, expected_count=1
+        )
         self.assertEqual(self._count_op(model, "SkipLayerNormalization", "com.microsoft"), 1)
 
     # ---- Negative tests ----
