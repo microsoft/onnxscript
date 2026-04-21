@@ -12,6 +12,7 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
+import onnx
 import onnx_ir as ir
 from parameterized import parameterized
 
@@ -23,6 +24,10 @@ from onnxscript.rewriter.rules.fusion._rms_normalization import fuse_rms_normali
 
 _EPS = ir.tensor(np.array([1e-6], dtype=np.float32))
 _EPS_D = ir.tensor(np.array([1e-6], dtype=np.float64))
+
+_has_rms_normalization_schema = hasattr(onnx.defs, "get_schema") and (
+    onnx.defs.onnx_opset_version() >= 23
+)
 
 
 # --- mul_order=False: Mul(scale, normalized) ---
@@ -118,15 +123,19 @@ class RmsNormOnnxFusionExtendedTest(unittest.TestCase):
         """Apply fusion and verify numerical equivalence using ONNX reference impl.
 
         ORT does not yet have a kernel for RMSNormalization, so we use
-        the ONNX reference implementation for validation.
+        the ONNX reference implementation for validation. Serialization of
+        the fused model requires the RMSNormalization schema (onnx opset >= 23),
+        so numerical validation is skipped on older onnx versions.
         """
-        original_proto = ir.serde.serialize_model(model)
+        if _has_rms_normalization_schema:
+            original_proto = ir.serde.serialize_model(model)
         count = fuse_rms_normalization(model)
         self.assertEqual(count, expected_count)
-        fused_proto = ir.serde.serialize_model(model)
-        rewriter_testing.assert_numerically_equal(
-            original_proto, fused_proto, args=inputs, use_reference=True
-        )
+        if _has_rms_normalization_schema:
+            fused_proto = ir.serde.serialize_model(model)
+            rewriter_testing.assert_numerically_equal(
+                original_proto, fused_proto, args=inputs, use_reference=True
+            )
 
     # --- Positive tests ---
 
