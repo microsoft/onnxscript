@@ -35,7 +35,6 @@ class GQAOrtFusionExtendedTest(unittest.TestCase):
         pattern (query/key rotary + kv-cache concat + expand + SDPA → GQA).
         Without rotary embedding, the GQA-specific fusion should not trigger.
         """
-        seqlen = 8
         head_size = 16
         num_heads = 20
         kv_num_heads = 10
@@ -99,7 +98,6 @@ class GQAOrtFusionExtendedTest(unittest.TestCase):
 
             return attn_out, key_seq, value_seq
 
-        S = seqlen
         D = hidden_size
         Dkv_val = kv_hidden_size
         Dh_val = head_size
@@ -125,10 +123,10 @@ class GQAOrtFusionExtendedTest(unittest.TestCase):
 
         # Add value_info for shapes needed by fusion
         query_BSHDh_vi = onnx.helper.make_tensor_value_info(
-            "query_BSHDh", onnx.TensorProto.FLOAT, ["B", S, num_heads, head_size]
+            "query_BSHDh", onnx.TensorProto.FLOAT, ["B", "S", num_heads, head_size]
         )
         key_BSHkvDh_vi = onnx.helper.make_tensor_value_info(
-            "key_BSHkvDh", onnx.TensorProto.FLOAT, ["B", S, kv_num_heads, head_size]
+            "key_BSHkvDh", onnx.TensorProto.FLOAT, ["B", "S", kv_num_heads, head_size]
         )
         source_model.graph.value_info.extend([query_BSHDh_vi, key_BSHkvDh_vi])
 
