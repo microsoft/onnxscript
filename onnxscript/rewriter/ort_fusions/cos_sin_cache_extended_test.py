@@ -13,15 +13,13 @@ import unittest
 import numpy
 import onnx_ir as ir
 
-import onnxscript
-import onnxscript.optimizer
-from onnxscript import FLOAT, INT64, script
+from onnxscript import FLOAT, INT64, optimizer, script, values
 from onnxscript import opset18 as op
 from onnxscript.rewriter.ort_fusions._test_utils import ort_run
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
 from onnxscript.rewriter.ort_fusions.rotary_embedding import fuse_rotary_embedding
 
-msft_op = onnxscript.values.Opset("com.microsoft", 1)
+msft_op = values.Opset("com.microsoft", 1)
 
 
 class CosSinCacheExtendedTest(unittest.TestCase):
@@ -60,7 +58,7 @@ class CosSinCacheExtendedTest(unittest.TestCase):
 
         model_proto = model_with_dynamic_inv_freq.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
-        onnxscript.optimizer.optimize(model)
+        optimizer.optimize(model)
 
         # Rotary embedding fusion should still work
         re_count = fuse_rotary_embedding(model)
@@ -100,7 +98,7 @@ class CosSinCacheExtendedTest(unittest.TestCase):
 
         model_proto = model_with_const_inv_freq.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
-        onnxscript.optimizer.optimize(model)
+        optimizer.optimize(model)
 
         inputs = {
             "x": numpy.random.rand(1, 4, 8, 8).astype(numpy.float32),

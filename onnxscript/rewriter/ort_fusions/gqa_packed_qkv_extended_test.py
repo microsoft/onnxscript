@@ -13,13 +13,11 @@ import unittest
 import onnx_ir as ir
 import onnx_ir.passes.common.shape_inference as shape_inference
 
-import onnxscript
-import onnxscript.optimizer
-from onnxscript import FLOAT, INT32, script
+from onnxscript import FLOAT, INT32, optimizer, script, values
 from onnxscript import opset18 as op
 from onnxscript.rewriter.ort_fusions.gqa_packed_qkv import fuse_qkv_gqa
 
-msft_op = onnxscript.values.Opset("com.microsoft", 1)
+msft_op = values.Opset("com.microsoft", 1)
 
 
 class PackedQKVExtendedTest(unittest.TestCase):
@@ -92,7 +90,7 @@ class PackedQKVExtendedTest(unittest.TestCase):
         )
         model = ir.serde.from_proto(model_proto)
         inferred = shape_inference.infer_shapes(model)
-        onnxscript.optimizer.optimize(inferred)
+        optimizer.optimize(inferred)
 
         count = fuse_qkv_gqa(inferred, debug=False)
         self.assertEqual(count, 0, "Should NOT fuse with misaligned slice boundaries.")

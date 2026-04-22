@@ -3,7 +3,7 @@
 
 """Extended tests for GQA ort_fusions fusion.
 
-Adds coverage for: wrong expand shape (negative — group count mismatch).
+Adds coverage for: missing RotaryEmbedding (negative — no GQA fusion).
 """
 
 from __future__ import annotations
@@ -15,14 +15,12 @@ import onnx
 import onnx_ir as ir
 import onnx_ir.passes.common.shape_inference as shape_inference
 
-import onnxscript
-import onnxscript.optimizer
-from onnxscript import FLOAT, script
+from onnxscript import FLOAT, optimizer, script, values
 from onnxscript import opset18 as op
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
 
-msft_op = onnxscript.values.Opset("com.microsoft", 1)
+msft_op = values.Opset("com.microsoft", 1)
 
 
 class GQAOrtFusionExtendedTest(unittest.TestCase):
@@ -132,7 +130,7 @@ class GQAOrtFusionExtendedTest(unittest.TestCase):
 
         model = ir.serde.from_proto(source_model)
         inferred = shape_inference.infer_shapes(model)
-        onnxscript.optimizer.optimize(inferred)
+        optimizer.optimize(inferred)
 
         # SDPA might fuse, but GQA should not (no RotaryEmbedding)
         fuse_sdpa(inferred, debug=False)

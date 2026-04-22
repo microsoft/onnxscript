@@ -14,13 +14,11 @@ import onnx
 import onnx_ir as ir
 from packaging import version
 
-import onnxscript
-import onnxscript.optimizer
-import onnxscript.rewriter.testing
-from onnxscript import FLOAT, script
+from onnxscript import FLOAT, optimizer, script, values
 from onnxscript.rewriter.rules.fusion._gqa import fuse_gqa
+from onnxscript.rewriter.testing import assert_numerically_equal
 
-op = onnxscript.values.Opset("", 23)
+op = values.Opset("", 23)
 
 # Config: H=8, Hkv=4, D=64, G=2
 H = [8]
@@ -73,7 +71,7 @@ class GQAFusionExtendedTest(unittest.TestCase):
         """Group count doesn't match H/Hkv — GQA fusion should fail."""
         model_proto = _gqa_wrong_group.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
-        onnxscript.optimizer.optimize(model)
+        optimizer.optimize(model)
         count = fuse_gqa(model)
         self.assertEqual(
             count, 0, "GQA fusion should NOT succeed with mismatched group count."
@@ -113,7 +111,7 @@ class GQAFusionExtendedTest(unittest.TestCase):
 
         model_proto = gqa_alt.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
-        onnxscript.optimizer.optimize(model)
+        optimizer.optimize(model)
         count = fuse_gqa(model)
         self.assertGreater(count, 0, "GQA fusion should succeed with H=6, Hkv=2, G=3, D=32.")
 
@@ -122,11 +120,9 @@ class GQAFusionExtendedTest(unittest.TestCase):
         if onnx_ver >= version.parse("1.19.1") and not (
             onnx_ver.is_prerelease or onnx_ver.is_devrelease
         ):
-            onnxscript.optimizer.remove_unused_nodes(model)
+            optimizer.remove_unused_nodes(model)
             rewritten_proto = ir.serde.serialize_model(model)
-            onnxscript.rewriter.testing.assert_numerically_equal(
-                model_proto, rewritten_proto, use_reference=True
-            )
+            assert_numerically_equal(model_proto, rewritten_proto, use_reference=True)
 
 
 if __name__ == "__main__":

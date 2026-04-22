@@ -3,8 +3,8 @@
 
 """Extended tests for redundant ScatterND rules.
 
-Adds coverage for: different axis (dynamic), partial scatter (negative),
-shape mismatch (negative for static), and reduction="add" (negative for static).
+Adds coverage for: dynamic full-range scatter on axis=0 (positive),
+partial scatter (negative for static), and shape mismatch (negative for static).
 """
 
 import unittest
@@ -15,11 +15,11 @@ import onnx_ir as ir
 import onnxruntime
 from onnx_ir.passes.common import CheckerPass, ShapeInferencePass
 
-import onnxscript.optimizer
-from onnxscript import FLOAT, script
+from onnxscript import FLOAT, optimizer, script
 from onnxscript import opset18 as op
 from onnxscript.rewriter.rules.common import _redundant_scatter_nd
 
+N = "N"
 shape_inference = ShapeInferencePass()
 onnx_check = CheckerPass(True)
 
@@ -33,7 +33,7 @@ class RedundantScatterNdExtendedTest(unittest.TestCase):
         """Full-range scatter on axis=0 → should be eliminated."""
 
         @script()
-        def model_fn(data: FLOAT[8, 16], updates: FLOAT[8, 16]) -> FLOAT[8, 16]:
+        def model_fn(data: FLOAT[N, 16], updates: FLOAT[N, 16]) -> FLOAT[N, 16]:
             axis = op.Constant(value_int=0)
             shape = op.Shape(data, start=0)
             dim = op.Gather(shape, axis, axis=0)
@@ -46,7 +46,7 @@ class RedundantScatterNdExtendedTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         onnx_check(model)
         shape_inference(model)
-        onnxscript.optimizer.fold_constants(model)
+        optimizer.fold_constants(model)
         count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 1)
 
