@@ -23,18 +23,21 @@ from onnxscript.rewriter.rules.fusion import _rotary_embedding
 
 _ROTARY_DIM = 32
 
+_INPUT_TYPES = (
+    onnxscript.INT64["Batchsize", "Sequence"],
+    onnxscript.FLOAT["Batchsize", 32, "Sequence", 80],
+)
+_OUTPUT_TYPES = (onnxscript.FLOAT["Batchsize", 32, "Sequence", 80],)
+
 
 class PartialRotaryEmbeddingExtendedTest(unittest.TestCase):
     """Extended tests for PartialRotaryEmbedding23 fusion rule."""
 
-    def _get_partial_model(self):
+    def _get_partial_model(self, *, mismatched: bool = False) -> ir.Model:
         """Get a fresh partial rotary embedding model."""
-        model_proto = _rotary_embedding_models._partial_rotary_script.to_model_proto(
-            input_types=(
-                onnxscript.INT64["Batchsize", "Sequence"],
-                onnxscript.FLOAT["Batchsize", 32, "Sequence", 80],
-            ),
-            output_types=(onnxscript.FLOAT["Batchsize", 32, "Sequence", 80],),
+        script_fn = _rotary_embedding_models._make_partial_rotary_script(mismatched=mismatched)
+        model_proto = script_fn.to_model_proto(
+            input_types=_INPUT_TYPES, output_types=_OUTPUT_TYPES
         )
         return ir.serde.deserialize_model(model_proto)
 
@@ -77,7 +80,7 @@ class PartialRotaryEmbeddingExtendedTest(unittest.TestCase):
 
     def test_partial_rotary_mismatched_boundaries_no_fusion(self):
         """When end1 != start2 in partial slice, PartialRotaryEmbedding should NOT fuse."""
-        model = self._get_partial_model()
+        model = self._get_partial_model(mismatched=True)
         model.graph.opset_imports[""] = 23
 
         onnxscript.optimizer.optimize(model)
@@ -85,29 +88,7 @@ class PartialRotaryEmbeddingExtendedTest(unittest.TestCase):
         count = _rotary_embedding.fuse_rotary_embedding(model)
         self.assertGreater(count, 0)
 
-        # After base fusion, graph has two Slice nodes splitting query at 32.
-        # The second Slice has start2=32; we replace its start input with a NEW
-        # value of 33 to create a mismatch (end1=32, start2=33).
-        # We must create a new ir.Value to avoid mutating the shared constant.
-        found = False
-        for node in model.graph:
-            if node.op_type == "Slice":
-                starts = node.inputs[1]
-                if starts is not None and starts.const_value is not None:
-                    val = starts.const_value.numpy().flatten()
-                    if len(val) == 1 and val[0] == _ROTARY_DIM:
-                        # Replace start2 input with a fresh value of 33
-                        new_start = ir.Value(name="tampered_start")
-                        new_start.const_value = ir.Tensor(
-                            value=numpy.array([_ROTARY_DIM + 1], dtype=numpy.int64),
-                            name="tampered_start",
-                        )
-                        node.replace_input_with(1, new_start)
-                        found = True
-                        break
-        self.assertTrue(found, "Should find the Slice node to tamper with.")
-
-        # Partial fusion should fail
+        # Partial fusion should fail because end1=32 but start2=33
         count_partial = _rotary_embedding.fuse_partial_rotary_embedding(model)
         self.assertEqual(count_partial, 0, "Should NOT fuse with mismatched boundaries.")
 
