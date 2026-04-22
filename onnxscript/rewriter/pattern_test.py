@@ -989,5 +989,247 @@ class PatternBuilderTest(unittest.TestCase):
         self.assertEqual(ops, ["Op1", "Op2", "Add", "Op3", "Mul"])
 
 
+class FlexibleOutputTest(unittest.TestCase):
+    """Test patterns with flexible output counts using _allow_flexible_outputs."""
+
+    def test_flexible_outputs_with_split(self):
+        """Test that _allow_flexible_outputs works for Split with varying output counts."""
+
+        def relu_split_pattern(op, x):
+            relu = op.Relu(x)
+            return op.Split(relu, _allow_flexible_outputs=True)
+
+        def relu_split_rewrite(op, _match=None, x=None):
+            if x is None or _match is None:
+                return None
+
+            split = next((n for n in _match.nodes if n.op_type == "Split"), None)
+            if not split:
+                return None
+
+            num_outputs = len(split.outputs)
+            split_results = op.Split(x, _outputs=num_outputs, **split.attributes)
+
+            return tuple(op.Relu(s) for s in split_results) if num_outputs > 1 else op.Relu(split_results)
+
+        rule = pattern.RewriteRule(relu_split_pattern, relu_split_rewrite)
+
+        # Test model with Relu -> Split pattern
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[10] x) => (float[5] out1, float[5] out2)
+            {
+                relu_out = Relu(x)
+                out1, out2 = Split<axis=0, num_outputs=2>(relu_out)
+            }
+        """
+        )
+
+        optimized = onnxscript.rewriter.rewrite(model_proto, pattern_rewrite_rules=[rule])
+
+        # Verify transformation: 1 Relu + 1 Split -> 1 Split + 2 Relu
+        def count_ops(proto, op_type):
+            return sum(1 for n in proto.graph.node if n.op_type == op_type)
+
+        self.assertEqual(count_ops(model_proto, "Relu"), 1)
+        self.assertEqual(count_ops(model_proto, "Split"), 1)
+        self.assertEqual(count_ops(optimized, "Relu"), 2)
+        self.assertEqual(count_ops(optimized, "Split"), 1)
+
+    def test_flexible_outputs_without_match_parameter(self):
+        def pattern_func(op, x):
+            return op.Split(x, _allow_flexible_outputs=True)
+
+        def rewrite_func(op, x=None):
+            if x is None:
+                return None
+            return op.Split(op.Relu(x), _outputs=2)
+
+        rule = pattern.RewriteRule(pattern_func, rewrite_func)
+
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[10] x) => (float[5] out1, float[5] out2)
+            {
+                out1, out2 = Split<axis=0, num_outputs=2>(x)
+            }
+        """
+        )
+
+        optimized = onnxscript.rewriter.rewrite(model_proto, pattern_rewrite_rules=[rule])
+
+        def count_ops(proto, op_type):
+            return sum(1 for n in proto.graph.node if n.op_type == op_type)
+
+        self.assertEqual(count_ops(optimized, "Relu"), 1)
+        self.assertEqual(count_ops(optimized, "Split"), 1)
+
+    def test_output_count_validation_without_flexible(self):
+        def pattern_func(op, x):
+            return op.Relu(x)
+
+        def bad_rewrite_func(op, x=None):
+            return op.Split(x, _outputs=2)
+
+        rule = pattern.RewriteRule(pattern_func, bad_rewrite_func)
+
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[10] x) => (float[10] out)
+            {
+                out = Relu(x)
+            }
+        """
+        )
+
+        with self.assertRaises(ValueError) as ctx:
+            onnxscript.rewriter.rewrite(model_proto, pattern_rewrite_rules=[rule])
+
+        self.assertIn("Number of outputs", str(ctx.exception))
+
+    def test_standard_replacement_path(self):
+        def pattern_func(op, x):
+            return op.Relu(x)
+
+        def rewrite_func(op, x=None):
+            return op.Sigmoid(x)
+
+        rule = pattern.RewriteRule(pattern_func, rewrite_func)
+
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[10] x) => (float[10] out)
+            {
+                out = Relu(x)
+            }
+        """
+        )
+
+        optimized = onnxscript.rewriter.rewrite(model_proto, pattern_rewrite_rules=[rule])
+
+        def count_ops(proto, op_type):
+            return sum(1 for n in proto.graph.node if n.op_type == op_type)
+
+        self.assertEqual(count_ops(optimized, "Relu"), 0)
+        self.assertEqual(count_ops(optimized, "Sigmoid"), 1)
+
+    def test_flexible_outputs_with_three_outputs(self):
+        def pattern_func(op, x):
+            return op.Split(x, _allow_flexible_outputs=True)
+
+        def rewrite_func(op, _match=None, x=None):
+            if x is None or _match is None:
+                return None
+
+            split = next((n for n in _match.nodes if n.op_type == "Split"), None)
+            if not split:
+                return None
+
+            num_outputs = len(split.outputs)
+            relu = op.Relu(x)
+            split_results = op.Split(relu, _outputs=num_outputs, **split.attributes)
+            return split_results
+
+        rule = pattern.RewriteRule(pattern_func, rewrite_func)
+
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[15] x) => (float[5] out1, float[5] out2, float[5] out3)
+            {
+                out1, out2, out3 = Split<axis=0, num_outputs=3>(x)
+            }
+        """
+        )
+
+        optimized = onnxscript.rewriter.rewrite(model_proto, pattern_rewrite_rules=[rule])
+
+        def count_ops(proto, op_type):
+            return sum(1 for n in proto.graph.node if n.op_type == op_type)
+
+        self.assertEqual(count_ops(optimized, "Relu"), 1)
+        self.assertEqual(count_ops(optimized, "Split"), 1)
+
+    def test_flexible_outputs_with_single_output(self):
+        def pattern_func(op, x):
+            return op.Split(x, _allow_flexible_outputs=True)
+
+        def rewrite_func(op, _match=None, x=None):
+            if x is None or _match is None:
+                return None
+
+            split = next((n for n in _match.nodes if n.op_type == "Split"), None)
+            if not split:
+                return None
+
+            relu = op.Relu(x)
+            if len(split.outputs) == 1:
+                return op.Split(relu, _outputs=1, **split.attributes)
+            return relu
+
+        rule = pattern.RewriteRule(pattern_func, rewrite_func)
+
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[10] x) => (float[10] out)
+            {
+                out = Split<axis=0>(x)
+            }
+        """
+        )
+
+        optimized = onnxscript.rewriter.rewrite(model_proto, pattern_rewrite_rules=[rule])
+
+        def count_ops(proto, op_type):
+            return sum(1 for n in proto.graph.node if n.op_type == op_type)
+
+        self.assertEqual(count_ops(optimized, "Relu"), 1)
+        self.assertEqual(count_ops(optimized, "Split"), 1)
+
+    def test_flexible_outputs_with_partial_usage(self):
+        def pattern_func(op, x):
+            return op.Split(x, _allow_flexible_outputs=True)
+
+        def rewrite_func(op, _match=None, x=None):
+            if x is None or _match is None:
+                return None
+
+            split = next((n for n in _match.nodes if n.op_type == "Split"), None)
+            if not split:
+                return None
+
+            num_outputs = len(split.outputs)
+            relu = op.Relu(x)
+            return op.Split(relu, _outputs=num_outputs, **split.attributes)
+
+        rule = pattern.RewriteRule(pattern_func, rewrite_func)
+
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[10] x) => (float[5] out1, float[5] out2, float[5] sum)
+            {
+                s1, s2 = Split<axis=0, num_outputs=2>(x)
+                out1 = Abs(s1)
+                out2 = Neg(s2)
+                sum = Add(out1, out2)
+            }
+        """
+        )
+
+        optimized = onnxscript.rewriter.rewrite(model_proto, pattern_rewrite_rules=[rule])
+
+        def count_ops(proto, op_type):
+            return sum(1 for n in proto.graph.node if n.op_type == op_type)
+
+        self.assertEqual(count_ops(optimized, "Relu"), 1)
+        self.assertEqual(count_ops(optimized, "Split"), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

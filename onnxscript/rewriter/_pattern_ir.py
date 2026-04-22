@@ -248,6 +248,7 @@ class OpPatternBuilder:
         _outputs: int | list[str | None] = 1,
         _allow_other_attributes: bool | None = None,
         _allow_other_inputs: bool | None = None,
+        _allow_flexible_outputs: bool | None = None,
         _check: Callable | None = None,
         **kwargs,
     ):
@@ -280,6 +281,7 @@ class OpPatternBuilder:
             _outputs,
             allow_other_attributes=_allow_other_attributes,
             allow_other_inputs=_allow_other_inputs,
+            allow_flexible_outputs=_allow_flexible_outputs,
             check=_check,
         )
         self.pattern_builder.add_node(node_pattern)
@@ -440,6 +442,7 @@ class NodePattern:
         *,
         allow_other_attributes: bool | None,
         allow_other_inputs: bool | None,
+        allow_flexible_outputs: bool | None = None,
         check: Callable | None = None,
     ):
         if allow_other_attributes is None:
@@ -448,12 +451,16 @@ class NodePattern:
         if allow_other_inputs is None:
             # TODO(rama): Should we default to True? For now, we preserve the current behavior.
             allow_other_inputs = False
+        if allow_flexible_outputs is None:
+            # Default behavior: do not match flexible outputs
+            allow_flexible_outputs = False
         self.domain = domain
         self.op = StringConstantPattern(op) if isinstance(op, str) else op
         self.inputs = [_to_value_pattern(x) for x in inputs]
         self.attributes = attributes
         self.allow_other_attributes = allow_other_attributes
         self.allow_other_inputs = allow_other_inputs
+        self.allow_flexible_outputs = allow_flexible_outputs
         self._check = check
         # In the common case, domain and op are constants, which can be used to optimize matching.
         if isinstance(op, str) and isinstance(domain, StringConstantPattern):

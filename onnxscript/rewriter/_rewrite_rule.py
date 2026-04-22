@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import inspect
 import itertools
 from typing import (
     Callable,
@@ -214,11 +215,14 @@ class ReplacementPatternFunction:
 
     def __init__(self, function) -> None:
         self._function = function
+        # Cache signature inspection to avoid repeated introspection on hot path
+        self._accepts_match = "_match" in inspect.signature(function).parameters
 
     def get_replacement(self, match: _basics.MatchResult) -> ReplacementSubgraph | None:
         context = RewriterContext()
+        bindings = match.bindings if not self._accepts_match else {**match.bindings, "_match": match}
         try:
-            new_outputs = self._function(context, **match.bindings)
+            new_outputs = self._function(context, **bindings)
         except _basics.MatchFailureError as e:
             match.fail(e.reason, list(e.failure_sources))
             return None
@@ -313,6 +317,11 @@ class RewriteRule(Pattern):
         # Initialize the base pattern matching functionality
         super().__init__(target_pattern, condition_function, matcher, verbose, name)
 
+        # Check if any node in the pattern uses flexible outputs (cache for hot path)
+        self._has_flexible_outputs = any(
+            node.allow_flexible_outputs for node in self._target_pattern._nodes
+        )
+
         if not isinstance(replacement_pattern, ReplacementPatternFunction):
             replacement_pattern = ReplacementPatternFunction(replacement_pattern)
         self._replacement_pattern = replacement_pattern
@@ -357,7 +366,8 @@ class RewriteRule(Pattern):
                     _basics.MatchStatus.REPLACEMENT_FAILED,
                 )
             return None
-        if len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
+
+        if not self._has_flexible_outputs and len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
             raise ValueError(
                 f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
                 f"Expected {self._target_pattern.num_outputs}, but got {len(replacement_subgraph.new_outputs)}."
@@ -766,14 +776,33 @@ class RewriteRuleSet:
                     for n in delta.new_nodes:
                         n.metadata_props[RULE_NAME_TAG] = rule.name
 
-                convenience.replace_nodes_and_values(
-                    graph_or_function,
-                    node,
-                    delta.match.nodes if rule.remove_nodes else [],
-                    delta.new_nodes,
-                    delta.match.outputs,
-                    delta.new_outputs,
-                )
+                # Check if this is a flexible output case (matched node has more outputs than captured)
+                flexible_node = None
+                for matched_node in delta.match.nodes:
+                    if len(matched_node.outputs) > len(delta.match.outputs):
+                        flexible_node = matched_node
+                        break
+
+                if flexible_node and len(delta.new_outputs) == len(flexible_node.outputs):
+                    # Flexible output replacement: replace all outputs of the flexible node
+                    convenience.replace_nodes_and_values(
+                        graph_or_function,
+                        node,
+                        delta.match.nodes if rule.remove_nodes else [],
+                        delta.new_nodes,
+                        flexible_node.outputs,
+                        delta.new_outputs,
+                    )
+                else:
+                    # Standard replacement
+                    convenience.replace_nodes_and_values(
+                        graph_or_function,
+                        node,
+                        delta.match.nodes if rule.remove_nodes else [],
+                        delta.new_nodes,
+                        delta.match.outputs,
+                        delta.new_outputs,
+                    )
 
                 if merge_metadata:
                     _default_metadata_merger.copy_merged_metadata(
