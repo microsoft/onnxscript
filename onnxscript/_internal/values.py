@@ -94,7 +94,6 @@ class Opset:
         instance = super().__new__(cls)
         instance.domain = domain  # type: ignore[attr-defined]
         instance.version = version  # type: ignore[attr-defined]
-        instance.function_defs = {}  # type: ignore[attr-defined]
         cls.cache[key] = instance
         return instance
 
@@ -129,9 +128,6 @@ class Opset:
             return Op(self, attr, schema)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             raise AttributeError(f"Attribute {attr} not found.") from exc
-
-    def add_function_def(self, fun):
-        self.function_defs[fun.name] = fun
 
     def _prepare_inputs(self, _: onnx.defs.OpSchema, *inputs):
         """Trims 'None' values from the end of the inputs list. This is used to support
