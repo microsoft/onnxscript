@@ -421,7 +421,7 @@ def build_function(
 class GraphBuilder:
     """Imperative builder for constructing ONNX IR graphs with automatic constant promotion, type casting, and shape inference."""
 
-    def __init__(self, graph: ir.Graph, parent: GraphBuilder | None = None) -> None:
+    def __init__(self, graph: ir.Graph, *, parent: GraphBuilder | None = None) -> None:
         self._graph = graph
         self._parent = parent
         self._root: GraphBuilder = parent._root if parent is not None else self
@@ -446,6 +446,7 @@ class GraphBuilder:
         # visible to subgraphs per the ONNX spec).
         if parent is None:
             self._constant_cache: dict[tuple[Any, ir.DataType | None], ir.Value] = {}
+            self._functions: dict[ir.OperatorIdentifier, ir.Function] = {}
 
     def opset(self, domain: str, version: int = 1) -> OpBuilder:
         """Create an OpBuilder bound to the given domain and version."""
@@ -468,6 +469,10 @@ class GraphBuilder:
     @property
     def graph(self) -> ir.Graph:
         return self._graph
+
+    @property
+    def functions(self) -> dict[ir.OperatorIdentifier, ir.Function]:
+        return self._root._functions
 
     def initializer(
         self, tensor: ir.TensorProtocol, name: str | None = None, *, qualify: bool = True
@@ -796,12 +801,12 @@ class GraphBuilder:
         op_type: str,
         inputs: Sequence[ir.Value | ir.TensorProtocol | None],
         kwargs: dict[str, Any],
+        /,
+        domain: str = "",
+        version: int | None = None,
+        outputs: int | Sequence[str | ir.Value] = 1,
     ):
         """Create an ONNX node and add it to the graph, returning its output value(s)."""
-        domain = kwargs.pop("_domain", "")
-        version = kwargs.pop("_version", None)
-        outputs = kwargs.pop("_outputs", 1)
-
         count = self.graph.num_nodes()
         node_name = self._qualify_node_name(f"{op_type}_node_{count}")
 
@@ -833,7 +838,54 @@ class GraphBuilder:
 
     def call(
         self,
-        function,
+        function: ir.Function | onnxscript.OnnxFunction,
+        *args,
+        _outputs: int | Sequence[str | ir.Value] | None = None,
+        **kwargs,
+    ):
+        """Call a function as a single function node."""
+        if isinstance(function, ir.Function):
+            graph = function.graph
+        elif isinstance(function, onnxscript.OnnxFunction):
+            graph = function.graph()
+            function = function.function_ir
+        else:
+            raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
+
+        if _outputs is None:
+            _outputs = len(graph.outputs)
+        output_values = self._adapt_outputs(_outputs, function.name)
+
+        # Adapt inputs similarly to call_op: promote constants/tensors to ir.Value.
+        adapted_args = [self._input_to_ir_value(arg) for arg in args]
+
+        count = self.graph.num_nodes()
+        node_name = self._qualify_node_name(f"{function.name}_node_{count}")
+
+        node = ir.node(
+            op_type=function.name,
+            inputs=adapted_args,
+            attributes=kwargs or None,
+            outputs=output_values,
+            domain=function.domain,
+            name=node_name,
+            overload=function.overload,
+        )
+        # Attach scope metadata to the node
+        node.metadata_props["namespace"] = self._build_namespace()
+        node.metadata_props["pkg.onnxscript.class_hierarchy"] = repr(self._scope_classes())
+        node.metadata_props["pkg.onnxscript.name_scopes"] = repr(self._scope_names())
+
+        self.add_node(node)
+        self._root._functions[function.identifier()] = function
+
+        if len(node.outputs) == 0:
+            return ()
+        return node.outputs if len(node.outputs) > 1 else node.outputs[0]
+
+    def call_inline(
+        self,
+        function: ir.Function | onnxscript.OnnxFunction,
         *args,
         _outputs: Sequence[str] | None = None,
         _prefix: str = "",
@@ -842,35 +894,56 @@ class GraphBuilder:
         if isinstance(function, ir.Function):
             graph = function.graph
         elif isinstance(function, onnxscript.OnnxFunction):
-            graph = function.graph()
+            # TODO(justinchuby): Reason about support for outer-scope values in inlined function bodies.
+            graph = function.graph().clone(allow_outer_scope_values=True)
         else:
             raise TypeError("Function must be an ir.Function or onnxscript.OnnxFunction")
-        output_renaming: dict[str, str] = {}
         if _outputs is not None:
             if len(_outputs) != len(graph.outputs):
                 raise ValueError(
-                    f"Number of provided output names {_outputs} does not match "
+                    f"Number of rovided output names {_outputs} does not match "
                     f"number of function outputs {len(graph.outputs)}."
                 )
-            for output, name in zip(graph.outputs, _outputs):
-                output_renaming[output.name] = self._qualify_value_name(name)
+            # Compute desired output names before pushing prefix scope so they
+            # are not affected by the prefix.
+            desired_output_names: list[str] = [
+                self._qualify_value_name(name) for name in _outputs
+            ]
         else:
-            for output in graph.outputs:
-                output_renaming[output.name] = self._qualify_value_name(output.name)
-        nodes, outputs = _inliner.instantiate(graph, args, kwargs)
+            desired_output_names = []
+
         if _prefix:
             self.push_module(_prefix)
+
+        count = self.graph.num_nodes()
+        node_name_prefix = self._qualify_node_name(f"{function.name}_node_{count}/")
+        nodes, outputs = _inliner.instantiate(graph, args, kwargs, prefix=node_name_prefix)
+
+        # Track final output values so we can rename them separately.
+        # The inliner prefixes all names, which would prevent name-based lookup
+        # from matching the original graph output names.
+        output_value_ids = {id(v) for v in outputs if v is not None}
+
         for node in nodes:
-            node.name = self._qualify_node_name(node.name)
             for output in node.outputs:
-                if output.name:
-                    if output.name in output_renaming:
-                        output.name = output_renaming[output.name]
-                    else:
-                        output.name = self._qualify_value_name(output.name)
+                if output.name and id(output) not in output_value_ids:
+                    output.name = self._qualify_value_name(output.name)
             self.add_node(node)
+
+        # Apply names to final output values
+        if desired_output_names:
+            for output_val, name in zip(outputs, desired_output_names):
+                if output_val is not None:
+                    output_val.name = name
+        else:
+            for output_val in outputs:
+                if output_val is not None and output_val.name:
+                    output_val.name = self._qualify_value_name(output_val.name)
+
         if _prefix:
             self.pop_module()
+        if len(outputs) == 0:
+            return ()
         return outputs if len(outputs) > 1 else outputs[0]
 
     def push_module(self, module: str, class_name: str = "") -> None:
@@ -962,11 +1035,12 @@ class OpBuilder:
         return self._version
 
     def _call_op(self, op_type: str, inputs: Sequence[Any], kwargs: dict[str, Any]):
-        if "_domain" not in kwargs:
-            kwargs["_domain"] = self._domain
-        if self._version is not None and "_version" not in kwargs:
-            kwargs["_version"] = self._version
-        return self._builder.call_op(op_type, inputs, kwargs)
+        domain = kwargs.pop("_domain", self._domain)
+        version = kwargs.pop("_version", self._version)
+        outputs = kwargs.pop("_outputs", 1)
+        return self._builder.call_op(
+            op_type, inputs, kwargs, domain=domain, version=version, outputs=outputs
+        )
 
     def __getattr__(self, op_type: str) -> Callable:
         return lambda *args, **kwargs: self._call_op(op_type, args, kwargs)
@@ -974,7 +1048,31 @@ class OpBuilder:
     def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
         return self._builder.initializer(tensor, name)
 
+    @property
+    def functions(self) -> dict[ir.OperatorIdentifier, ir.Function]:
+        return self._builder.functions
+
     def call(
+        self,
+        function,
+        *args,
+        _outputs: Sequence[str] | int | None = None,
+        **kwargs,
+    ):
+        """Call a function as a single function node.
+
+        Args:
+            function: The function to call (ir.Function or onnxscript.OnnxFunction).
+            *args: Positional arguments to pass to the function.
+            _outputs: Optional sequence of output names, or an integer specifying the number of outputs.
+            **kwargs: Keyword arguments to pass to the function.
+
+        Returns:
+            The output value(s) from the function call.
+        """
+        return self._builder.call(function, *args, _outputs=_outputs, **kwargs)
+
+    def call_inline(
         self,
         function,
         *args,
@@ -982,7 +1080,7 @@ class OpBuilder:
         _prefix: str = "",
         **kwargs,
     ):
-        """Call a function and inline it into the graph.
+        """Inline a function body into the current graph.
 
         Args:
             function: The function to call (ir.Function or onnxscript.OnnxFunction).
@@ -993,8 +1091,8 @@ class OpBuilder:
             **kwargs: Keyword arguments to pass to the function.
 
         Returns:
-            The output value(s) from the function call.
+            The output value(s) from the inlined function body.
         """
-        return self._builder.call(
+        return self._builder.call_inline(
             function, *args, _outputs=_outputs, _prefix=_prefix, **kwargs
         )
