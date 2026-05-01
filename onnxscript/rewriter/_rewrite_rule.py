@@ -15,6 +15,7 @@ from typing import (
 
 import onnxscript.optimizer
 import onnxscript.rewriter._basics as _basics
+import onnxscript.rewriter._context as _context
 import onnxscript.rewriter._ir_utils as _ir_utils
 import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
@@ -24,7 +25,7 @@ from onnxscript.ir import _tape, convenience
 
 T = TypeVar("T")
 
-RewriterContext = _tape.Builder
+RewriterContext = _context.RewriterContext
 
 # TODO(rama): Standardize metadata property keys. May be worth standardizing at ONNX level for
 # source/producer metadata.
@@ -216,7 +217,7 @@ class ReplacementPatternFunction:
         self._function = function
 
     def get_replacement(self, match: _basics.MatchResult) -> ReplacementSubgraph | None:
-        context = RewriterContext()
+        context = _context.TapeContext()
         try:
             new_outputs = self._function(context, **match.bindings)
         except _basics.MatchFailureError as e:
