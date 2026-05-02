@@ -14,7 +14,7 @@ from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleS
 
 
 class _RemoveOptionalBias(RewriteRuleClassBase):
-    def rewrite(self, op: ir.tape.Tape, out: ir.Value, **_) -> ir.Value:
+    def rewrite(self, op, out: ir.Value, **_) -> ir.Value:
         node = out.producer()
 
         return op.op(
@@ -54,7 +54,7 @@ class RemoveOptionalBiasFromConv(_RemoveOptionalBias):
 
     op_type: ClassVar[str] = "Conv"
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
+    def pattern(self, op, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
         return op.Conv(x, w, b, _outputs=["out"])
 
 
@@ -63,7 +63,7 @@ class RemoveOptionalBiasFromConvTranspose(_RemoveOptionalBias):
 
     op_type: ClassVar[str] = "ConvTranspose"
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
+    def pattern(self, op, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
         return op.ConvTranspose(x, w, b, _outputs=["out"])
 
 
@@ -74,7 +74,7 @@ class RemoveOptionalBiasFromQLinearConv(_RemoveOptionalBias):
 
     def pattern(
         self,
-        op: ir.tape.Tape,
+        op,
         x,
         x_scale,
         x_zero_point,
@@ -104,7 +104,7 @@ class RemoveOptionalBiasFromGemm(_RemoveOptionalBias):
 
     op_type: ClassVar[str] = "Gemm"
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
+    def pattern(self, op, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
         return op.Gemm(x, w, b, _outputs=["out"])
 
 

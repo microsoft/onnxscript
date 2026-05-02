@@ -65,9 +65,7 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
         # With remove_nodes=False these nodes are removed if these nodes are no longer needed.
         super().__init__(remove_nodes=False, as_function=as_function)
 
-    def rewrite(
-        self, op: ir.tape.Tape, x: ir.Value, pad: ir.Value, conv: ir.Value
-    ) -> ir.Value:
+    def rewrite(self, op, x: ir.Value, pad: ir.Value, conv: ir.Value) -> ir.Value:
         conv_node = conv.producer()
 
         # Retrieve the padding and axes
@@ -154,7 +152,7 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
 class FuseConvPad(_FuseConvPadBase):
     """Replaces ``Conv(Pad(x))`` with ``Conv(x)``."""
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+    def pattern(self, op, x: ir.Value) -> ir.Value:
         return op.Conv(
             op.Pad(x, _allow_other_inputs=True, _outputs=["pad"]),
             _allow_other_inputs=True,
@@ -178,7 +176,7 @@ class FuseConvPad(_FuseConvPadBase):
 class FuseConvIntegerPad(FuseConvPad):
     """Replaces ``ConvInteger(Pad(x))`` with ``ConvInteger(x)``."""
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+    def pattern(self, op, x: ir.Value) -> ir.Value:
         return op.ConvInteger(
             op.Pad(x, _allow_other_inputs=True, _outputs=["pad"]),
             _allow_other_inputs=True,
@@ -197,7 +195,7 @@ class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
     ) -> Sequence[int]:
         raise NotImplementedError("Child have to implement this function")
 
-    def rewrite(self, op: ir.tape.Tape, conv: ir.Value, **__) -> ir.Value:
+    def rewrite(self, op, conv: ir.Value, **__) -> ir.Value:
         conv_node = conv.producer()
 
         # Read spatial dimensions and attributes
@@ -316,14 +314,14 @@ class NormalizePadFormatConv(_NormalizePadFormatBase):
                 bottom_pads.append(pad2)
         return bottom_pads + top_pads
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+    def pattern(self, op, x: ir.Value) -> ir.Value:
         return op.Conv(x, _allow_other_inputs=True, _outputs=["conv"])
 
 
 class NormalizePadFormatConvInteger(NormalizePadFormatConv):
     """Convert auto_pad attribute into 'NOTSET' in ConvInteger nodes ."""
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+    def pattern(self, op, x: ir.Value) -> ir.Value:
         return op.ConvInteger(x, _allow_other_inputs=True, _outputs=["conv"])
 
 

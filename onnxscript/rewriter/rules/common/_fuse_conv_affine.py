@@ -55,7 +55,7 @@ class AffineConvFusion(_ConvAffineFusionBase):
 
     def rewrite(
         self,
-        op: ir.tape.Tape,
+        op,
         x: ir.Value,
         w: ir.Value,
         b: ir.Value,
@@ -89,7 +89,7 @@ class ConvAffineFusion(_ConvAffineFusionBase):
 
     def rewrite(
         self,
-        op: ir.tape.Tape,
+        op,
         x: ir.Value,
         w: ir.Value,
         b: ir.Value,
