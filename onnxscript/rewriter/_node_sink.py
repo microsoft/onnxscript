@@ -30,35 +30,35 @@ class NodeSink(abc.ABC):
     @abc.abstractmethod
     def add_node(self, node: ir.Node) -> None:
         """Record a newly created node."""
-        ...
+        raise NotImplementedError
 
     @abc.abstractmethod
     def add_initializer(self, value: ir.Value) -> None:
         """Record a newly created initializer."""
-        ...
+        raise NotImplementedError
 
     @abc.abstractmethod
     def record_opset(self, domain: str, version: int | None) -> None:
         """Record that an opset domain/version was referenced."""
-        ...
+        raise NotImplementedError
 
     @property
     @abc.abstractmethod
     def nodes(self) -> Sequence[ir.Node]:
         """All nodes created during this replacement."""
-        ...
+        raise NotImplementedError
 
     @property
     @abc.abstractmethod
     def initializers(self) -> Sequence[ir.Value]:
         """All initializers created during this replacement."""
-        ...
+        raise NotImplementedError
 
     @property
     @abc.abstractmethod
     def used_opsets(self) -> UsedOpsets:
         """Opset domains/versions referenced by created nodes."""
-        ...
+        raise NotImplementedError
 
 
 class TapeSink(NodeSink):
