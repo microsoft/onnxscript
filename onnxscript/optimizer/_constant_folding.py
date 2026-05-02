@@ -1,8 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
-
 # NOTE: This will eventually replace the existing constant_folding.py and evaluator.py files.
-
 from __future__ import annotations
 
 __all__ = [
@@ -81,8 +79,6 @@ def _is_onnx_op(node: ir.Node, op_type: str) -> bool:
 # The API below works only for non-control-flow ops (ops without any graph-attributes).
 # This currently used ONNX's reference implementation. But we could also
 # use ORT's implementation if we want to.
-
-
 def _process_constant_node(node: ir.Node) -> None:
     """Sets const_value of output value of a Constant op node."""
     if not _is_onnx_op(node, "Constant"):
@@ -126,7 +122,6 @@ def _process_constant_node(node: ir.Node) -> None:
 
 def basic_constant_propagation(nodes: Iterable[ir.Node]) -> None:
     """Performs basic constant propagation for a sequence of nodes.
-
     Just marks the output values of Constant op nodes with their const_value.
     """
     for node in nodes:
@@ -210,12 +205,10 @@ class OptimizerState:
 
 # The "partial evaluators" below are non-standard evaluators. They are used to perform
 # partial evaluation and/or static program analysis (abstract interpretation).
-
 # A partial-evaluator function takes a node, a RewriterContext, OptimizerState and returns
 # a Replacement for the node or None (if no replacement is needed). It may also return just
 # the ir.Value or ir.Values to replace the output values of the node, when the new nodes
 # can be inferred from the RewriterContext used to build the new nodes.
-
 RewriterContext = _tape.Builder
 ReturnValue = Union[Replacement, Sequence[ir.Value], ir.Value, None]
 PartialEvaluatorFunction = Callable[[ir.Node, RewriterContext, OptimizerState], ReturnValue]
@@ -471,7 +464,6 @@ def _propagate_shape_value(node: ir.Node, op, state: OptimizerState) -> ReturnVa
 @register("Reshape")
 def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Replace a Reshape node by Identity when applicable.
-
     Also propagate symbolic shape values.
     """
     input = _get_input(node, 0)
@@ -562,6 +554,27 @@ def size(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return op.Constant(value_int=size)
 
 
+def _move_initializers_to_graph(src: ir.Graph, dst: ir.Graph) -> None:
+    """Move all initializers from src graph to dst graph, ensuring name uniqueness.
+    When an If branch is inlined into the main graph, the branch subgraph may
+    hold initializers (e.g. a constant axes tensor for a Squeeze node) that were
+    folded in a prior pass. Those initializers must be migrated to the main graph
+    so that the inlined nodes can still reference them; failing to do so leaves the
+    references dangling and produces an invalid model.
+    """
+    counter: dict[str, int] = {}
+    for name in list(src.initializers):
+        initializer = src.initializers.pop(name)
+        # Ensure name uniqueness in the destination graph
+        new_name = name
+        while new_name in dst.initializers:
+            counter[name] = counter.get(name, 0) + 1
+            new_name = f"{name}_{counter[name]}"
+        if new_name != name:
+            initializer.name = new_name
+        dst.register_initializer(initializer)
+
+
 @register("If")
 def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     cond_input = _get_input(node, 0)
@@ -586,7 +599,6 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
             if actual is not None
         }
         # TODO: Extend renaming to intermediate values.
-
         def rename(name):
             return renamings.get(name, name)
 
@@ -598,6 +610,15 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
                 v.name = rename(v.name)
             # Avoid name collision.
             sub_node.name = f"{node.name}_{sub_node.name}"
+
+        # Move initializers from the subgraph to the main graph to avoid losing them.
+        # When the If branch was processed in a prior constant-folding pass, any
+        # constants inside the branch (e.g. the 'axes' tensor for a Squeeze node)
+        # may have been folded into subgraph initializers. Without this step those
+        # initializers would be orphaned once the branch nodes are inlined here.
+        main_graph = node.graph
+        if main_graph is not None:
+            _move_initializers_to_graph(graph, main_graph)
 
         # TODO: we should handle initializers as well!
         return Replacement(formal_outs, graph_nodes)
@@ -787,7 +808,6 @@ def concat_from_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValu
 @register("SplitToSequence")
 def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Rewriting pattern.
-
     From
 
         splits = onnx::SplitToSequence(input, split, axis=axis)
@@ -965,14 +985,13 @@ def _record_contributing_values(original_node: ir.Node, replacement: Replacement
 
 class FoldConstantsPass(ir.passes.InPlacePass):
     """A pass that folds constant expressions in the model.
-
     Attributes:
         shape_inference: Whether to perform shape inference.
         input_size_limit: Maximum size of input tensors to fold.
         output_size_limit: Maximum size of output tensors to fold.
         should_fold: An optional function that takes a node and returns True if
             the node should be considered for folding.
-            The function should return True/False value to indicate if this particular
+        The function should return True/False value to indicate if this particular
             node should be folded, or None to use the default folding rules.
     """
 
@@ -1201,7 +1220,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 node.domain,
                 node.op_type,
             )
-
             return None
 
         if _is_non_deterministic_op(node):
@@ -1240,8 +1258,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             for op_type in DEFAULT_CONSTANT_FOLD_BLACKLIST:
                 if _is_onnx_op(node, op_type):
                     logger.info(
-                        "Skipping constant folding for node %r because "
-                        "%s is preserved by default",
+                        "Skipping constant folding for node %r because %s is preserved by default",
                         node.name,
                         op_type,
                     )
@@ -1464,7 +1481,6 @@ def fold_constants(
 
     Returns:
         An instance of `FoldConstantsResult`.
-
     """
     folder_pass = FoldConstantsPass(
         shape_inference=onnx_shape_inference,
@@ -1472,4 +1488,4 @@ def fold_constants(
         output_size_limit=output_size_limit,
         should_fold=should_fold,
     )
-    return folder_pass(model)  # type: ignore[return-value]
+    return folder_pass(model)  

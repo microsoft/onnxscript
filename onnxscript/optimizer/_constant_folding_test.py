@@ -14,6 +14,76 @@ from onnxscript.optimizer import _constant_folding
 
 
 class FoldConstantsTest(unittest.TestCase):
+    def test_fold_if_cond_with_subgraph_initializer(self):
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[16, 16] x, bool cond) => (float[16, 16] z) {
+                two   = Constant <value_float=2.0> ()
+                three = Constant <value_float=3.0> ()
+                z = If (cond) <
+                    then_branch = then_graph () => (then_z) {
+                        temp   = Add (two, three)
+                        then_z = Mul (temp, x)
+                    },
+                    else_branch = else_graph () => (else_z) {
+                        else_z = Identity (x)
+                    }
+                >
+            }
+        """)
+
+        # Pass 1: fold Add(2.0, 3.0) into a subgraph initializer called 'temp'.
+        # The If condition is still non-constant so the branch is NOT inlined yet.
+        _constant_folding.fold_constants(model)
+        optimizer.remove_unused_nodes(model)
+        if_node = next(n for n in model.graph if n.op_type == "If")
+        then_branch = if_node.attributes["then_branch"].as_graph()
+        self.assertIn("temp", then_branch.initializers)
+        self.assertNotIn("temp", model.graph.initializers)
+
+        # Make the condition a known True constant to trigger branch inlining.
+        const_true = ir.Value(name="const_true")
+        const_true.const_value = ir.Tensor(np.array(True))
+        if_node.replace_input_with(0, const_true)
+
+        # Pass 2: inline the If branch.
+        # 'temp' must be migrated from the subgraph to the main graph.
+        _constant_folding.fold_constants(model)
+        optimizer.remove_unused_nodes(model)
+        self.assertIn("temp", model.graph.initializers)
+        onnx.checker.check_model(ir.serde.serialize_model(model))
+
+    def test_fold_if_cond_with_subgraph_initializer_name_collision(self):
+        """Subgraph initializer names that clash with main-graph names get a unique suffix."""
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[1, 4] x, bool cond) => (float[4] z) {
+                axes_val = Constant <value_ints=[0]> ()
+                z = If (cond) <
+                    then_branch = then_branch_graph () => (then_z) {
+                        axes_val_inner = Constant <value_ints=[0]> ()
+                        then_z = Squeeze (x, axes_val_inner)
+                    },
+                    else_branch = else_branch_graph () => (else_z) {
+                        else_z = Squeeze (x, axes_val)
+                    }
+                >
+            }
+        """)
+
+        _constant_folding.fold_constants(model)
+        optimizer.remove_unused_nodes(model)
+
+        if_node = next(n for n in model.graph if n.op_type == "If")
+        const_true = ir.Value(name="const_true_collision")
+        const_true.const_value = ir.Tensor(np.array(True))
+        if_node.replace_input_with(0, const_true)
+
+        # Must not crash or silently overwrite on name collision.
+        _constant_folding.fold_constants(model)
+        optimizer.remove_unused_nodes(model)
+        onnx.checker.check_model(ir.serde.serialize_model(model))
+
     def _fold(
         self,
         model: ir.Model | str,
@@ -236,9 +306,7 @@ class FoldConstantsTest(unittest.TestCase):
         self.assertEqual(len(optimized.graph), 1)
         self.assertIn("C", optimized.graph.initializers)
 
-    def test_static_split_to_sequence_with_scalar_split_and_squence_at_is_folded_as_split(
-        self,
-    ):
+    def test_static_split_to_sequence_with_scalar_split_and_squence_at_is_folded_as_split(self):
         model = """
 <
    ir_version: 8,
@@ -260,8 +328,7 @@ func (float[1,512] x) => (float[1,512] return_val) {
 
         # TODO: There is an unrelated limitation that `symbolic_value` is not
         # utilized when the value is only referenced by graph output.
-        # E.g., the following test model will not have this optimization
-        # applied.
+        # E.g., the following test model will not have this optimization applied.
         #
         # <
         #    ir_version: 8,
@@ -284,9 +351,7 @@ func (float[1,512] x) => (float[1,512] return_val) {
         self.assertEqual(len(optimized.graph[-2].outputs), 4)
         self.assertEqual(optimized.graph[-2].op_type, "Split")
 
-    def test_static_split_to_sequence_with_list_split_and_squence_at_is_folded_as_split(
-        self,
-    ):
+    def test_static_split_to_sequence_with_list_split_and_squence_at_is_folded_as_split(self):
         model = """
 <
    ir_version: 8,
@@ -309,9 +374,7 @@ func (float[1,512] x) => (float[1,N] return_val) {
         self.assertEqual(len(optimized.graph[-2].outputs), 3)
         self.assertEqual(optimized.graph[-2].op_type, "Split")
 
-    def test_static_split_to_sequence_with_list_split_no_keepdims_and_squence_at_is_folded_as_split_with_squeeze(
-        self,
-    ):
+    def test_static_split_to_sequence_with_list_split_no_keepdims_and_squence_at_is_folded_as_split_with_squeeze(self):
         model = """
 <
    ir_version: 8,
@@ -334,9 +397,7 @@ func (float[1,3] x) => (float[1,3] return_val) {
         self.assertEqual(optimized.graph[1].op_type, "Split")
         self.assertEqual(len([n for n in optimized.graph if n.op_type == "Squeeze"]), 3)
 
-    def test_split_to_sequence_and_concat_from_sequence_with_new_axis_0(
-        self,
-    ):
+    def test_split_to_sequence_and_concat_from_sequence_with_new_axis_0(self):
         model = """
 <
    ir_version: 8,
@@ -352,9 +413,7 @@ func (float[1,3] x) => (float[1,3] return_val) {
         self.assertEqual(len(optimized.graph), 3)
         self.assertEqual(optimized.graph[2].op_type, "Concat")
 
-    def test_split_to_sequence_and_concat_from_sequence_with_new_axis_1(
-        self,
-    ):
+    def test_split_to_sequence_and_concat_from_sequence_with_new_axis_1(self):
         model = """
 <
    ir_version: 8,
@@ -736,8 +795,8 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         self.assertEqual([input.name for input in optimized.graph.inputs], ["x"])
 
     # This should not be constant-foldable as the constant references an
-    # attribute and thus the shape cannot be resolved. At the same time it
-    # should not fail due to the attribute value being None in
+    # attribute and thus the shape cannot be resolved.
+    # At the same time it should not fail due to the attribute value being None in
     # _process_constant_node
     def test_attribute_reference(self):
         model = """
