@@ -72,27 +72,28 @@ class RewriterContext:
             assert isinstance(outputs, int)
             num_outputs = outputs
 
-        if num_outputs == 1:
-            value = self._create_single_output_node(
-                op_type, inputs, kwargs, domain=domain, version=version, name=name
-            )
-            if isinstance(outputs, Sequence):
-                value.name = outputs[0]
-            return value
-
-        values = self._create_multi_output_node(
+        attrs: Sequence[ir.Attr] = _convenience.convert_attributes(kwargs) if kwargs else ()
+        node = ir.Node(
+            domain,
             op_type,
             inputs,
-            kwargs,
-            domain=domain,
+            attributes=attrs,
+            num_outputs=num_outputs,
             version=version,
             name=name,
-            num_outputs=num_outputs,
         )
+        self._sink.add_node(node)
+        self._sink.record_opset(domain, version)
+
+        if num_outputs == 1:
+            if isinstance(outputs, Sequence):
+                node.outputs[0].name = outputs[0]
+            return node.outputs[0]
+
         if isinstance(outputs, Sequence):
-            for value, output_name in zip(values, outputs):
+            for value, output_name in zip(node.outputs, outputs):
                 value.name = output_name
-        return values
+        return node.outputs
 
     def op(
         self,
@@ -109,9 +110,21 @@ class RewriterContext:
         This is useful when the op type is determined dynamically or when
         forwarding attributes from a matched node.
         """
-        return self._create_single_output_node(
-            op_type, inputs, attributes, domain=domain, version=version, name=name
+        attrs: Sequence[ir.Attr] = (
+            _convenience.convert_attributes(attributes) if attributes else ()
         )
+        node = ir.Node(
+            domain,
+            op_type,
+            inputs,
+            attributes=attrs,
+            num_outputs=1,
+            version=version,
+            name=name,
+        )
+        self._sink.add_node(node)
+        self._sink.record_opset(domain, version)
+        return node.outputs[0]
 
     def initializer(
         self,
@@ -126,65 +139,5 @@ class RewriterContext:
         value = ir.Value(
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
         )
-        sink = self._sink
-        sink.add_initializer(value)
+        self._sink.add_initializer(value)
         return value
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
-    def _create_single_output_node(
-        self,
-        op_type: str,
-        inputs: Sequence[ir.Value | None],
-        attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
-        *,
-        domain: str = "",
-        version: int | None = None,
-        name: str | None = None,
-    ) -> ir.Value:
-        attrs: Sequence[ir.Attr] = (
-            _convenience.convert_attributes(attributes) if attributes else ()
-        )
-        node = ir.Node(
-            domain,
-            op_type,
-            inputs,
-            attributes=attrs,
-            num_outputs=1,
-            version=version,
-            name=name,
-        )
-        sink = self._sink
-        sink.add_node(node)
-        sink.record_opset(domain, version)
-        return node.outputs[0]
-
-    def _create_multi_output_node(
-        self,
-        op_type: str,
-        inputs: Sequence[ir.Value | None],
-        attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
-        *,
-        domain: str = "",
-        version: int | None = None,
-        name: str | None = None,
-        num_outputs: int,
-    ) -> Sequence[ir.Value]:
-        attrs: Sequence[ir.Attr] = (
-            _convenience.convert_attributes(attributes) if attributes else ()
-        )
-        node = ir.Node(
-            domain,
-            op_type,
-            inputs,
-            attributes=attrs,
-            num_outputs=num_outputs,
-            version=version,
-            name=name,
-        )
-        sink = self._sink
-        sink.add_node(node)
-        sink.record_opset(domain, version)
-        return node.outputs
