@@ -23,22 +23,6 @@ from onnx_ir import _convenience
 
 from onnxscript.rewriter._node_sink import NodeSink
 
-# Attribute names that rules must NOT access.  We block both the public
-# harvesting properties and common private names to prevent accidental
-# coupling to the implementation.
-_FORBIDDEN_ATTRS = frozenset(
-    {
-        "nodes",
-        "initializers",
-        "used_opsets",
-        "_nodes",
-        "_initializers",
-        "_used_opsets",
-        "graph_like",
-        "_sink",
-    }
-)
-
 
 class RewriterContext:
     """The interface available to rewrite-rule ``rewrite()`` functions.
@@ -50,9 +34,6 @@ class RewriterContext:
     2. **Explicit op creation** — ``op.op("Conv", inputs, attrs, domain=...)``.
     3. **Initializer creation** — ``op.initializer(tensor, name=...)``.
 
-    Accessing engine-internal state (``nodes``, ``initializers``, ``used_opsets``,
-    etc.) raises ``AttributeError`` with a descriptive message.
-
     Args:
         sink: The :class:`NodeSink` backend where created nodes and initializers
             are stored.  The engine retains a reference to this sink and harvests
@@ -60,25 +41,13 @@ class RewriterContext:
     """
 
     def __init__(self, sink: NodeSink) -> None:
-        # Store the sink directly on the instance dict, bypassing __getattribute__.
-        object.__setattr__(self, "_RewriterContext__sink", sink)
+        self._sink = sink
 
-    def __getattribute__(self, name: str) -> Any:
-        if name in _FORBIDDEN_ATTRS:
-            raise AttributeError(
-                f"'{type(self).__name__}.{name}' is not available to rewrite rules. "
-                f"Use op.OpName(...), op.op(...), or op.initializer(...) only."
-            )
-        return object.__getattribute__(self, name)
-
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, op_type: str) -> Any:
         """Dynamic op dispatch: ``op.Relu(x)``, ``op.MatMul(a, b)``, etc.
 
-        Returns a callable that creates a node of the given ``name`` (as op_type)
+        Returns a callable that creates a node of the given ``op_type``
         and records it on the internal sink.
-
-        Accessing engine-internal names (``nodes``, ``initializers``, etc.) raises
-        ``AttributeError``.
 
         Supported keyword arguments on the returned callable:
             _domain (str): Op domain (default ``""``).
@@ -86,12 +55,7 @@ class RewriterContext:
             _outputs (int | list[str]): Number of outputs or explicit output names.
             _name (str | None): Optional node name (must be unique).
         """
-        if name in _FORBIDDEN_ATTRS:
-            raise AttributeError(
-                f"'{type(self).__name__}.{name}' is not available to rewrite rules. "
-                f"Use op.OpName(...), op.op(...), or op.initializer(...) only."
-            )
-        return lambda *args, **kwargs: self._make_node(name, args, kwargs)
+        return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
 
     def _make_node(
         self, op_type: str, inputs: Sequence[ir.Value | None], kwargs: dict[str, Any]
@@ -162,7 +126,7 @@ class RewriterContext:
         value = ir.Value(
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
         )
-        sink: NodeSink = object.__getattribute__(self, "_RewriterContext__sink")
+        sink = self._sink
         sink.add_initializer(value)
         return value
 
@@ -192,7 +156,7 @@ class RewriterContext:
             version=version,
             name=name,
         )
-        sink: NodeSink = object.__getattribute__(self, "_RewriterContext__sink")
+        sink = self._sink
         sink.add_node(node)
         sink.record_opset(domain, version)
         return node.outputs[0]
@@ -220,7 +184,7 @@ class RewriterContext:
             version=version,
             name=name,
         )
-        sink: NodeSink = object.__getattribute__(self, "_RewriterContext__sink")
+        sink = self._sink
         sink.add_node(node)
         sink.record_opset(domain, version)
         return node.outputs

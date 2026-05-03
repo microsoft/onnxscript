@@ -40,53 +40,6 @@ class TapeSinkTest(unittest.TestCase):
         self.assertEqual(len(sink.used_opsets), 0)
 
 
-class RewriterContextForbiddenAccessTest(unittest.TestCase):
-    """Tests that forbidden attributes raise AttributeError."""
-
-    def _make_context(self) -> RewriterContext:
-        return RewriterContext(TapeSink())
-
-    def test_nodes_raises(self):
-        ctx = self._make_context()
-        with self.assertRaises(AttributeError):
-            _ = ctx.nodes
-
-    def test_initializers_raises(self):
-        ctx = self._make_context()
-        with self.assertRaises(AttributeError):
-            _ = ctx.initializers
-
-    def test_used_opsets_raises(self):
-        ctx = self._make_context()
-        with self.assertRaises(AttributeError):
-            _ = ctx.used_opsets
-
-    def test_private_nodes_raises(self):
-        ctx = self._make_context()
-        with self.assertRaises(AttributeError):
-            _ = ctx._nodes
-
-    def test_private_initializers_raises(self):
-        ctx = self._make_context()
-        with self.assertRaises(AttributeError):
-            _ = ctx._initializers
-
-    def test_private_used_opsets_raises(self):
-        ctx = self._make_context()
-        with self.assertRaises(AttributeError):
-            _ = ctx._used_opsets
-
-    def test_sink_raises(self):
-        ctx = self._make_context()
-        with self.assertRaises(AttributeError):
-            _ = ctx._sink
-
-    def test_graph_like_raises(self):
-        ctx = self._make_context()
-        with self.assertRaises(AttributeError):
-            _ = ctx.graph_like
-
-
 class RewriterContextOpCreationTest(unittest.TestCase):
     """Tests that op creation works correctly via RewriterContext."""
 
