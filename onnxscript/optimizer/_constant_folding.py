@@ -25,6 +25,7 @@ import onnx_ir as ir
 
 import onnxscript.utils.utils as utils
 from onnxscript.ir import _tape
+from onnxscript.rewriter._context import OptimizerContext
 
 DEFAULT_CONSTANT_FOLD_BLACKLIST = [
     # ConstantOfShape is preserved to avoid increasing model size unnecessarily
@@ -211,14 +212,13 @@ class OptimizerState:
 # The "partial evaluators" below are non-standard evaluators. They are used to perform
 # partial evaluation and/or static program analysis (abstract interpretation).
 
-# A partial-evaluator function takes a node, a RewriterContext, OptimizerState and returns
+# A partial-evaluator function takes a node, an OptimizerContext, OptimizerState and returns
 # a Replacement for the node or None (if no replacement is needed). It may also return just
 # the ir.Value or ir.Values to replace the output values of the node, when the new nodes
-# can be inferred from the RewriterContext used to build the new nodes.
+# can be inferred from the OptimizerContext used to build the new nodes.
 
-RewriterContext = _tape.Builder
 ReturnValue = Union[Replacement, Sequence[ir.Value], ir.Value, None]
-PartialEvaluatorFunction = Callable[[ir.Node, RewriterContext, OptimizerState], ReturnValue]
+PartialEvaluatorFunction = Callable[[ir.Node, OptimizerContext, OptimizerState], ReturnValue]
 
 
 @dataclasses.dataclass
@@ -1176,7 +1176,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
         for optimizer in op_optimizers:
             assert optimizer
-            context = RewriterContext()
+            context = _tape.Builder()
             try:
                 output = optimizer(node, context, self._state)
             except Exception as e:

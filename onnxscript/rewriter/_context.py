@@ -4,7 +4,7 @@
 
 This module defines:
 
-- ``RewriterContext``: Abstract base class exposing the rule-facing API for
+- ``OpBuilderBase``: Abstract base class exposing the rule-facing API for
   creating new nodes (via ``op.OpName(...)`` or ``op.op(...)``) and new
   initializers (via ``op.initializer(...)``).  Subclasses implement the
   storage strategy by overriding ``_add_node``, ``_add_initializer``, and
@@ -13,6 +13,9 @@ This module defines:
 - ``TapeRewriterContext``: Concrete subclass backed by simple lists.  The
   rewrite engine creates an instance, passes it to the rule, and harvests
   the accumulated nodes / initializers / opsets after the rule returns.
+
+- ``RewriterContext``: Alias for ``OpBuilderBase`` (used by rewrite rules).
+- ``OptimizerContext``: Alias for ``OpBuilderBase`` (used by the optimizer).
 """
 
 from __future__ import annotations
@@ -26,7 +29,7 @@ from onnx_ir import _convenience
 UsedOpsets = set[tuple[str, Optional[int]]]
 
 
-class RewriterContext(abc.ABC):
+class OpBuilderBase(abc.ABC):
     """The interface available to rewrite-rule ``rewrite()`` functions.
 
     Rewrite rules receive an instance of a concrete subclass as the ``op``
@@ -167,7 +170,7 @@ class RewriterContext(abc.ABC):
         return value
 
 
-class TapeRewriterContext(RewriterContext):
+class TapeRewriterContext(OpBuilderBase):
     """Concrete rewriter context backed by simple lists.
 
     The rewrite engine creates an instance, passes it to the rule's
@@ -206,3 +209,11 @@ class TapeRewriterContext(RewriterContext):
     def used_opsets(self) -> UsedOpsets:
         """Opset domains/versions referenced by created nodes."""
         return self._used_opsets
+
+
+# Public aliases for domain-specific usage
+RewriterContext = OpBuilderBase
+"""Alias for :class:`OpBuilderBase`, used in rewrite rule signatures."""
+
+OptimizerContext = OpBuilderBase
+"""Alias for :class:`OpBuilderBase`, used in optimizer partial-evaluator signatures."""
