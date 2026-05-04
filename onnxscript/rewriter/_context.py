@@ -1,53 +1,77 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Separated interfaces for the rewriter's node-building context.
+"""Rewriter context for building replacement subgraphs in rewrite rules.
 
 This module defines:
 
-- ``RewriterContext``: The restricted API exposed to rewrite-rule authors.
-  It allows creating new nodes (via ``op.OpName(...)`` or ``op.op(...)``) and
-  new initializers (via ``op.initializer(...)``), but blocks access to internal
-  state such as the accumulated nodes, initializers, or opset metadata.
+- ``RewriterContext``: Abstract base class exposing the rule-facing API for
+  creating new nodes (via ``op.OpName(...)`` or ``op.op(...)``) and new
+  initializers (via ``op.initializer(...)``).  Subclasses implement the
+  storage strategy by overriding ``_add_node``, ``_add_initializer``, and
+  ``_record_opset``.
 
-- ``NodeSink``: The abstract backend that stores nodes and initializers.
-  The engine creates a sink, passes it to ``RewriterContext``, and harvests
-  results from the sink after the rule returns.
+- ``TapeRewriterContext``: Concrete subclass backed by simple lists.  The
+  rewrite engine creates an instance, passes it to the rule, and harvests
+  the accumulated nodes / initializers / opsets after the rule returns.
 """
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+import abc
+from typing import Any, Mapping, Optional, Sequence
 
 import onnx_ir as ir
 from onnx_ir import _convenience
 
-from onnxscript.rewriter._node_sink import NodeSink
+UsedOpsets = set[tuple[str, Optional[int]]]
 
 
-class RewriterContext:
+class RewriterContext(abc.ABC):
     """The interface available to rewrite-rule ``rewrite()`` functions.
 
-    Rewrite rules receive an instance of this class as the ``op`` parameter.
-    It supports three operations:
+    Rewrite rules receive an instance of a concrete subclass as the ``op``
+    parameter.  It supports three operations:
 
     1. **Dynamic op dispatch** — ``op.Relu(x)``, ``op.MatMul(a, b, _domain=...)``, etc.
     2. **Explicit op creation** — ``op.op("Conv", inputs, attrs, domain=...)``.
     3. **Initializer creation** — ``op.initializer(tensor, name=...)``.
 
-    Args:
-        sink: The :class:`NodeSink` backend where created nodes and initializers
-            are stored.  The engine retains a reference to this sink and harvests
-            results after the rule returns.
+    Subclasses must implement the three protected methods that define where
+    created nodes and initializers are stored:
+
+    - :meth:`_add_node`
+    - :meth:`_add_initializer`
+    - :meth:`_record_opset`
     """
 
-    def __init__(self, sink: NodeSink) -> None:
-        self._sink = sink
+    # ------------------------------------------------------------------
+    # Abstract storage interface (to be implemented by subclasses)
+    # ------------------------------------------------------------------
+
+    @abc.abstractmethod
+    def _add_node(self, node: ir.Node) -> None:
+        """Record a newly created node."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def _add_initializer(self, value: ir.Value) -> None:
+        """Record a newly created initializer."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def _record_opset(self, domain: str, version: int | None) -> None:
+        """Record that an opset domain/version was referenced."""
+        raise NotImplementedError
+
+    # ------------------------------------------------------------------
+    # Rule-facing API (concrete)
+    # ------------------------------------------------------------------
 
     def __getattr__(self, op_type: str) -> Any:
         """Dynamic op dispatch: ``op.Relu(x)``, ``op.MatMul(a, b)``, etc.
 
         Returns a callable that creates a node of the given ``op_type``
-        and records it on the internal sink.
+        and records it via the subclass storage implementation.
 
         Supported keyword arguments on the returned callable:
             _domain (str): Op domain (default ``""``).
@@ -82,8 +106,8 @@ class RewriterContext:
             version=version,
             name=name,
         )
-        self._sink.add_node(node)
-        self._sink.record_opset(domain, version)
+        self._add_node(node)
+        self._record_opset(domain, version)
 
         if num_outputs == 1:
             if isinstance(outputs, Sequence):
@@ -122,8 +146,8 @@ class RewriterContext:
             version=version,
             name=name,
         )
-        self._sink.add_node(node)
-        self._sink.record_opset(domain, version)
+        self._add_node(node)
+        self._record_opset(domain, version)
         return node.outputs[0]
 
     def initializer(
@@ -139,5 +163,46 @@ class RewriterContext:
         value = ir.Value(
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
         )
-        self._sink.add_initializer(value)
+        self._add_initializer(value)
         return value
+
+
+class TapeRewriterContext(RewriterContext):
+    """Concrete rewriter context backed by simple lists.
+
+    The rewrite engine creates an instance, passes it to the rule's
+    ``rewrite()`` function, and after the rule returns, harvests the
+    accumulated results via the ``nodes``, ``initializers``, and
+    ``used_opsets`` properties.
+    """
+
+    def __init__(self) -> None:
+        self._nodes: list[ir.Node] = []
+        self._initializers: list[ir.Value] = []
+        self._used_opsets: UsedOpsets = set()
+
+    def _add_node(self, node: ir.Node) -> None:
+        self._nodes.append(node)
+
+    def _add_initializer(self, value: ir.Value) -> None:
+        self._initializers.append(value)
+
+    def _record_opset(self, domain: str, version: int | None) -> None:
+        self._used_opsets.add((domain, version))
+
+    # --- Engine-only harvesting properties ---
+
+    @property
+    def nodes(self) -> Sequence[ir.Node]:
+        """All nodes created during this replacement."""
+        return tuple(self._nodes)
+
+    @property
+    def initializers(self) -> Sequence[ir.Value]:
+        """All initializers created during this replacement."""
+        return tuple(self._initializers)
+
+    @property
+    def used_opsets(self) -> UsedOpsets:
+        """Opset domains/versions referenced by created nodes."""
+        return self._used_opsets
