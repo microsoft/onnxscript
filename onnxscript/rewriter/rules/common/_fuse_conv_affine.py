@@ -41,9 +41,7 @@ class _ConvAffineFusionBase(pattern.RewriteRuleClassBase):
 class AffineConvFusion(_ConvAffineFusionBase):
     """Pattern: scalar Mul + scalar Add + Conv (1x1) --> Conv(1x1)"""
 
-    def pattern(
-        self, op, x: ir.Value, w: ir.Value, b: ir.Value, scale: ir.Value, offset: ir.Value
-    ) -> ir.Value:
+    def pattern(self, op, x, w, b, scale, offset):
         return op.Conv(
             x * scale + offset,
             w,
@@ -79,9 +77,7 @@ class AffineConvFusion(_ConvAffineFusionBase):
 class ConvAffineFusion(_ConvAffineFusionBase):
     """Pattern: Conv + scalar Mul + scalar Add --> Conv(1x1)"""
 
-    def pattern(
-        self, op, x: ir.Value, w: ir.Value, b: ir.Value, scale: ir.Value, offset: ir.Value
-    ) -> ir.Value:
+    def pattern(self, op, x, w, b, scale, offset):
         return (
             op.Conv(x, w, b, _allow_other_attributes=True, _outputs=["conv_out"]) * scale
             + offset

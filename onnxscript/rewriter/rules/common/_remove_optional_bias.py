@@ -54,7 +54,7 @@ class RemoveOptionalBiasFromConv(_RemoveOptionalBias):
 
     op_type: ClassVar[str] = "Conv"
 
-    def pattern(self, op, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
+    def pattern(self, op, x, w, b):
         return op.Conv(x, w, b, _outputs=["out"])
 
 
@@ -63,7 +63,7 @@ class RemoveOptionalBiasFromConvTranspose(_RemoveOptionalBias):
 
     op_type: ClassVar[str] = "ConvTranspose"
 
-    def pattern(self, op, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
+    def pattern(self, op, x, w, b):
         return op.ConvTranspose(x, w, b, _outputs=["out"])
 
 
@@ -83,8 +83,8 @@ class RemoveOptionalBiasFromQLinearConv(_RemoveOptionalBias):
         w_zero_point,
         y_scale,
         y_zero_point,
-        b: ir.Value,
-    ) -> ir.Value:
+        b,
+    ):
         return op.QLinearConv(
             x,
             x_scale,
@@ -104,7 +104,7 @@ class RemoveOptionalBiasFromGemm(_RemoveOptionalBias):
 
     op_type: ClassVar[str] = "Gemm"
 
-    def pattern(self, op, x: ir.Value, w: ir.Value, b: ir.Value) -> ir.Value:
+    def pattern(self, op, x, w, b):
         return op.Gemm(x, w, b, _outputs=["out"])
 
 

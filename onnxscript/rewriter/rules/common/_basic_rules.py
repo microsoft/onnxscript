@@ -305,7 +305,7 @@ class UnsqueezeUnsqueeze(RewriteRuleClassBase):
 class Flatten2Reshape(RewriteRuleClassBase):
     """Convert ``Flatten(x)`` to Reshape."""
 
-    def pattern(self, op, x: ir.Value):
+    def pattern(self, op, x):
         return op.Flatten(x)
 
     def rewrite(self, op, x: ir.Value):
