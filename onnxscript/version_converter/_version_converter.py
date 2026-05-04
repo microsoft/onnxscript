@@ -11,7 +11,7 @@ from typing import Callable, Sequence, Union
 
 import onnx_ir.convenience as ir_convenience
 
-import onnxscript.ir._tape as _tape
+import onnxscript.rewriter._context as _context
 import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
 
@@ -53,12 +53,14 @@ class Replacement:
     new_nodes: Sequence[ir.Node]
 
 
-# A version-adapter function takes a node, a RewriterContext and returns
+from onnxscript.rewriter._context import TapeBuilder
+
+# A version-adapter function takes a node, a VCContext and returns
 # a Replacement for the node or None (if no replacement is needed).
 
-RewriterContext = _tape.Builder
+VCContext = _context.OpBuilderBase
 ReturnValue = Union[Sequence[ir.Value], ir.Value, None]
-AdapterFunction = Callable[[ir.Node, RewriterContext], ReturnValue]
+AdapterFunction = Callable[[ir.Node, VCContext], ReturnValue]
 
 
 def version_supported(model: ir.Model, target_version: int) -> bool:
@@ -255,7 +257,7 @@ class _VersionConverter:
         )
         if adapter is None:
             return None
-        context = RewriterContext()
+        context = TapeBuilder()
         output = adapter(node, context)
         if output is not None:
             if isinstance(output, ir.Value):
