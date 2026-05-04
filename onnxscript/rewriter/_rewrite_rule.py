@@ -217,7 +217,7 @@ class ReplacementPatternFunction:
         self._function = function
 
     def get_replacement(self, match: _basics.MatchResult) -> ReplacementSubgraph | None:
-        context = _context.TapeRewriterContext()
+        context = _context.TapeBuilder()
         try:
             new_outputs = self._function(context, **match.bindings)
         except _basics.MatchFailureError as e:

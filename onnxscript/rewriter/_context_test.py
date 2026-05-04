@@ -1,27 +1,27 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Tests for _context.py: RewriterContext ABC and TapeRewriterContext."""
+"""Tests for _context.py: RewriterContext ABC and TapeBuilder."""
 
 from __future__ import annotations
 
 import unittest
 
 from onnxscript import ir
-from onnxscript.rewriter._context import TapeRewriterContext
+from onnxscript.rewriter._context import TapeBuilder
 
 
-class TapeRewriterContextStorageTest(unittest.TestCase):
-    """Tests for the storage/harvesting interface of TapeRewriterContext."""
+class TapeBuilderStorageTest(unittest.TestCase):
+    """Tests for the storage/harvesting interface of TapeBuilder."""
 
     def test_add_node_and_harvest(self):
-        ctx = TapeRewriterContext()
+        ctx = TapeBuilder()
         node = ir.Node("", "Relu", [ir.Value()], num_outputs=1)
         ctx._add_node(node)
         self.assertEqual(len(ctx.nodes), 1)
         self.assertIs(ctx.nodes[0], node)
 
     def test_add_initializer_and_harvest(self):
-        ctx = TapeRewriterContext()
+        ctx = TapeBuilder()
         tensor = ir.tensor([1.0, 2.0], name="init")
         value = ir.Value(name="init", const_value=tensor)
         ctx._add_initializer(value)
@@ -29,23 +29,23 @@ class TapeRewriterContextStorageTest(unittest.TestCase):
         self.assertIs(ctx.initializers[0], value)
 
     def test_record_opset(self):
-        ctx = TapeRewriterContext()
+        ctx = TapeBuilder()
         ctx._record_opset("", 20)
         ctx._record_opset("com.microsoft", 1)
         self.assertEqual(ctx.used_opsets, {("", 20), ("com.microsoft", 1)})
 
     def test_empty_context(self):
-        ctx = TapeRewriterContext()
+        ctx = TapeBuilder()
         self.assertEqual(len(ctx.nodes), 0)
         self.assertEqual(len(ctx.initializers), 0)
         self.assertEqual(len(ctx.used_opsets), 0)
 
 
 class RewriterContextOpCreationTest(unittest.TestCase):
-    """Tests that op creation works correctly via TapeRewriterContext."""
+    """Tests that op creation works correctly via TapeBuilder."""
 
     def test_dynamic_dispatch_single_output(self):
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         x = ir.Value(name="x")
         result = op.Relu(x)
         self.assertIsInstance(result, ir.Value)
@@ -53,7 +53,7 @@ class RewriterContextOpCreationTest(unittest.TestCase):
         self.assertEqual(op.nodes[0].op_type, "Relu")
 
     def test_dynamic_dispatch_with_domain(self):
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         x = ir.Value(name="x")
         result = op.BiasGelu(x, _domain="com.microsoft")
         self.assertIsInstance(result, ir.Value)
@@ -61,7 +61,7 @@ class RewriterContextOpCreationTest(unittest.TestCase):
         self.assertIn(("com.microsoft", None), op.used_opsets)
 
     def test_dynamic_dispatch_multi_output(self):
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         x = ir.Value(name="x")
         results = op.Split(x, _outputs=3)
         self.assertEqual(len(results), 3)
@@ -69,20 +69,20 @@ class RewriterContextOpCreationTest(unittest.TestCase):
         self.assertEqual(len(op.nodes), 1)
 
     def test_dynamic_dispatch_named_outputs(self):
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         x = ir.Value(name="x")
         results = op.Split(x, _outputs=["a", "b"])
         self.assertEqual(results[0].name, "a")
         self.assertEqual(results[1].name, "b")
 
     def test_dynamic_dispatch_with_name(self):
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         x = ir.Value(name="x")
         _ = op.Relu(x, _name="my_relu")
         self.assertEqual(op.nodes[0].name, "my_relu")
 
     def test_op_method_explicit(self):
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         x = ir.Value(name="x")
         w = ir.Value(name="w")
         result = op.op("Conv", inputs=[x, w], domain="", name="my_conv")
@@ -91,7 +91,7 @@ class RewriterContextOpCreationTest(unittest.TestCase):
         self.assertEqual(op.nodes[0].name, "my_conv")
 
     def test_op_method_with_attributes(self):
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         x = ir.Value(name="x")
         result = op.op("Elu", inputs=[x], attributes={"alpha": 2.0})
         self.assertIsInstance(result, ir.Value)
@@ -100,7 +100,7 @@ class RewriterContextOpCreationTest(unittest.TestCase):
 
     def test_op_method_with_attr_map(self):
         """Verify that passing node.attributes (an Attributes mapping) works."""
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         source_node = ir.Node(
             "",
             "Conv",
@@ -113,7 +113,7 @@ class RewriterContextOpCreationTest(unittest.TestCase):
         self.assertIn("pads", op.nodes[0].attributes)
 
     def test_initializer_creation(self):
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         tensor = ir.tensor([1.0, 2.0, 3.0], name="my_init")
         value = op.initializer(tensor, name="my_init")
         self.assertIsInstance(value, ir.Value)
@@ -121,13 +121,13 @@ class RewriterContextOpCreationTest(unittest.TestCase):
         self.assertEqual(len(op.initializers), 1)
 
     def test_initializer_requires_name(self):
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         tensor = ir.tensor([1.0, 2.0, 3.0])
         with self.assertRaises(ValueError):
             op.initializer(tensor)
 
     def test_opset_recording(self):
-        op = TapeRewriterContext()
+        op = TapeBuilder()
         x = ir.Value(name="x")
         _ = op.Relu(x)
         _ = op.BiasGelu(x, _domain="com.microsoft", _version=1)

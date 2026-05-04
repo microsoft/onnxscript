@@ -170,13 +170,12 @@ class OpBuilderBase(abc.ABC):
         return value
 
 
-class TapeRewriterContext(OpBuilderBase):
-    """Concrete rewriter context backed by simple lists.
+class TapeBuilder(OpBuilderBase):
+    """Concrete builder backed by simple lists (tape-like storage).
 
-    The rewrite engine creates an instance, passes it to the rule's
-    ``rewrite()`` function, and after the rule returns, harvests the
-    accumulated results via the ``nodes``, ``initializers``, and
-    ``used_opsets`` properties.
+    The rewrite engine and optimizer create an instance, pass it to the
+    rule/evaluator, and after it returns, harvest the accumulated results
+    via the ``nodes``, ``initializers``, and ``used_opsets`` properties.
     """
 
     def __init__(self) -> None:
@@ -217,3 +216,6 @@ RewriterContext = OpBuilderBase
 
 OptimizerContext = OpBuilderBase
 """Alias for :class:`OpBuilderBase`, used in optimizer partial-evaluator signatures."""
+
+# Backward compatibility alias
+TapeRewriterContext = TapeBuilder

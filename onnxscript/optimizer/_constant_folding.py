@@ -24,8 +24,7 @@ import onnx.reference.ops
 import onnx_ir as ir
 
 import onnxscript.utils.utils as utils
-from onnxscript.ir import _tape
-from onnxscript.rewriter._context import OptimizerContext
+from onnxscript.rewriter._context import OptimizerContext, TapeBuilder
 
 DEFAULT_CONSTANT_FOLD_BLACKLIST = [
     # ConstantOfShape is preserved to avoid increasing model size unnecessarily
@@ -1176,7 +1175,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
         for optimizer in op_optimizers:
             assert optimizer
-            context = _tape.Builder()
+            context = TapeBuilder()
             try:
                 output = optimizer(node, context, self._state)
             except Exception as e:
