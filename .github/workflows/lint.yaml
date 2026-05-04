@@ -21,9 +21,9 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: misspell # Check spelling
-        uses: reviewdog/action-misspell@v1
+        uses: reviewdog/action-misspell@0789410278cba39afd488d97a0e305ba35776bbf # v1
         with:
           github_token: ${{ secrets.github_token }}
           locale: "US"
@@ -31,7 +31,7 @@ jobs:
           level: info
           filter_mode: diff_context
       - name: shellcheck # Static check shell scripts
-        uses: reviewdog/action-shellcheck@v1
+        uses: reviewdog/action-shellcheck@4410ae3f82f068bdb0234069a9bf2367923fb39a # v1
         with:
           github_token: ${{ secrets.github_token }}
           reporter: github-pr-check
@@ -44,9 +44,9 @@ jobs:
     permissions:
       security-events: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6
         with:
           # Version range or exact version of Python to use, using SemVer's version range syntax. Reads from .python-version if unset.
           python-version: "3.10"
