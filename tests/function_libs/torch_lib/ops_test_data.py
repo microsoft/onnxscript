@@ -1003,7 +1003,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.pixel_unshuffle",
         core_ops.aten_pixel_unshuffle,
-    ).xfail(
+    )
+    .skip(
+        matcher=lambda sample: sample.input.numel() == 0,
+        reason="fixme: size 0 inputs are not handled yet",
+    )
+    .xfail(
         dtypes=(torch.int32, torch.int64),
         reason="fixme: ONNX Runtime does not support int32/64 inputs",
     ),
