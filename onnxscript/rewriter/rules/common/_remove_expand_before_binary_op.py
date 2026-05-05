@@ -248,7 +248,7 @@ class _ExpandFirstInput(RewriteRuleClassBase):
         super().__init__(f"ExpandFirst_{op_type}", remove_nodes=False)
         self._op_type = op_type
 
-    def pattern(self, op, x: ir.Value, shape: ir.Value, y: ir.Value) -> ir.Value:
+    def pattern(self, op, x, shape, y):
         return getattr(op, self._op_type)(op.Expand(x, shape), y)
 
     def check(self, context, x: ir.Value, shape: ir.Value, y: ir.Value) -> MatchResult:
@@ -269,7 +269,7 @@ class _ExpandSecondInput(RewriteRuleClassBase):
         super().__init__(f"ExpandSecond_{op_type}", remove_nodes=False)
         self._op_type = op_type
 
-    def pattern(self, op, x: ir.Value, y: ir.Value, shape: ir.Value) -> ir.Value:
+    def pattern(self, op, x, y, shape):
         return getattr(op, self._op_type)(x, op.Expand(y, shape))
 
     def check(self, context, x: ir.Value, y: ir.Value, shape: ir.Value) -> MatchResult:
