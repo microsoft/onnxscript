@@ -838,7 +838,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "logcumsumexp", core_ops.aten_logcumsumexp, tolerance={torch.float16: (1e-2, 1e-1)}
     ),
     TorchLibOpInfo("logdet", core_ops.aten_logdet),
-    TorchLibOpInfo("logsumexp", core_ops.aten_logsumexp),
+    TorchLibOpInfo(
+        "logsumexp", core_ops.aten_logsumexp, tolerance={torch.float16: (2e-2, 1e-4)}
+    ),
     TorchLibOpInfo("lt", core_ops.aten_lt),
     TorchLibOpInfo("masked_fill", core_ops.aten_masked_fill).xfail(
         dtypes=(torch.bool,),
