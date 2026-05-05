@@ -24,7 +24,7 @@ import onnx.reference.ops
 import onnx_ir as ir
 
 import onnxscript.utils.utils as utils
-from onnxscript.tape_builder import OpBuilderBase, TapeBuilder
+from onnxscript._internal.tape_builder import OpBuilderBase, TapeBuilder
 
 OptimizerContext = OpBuilderBase
 

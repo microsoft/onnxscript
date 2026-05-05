@@ -133,9 +133,9 @@ from .onnx_types import (
 
 from . import ir, nn, optimizer, rewriter, version_converter
 from ._internal.builder import GraphBuilder, OpBuilder
+from ._internal.tape_builder import OpBuilderBase, TapeBuilder
 from ._internal.utils import external_tensor
 from ._internal.values import OnnxFunction, TracedOnnxFunction
-from .tape_builder import OpBuilderBase, TapeBuilder
 
 # Set DEBUG to True to enable additional debug checks
 DEBUG: bool = False

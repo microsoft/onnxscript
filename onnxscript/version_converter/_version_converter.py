@@ -13,7 +13,7 @@ import onnx_ir.convenience as ir_convenience
 
 import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
-from onnxscript.tape_builder import OpBuilderBase, TapeBuilder
+from onnxscript._internal.tape_builder import OpBuilderBase, TapeBuilder
 
 logger = logging.getLogger(__name__)
 
