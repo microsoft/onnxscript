@@ -24,7 +24,9 @@ import onnx.reference.ops
 import onnx_ir as ir
 
 import onnxscript.utils.utils as utils
-from onnxscript.rewriter._context import OptimizerContext, TapeBuilder
+from onnxscript.tape_builder import OpBuilderBase, TapeBuilder
+
+OptimizerContext = OpBuilderBase
 
 DEFAULT_CONSTANT_FOLD_BLACKLIST = [
     # ConstantOfShape is preserved to avoid increasing model size unnecessarily

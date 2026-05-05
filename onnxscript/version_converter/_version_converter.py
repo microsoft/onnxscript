@@ -11,9 +11,9 @@ from typing import Callable, Sequence, Union
 
 import onnx_ir.convenience as ir_convenience
 
-import onnxscript.rewriter._context as _context
 import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
+from onnxscript.tape_builder import OpBuilderBase, TapeBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +53,10 @@ class Replacement:
     new_nodes: Sequence[ir.Node]
 
 
-from onnxscript.rewriter._context import TapeBuilder
-
 # A version-adapter function takes a node, a VCContext and returns
 # a Replacement for the node or None (if no replacement is needed).
 
-VCContext = _context.OpBuilderBase
+VCContext = OpBuilderBase
 ReturnValue = Union[Sequence[ir.Value], ir.Value, None]
 AdapterFunction = Callable[[ir.Node, VCContext], ReturnValue]
 

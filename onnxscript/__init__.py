@@ -14,6 +14,8 @@ __all__ = [
     "TracedOnnxFunction",
     "GraphBuilder",
     "OpBuilder",
+    "OpBuilderBase",
+    "TapeBuilder",
     "proto2python",
     "external_tensor",
     "BFLOAT16",
@@ -133,6 +135,7 @@ from . import ir, nn, optimizer, rewriter, version_converter
 from ._internal.builder import GraphBuilder, OpBuilder
 from ._internal.utils import external_tensor
 from ._internal.values import OnnxFunction, TracedOnnxFunction
+from .tape_builder import OpBuilderBase, TapeBuilder
 
 # Set DEBUG to True to enable additional debug checks
 DEBUG: bool = False
