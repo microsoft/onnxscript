@@ -33,13 +33,6 @@ from onnxscript._internal import param_manipulation
 
 UsedOpsets = set[tuple[str, Optional[int]]]
 
-# Mapping from Python scalar types to their default ONNX DataType,
-# used when no schema-based type binding is available.
-_PYTHON_TYPE_TO_DTYPE: dict[type, ir.DataType] = {
-    int: ir.DataType.INT64,
-    float: ir.DataType.FLOAT,
-}
-
 
 def _dtype_suffix(dtype: ir.DataType) -> str:
     """Return a short type suffix for naming constants based on ir.DataType."""
@@ -323,7 +316,7 @@ class BuilderBase(abc.ABC):
 
         _inference.infer_outputs(node)
 
-    def _annotate_node(self, node: ir.Node) -> None:
+    def _annotate_node(self, node: ir.Node) -> None:  # noqa: B027
         """Attach metadata to a node after creation.
 
         Default: no-op. Override to add scope/namespace annotations.

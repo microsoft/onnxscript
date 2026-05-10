@@ -18,11 +18,8 @@ import onnx_ir as ir
 import onnxscript
 from onnxscript._internal import _inliner
 from onnxscript._internal.tape_builder import (
-    _PYTHON_TYPE_TO_DTYPE,
     BuilderBase,
     BuilderFeature,
-    _constant_name,
-    _dtype_suffix,
 )
 
 # A permissible value for an op input, which can be converted to an ir.Value.
