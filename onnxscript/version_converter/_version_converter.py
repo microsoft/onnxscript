@@ -13,7 +13,7 @@ import onnx_ir.convenience as ir_convenience
 
 import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
-from onnxscript._internal.tape_builder import OpBuilderBase, TapeBuilder
+from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class Replacement:
 # A version-adapter function takes a node, a VCContext and returns
 # a Replacement for the node or None (if no replacement is needed).
 
-VCContext = OpBuilderBase
+VCContext = BuilderBase
 ReturnValue = Union[Sequence[ir.Value], ir.Value, None]
 AdapterFunction = Callable[[ir.Node, VCContext], ReturnValue]
 

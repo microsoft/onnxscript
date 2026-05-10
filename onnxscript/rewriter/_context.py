@@ -2,24 +2,24 @@
 # Licensed under the MIT License.
 """Rewriter-specific context aliases.
 
-This module re-exports ``OpBuilderBase`` and ``TapeBuilder`` from
+This module re-exports ``BuilderBase`` and ``TapeBuilder`` from
 :mod:`onnxscript._internal.tape_builder` and defines the ``RewriterContext`` alias
 used in rewrite-rule signatures.
 """
 
 from __future__ import annotations
 
-from onnxscript._internal.tape_builder import OpBuilderBase, TapeBuilder, UsedOpsets
+from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder, UsedOpsets
 
 # Alias used in rewrite rule signatures (the ``op`` parameter type)
-RewriterContext = OpBuilderBase
+RewriterContext = BuilderBase
 
 # Backward compatibility aliases
 TapeRewriterContext = TapeBuilder
-OptimizerContext = OpBuilderBase
+OptimizerContext = BuilderBase
 
 __all__ = [
-    "OpBuilderBase",
+    "BuilderBase",
     "OptimizerContext",
     "RewriterContext",
     "TapeBuilder",
