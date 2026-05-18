@@ -20,6 +20,8 @@ from onnxscript._internal import _inliner
 from onnxscript._internal.tape_builder import (
     BuilderBase,
     BuilderFeature,
+    _constant_name,
+    _dtype_suffix,
 )
 
 # A permissible value for an op input, which can be converted to an ir.Value.
@@ -49,33 +51,6 @@ def _type_suffix(element_type: type) -> str:
     """Return a short type suffix for naming constants based on Python type."""
     dtype = _PYTHON_TYPE_TO_DTYPE.get(element_type)
     return dtype.short_name() if dtype is not None else ""
-
-
-def _dtype_suffix(dtype: ir.DataType) -> str:
-    """Return a short type suffix for naming constants based on ir.DataType."""
-    return dtype.short_name()
-
-
-def _constant_name(
-    value: int | float | bool | str | Sequence, type_suffix: str, num: int = 0
-) -> str:
-    """Generate a descriptive name for a constant value.
-
-    Args:
-        value: The constant value
-        type_suffix: Type suffix (e.g., 'F', 'I64')
-        num: A number used for generating unique names for str/sequences
-
-    Returns:
-        A name string for the constant
-    """
-    if isinstance(value, str):
-        # For strings, use a generic name with cache size as unique identifier
-        return f"const_str_{num}"
-    if isinstance(value, (int, float, bool)):
-        return f"const_{value}_{type_suffix}" if type_suffix else f"const_{value}"
-    # Sequence: use generic name with cache size as unique identifier
-    return f"const_1d_{num}"
 
 
 def lift_initializers_to_constants(graph: ir.Graph) -> None:
@@ -497,6 +472,10 @@ class GraphBuilder(BuilderBase):
     # ------------------------------------------------------------------
     # BuilderBase hook overrides
     # ------------------------------------------------------------------
+
+    def _get_default_opset_version(self, domain: str = "") -> int | None:
+        """Return the graph's ambient opset version for the given domain."""
+        return self._graph.opset_imports.get(domain)
 
     def _promote_constant(self, value: Any, dtype: ir.DataType | None) -> ir.Value:
         """Cache-based constant promotion.
@@ -924,8 +903,9 @@ class OpBuilder:
         domain = kwargs.pop("_domain", self._domain)
         version = kwargs.pop("_version", self._version)
         outputs = kwargs.pop("_outputs", 1)
+        name = kwargs.pop("_name", None)
         return self._builder.call_op(
-            op_type, inputs, kwargs, domain=domain, version=version, outputs=outputs
+            op_type, inputs, kwargs, domain=domain, version=version, outputs=outputs, name=name
         )
 
     def __getattr__(self, op_type: str) -> Callable:

@@ -4,16 +4,17 @@
 
 This module defines:
 
-- ``BuilderBase``: Abstract base class for building ONNX IR nodes via a
-  dynamic dispatch interface (``op.Relu(x)``, ``op.op("Relu", x)``,
-  ``op.initializer(...)``).
+- ``BuilderBase``: Abstract base class for building ONNX IR nodes.
+  Provides the core node-creation pipeline (``call_op``) and an
+  initializer creation API.
   Subclasses implement the storage strategy by overriding ``_add_node``,
   ``_add_initializer``, and ``_record_opset``.
 
 - ``TapeBuilder``: Concrete subclass backed by simple lists.  Engines
   (rewriter, optimizer, version converter) create an instance, pass it to a
   rule or evaluator, and harvest the accumulated nodes / initializers / opsets
-  after it returns.
+  after it returns.  Provides the user-facing ``op()`` method and
+  ``__getattr__``-based dynamic dispatch (``op.Relu(x)``).
 
 - ``BuilderFeature``: Flag enum controlling optional processing steps
   (schema partitioning, input casting, shape inference, etc.).
@@ -64,26 +65,12 @@ class BuilderFeature(enum.Flag):
     SCHEMA_AWARE = SCHEMA_PARTITION | CAST_INPUTS | CAST_ATTRIBUTES
     FULL = SCHEMA_AWARE | INFER_SHAPES | CONSTANT_PROPAGATION
 
-    @property
-    def any_schema_feature(self) -> bool:
-        """True if any schema-dependent feature is enabled."""
-        return bool(
-            self
-            & (
-                BuilderFeature.SCHEMA_PARTITION
-                | BuilderFeature.CAST_INPUTS
-                | BuilderFeature.CAST_ATTRIBUTES
-            )
-        )
-
 
 class BuilderBase(abc.ABC):
     """Abstract base class for building ONNX IR nodes.
 
-    Supports two creation operations:
-
-    1. **Op creation** — ``op.op("Relu", x)`` or ``op.Relu(x)`` (syntactic sugar).
-    2. **Initializer creation** — ``op.initializer(tensor, name=...)``.
+    Provides the core node-creation pipeline via :meth:`call_op` and an
+    initializer creation API via :meth:`initializer`.
 
     Subclasses must implement the three protected methods that define where
     created nodes and initializers are stored:
@@ -122,6 +109,15 @@ class BuilderBase(abc.ABC):
     # ------------------------------------------------------------------
     # Overridable hook methods
     # ------------------------------------------------------------------
+
+    def _get_default_opset_version(self, domain: str = "") -> int | None:
+        """Return the default opset version for internal ops (e.g. CastLike).
+
+        Default: None (no version). Override in GraphBuilder to return the
+        graph's ambient opset version.
+        """
+        del domain  # Unused in base implementation
+        return None
 
     def _get_schema(
         self, op_type: str, domain: str, version: int | None
@@ -247,7 +243,12 @@ class BuilderBase(abc.ABC):
         needs_dynamic_cast = like_type is not None and dtype is None
         ir_value = self._promote_constant(value, dtype)
         if needs_dynamic_cast:
-            ir_value = self.call_op("CastLike", [ir_value, like_type], {})
+            ir_value = self.call_op(
+                "CastLike",
+                [ir_value, like_type],
+                {},
+                version=self._get_default_opset_version(""),
+            )
         return ir_value
 
     def _promote_constant(self, value: Any, dtype: ir.DataType | None) -> ir.Value:
@@ -326,57 +327,6 @@ class BuilderBase(abc.ABC):
     # Public API (concrete)
     # ------------------------------------------------------------------
 
-    def __getattr__(self, op_type: str) -> Any:
-        """Dynamic op dispatch: ``op.Relu(x)``, ``op.MatMul(a, b)``, etc.
-
-        Syntactic sugar for ``op.op(op_type, ...)``.
-
-        Returns a callable that creates a node of the given ``op_type``
-        and records it via the subclass storage implementation.
-        """
-        return lambda *args, **kwargs: self.op(op_type, *args, **kwargs)
-
-    def op(
-        self,
-        op_type: str,
-        /,
-        *args: ir.Value | None,
-        _domain: str = "",
-        _version: int | None = None,
-        _outputs: int | Sequence[str] = 1,
-        _name: str | None = None,
-        **kwargs: Any,
-    ) -> ir.Value | Sequence[ir.Value]:
-        """Create an ONNX node.
-
-        This is the single entry point for all node creation.
-        ``op.Relu(x)`` is equivalent to ``op.op("Relu", x)``.
-
-        Args:
-            op_type: The operator type (e.g., ``"Relu"``, ``"Conv"``).
-            *args: Positional arguments — the node's input values.
-            _domain: Op domain (default ``""``).
-            _version: Opset version.
-            _outputs: Number of outputs or list of explicit output names.
-            _name: Optional node name (must be unique).
-            **kwargs: Keyword arguments — node attributes.
-                Values can be Python scalars/lists (auto-converted) or
-                ``ir.Attr`` instances (passed through).
-
-        Returns:
-            A single ``ir.Value`` if the node has one output, otherwise
-            a sequence of ``ir.Value``.
-        """
-        return self.call_op(
-            op_type,
-            args,
-            kwargs,
-            domain=_domain,
-            version=_version,
-            outputs=_outputs,
-            name=_name,
-        )
-
     def call_op(
         self,
         op_type: str,
@@ -390,15 +340,23 @@ class BuilderBase(abc.ABC):
     ) -> ir.Value | Sequence[ir.Value]:
         """Create an ONNX node and add it to the graph, returning its output value(s).
 
-        This is the core node-creation method. Both ``BuilderBase.op()`` and
+        This is the core node-creation method. Both ``TapeBuilder.op()`` and
         ``OpBuilder.__getattr__`` delegate here. The processing steps are
         controlled by :attr:`features` flags and overridable hook methods.
+
+        Note:
+            When input casting is enabled, helper nodes (e.g. Constant,
+            CastLike) may be created before the requested node.  In builders
+            that generate names from a node counter (like GraphBuilder), this
+            means the outer node's auto-generated name reflects the *total*
+            node count including helpers — not a sequential index of
+            user-requested ops.
         """
         features = self._features
 
         # 1. Schema lookup (if any schema-dependent feature is enabled)
         schema = None
-        if features.any_schema_feature:
+        if features & BuilderFeature.SCHEMA_AWARE:
             schema = self._get_schema(op_type, domain, version)
 
         # 2. Partition args into inputs and attributes using schema
@@ -494,6 +452,68 @@ class TapeBuilder(BuilderBase):
         self._nodes: list[ir.Node] = []
         self._initializers: list[ir.Value] = []
         self._used_opsets: UsedOpsets = set()
+
+    # ------------------------------------------------------------------
+    # Public op-creation API
+    # ------------------------------------------------------------------
+
+    def __getattr__(self, op_type: str) -> Any:
+        """Dynamic op dispatch: ``op.Relu(x)``, ``op.MatMul(a, b)``, etc.
+
+        Syntactic sugar for ``op.op(op_type, ...)``.
+
+        Returns a callable that creates a node of the given ``op_type``
+        and records it via the subclass storage implementation.
+        """
+        return lambda *args, **kwargs: self.op(op_type, *args, **kwargs)
+
+    def op(
+        self,
+        op_type: str,
+        /,
+        *args: ir.Value | None,
+        _domain: str = "",
+        _version: int | None = None,
+        _outputs: int | Sequence[str] = 1,
+        _name: str | None = None,
+        **kwargs: Any,
+    ) -> ir.Value | Sequence[ir.Value]:
+        """Create an ONNX node.
+
+        This is the single entry point for all node creation.
+        ``op.Relu(x)`` is equivalent to ``op.op("Relu", x)``.
+
+        Reserved keyword arguments are prefixed with an underscore to avoid
+        clashing with ONNX attribute names passed via ``**kwargs``.
+
+        Args:
+            op_type: The operator type (e.g., ``"Relu"``, ``"Conv"``).
+            *args: Positional arguments — the node's input values.
+            _domain: Op domain (default ``""``).
+            _version: Opset version.
+            _outputs: Number of outputs or list of explicit output names.
+            _name: Optional node name (must be unique).
+            **kwargs: Keyword arguments — node attributes.
+                Values can be Python scalars/lists (auto-converted) or
+                ``ir.Attr`` instances (passed through).
+
+        Returns:
+            A single ``ir.Value`` if the node has one output, otherwise
+            a sequence of ``ir.Value``.
+        """
+        return self.call_op(
+            op_type,
+            args,
+            kwargs,
+            domain=_domain,
+            version=_version,
+            outputs=_outputs,
+            name=_name,
+        )
+
+    # ------------------------------------------------------------------
+    # Storage interface
+    # ------------------------------------------------------------------
 
     def _add_node(self, node: ir.Node) -> None:
         self._nodes.append(node)
