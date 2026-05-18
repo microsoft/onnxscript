@@ -258,6 +258,9 @@ class BuilderBase(abc.ABC):
         This avoids initializer-name collisions when the builder is used
         inside the rewriter/optimizer.
 
+        When *dtype* is None, ``ir.tensor`` infers the dtype from the Python
+        value (e.g. float → FLOAT, int → INT64).
+
         GraphBuilder overrides this with a cache-based initializer strategy.
         """
         tensor = ir.tensor(value, dtype=dtype)
@@ -392,13 +395,13 @@ class BuilderBase(abc.ABC):
                 name=name,
             )
         else:
-            num_outputs = len(outputs) if isinstance(outputs, Sequence) else outputs
+            assert isinstance(outputs, int), f"Expected int, got {type(outputs)}"
             node = ir.Node(
                 domain,
                 op_type,
                 args,
                 attributes=attrs,
-                num_outputs=num_outputs,
+                num_outputs=outputs,
                 version=version,
                 name=name,
             )
