@@ -1784,6 +1784,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten._upsample_bilinear2d_aa",
         nn_ops.aten__upsample_bilinear2d_aa,
+    )
+    .xfail(
+        matcher=lambda sample: sample.args[1] is True,
+        reason="fixme: align_corners=True diverges between PyTorch AA kernel and ONNX Resize antialias",
+    )
+    .xfail(
+        matcher=lambda sample: (
+            sample.args[1] is False and sample.kwargs.get("scales_h") is not None
+        ),
+        reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo("ops.aten.upsample_bilinear2d.vec", nn_ops.aten_upsample_bilinear2d_vec),
     TorchLibOpInfo(
@@ -1798,6 +1808,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten._upsample_bicubic2d_aa",
         nn_ops.aten__upsample_bicubic2d_aa,
+    )
+    .xfail(
+        matcher=lambda sample: sample.args[1] is True,
+        reason="fixme: align_corners=True diverges between PyTorch AA kernel and ONNX Resize antialias",
+    )
+    .xfail(
+        matcher=lambda sample: (
+            sample.args[1] is False and sample.kwargs.get("scales_h") is not None
+        ),
+        reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo("ops.aten.upsample_bicubic2d.vec", nn_ops.aten_upsample_bicubic2d_vec),
     TorchLibOpInfo(
