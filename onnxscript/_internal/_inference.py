@@ -93,7 +93,18 @@ def _do_onnx_inference(node: ir.Node) -> None:
             output.type = ir.serde.deserialize_type_proto_for_type(inferred_type)
 
 
+def _has_complete_type_and_shape(output: ir.Value) -> bool:
+    """Check if an output already has fully determined type and static shape."""
+    if output.type is None or output.shape is None:
+        return False
+    return output.shape.is_static()
+
+
 def infer_outputs(node: ir.Node) -> None:
+    # Skip inference if all outputs already have type and fully static shape
+    # (e.g., from constant propagation setting const_value).
+    if all(_has_complete_type_and_shape(output) for output in node.outputs):
+        return
     try:
         _do_onnx_inference(node)
     except Exception as e:  # pylint: disable=broad-exception-caught
