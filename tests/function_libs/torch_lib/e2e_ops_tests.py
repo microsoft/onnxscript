@@ -79,6 +79,19 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_bincount(self):
+        class Model(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return torch.bincount(x, minlength=6)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([0, 1, 1, 3, 5], dtype=torch.int64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_repeat_interleave_integer_1(self):
         class Model(torch.nn.Module):
             def forward(self, x):

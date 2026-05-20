@@ -1254,12 +1254,23 @@ def aten_binary_cross_entropy_with_logits(
     raise NotImplementedError()
 
 
+@torch_op("aten::bincount", trace_only=True)
 def aten_bincount(
-    self: TensorType, weights: Optional[TensorType] = None, minlength: int = 0
+    self: INT64, weights: Optional[TensorType] = None, minlength: int = 0
 ) -> TensorType:
     """bincount(Tensor self, Tensor? weights=None, int minlength=0) -> Tensor"""
+    if weights is not None:
+        raise NotImplementedError("aten::bincount with weights is not supported.")
 
-    raise NotImplementedError()
+    axis_0 = op.Constant(value_ints=[0])
+    one = op.Constant(value_ints=[1])
+    max_val = op.Unsqueeze(op.ReduceMax(self, keepdims=0), axis_0)
+    depth = op.Add(max_val, one)
+    if minlength > 0:
+        depth = op.Max(depth, op.Constant(value_ints=[minlength]))
+
+    one_hot = op.OneHot(self, depth, op.Constant(value_ints=[0, 1]), axis=-1)
+    return op.ReduceSum(one_hot, axis_0, keepdims=0)
 
 
 def aten_binomial(
