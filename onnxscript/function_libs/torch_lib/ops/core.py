@@ -5082,24 +5082,37 @@ def aten_index_put(
 
 def _aten_index_put_bool(
     self: TReal,
-    indices: Sequence[BOOL],
+    indices: Sequence[Optional[Union[INT64, BOOL]]],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
-    # TODO: Support indices with more than 1 elements
-    index = indices[0]
-    # accumulate should be always False, True does not make sense but an assert would be great
-    # Reshape indices so it can be properly broadcasted
-    self_rank = len(self.shape)
-    index_rank = len(index.shape)
-    if self_rank > index_rank:
-        index_shape = op.Shape(index)
-        padding = op.Constant(value_ints=[1 for _ in range(self_rank - index_rank)])
-        padded_shape = op.Concat(index_shape, padding, axis=0)
-        index = op.Reshape(index, padded_shape)
-    return op.Where(index, values, self)
+    del accumulate  # Boolean masks index each position at most once.
+
+    bool_mask = indices[0]
+    if bool_mask is None or bool_mask.dtype != BOOL.dtype:
+        raise NotImplementedError(
+            "Boolean index_put expects a boolean mask as the first index."
+        )
+
+    for _ in range(len(self.shape) - len(bool_mask.shape)):
+        bool_mask = op.Unsqueeze(bool_mask, op.Constant(value_ints=[-1]))
+
+    expanded_mask = op.Expand(bool_mask, op.Shape(self))
+    flat_mask = op.Reshape(expanded_mask, op.Constant(value_ints=[-1]))
+    flat_mask_int = op.Cast(flat_mask, to=INT64.dtype)
+    positions = op.Clip(
+        op.Sub(
+            op.CumSum(flat_mask_int, op.Constant(value_ints=[0])), op.Constant(value_ints=[1])
+        ),
+        op.Constant(value_ints=[0]),
+    )
+    flat_values = op.Reshape(values, op.Constant(value_ints=[-1]))
+    gathered_values = op.Gather(flat_values, positions)
+    flat_self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    result = op.Where(flat_mask, gathered_values, flat_self)
+    return op.Reshape(result, op.Shape(self))
 
 
 def aten_index_reduce(
