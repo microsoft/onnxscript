@@ -5090,6 +5090,9 @@ def _aten_index_put_bool(
 
     del accumulate  # Boolean masks index each position at most once.
 
+    if len(indices) != 1:
+        raise NotImplementedError("Boolean index_put with multiple indices is not supported.")
+
     bool_mask = indices[0]
     if bool_mask is None or bool_mask.dtype != BOOL.dtype:
         raise NotImplementedError(
