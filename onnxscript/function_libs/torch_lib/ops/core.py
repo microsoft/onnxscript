@@ -5082,7 +5082,7 @@ def aten_index_put(
 
 def _aten_index_put_bool(
     self: TReal,
-    indices: Sequence[Optional[Union[INT64, BOOL]]],
+    indices: Sequence[Optional[BOOL]],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
