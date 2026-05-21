@@ -838,6 +838,9 @@ class RewriteRuleSet:
         if self.remove_unused_nodes:
             onnxscript.optimizer.remove_unused_nodes(model)
         if count > 0:
+            # TapeBuilder may create values with names that clash with existing graph
+            # values when nodes are inserted via replace_nodes_and_values.
+            # NameFixPass ensures all value names are unique before returning.
             ir_passes_common.NameFixPass()(model)
         return count
 

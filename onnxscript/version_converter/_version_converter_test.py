@@ -538,5 +538,65 @@ class VersionConverter25to26Test(unittest.TestCase):
         version_converter.convert_version(model, target_version=target_version)
 
 
+def _all_value_names_unique(model: ir.Model) -> bool:
+    """Return True if all named values in the top-level graph have unique names."""
+    names = []
+    for v in model.graph.inputs:
+        if v.name:
+            names.append(v.name)
+    for v in model.graph.initializers.values():
+        if v.name:
+            names.append(v.name)
+    for node in model.graph:
+        for output in node.outputs:
+            if output.name:
+                names.append(output.name)
+    return len(names) == len(set(names))
+
+
+class NameClashAfterConversionTest(unittest.TestCase):
+    """Tests that convert_version calls NameFixPass to deduplicate value names.
+
+    TapeBuilder may assign names that collide with existing graph values when
+    new nodes are inserted via replace_nodes_and_values.  NameFixPass, invoked
+    inside _VersionConverter.visit_model when nodes were modified, resolves
+    the duplicates.
+    """
+
+    def test_convert_version_deduplicates_names(self):
+        """Duplicate value names present after conversion are fixed by NameFixPass."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[4, 512, 512] input_x, float[4, 1024, 1024] input_y) => (float[4, 1024, 1024] output)
+            {
+                shape_a = Constant<value: tensor = int64[5] {1, 4, 512, 512}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[5] {1, 4, 1024, 1024}>()
+                reshape_y = Reshape (input_x, shape_b)
+                gridsample = GridSample <mode = "bilinear"> (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[4] {4, 1024, 1024}>()
+                output = Reshape (gridsample, shape_c)
+            }
+            """
+        )
+
+        # Simulate the name clash that TapeBuilder can introduce: two Constant
+        # node outputs (not touched by the GridSample adapter) receive the same
+        # name because NameAuthority does not check for conflicts when registering
+        # pre-named values inserted by TapeBuilder.
+        shape_a_output = model.graph.node(0).outputs[0]
+        shape_c_output = model.graph.node(5).outputs[0]
+        shape_c_output.name = shape_a_output.name  # inject clash
+
+        version_converter.convert_version(model, target_version=20)
+
+        self.assertEqual(model.opset_imports[""], 20)
+        self.assertTrue(
+            _all_value_names_unique(model),
+            "All value names must be unique after convert_version",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

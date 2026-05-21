@@ -344,6 +344,11 @@ class _VersionConverter:
             self.visit_graph_or_function(function)
             _set_onnx_opset_version(function, self._target_version)
         _set_onnx_opset_version(model, self._target_version)
+        if self._modified:
+            # TapeBuilder may create values with names that clash with existing graph
+            # values when nodes are inserted via replace_nodes_and_values.
+            # NameFixPass ensures all value names are unique before returning.
+            ir_passes_common.NameFixPass()(model)
 
 
 def convert_version(model: ir.Model, target_version: int) -> None:
@@ -357,5 +362,3 @@ def convert_version(model: ir.Model, target_version: int) -> None:
         )
     version_converter = _VersionConverter(target_version=target_version)
     version_converter.visit_model(model)
-    if version_converter._modified:
-        ir_passes_common.NameFixPass()(model)

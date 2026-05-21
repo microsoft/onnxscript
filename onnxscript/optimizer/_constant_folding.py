@@ -1396,6 +1396,9 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
         if self._modified:
+            # TapeBuilder may create values with names that clash with existing graph
+            # values when nodes are inserted via replace_nodes_and_values.
+            # NameFixPass ensures all value names are unique before returning.
             ir_passes_common.NameFixPass()(model)
         return FoldConstantsResult(model, self._modified, self._state.symbolic_value_map)
 
