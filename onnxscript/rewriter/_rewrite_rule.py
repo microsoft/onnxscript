@@ -13,6 +13,8 @@ from typing import (
     TypeVar,
 )
 
+import onnx_ir.passes.common as ir_passes_common
+
 import onnxscript.optimizer
 import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._context as _context
@@ -835,6 +837,8 @@ class RewriteRuleSet:
             )
         if self.remove_unused_nodes:
             onnxscript.optimizer.remove_unused_nodes(model)
+        if count > 0:
+            ir_passes_common.NameFixPass()(model)
         return count
 
     def __iter__(self):

@@ -10,6 +10,7 @@ import logging
 from typing import Callable, Sequence, Union
 
 import onnx_ir.convenience as ir_convenience
+import onnx_ir.passes.common as ir_passes_common
 
 import onnxscript.utils.metadata_merger as metadata_merger
 from onnxscript import ir
@@ -239,6 +240,7 @@ def groupnormalization_20_21(node: ir.Node, op):
 class _VersionConverter:
     def __init__(self, target_version: int):
         self._target_version = target_version
+        self._modified: bool = False
         # Default metadata merger: no merging should be needed; keep the first value.
         self._default_metadata_merger: metadata_merger.MetadataMerger = (
             metadata_merger.MetadataMerger(
@@ -269,6 +271,7 @@ class _VersionConverter:
         ir_convenience.replace_nodes_and_values(
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
+        self._modified = True
 
     def visit_attribute(self, attr: ir.Attr) -> None:
         if attr.is_ref():
@@ -354,3 +357,5 @@ def convert_version(model: ir.Model, target_version: int) -> None:
         )
     version_converter = _VersionConverter(target_version=target_version)
     version_converter.visit_model(model)
+    if version_converter._modified:
+        ir_passes_common.NameFixPass()(model)
