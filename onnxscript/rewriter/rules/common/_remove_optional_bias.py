@@ -19,8 +19,8 @@ class _RemoveOptionalBias(RewriteRuleClassBase):
 
         return op.op(
             self.op_type,
-            inputs=node.inputs[:-1],
-            attributes=node.attributes,
+            *node.inputs[:-1],
+            **node.attributes,
         )
 
     def check(self, context, b: ir.Value, **_) -> MatchResult:
