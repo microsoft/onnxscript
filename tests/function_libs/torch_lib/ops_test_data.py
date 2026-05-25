@@ -750,6 +750,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT does not support empty tensors as input",
     ),
     TorchLibOpInfo("ge", core_ops.aten_ge),
+    TorchLibOpInfo("ops.aten._grouped_mm", core_ops.aten_grouped_mm),
     TorchLibOpInfo("gt", core_ops.aten_gt),
     TorchLibOpInfo("histc", core_ops.aten_histc)
     .skip(
