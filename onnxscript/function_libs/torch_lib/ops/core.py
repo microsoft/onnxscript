@@ -4987,8 +4987,14 @@ def aten_index_put(
         # will invalidate equality-based check.
         first_shape = indices[advanced_indices[0]].shape
 
-        def same_shape(other_shape: ir.Shape) -> bool:
-            return (not any(d is None for d in other_shape)) and other_shape == first_shape
+        def same_shape(other_shape: Optional[ir.Shape]) -> bool:
+            return (
+                first_shape is not None
+                and other_shape is not None
+                and not any(d is None for d in first_shape)
+                and not any(d is None for d in other_shape)
+                and other_shape == first_shape
+            )
 
         all_same_shape = all(same_shape(indices[i].shape) for i in advanced_indices)
         if not all_same_shape:
@@ -5082,18 +5088,43 @@ def aten_index_put(
 
 def _aten_index_put_bool(
     self: TReal,
-    indices: Sequence[Optional[BOOL]],
+    indices: Sequence[Optional[Union[INT64, BOOL]]],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
+    bool_mask = indices[0]
+    if len(indices) > 1:
+        if any(index is None for index in indices):
+            raise NotImplementedError(
+                "Boolean index_put with multiple indices does not support None indices."
+            )
+
+        advanced_indices = []
+        selected_positions = []
+        minus_one = op.Constant(value_ints=[-1])
+        for index in indices:
+            if index.dtype != BOOL.dtype or len(index.shape) != 1:
+                raise NotImplementedError(
+                    "Boolean index_put with multiple indices supports only 1-D boolean masks."
+                )
+            positions = op.Reshape(op.Transpose(op.NonZero(index), perm=[1, 0]), minus_one)
+            selected_positions.append(positions)
+            advanced_indices.append(op.Unsqueeze(positions, minus_one))
+        onnx_index = op.Concat(*advanced_indices, axis=-1)
+        target_shape = op.Concat(
+            op.Shape(selected_positions[0]),
+            op.Slice(op.Shape(self), starts=[len(indices)], ends=[len(self.shape)], axes=[0]),
+            axis=0,
+        )
+        expanded_values = op.Expand(values, target_shape)
+        return op.ScatterND(
+            self, onnx_index, expanded_values, reduction="add" if accumulate else None
+        )
+
     del accumulate  # Boolean masks index each position at most once.
 
-    if len(indices) != 1:
-        raise NotImplementedError("Boolean index_put with multiple indices is not supported.")
-
-    bool_mask = indices[0]
     if bool_mask is None or bool_mask.dtype != BOOL.dtype:
         raise NotImplementedError(
             "Boolean index_put expects a boolean mask as the first index."

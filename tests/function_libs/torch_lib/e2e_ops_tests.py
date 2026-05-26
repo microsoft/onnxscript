@@ -933,6 +933,25 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_index_put_bool_multi_mask(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, mask0, mask1, update):
+                return torch.ops.aten.index_put(x, [mask0, mask1], update)
+
+        x = torch.zeros((3, 4), dtype=torch.float32)
+        mask0 = torch.tensor([True, False, True], dtype=torch.bool)
+        mask1 = torch.tensor([True, False, True, False], dtype=torch.bool)
+        update = torch.tensor([10.0, 20.0], dtype=torch.float32)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, mask0, mask1, update),
+            input_names=["x", "mask0", "mask1", "update"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_std_mean(self):
         """Test torch.std_mean which will be decomposed into prims.sum."""
 
