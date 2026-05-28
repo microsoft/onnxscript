@@ -8,10 +8,12 @@
 from __future__ import annotations
 
 import warnings
-from typing import Sequence
+from typing import Optional, Sequence
 
 from onnxscript.function_libs.torch_lib.registration import torch_op
+from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
+from onnxscript.onnx_opset import opset19
 from onnxscript.onnx_types import FLOAT, INT64
 
 _INT64_MAX = 0x7FFFFFFFFFFFFFFF
@@ -90,4 +92,35 @@ def torchvision_roi_pool(input, boxes, output_size: Sequence[int], spatial_scale
         boxes,
         pooled_shape=(pooled_height, pooled_width),
         spatial_scale=spatial_scale,
+    )
+
+
+@torch_op("torchvision::deform_conv2d", trace_only=True)
+def torchvision_deform_conv2d(
+    input: TFloat,
+    offset: TFloat,
+    weight: TFloat,
+    bias: Optional[TFloat] = None,
+    stride: tuple[int, int] = (1, 1),
+    padding: tuple[int, int] = (0, 0),
+    dilation: tuple[int, int] = (1, 1),
+    mask: Optional[TFloat] = None,
+):
+    """deform_conv2d(input: torch.Tensor, offset: torch.Tensor, weight: torch.Tensor, bias: Optional[torch.Tensor] = None, stride: tuple[int, int] = (1, 1), padding: tuple[int, int] = (0, 0), dilation: tuple[int, int] = (1, 1), mask: Optional[torch.Tensor] = None) → torch.Tensor"""
+
+    kernel_h, kernel_w = weight.shape[-2:]
+    group = input.shape[1] // weight.shape[1]
+    offset_group = offset.shape[1] // (2 * kernel_h * kernel_w)
+    pads = (padding[0], padding[1], padding[0], padding[1])
+    return opset19.DeformConv(
+        X=input,
+        W=weight,
+        offset=offset,
+        B=bias,
+        mask=mask,
+        dilations=dilation,
+        strides=stride,
+        pads=pads,
+        group=group,
+        offset_group=offset_group,
     )

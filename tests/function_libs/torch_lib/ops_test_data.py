@@ -1928,6 +1928,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
     TorchLibOpInfo("torchvision.ops.roi_align", vision_ops.torchvision_roi_align),
     TorchLibOpInfo("torchvision.ops.roi_pool", vision_ops.torchvision_roi_pool),
+    TorchLibOpInfo("torchvision.ops.deform_conv2d", vision_ops.torchvision_deform_conv2d),
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim", "all_dims"))

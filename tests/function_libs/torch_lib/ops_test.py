@@ -25,6 +25,7 @@ errors.
 
 from __future__ import annotations
 
+import functools
 import os
 import unittest
 from typing import Callable, Optional, Sequence, Tuple
@@ -276,7 +277,12 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
         skip_or_xfails=ops_test_data.EXPECTED_SKIPS_OR_FAILS,
     )
     @common_device_type.ops(  # type: ignore[misc]
-        [info for info in ops_test_data.OPS_DB if info.name in ops_test_data.TESTED_OPS],
+        [
+            info
+            for info in ops_test_data.OPS_DB
+            if info.name in ops_test_data.TESTED_OPS
+            and info.name != "torchvision.ops.deform_conv2d"
+        ],
         allowed_dtypes=TESTED_DTYPES,
     )
     def test_output_match_opinfo_(
@@ -322,6 +328,40 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
 
 common_device_type.instantiate_device_type_tests(
     TestOutputConsistencyFullGraph, globals(), only_for=["cpu", "cuda"]
+)
+
+
+class TestOutputConsistencyDeformConvOpset19(unittest.TestCase):
+    """Test deform_conv2d output consistency using an opset that supports DeformConv."""
+
+    def setUp(self) -> None:
+        torch.manual_seed(42)
+        np.random.seed(42)
+        ort.set_seed(42)
+
+    @common_device_type.ops(  # type: ignore[misc]
+        [
+            info
+            for info in ops_test_data.OPS_DB
+            if info.name == "torchvision.ops.deform_conv2d"
+        ],
+        allowed_dtypes=TESTED_DTYPES,
+    )
+    def test_output_match_opinfo_(
+        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
+    ):
+        run_test_output_match(
+            self,
+            device,
+            dtype,
+            op,
+            functools.partial(ops_test_common.graph_executor, opset_version=19),
+            ops_test_data.TORCHLIB_OPINFO_MAPPING,
+        )
+
+
+common_device_type.instantiate_device_type_tests(
+    TestOutputConsistencyDeformConvOpset19, globals(), only_for=["cpu", "cuda"]
 )
 
 if __name__ == "__main__":
