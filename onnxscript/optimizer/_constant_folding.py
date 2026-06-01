@@ -863,12 +863,17 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         if not isinstance(split_dimension_size, int):
             return None
         split_size = int(split_value.item())
+        if split_size <= 0:
+            # Invalid split size; bail out instead of raising.
+            return None
         num_outputs = math.ceil(split_dimension_size / split_size)
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
         if split_dimension_size % split_size != 0:
             # Uneven split: the last chunk is smaller. We must pass explicit split
             # sizes to Split, because Split with only num_outputs would do an
             # equal (or near-equal) split ignoring the original chunk size.
+            # NOTE: Split accepts either the `split` input or the `num_outputs`
+            # attribute, but not both, so num_outputs is omitted here.
             remainder = split_dimension_size - (num_outputs - 1) * split_size
             explicit_split_sizes = [split_size] * (num_outputs - 1) + [remainder]
             explicit_split = op.Constant(
@@ -879,7 +884,6 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
                 input,
                 explicit_split,
                 axis=axis,
-                num_outputs=num_outputs,
                 _outputs=split_outputs,
             )
         else:

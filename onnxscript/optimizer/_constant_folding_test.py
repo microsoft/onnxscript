@@ -315,6 +315,11 @@ func (float[1,8400,80] x) => (float[1,N,80] return_val) {
         self.assertEqual(len(split_node.outputs), 2)
         # The Split node must have an explicit split input (not just num_outputs),
         # so that the split is [5000, 3400] and not [4200, 4200].
+        self.assertEqual(
+            len(split_node.inputs),
+            2,
+            "Split node must have an explicit split sizes input",
+        )
         split_sizes_input = split_node.inputs[1]
         self.assertIsNotNone(split_sizes_input, "Split node must have explicit split sizes")
         # Verify the actual split sizes are [5000, 3400], not [4200, 4200]
