@@ -4091,7 +4091,7 @@ def aten_from_file(
 def aten_full(
     size: Union[INT64, INT32],
     fill_value: TensorType,
-    dtype: int = FLOAT.dtype,
+    dtype: int = -1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
