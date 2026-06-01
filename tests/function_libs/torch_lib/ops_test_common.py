@@ -469,8 +469,6 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: ir.schemas.OpSignatur
 def graph_executor(
     test_name: str,
     outputs: Sequence[Any],
-    *,
-    opset_version: int = TEST_OPSET_VERSION,
 ) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
 
@@ -483,14 +481,14 @@ def graph_executor(
             (),
             nodes=(),
             opset_imports={
-                "": opset_version,
+                "": 18,
                 "pkg.torch.onnx": 1,
                 "pkg.onnxscript.torch_lib.common": 1,
                 "pkg.onnxscript.torch_lib": 1,
             },
             name="main_graph",
         )
-        opset = getattr(onnxscript, f"opset{opset_version}")
+        opset = onnxscript.opset18
         tracer = _building.OpRecorder(opset, {})
         ort_inputs = {}
         onnxscript_args: list[Any] = []

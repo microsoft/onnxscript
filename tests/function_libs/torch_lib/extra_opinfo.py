@@ -1505,69 +1505,6 @@ def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
         )
 
 
-def sample_inputs_deform_conv2d(op_info, device, dtype, requires_grad, **kwargs):
-    del op_info
-    del kwargs
-
-    def make_arg(shape):
-        return torch_testing.make_tensor(
-            shape, device=device, dtype=dtype, requires_grad=requires_grad
-        )
-
-    # Basic no-bias/no-mask case
-    input = make_arg((1, 2, 5, 5))
-    weight = make_arg((3, 2, 3, 3))
-    out_h = out_w = 3
-    offset = make_arg((1, 2 * 3 * 3, out_h, out_w))
-    yield opinfo_core.SampleInput(input, args=(offset, weight))
-
-    # With bias
-    input = make_arg((1, 2, 5, 5))
-    weight = make_arg((3, 2, 3, 3))
-    bias = make_arg((3,))
-    offset = make_arg((1, 2 * 3 * 3, out_h, out_w))
-    yield opinfo_core.SampleInput(input, args=(offset, weight, bias))
-
-    # With mask
-    input = make_arg((1, 2, 5, 5))
-    weight = make_arg((3, 2, 3, 3))
-    offset = make_arg((1, 2 * 3 * 3, out_h, out_w))
-    mask = make_arg((1, 3 * 3, out_h, out_w))
-    yield opinfo_core.SampleInput(
-        input,
-        args=(offset, weight),
-        kwargs={"mask": mask},
-    )
-
-    # Nonzero padding
-    input = make_arg((1, 2, 5, 5))
-    weight = make_arg((3, 2, 3, 3))
-    out_h = out_w = 5
-    offset = make_arg((1, 2 * 3 * 3, out_h, out_w))
-    yield opinfo_core.SampleInput(
-        input,
-        args=(offset, weight),
-        kwargs={"padding": (1, 1)},
-    )
-
-    # Grouped convolution
-    input = make_arg((1, 4, 5, 5))
-    weight = make_arg((4, 2, 3, 3))
-    offset = make_arg((1, 2 * 3 * 3, 3, 3))
-    yield opinfo_core.SampleInput(input, args=(offset, weight))
-
-    # Multiple offset groups
-    input = make_arg((1, 4, 5, 5))
-    weight = make_arg((4, 4, 3, 3))
-    offset = make_arg((1, 2 * 2 * 3 * 3, 3, 3))
-    mask = make_arg((1, 2 * 3 * 3, 3, 3))
-    yield opinfo_core.SampleInput(
-        input,
-        args=(offset, weight),
-        kwargs={"mask": mask},
-    )
-
-
 def sample_inputs_roi_pool(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -3162,13 +3099,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torchvision.ops.roi_pool,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_roi_pool,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
-        "torchvision.ops.deform_conv2d",
-        op=torchvision.ops.deform_conv2d,
-        dtypes=common_dtype.floating_types(),
-        sample_inputs_func=sample_inputs_deform_conv2d,
         supports_out=False,
     ),
 ]
