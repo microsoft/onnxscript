@@ -1256,21 +1256,39 @@ def aten_binary_cross_entropy_with_logits(
 
 @torch_op("aten::bincount", trace_only=True)
 def aten_bincount(
-    self: INT64, weights: Optional[TensorType] = None, minlength: int = 0
+    self: IntType, weights: Optional[TensorType] = None, minlength: int = 0
 ) -> TensorType:
-    """bincount(Tensor self, Tensor? weights=None, int minlength=0) -> Tensor"""
+    """bincount(Tensor self, Tensor? weights=None, int minlength=0) -> Tensor
+
+    ``weights`` is not supported. Negative inputs are rejected by torch and are not
+    handled here (ONNX integer ops would wrap them around).
+    """
     if weights is not None:
         raise NotImplementedError("aten::bincount with weights is not supported.")
 
+    self = op.Cast(self, to=INT64.dtype)
     axis_0 = op.Constant(value_ints=[0])
-    one = op.Constant(value_ints=[1])
-    max_val = op.Unsqueeze(op.ReduceMax(self, keepdims=0), axis_0)
-    depth = op.Add(max_val, one)
+    # Append a 0 so ReduceMax is defined even when ``self`` is empty. It only sizes the
+    # output and never contributes to the counts (the scatter below uses ``self``).
+    data_max = op.Unsqueeze(
+        op.ReduceMax(op.Concat(self, op.Constant(value_ints=[0]), axis=0), keepdims=0),
+        axis_0,
+    )
+    # An empty input yields depth 0, so the output is empty unless ``minlength`` applies.
+    non_empty = op.Unsqueeze(
+        op.Cast(op.Greater(op.Size(self), op.Constant(value_int=0)), to=INT64.dtype),
+        axis_0,
+    )
+    depth = op.Mul(op.Add(data_max, op.Constant(value_ints=[1])), non_empty)
     if minlength > 0:
         depth = op.Max(depth, op.Constant(value_ints=[minlength]))
 
-    one_hot = op.OneHot(self, depth, op.Constant(value_ints=[0, 1]), axis=-1)
-    return op.ReduceSum(one_hot, axis_0, keepdims=0)
+    # Scatter-add 1 for each value into a zero vector of length ``depth``. This uses
+    # O(N + depth) memory instead of the dense O(N * depth) one-hot, and behaves
+    # correctly for empty inputs.
+    zeros = op.Expand(op.Constant(value_int=0), depth)
+    ones = op.Expand(op.Constant(value_int=1), op.Shape(self))
+    return op.ScatterElements(zeros, self, ones, axis=0, reduction="add")
 
 
 def aten_binomial(
@@ -5123,30 +5141,39 @@ def _aten_index_put_bool(
             self, onnx_index, expanded_values, reduction="add" if accumulate else None
         )
 
-    del accumulate  # Boolean masks index each position at most once.
-
     if bool_mask is None or bool_mask.dtype != BOOL.dtype:
         raise NotImplementedError(
             "Boolean index_put expects a boolean mask as the first index."
         )
 
-    for _ in range(len(self.shape) - len(bool_mask.shape)):
-        bool_mask = op.Unsqueeze(bool_mask, op.Constant(value_ints=[-1]))
+    neg_1 = op.Constant(value_ints=[-1])
+    self_rank = len(self.shape)
+    mask_rank = len(bool_mask.shape)
 
-    expanded_mask = op.Expand(bool_mask, op.Shape(self))
-    flat_mask = op.Reshape(expanded_mask, op.Constant(value_ints=[-1]))
-    flat_mask_int = op.Cast(flat_mask, to=INT64.dtype)
-    positions = op.Clip(
-        op.Sub(
-            op.CumSum(flat_mask_int, op.Constant(value_ints=[0])), op.Constant(value_ints=[1])
-        ),
-        op.Constant(value_ints=[0]),
+    # Expand a lower-rank mask (e.g. a row mask) across the trailing dimensions of self
+    # so it selects whole slices, then collect the coordinates of every selected element.
+    # NonZero returns them in row-major order.
+    expanded_mask = bool_mask
+    for _ in range(self_rank - mask_rank):
+        expanded_mask = op.Unsqueeze(expanded_mask, neg_1)
+    expanded_mask = op.Expand(expanded_mask, op.Shape(self))
+    selected_indices = op.Transpose(op.NonZero(expanded_mask), perm=[1, 0])
+
+    # Broadcast ``values`` to the selection shape ``[num_true, *self.shape[mask_rank:]]``
+    # and flatten it to one update per selected element. This keeps scalar and
+    # broadcastable ``values`` working, matching ``self[mask] = values`` semantics.
+    num_true = op.ReduceSum(
+        op.Cast(op.Reshape(bool_mask, neg_1), to=INT64.dtype), keepdims=1
     )
-    flat_values = op.Reshape(values, op.Constant(value_ints=[-1]))
-    gathered_values = op.Gather(flat_values, positions)
-    flat_self = op.Reshape(self, op.Constant(value_ints=[-1]))
-    result = op.Where(flat_mask, gathered_values, flat_self)
-    return op.Reshape(result, op.Shape(self))
+    trailing_shape = op.Slice(
+        op.Shape(self), starts=[mask_rank], ends=[self_rank], axes=[0]
+    )
+    selection_shape = op.Concat(num_true, trailing_shape, axis=0)
+    flat_values = op.Reshape(op.Expand(values, selection_shape), neg_1)
+
+    return op.ScatterND(
+        self, selected_indices, flat_values, reduction="add" if accumulate else None
+    )
 
 
 def aten_index_reduce(

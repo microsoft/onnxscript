@@ -92,6 +92,32 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_bincount_default_minlength(self):
+        class Model(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return torch.bincount(x)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([2, 2, 2], dtype=torch.int64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_bincount_empty_input(self):
+        class Model(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return torch.bincount(x, minlength=4)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([], dtype=torch.int64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_repeat_interleave_integer_1(self):
         class Model(torch.nn.Module):
             def forward(self, x):
@@ -923,6 +949,42 @@ class TorchLibe2eTest(unittest.TestCase):
         x = torch.zeros((2, 3), dtype=torch.float32)
         mask = torch.tensor([[True, False, True], [False, True, False]], dtype=torch.bool)
         update = torch.tensor([10.0, 20.0, 30.0], dtype=torch.float32)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, mask, update),
+            input_names=["x", "mask", "update"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_index_put_bool_mask_scalar_value(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, mask, update):
+                return torch.ops.aten.index_put(x, [mask], update)
+
+        x = torch.arange(6, dtype=torch.float32).reshape((2, 3))
+        mask = torch.tensor([[True, False, True], [False, True, False]], dtype=torch.bool)
+        update = torch.tensor(5.0, dtype=torch.float32)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, mask, update),
+            input_names=["x", "mask", "update"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_index_put_bool_row_mask_scalar_value(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, mask, update):
+                return torch.ops.aten.index_put(x, [mask], update)
+
+        x = torch.arange(6, dtype=torch.float32).reshape((2, 3))
+        mask = torch.tensor([True, False], dtype=torch.bool)
+        update = torch.tensor(7.0, dtype=torch.float32)
         onnx_program = torch.onnx.export(
             Model(),
             (x, mask, update),
