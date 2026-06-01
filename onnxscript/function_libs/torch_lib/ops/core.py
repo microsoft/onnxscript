@@ -614,7 +614,7 @@ def _adjust_args_for_arange_int_dtype(
 def aten_arange_start_step(
     start: TRealUnlessFloat16OrInt8,
     end: TRealUnlessFloat16OrInt8,
-    step: TRealUnlessFloat16OrInt8 = 1.0,
+    step: TRealUnlessFloat16OrInt8 = 1,
     dtype: int = -1,
     layout: str = "",
     device: str = "",

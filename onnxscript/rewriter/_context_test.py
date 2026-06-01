@@ -85,7 +85,7 @@ class RewriterContextOpCreationTest(unittest.TestCase):
         op = TapeBuilder()
         x = ir.Value(name="x")
         w = ir.Value(name="w")
-        result = op.op("Conv", inputs=[x, w], domain="", name="my_conv")
+        result = op.op("Conv", x, w, _domain="", _name="my_conv")
         self.assertIsInstance(result, ir.Value)
         self.assertEqual(op.nodes[0].op_type, "Conv")
         self.assertEqual(op.nodes[0].name, "my_conv")
@@ -93,13 +93,13 @@ class RewriterContextOpCreationTest(unittest.TestCase):
     def test_op_method_with_attributes(self):
         op = TapeBuilder()
         x = ir.Value(name="x")
-        result = op.op("Elu", inputs=[x], attributes={"alpha": 2.0})
+        result = op.op("Elu", x, alpha=2.0)
         self.assertIsInstance(result, ir.Value)
         self.assertEqual(op.nodes[0].op_type, "Elu")
         self.assertIn("alpha", op.nodes[0].attributes)
 
     def test_op_method_with_attr_map(self):
-        """Verify that passing node.attributes (an Attributes mapping) works."""
+        """Verify that passing **node.attributes (an Attributes mapping) works."""
         op = TapeBuilder()
         source_node = ir.Node(
             "",
@@ -108,7 +108,7 @@ class RewriterContextOpCreationTest(unittest.TestCase):
             attributes=[ir.AttrInt64s("pads", [1, 1, 1, 1])],
             num_outputs=1,
         )
-        result = op.op("Conv", inputs=[ir.Value()], attributes=source_node.attributes)
+        result = op.op("Conv", ir.Value(), **source_node.attributes)
         self.assertIsInstance(result, ir.Value)
         self.assertIn("pads", op.nodes[0].attributes)
 

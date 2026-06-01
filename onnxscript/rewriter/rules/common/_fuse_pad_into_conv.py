@@ -85,10 +85,11 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
 
         return op.op(
             conv_node.op_type,
-            inputs=(x, *conv_node.inputs[1:]),
-            attributes=conv_attr,
-            domain=conv_node.domain,
-            name=conv_node.name,
+            x,
+            *conv_node.inputs[1:],
+            _domain=conv_node.domain,
+            _name=conv_node.name,
+            **conv_attr,
         )
 
     def check(self, context, x: ir.Value, pad: ir.Value, conv: ir.Value) -> orp.MatchResult:
@@ -214,10 +215,10 @@ class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
 
         return op.op(
             conv_node.op_type,
-            inputs=conv_node.inputs,
-            attributes=conv_attr,
-            domain=conv_node.domain,
-            name=conv_node.name,
+            *conv_node.inputs,
+            _domain=conv_node.domain,
+            _name=conv_node.name,
+            **conv_attr,
         )
 
     def check(self, context, conv: ir.Value, **__) -> orp.MatchResult:

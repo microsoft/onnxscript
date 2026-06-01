@@ -83,12 +83,10 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
 
         return op.op(
             self.op_type,
-            inputs=[
-                x,
-                op.initializer(fused_weights, name=inbound_node.inputs[1].name),
-                op.initializer(fused_bias, name=bias_name),
-            ],
-            attributes=inbound_node.attributes,
+            x,
+            op.initializer(fused_weights, name=inbound_node.inputs[1].name),
+            op.initializer(fused_bias, name=bias_name),
+            **inbound_node.attributes,
         )
 
     def check(self, context, x, inbound_out: ir.Value, batchnorm_out: ir.Value) -> MatchResult:

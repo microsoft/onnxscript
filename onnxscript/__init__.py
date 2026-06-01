@@ -14,7 +14,7 @@ __all__ = [
     "TracedOnnxFunction",
     "GraphBuilder",
     "OpBuilder",
-    "OpBuilderBase",
+    "BuilderBase",
     "TapeBuilder",
     "build_function",
     "build_graph",
@@ -69,6 +69,7 @@ __all__ = [
     "opset_ai_onnx_ml4",
     "opset_ai_onnx_ml5",
     "DEBUG",
+    "BuilderFeature",
 ]
 
 import importlib.metadata
@@ -135,7 +136,11 @@ from .onnx_types import (
 
 from . import ir, nn, optimizer, rewriter, version_converter
 from ._internal.builder import GraphBuilder, OpBuilder, build_function, build_graph
-from ._internal.tape_builder import OpBuilderBase, TapeBuilder
+from ._internal.tape_builder import (
+    BuilderBase,
+    BuilderFeature,
+    TapeBuilder,
+)
 from ._internal.utils import external_tensor
 from ._internal.values import OnnxFunction, TracedOnnxFunction
 
