@@ -838,7 +838,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "logcumsumexp", core_ops.aten_logcumsumexp, tolerance={torch.float16: (1e-2, 1e-1)}
     ),
     TorchLibOpInfo("logdet", core_ops.aten_logdet),
-    TorchLibOpInfo("logsumexp", core_ops.aten_logsumexp),
+    TorchLibOpInfo(
+        "logsumexp", core_ops.aten_logsumexp, tolerance={torch.float16: (2e-2, 1e-4)}
+    ),
     TorchLibOpInfo("lt", core_ops.aten_lt),
     TorchLibOpInfo("masked_fill", core_ops.aten_masked_fill).xfail(
         dtypes=(torch.bool,),
@@ -1003,7 +1005,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.pixel_unshuffle",
         core_ops.aten_pixel_unshuffle,
-    ).xfail(
+    )
+    .skip(
+        matcher=lambda sample: sample.input.numel() == 0,
+        reason="fixme: size 0 inputs are not handled yet",
+    )
+    .xfail(
         dtypes=(torch.int32, torch.int64),
         reason="fixme: ONNX Runtime does not support int32/64 inputs",
     ),

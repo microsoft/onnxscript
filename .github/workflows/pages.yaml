@@ -27,7 +27,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v6
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
@@ -42,9 +42,9 @@ jobs:
       - name: Build documentation
         run: python -m sphinx docs dist/html
       - name: Upload documentation archive
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: 'dist/html'
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

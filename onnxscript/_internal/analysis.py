@@ -153,7 +153,7 @@ class AstAnalyzer:
             return live
 
         def do_visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
-            def visitBlock(block: Sequence[ast.stmt], live_out: Set[str]) -> Set[str]:
+            def visit_block(block: Sequence[ast.stmt], live_out: Set[str]) -> Set[str]:
                 for s in reversed(block):
                     live_out = visit(s, live_out)
                 return live_out
@@ -167,20 +167,20 @@ class AstAnalyzer:
             if isinstance(stmt, ast.If):
                 constant_cond = self.constant_if_condition(stmt)
                 if constant_cond is None:
-                    live1 = visitBlock(stmt.body, live_out)
-                    live2 = visitBlock(stmt.orelse, live_out)
+                    live1 = visit_block(stmt.body, live_out)
+                    live2 = visit_block(stmt.orelse, live_out)
                     return live1 | live2 | _used_vars(stmt.test)
                 elif constant_cond:
-                    return visitBlock(stmt.body, live_out)
+                    return visit_block(stmt.body, live_out)
                 else:
-                    return visitBlock(stmt.orelse, live_out)
+                    return visit_block(stmt.orelse, live_out)
             if isinstance(stmt, ast.For):
                 p_loop_var = _get_loop_var(stmt, self._formatter)
                 prev = None
                 curr = live_out
                 while curr != prev:
                     prev = curr
-                    curr = visitBlock(stmt.body, prev).difference({p_loop_var})
+                    curr = visit_block(stmt.body, prev).difference({p_loop_var})
                 return curr
             if isinstance(stmt, ast.While):
                 cond_vars = _used_vars(stmt.test)
@@ -188,7 +188,7 @@ class AstAnalyzer:
                 curr = live_out | cond_vars
                 while curr != prev:
                     prev = curr
-                    curr = visitBlock(stmt.body, prev) | cond_vars
+                    curr = visit_block(stmt.body, prev) | cond_vars
                 return curr
             if isinstance(stmt, ast.Break):
                 # The following is sufficient for the current restricted usage, where
@@ -228,7 +228,7 @@ class AstAnalyzer:
         (in the first statement). Hence x is included in the exposed_uses.
         """
 
-        def visitBlock(block: Sequence[ast.stmt], live_out: Set[str]) -> Set[str]:
+        def visit_block(block: Sequence[ast.stmt], live_out: Set[str]) -> Set[str]:
             for stmt in reversed(block):
                 live_out = visit(stmt, live_out)
             return live_out
@@ -243,13 +243,13 @@ class AstAnalyzer:
             if isinstance(stmt, ast.If):
                 constant_cond = self.constant_if_condition(stmt)
                 if constant_cond is None:
-                    live1 = visitBlock(stmt.body, live_out)
-                    live2 = visitBlock(stmt.orelse, live_out)
+                    live1 = visit_block(stmt.body, live_out)
+                    live2 = visit_block(stmt.orelse, live_out)
                     return (live1 | live2) | _used_vars(stmt.test)
                 elif constant_cond:
-                    return visitBlock(stmt.body, live_out)
+                    return visit_block(stmt.body, live_out)
                 else:
-                    return visitBlock(stmt.orelse, live_out)
+                    return visit_block(stmt.orelse, live_out)
             if ast_utils.is_print_call(stmt):
                 return live_out
             if ast_utils.is_doc_string(stmt):
@@ -259,13 +259,13 @@ class AstAnalyzer:
                 # for loops that execute at least once.
                 loop_var_set = {_get_loop_var(stmt, self._formatter)}
                 used_after_loop = live_out.difference(loop_var_set)
-                used_inside_loop = visitBlock(stmt.body, set()).difference(loop_var_set)
+                used_inside_loop = visit_block(stmt.body, set()).difference(loop_var_set)
                 used_in_loop_header = _used_vars(stmt.iter)
                 return used_inside_loop | used_in_loop_header | used_after_loop
             if isinstance(stmt, ast.While):
                 # Analysis assumes loop may execute zero times. Results can be improved
                 # for loops that execute at least once.
-                used_inside_loop = visitBlock(stmt.body, set())
+                used_inside_loop = visit_block(stmt.body, set())
                 used_in_loop_header = _used_vars(stmt.test)
                 return used_inside_loop | used_in_loop_header | live_out
             if isinstance(stmt, ast.Break):
@@ -281,7 +281,7 @@ class AstAnalyzer:
                 self._formatter(stmt, f"Unsupported statement type {type(stmt)!r}.")
             )
 
-        return visitBlock(stmts, set())
+        return visit_block(stmts, set())
 
     def outer_scope_variables(self, fun: ast.FunctionDef) -> set[str]:
         """Return the set of outer-scope variables used in a nested function.
