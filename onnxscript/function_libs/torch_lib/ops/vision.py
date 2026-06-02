@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Sequence
+from typing import Optional, Sequence
 
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
@@ -100,8 +100,8 @@ def torchvision_deform_conv2d(
     input: TFloat,
     weight: TFloat,
     offset: TFloat,
-    mask: TFloat,
-    bias: TFloat,
+    mask: Optional[TFloat],
+    bias: Optional[TFloat],
     stride_h: int,
     stride_w: int,
     pad_h: int,
