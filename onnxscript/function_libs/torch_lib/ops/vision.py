@@ -112,7 +112,7 @@ def torchvision_deform_conv2d(
     offset_groups: int,
     use_mask: bool,
 ):
-    """deform_conv2d(input: torch.Tensor, offset: torch.Tensor, weight: torch.Tensor, bias: Optional[torch.Tensor] = None, stride: tuple[int, int] = (1, 1), padding: tuple[int, int] = (0, 0), dilation: tuple[int, int] = (1, 1), mask: Optional[torch.Tensor] = None) → torch.Tensor"""
+    """torchvision::deform_conv2d(Tensor input, Tensor weight, Tensor offset, Tensor mask, Tensor bias, int stride_h, int stride_w, int pad_h, int pad_w, int dilation_h, int dilation_w, int groups, int offset_groups, bool use_mask) -> Tensor"""
 
     return opset19.DeformConv(
         X=input,
