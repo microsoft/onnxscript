@@ -2330,6 +2330,7 @@ def _aten_upsample_output_size(
     coordinate_transformation_mode: str,
     antialias: int = 0,
     cubic_coeff_a: float = -0.75,
+    exclude_outside: int = 0,
 ) -> TReal:
     batch_and_channel = op.Shape(self, end=2, start=0)
     # When output_size is passed in as a list of integers, the torch.onnx
@@ -2348,6 +2349,7 @@ def _aten_upsample_output_size(
         cubic_coeff_a=cubic_coeff_a,
         nearest_mode="floor",
         antialias=antialias,
+        exclude_outside=exclude_outside,
     )
 
 
@@ -2358,6 +2360,7 @@ def _aten_upsample_scales(
     coordinate_transformation_mode: str,
     antialias: int = 0,
     cubic_coeff_a: float = -0.75,
+    exclude_outside: int = 0,
 ) -> TReal:
     return op.Resize(
         self,
@@ -2371,6 +2374,7 @@ def _aten_upsample_scales(
         cubic_coeff_a=cubic_coeff_a,
         nearest_mode="floor",
         antialias=antialias,
+        exclude_outside=exclude_outside,
     )
 
 
@@ -2410,6 +2414,10 @@ def aten__upsample_bicubic2d_aa(
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
     # PyTorch uses cubic_coeff_a=-0.5 (Keys interpolation, PIL-compatible) when
     # antialias=True, as opposed to -0.75 (OpenCV-compatible) for the non-antialias case.
+    # exclude_outside=1 matches PyTorch's antialias kernel, which drops out-of-bounds
+    # samples from the filter window and renormalizes the remaining weights so they
+    # sum to 1. Without it the ONNX Resize keeps phantom out-of-bounds weight in the
+    # denominator and produces values that differ from eager near the boundary.
     return _aten_upsample_output_size(
         self,
         output_size,
@@ -2417,6 +2425,7 @@ def aten__upsample_bicubic2d_aa(
         coordinate_transformation_mode=coordinate_transformation_mode,
         antialias=1,
         cubic_coeff_a=-0.5,
+        exclude_outside=1,
     )
 
 
@@ -2495,12 +2504,17 @@ def aten__upsample_bilinear2d_aa(
     # NOTE: Based on experimentation, scales_h and scales_w are always ignored in PyTorch,
     # unless when align_corners is True, in which case we do not know what is going on.
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    # exclude_outside=1 matches PyTorch's antialias kernel, which drops out-of-bounds
+    # samples from the filter window and renormalizes the remaining weights so they
+    # sum to 1. Without it the ONNX Resize keeps phantom out-of-bounds weight in the
+    # denominator and produces values that differ from eager near the boundary.
     return _aten_upsample_output_size(
         self,
         output_size,
         coordinate_transformation_mode=coordinate_transformation_mode,
         mode="linear",
         antialias=1,
+        exclude_outside=1,
     )
 
 
