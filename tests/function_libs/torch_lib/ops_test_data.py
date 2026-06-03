@@ -1784,13 +1784,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten._upsample_bilinear2d_aa",
         nn_ops.aten__upsample_bilinear2d_aa,
-        # ONNX and PyTorch use different anti-aliasing algorithms, so numerical results differ.
-        # However, the implementation is verified correct because:
-        # 1. The function correctly passes antialias=1 to ONNX Resize operation
-        # 2. Shape validation ensures the operation works correctly
-        # 3. Additional validation in test_aa_upsample_validation.py confirms correctness
-        # Shape-only comparison is the appropriate testing approach for this case.
-        compare_shape_only_for_output=(0,),
+    )
+    .xfail(
+        matcher=lambda sample: sample.args[1] is True,
+        reason="fixme: align_corners=True diverges between PyTorch AA kernel and ONNX Resize antialias",
+    )
+    .xfail(
+        matcher=lambda sample: (
+            sample.args[1] is False and sample.kwargs.get("scales_h") is not None
+        ),
+        reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo("ops.aten.upsample_bilinear2d.vec", nn_ops.aten_upsample_bilinear2d_vec),
     TorchLibOpInfo(
@@ -1805,13 +1808,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten._upsample_bicubic2d_aa",
         nn_ops.aten__upsample_bicubic2d_aa,
-        # ONNX and PyTorch use different anti-aliasing algorithms, so numerical results differ.
-        # However, the implementation is verified correct because:
-        # 1. The function correctly passes antialias=1 to ONNX Resize operation
-        # 2. Shape validation ensures the operation works correctly
-        # 3. Additional validation in test_aa_upsample_validation.py confirms correctness
-        # Shape-only comparison is the appropriate testing approach for this case.
-        compare_shape_only_for_output=(0,),
+    )
+    .xfail(
+        matcher=lambda sample: sample.args[1] is True,
+        reason="fixme: align_corners=True diverges between PyTorch AA kernel and ONNX Resize antialias",
+    )
+    .xfail(
+        matcher=lambda sample: (
+            sample.args[1] is False and sample.kwargs.get("scales_h") is not None
+        ),
+        reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo("ops.aten.upsample_bicubic2d.vec", nn_ops.aten_upsample_bicubic2d_vec),
     TorchLibOpInfo(
