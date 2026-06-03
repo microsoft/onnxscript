@@ -821,13 +821,20 @@ def aten_as_strided(
 ) -> TTensor:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
 
-    # For each output position (i_0, ..., i_{n-1}) the corresponding flat index
-    # into the contiguous storage is storage_offset + sum_d i_d * stride[d]. The
-    # result is a single Gather of the flattened input against these indices,
-    # which avoids the hard to fold loop of the previous implementation.
+    # torch.as_strided produces a view of `self`'s underlying contiguous storage
+    # with the requested `size` (the output shape) and `stride` (the step, in
+    # elements of storage, taken along each output dimension), starting at
+    # `storage_offset` elements into the storage. For an output element at
+    # position (i_0, ..., i_{n-1}) the element read from storage lives at the flat
+    # index storage_offset + sum_d i_d * stride[d]. So if we flatten `self` to 1-D
+    # and gather it with a tensor of those flat indices shaped like the output, we
+    # reproduce the view as a single Gather. This avoids the hard-to-fold loop of
+    # the previous implementation.
     rank = len(size)
+    # `self_flatten` is the contiguous storage as a 1-D tensor; Gather indexes into it.
     self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
 
+    # A missing storage_offset means "start at the beginning of the storage".
     if storage_offset is None:
         storage_offset = 0
 
@@ -836,36 +843,51 @@ def aten_as_strided(
         and all(isinstance(s, int) for s in stride)
         and isinstance(storage_offset, int)
     ):
-        # All dimensions are static: fold the indices into a single constant.
+        # Static fast path: every size/stride/offset is known at trace time, so we
+        # compute the full index tensor with NumPy and emit it as a single
+        # constant that downstream passes can fold trivially.
+        # Start from the storage_offset; the per-dimension contributions are added in.
         indices = np.array(storage_offset, dtype=np.int64)
         for dim, (dim_size, dim_stride) in enumerate(zip(size, stride)):
+            # Contribution of dimension `dim`: index i_dim contributes i_dim * stride[dim].
             add_value = np.arange(dim_size, dtype=np.int64) * dim_stride
+            # Reshape that 1-D contribution so it broadcasts along `dim` only
+            # (length dim_size at position `dim`, length 1 everywhere else), which
+            # lets the running sum build the full n-D index grid.
             broadcast_shape = [1] * rank
             broadcast_shape[dim] = dim_size
             indices = indices + add_value.reshape(broadcast_shape)
+        # `indices` now has shape `size`; gathering yields the strided view.
         return op.Gather(self_flatten, op.Constant(value=ir.tensor(indices)))
 
-    # At least one SymInt is a dynamic (runtime) value. Build the indices with
-    # ONNX ops, broadcasting each dimension's contribution into place. The loop
-    # is unrolled at trace time because the rank is always static.
+    # Dynamic path: at least one SymInt is a runtime value, so the index tensor
+    # cannot be folded to a constant. We build it with ONNX ops, mirroring the
+    # NumPy math above. The per-dimension loop is unrolled at trace time because
+    # the rank is always static, so no Loop/Scan is emitted.
     zero = op.Constant(value_int=0)
     one = op.Constant(value_int=1)
+    # `empty_shape` reshapes a value to a 0-D scalar (shape []).
     empty_shape = op.Constant(value=ir.tensor(np.array([], dtype=np.int64)))
-    # Cast to INT64 scalars so the arithmetic below has a consistent dtype
-    # regardless of how the SymInt runtime values are typed.
+    # Start the running index from storage_offset, cast to an INT64 scalar so all
+    # the arithmetic below has a consistent dtype regardless of how the SymInt
+    # runtime values are typed (e.g. int32 SymInts).
     indices = op.Cast(op.Reshape(storage_offset, empty_shape), to=INT64.dtype)
     for dim in range(rank):
+        # Normalize this dimension's size and stride to INT64 scalars.
         dim_size = op.Cast(op.Reshape(size[dim], empty_shape), to=INT64.dtype)
         dim_stride = op.Cast(op.Reshape(stride[dim], empty_shape), to=INT64.dtype)
         # add_value = arange(dim_size) * dim_stride, a 1-D tensor of length dim_size
+        # holding the storage offsets contributed by index 0..dim_size-1 along `dim`.
         add_value = op.Mul(op.Range(zero, dim_size, one), dim_stride)
-        # Reshape to broadcast along the current dimension: ones everywhere except
-        # at position `dim`, where the length is dim_size.
+        # Insert singleton axes everywhere except `dim` so this 1-D contribution
+        # broadcasts along dimension `dim` only when added to the running index,
+        # matching the NumPy `reshape(broadcast_shape)` in the static path.
         unsqueeze_axes = [axis for axis in range(rank) if axis != dim]
         if unsqueeze_axes:
             add_value = op.Unsqueeze(add_value, op.Constant(value_ints=unsqueeze_axes))
         indices = op.Add(indices, add_value)
 
+    # `indices` now has shape `size`; gathering yields the strided view.
     return op.Gather(self_flatten, indices)
 
 
