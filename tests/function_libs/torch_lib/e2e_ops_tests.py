@@ -9,6 +9,7 @@ import parameterized
 
 # TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
 import torch
+import torchvision
 from torch.onnx._internal.exporter import _testing
 
 
@@ -269,6 +270,50 @@ class TorchLibe2eTest(unittest.TestCase):
             (torch.tensor([1, 2, 3, 4, 5]),),
             dynamo=True,
             verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_torchvision_deform_conv2d(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, offset, weight, bias):
+                return torchvision.ops.deform_conv2d(x, offset, weight, bias=bias)
+
+        x = torch.randn(1, 2, 5, 5, dtype=torch.float32)
+        weight = torch.randn(3, 2, 3, 3, dtype=torch.float32)
+        offset = torch.randn(1, 18, 3, 3, dtype=torch.float32)
+        bias = torch.randn(3, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, offset, weight, bias),
+            opset_version=19,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_torchvision_deform_conv2d_with_mask_groups_and_padding(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, offset, weight, bias, mask):
+                return torchvision.ops.deform_conv2d(
+                    x,
+                    offset,
+                    weight,
+                    bias=bias,
+                    padding=(1, 1),
+                    mask=mask,
+                )
+
+        x = torch.randn(1, 4, 5, 5, dtype=torch.float32)
+        weight = torch.randn(4, 2, 3, 3, dtype=torch.float32)
+        offset = torch.randn(1, 36, 5, 5, dtype=torch.float32)
+        bias = torch.randn(4, dtype=torch.float32)
+        mask = torch.randn(1, 18, 5, 5, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, offset, weight, bias, mask),
+            opset_version=19,
+            dynamo=True,
         )
         _testing.assert_onnx_program(onnx_program)
 

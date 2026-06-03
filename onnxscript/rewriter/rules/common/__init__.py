@@ -12,6 +12,7 @@ __all__ = [
     "div_by_1_rule",
     "dropout_inference_rule",
     "dropout_zero_rule",
+    "expand_before_binary_op_rules",
     "flatten_to_reshape_rule",
     "fuse_batchnorm_into_conv_rule",
     "fuse_batchnorm_into_conv_transpose_rule",
@@ -124,6 +125,9 @@ from onnxscript.rewriter.rules.common._no_op import (
 from onnxscript.rewriter.rules.common._redundant_scatter_nd import (
     no_op_dynamic_scatter_nd_rule,
     no_op_static_scatter_nd_rule,
+)
+from onnxscript.rewriter.rules.common._remove_expand_before_binary_op import (
+    expand_before_binary_op_rules,
 )
 from onnxscript.rewriter.rules.common._remove_optional_bias import (
     remove_optional_bias_from_conv_rule,

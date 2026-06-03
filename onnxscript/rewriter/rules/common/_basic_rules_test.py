@@ -528,7 +528,11 @@ class ReshapeReshapeTest(unittest.TestCase):
 
         # Check inference.
         inputs = np.random.default_rng(7).random(input_shape, dtype="float32")
-        testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
+        # Use the reference implementation to avoid ORT incorrectly folding/rewriting
+        # the original two-reshape model (e.g. ignoring allowzero=1).
+        testing.assert_numerically_equal(
+            model, updated_model, (inputs,), atol=0, rtol=0, use_reference=True
+        )
 
     @parameterized.parameterized.expand(
         [
