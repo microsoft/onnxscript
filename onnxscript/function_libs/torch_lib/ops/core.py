@@ -5162,12 +5162,8 @@ def _aten_index_put_bool(
     # Broadcast ``values`` to the selection shape ``[num_true, *self.shape[mask_rank:]]``
     # and flatten it to one update per selected element. This keeps scalar and
     # broadcastable ``values`` working, matching ``self[mask] = values`` semantics.
-    num_true = op.ReduceSum(
-        op.Cast(op.Reshape(bool_mask, neg_1), to=INT64.dtype), keepdims=1
-    )
-    trailing_shape = op.Slice(
-        op.Shape(self), starts=[mask_rank], ends=[self_rank], axes=[0]
-    )
+    num_true = op.ReduceSum(op.Cast(op.Reshape(bool_mask, neg_1), to=INT64.dtype), keepdims=1)
+    trailing_shape = op.Slice(op.Shape(self), starts=[mask_rank], ends=[self_rank], axes=[0])
     selection_shape = op.Concat(num_true, trailing_shape, axis=0)
     flat_values = op.Reshape(op.Expand(values, selection_shape), neg_1)
 
