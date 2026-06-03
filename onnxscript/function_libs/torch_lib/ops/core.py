@@ -868,14 +868,13 @@ def aten_as_strided(
     one = op.Constant(value_int=1)
     # `empty_shape` reshapes a value to a 0-D scalar (shape []).
     empty_shape = op.Constant(value=ir.tensor(np.array([], dtype=np.int64)))
-    # Start the running index from storage_offset, cast to an INT64 scalar so all
-    # the arithmetic below has a consistent dtype regardless of how the SymInt
-    # runtime values are typed (e.g. int32 SymInts).
-    indices = op.Cast(op.Reshape(storage_offset, empty_shape), to=INT64.dtype)
+    # Start the running index from storage_offset as an INT64 scalar; SymInt
+    # runtime values are assumed to be INT64.
+    indices = op.Reshape(storage_offset, empty_shape)
     for dim in range(rank):
-        # Normalize this dimension's size and stride to INT64 scalars.
-        dim_size = op.Cast(op.Reshape(size[dim], empty_shape), to=INT64.dtype)
-        dim_stride = op.Cast(op.Reshape(stride[dim], empty_shape), to=INT64.dtype)
+        # Reshape this dimension's size and stride to INT64 scalars.
+        dim_size = op.Reshape(size[dim], empty_shape)
+        dim_stride = op.Reshape(stride[dim], empty_shape)
         # add_value = arange(dim_size) * dim_stride, a 1-D tensor of length dim_size
         # holding the storage offsets contributed by index 0..dim_size-1 along `dim`.
         add_value = op.Mul(op.Range(zero, dim_size, one), dim_stride)
