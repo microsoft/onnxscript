@@ -821,22 +821,49 @@ def aten_as_strided(
 ) -> TTensor:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
 
-    # Compute the flat gather indices statically. For each output position
-    # (i_0, ..., i_{n-1}) the corresponding flat index into the contiguous
-    # storage is storage_offset + sum_d i_d * stride[d]. This avoids the hard
-    # to fold loop of the previous implementation by emitting a single Gather
-    # with a constant index tensor.
-    indices = np.array(storage_offset, dtype=np.int64)
-    for dim, (dim_size, dim_stride) in enumerate(zip(size, stride)):
-        add_value = np.arange(dim_size, dtype=np.int64) * dim_stride
-        broadcast_shape = [1] * len(size)
-        broadcast_shape[dim] = dim_size
-        indices = indices + add_value.reshape(broadcast_shape)
-
+    # For each output position (i_0, ..., i_{n-1}) the corresponding flat index
+    # into the contiguous storage is storage_offset + sum_d i_d * stride[d]. The
+    # result is a single Gather of the flattened input against these indices,
+    # which avoids the hard to fold loop of the previous implementation.
+    rank = len(size)
     self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
-    result = op.Gather(self_flatten, op.Constant(value=ir.tensor(indices)))
 
-    return result
+    if (
+        all(isinstance(s, int) for s in size)
+        and all(isinstance(s, int) for s in stride)
+        and isinstance(storage_offset, int)
+    ):
+        # All dimensions are static: fold the indices into a single constant.
+        indices = np.array(storage_offset, dtype=np.int64)
+        for dim, (dim_size, dim_stride) in enumerate(zip(size, stride)):
+            add_value = np.arange(dim_size, dtype=np.int64) * dim_stride
+            broadcast_shape = [1] * rank
+            broadcast_shape[dim] = dim_size
+            indices = indices + add_value.reshape(broadcast_shape)
+        return op.Gather(self_flatten, op.Constant(value=ir.tensor(indices)))
+
+    # At least one SymInt is a dynamic (runtime) value. Build the indices with
+    # ONNX ops, broadcasting each dimension's contribution into place. The loop
+    # is unrolled at trace time because the rank is always static.
+    zero = op.Constant(value_int=0)
+    one = op.Constant(value_int=1)
+    empty_shape = op.Constant(value=ir.tensor(np.array([], dtype=np.int64)))
+    # Cast to INT64 scalars so the arithmetic below has a consistent dtype
+    # regardless of how the SymInt runtime values are typed.
+    indices = op.Cast(op.Reshape(storage_offset, empty_shape), to=INT64.dtype)
+    for dim in range(rank):
+        dim_size = op.Cast(op.Reshape(size[dim], empty_shape), to=INT64.dtype)
+        dim_stride = op.Cast(op.Reshape(stride[dim], empty_shape), to=INT64.dtype)
+        # add_value = arange(dim_size) * dim_stride, a 1-D tensor of length dim_size
+        add_value = op.Mul(op.Range(zero, dim_size, one), dim_stride)
+        # Reshape to broadcast along the current dimension: ones everywhere except
+        # at position `dim`, where the length is dim_size.
+        unsqueeze_axes = [axis for axis in range(rank) if axis != dim]
+        if unsqueeze_axes:
+            add_value = op.Unsqueeze(add_value, op.Constant(value_ints=unsqueeze_axes))
+        indices = op.Add(indices, add_value)
+
+    return op.Gather(self_flatten, indices)
 
 
 def aten_as_strided_copy(
