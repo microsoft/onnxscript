@@ -828,6 +828,9 @@ def aten_as_strided(
     rank = len(size)
     self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
 
+    if storage_offset is None:
+        storage_offset = 0
+
     if (
         all(isinstance(s, int) for s in size)
         and all(isinstance(s, int) for s in stride)
