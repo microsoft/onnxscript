@@ -6081,10 +6081,12 @@ def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
 def aten_masked_scatter(self: TTensor, mask: TTensor, source: TTensor) -> TTensor:
     """masked_scatter(Tensor self, Tensor mask, Tensor source) -> Tensor"""
 
-    if len(mask.shape) < len(self.shape):
-        mask = op.Expand(mask, op.Shape(self))
-    else:
-        self = op.Expand(self, op.Shape(mask))
+    # Broadcast self and mask to their common shape so NonZero enumerates every
+    # masked element. The previous rank-only check missed same-rank broadcasting
+    # (e.g. mask (1, S, 1) vs self (1, S, D)): it left mask un-expanded, so only a
+    # subset of masked positions were scattered (pytorch/pytorch#186146).
+    self = op.Expand(self, op.Shape(mask))
+    mask = op.Expand(mask, op.Shape(self))
     index = op.Transpose(op.NonZero(mask), perm=[1, 0])
 
     # NOTE: source can have more elements than needed.
