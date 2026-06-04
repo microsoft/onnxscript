@@ -9845,6 +9845,43 @@ def _build_trilinear_equation(
     )
 
 
+def _trilinear_input_rank(input_value: TensorType) -> int:
+    input_rank = getattr(input_value, "rank", None)
+    if input_rank is not None:
+        return input_rank
+    return len(input_value.shape)
+
+
+def _trilinear_operand_total_dim(
+    input_value: TensorType, expanded_dims: Sequence[int]
+) -> int:
+    return _trilinear_input_rank(input_value) + len(expanded_dims)
+
+
+def _resolve_trilinear_total_dim(
+    i1: TensorType,
+    i2: TensorType,
+    i3: TensorType,
+    expand1: Sequence[int],
+    expand2: Sequence[int],
+    expand3: Sequence[int],
+) -> int:
+    total_dim = _trilinear_operand_total_dim(i1, expand1)
+    candidate_total_dims = (
+        ("i2", "expand2", _trilinear_operand_total_dim(i2, expand2)),
+        ("i3", "expand3", _trilinear_operand_total_dim(i3, expand3)),
+    )
+    for input_name, expand_name, candidate_total_dim in candidate_total_dims:
+        if candidate_total_dim != total_dim:
+            raise ValueError(
+                "aten::_trilinear input ranks and expand dims must resolve "
+                "to the same total dimension; "
+                f"i1+expand1 resolved {total_dim}, but "
+                f"{input_name}+{expand_name} resolved {candidate_total_dim}"
+            )
+    return total_dim
+
+
 @torch_op("aten::_trilinear", trace_only=True)
 def aten__trilinear(
     i1: TReal,
@@ -9860,10 +9897,9 @@ def aten__trilinear(
 
     del unroll_dim
 
-    input_rank = getattr(i1, "rank", None)
-    if input_rank is None:
-        input_rank = len(i1.shape)
-    total_dim = input_rank + len(expand1)
+    total_dim = _resolve_trilinear_total_dim(
+        i1, i2, i3, expand1, expand2, expand3
+    )
     equation = _build_trilinear_equation(total_dim, expand1, expand2, expand3, sumdim)
     return op.Einsum(i1, i2, i3, equation=equation)
 
