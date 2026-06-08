@@ -99,42 +99,6 @@ init_command = [
 is_formatter = true
 
 [[linter]]
-code = 'PYLINT'
-include_patterns = [
-    '**/*.py',
-]
-exclude_patterns = [
-    'docs/**',
-    'examples/**',
-    'onnxscript/_internal/converter_test.py',
-    'onnxscript/optimizer/**',  # FIXME
-    'onnxscript/rewriter/**',  # FIXME
-    'tests/functions/**',
-    'tests/models/**',
-    'tests/onnx_backend_test_code/**',
-]
-command = [
-    'python',
-    '-m',
-    'lintrunner_adapters',
-    'run',
-    'pylint_linter',
-    '--rcfile=pyproject_pylint.toml',
-    '--show-disable',
-    '--',
-    '@{{PATHSFILE}}'
-]
-init_command = [
-    'python',
-    '-m',
-    'lintrunner_adapters',
-    'run',
-    'pip_init',
-    '--dry-run={{DRYRUN}}',
-    '--requirement=requirements/lintrunner/requirements.txt',
-]
-
-[[linter]]
 code = 'EDITORCONFIG-CHECKER'
 include_patterns = ['**']
 exclude_patterns = [
