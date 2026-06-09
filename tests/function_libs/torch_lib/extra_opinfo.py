@@ -1888,6 +1888,9 @@ def sample_inputs_upsample_2d(op_info, device, dtype, requires_grad, **kwargs):
 
     for align_corners in align_corners_options:
         yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(1, rank, False), align_corners
+        )
+        yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)), shape(S, rank, False), align_corners
         )
         yield opinfo_core.SampleInput(
@@ -1934,6 +1937,9 @@ def sample_inputs_upsample_2d_vec(op_info, device, dtype, requires_grad, **kwarg
     yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True, None)
 
     for align_corners in align_corners_options:
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(1, rank, False), align_corners, None
+        )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)), shape(S, rank, False), align_corners, None
         )
