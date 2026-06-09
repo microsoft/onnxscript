@@ -2320,7 +2320,7 @@ def aten_unflatten_dense_tensors(
 
 
 def _get_upsample_align_corners_mode(align_corners: bool) -> str:
-    return "align_corners" if align_corners else "pytorch_half_pixel"
+    return "align_corners" if align_corners else "half_pixel"
 
 
 def _aten_upsample_output_size(
