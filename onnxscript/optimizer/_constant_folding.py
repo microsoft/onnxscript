@@ -22,6 +22,7 @@ import numpy as np
 import onnx
 import onnx.reference.ops
 import onnx_ir as ir
+import onnx_ir.passes.common as ir_passes_common
 
 import onnxscript.utils.utils as utils
 from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
@@ -1394,6 +1395,11 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
+        if self._modified:
+            # TapeBuilder may create values with names that clash with existing graph
+            # values when nodes are inserted via replace_nodes_and_values.
+            # NameFixPass ensures all value names are unique before returning.
+            ir_passes_common.NameFixPass()(model)
         return FoldConstantsResult(model, self._modified, self._state.symbolic_value_map)
 
 

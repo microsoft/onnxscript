@@ -13,6 +13,8 @@ from typing import (
     TypeVar,
 )
 
+import onnx_ir.passes.common as ir_passes_common
+
 import onnxscript.optimizer
 import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._context as _context
@@ -835,6 +837,11 @@ class RewriteRuleSet:
             )
         if self.remove_unused_nodes:
             onnxscript.optimizer.remove_unused_nodes(model)
+        if count > 0:
+            # TapeBuilder may create values with names that clash with existing graph
+            # values when nodes are inserted via replace_nodes_and_values.
+            # NameFixPass ensures all value names are unique before returning.
+            ir_passes_common.NameFixPass()(model)
         return count
 
     def __iter__(self):
