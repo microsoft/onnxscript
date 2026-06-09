@@ -2465,6 +2465,33 @@ class _TestParamsMaxPool3dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
 #    in ops_test_data.py and opinfo_core.OpInfo("unique_name", ...)
 #    To avoid name duplication, it is possible to rename the OpInfo and specify
 #    the `op` field explicitly.
+def sample_inputs_masked_scatter(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    # (self_shape, mask_shape) with mask broadcastable to self. The same-rank
+    # broadcasting cases (e.g. (1, 5, 4) / (1, 5, 1)) are the regression target for
+    # pytorch/pytorch#186146 — the dynamo exporter previously left mask un-expanded.
+    cases = (
+        ((1, 5, 4), (1, 5, 4)),  # no broadcast
+        ((1, 5, 4), (1, 5, 1)),  # same-rank broadcast over last dim
+        ((1, 5, 4), (5, 4)),  # lower-rank mask
+        ((2, 3), (2, 1)),  # same-rank broadcast
+        ((3, 1), (3, 4)),  # self broadcast up to mask
+    )
+    for self_shape, mask_shape in cases:
+        self_tensor = make_arg(self_shape)
+        mask = torch.zeros(mask_shape, dtype=torch.bool, device=device)
+        mask.view(-1)[::2] = True
+        broadcast_shape = torch.broadcast_shapes(self_shape, mask_shape)
+        num_selected = int(mask.expand(broadcast_shape).sum())
+        source = make_arg((max(num_selected, 1),))
+        yield opinfo_core.SampleInput(self_tensor, args=(mask, source))
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "bilinear",
@@ -3099,6 +3126,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torchvision.ops.roi_pool,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_roi_pool,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.masked_scatter",
+        aten_name="masked_scatter",
+        op=torch.ops.aten.masked_scatter.default,
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_masked_scatter,
         supports_out=False,
     ),
 ]
