@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import onnx_ir as ir
 
-from onnxscript.rewriter.rules.fusion import _gqa, _rms_normalization, _rotary_embedding
+from onnxscript.rewriter.rules.fusion import (
+    _attention_present_kv,
+    _gqa,
+    _rms_normalization,
+    _rotary_embedding,
+)
 
 
 def _get_onnx_opset_version(model: ir.Model) -> int | None:
@@ -25,6 +30,9 @@ def _opset_23_fuse(model: ir.Model, *, debug: bool = False) -> dict[str, int]:
     counts["RMSNormalization"] = _rms_normalization.fuse_rms_normalization(model, debug=debug)
     counts["RotaryEmbedding"] = _rotary_embedding.fuse_rotary_embedding(model, debug=debug)
     counts["GQA"] = _gqa.fuse_gqa(model, debug=debug)
+    counts["AttentionPresentKeyValue"] = (
+        _attention_present_kv.fuse_attention_present_key_value(model, debug=debug)
+    )
     return counts
 
 
