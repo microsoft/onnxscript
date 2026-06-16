@@ -9,6 +9,7 @@ import functools
 import logging
 from typing import Callable, Sequence, Union
 
+import onnx.defs
 import onnx_ir.convenience as ir_convenience
 import onnx_ir.passes.common as ir_passes_common
 
@@ -86,24 +87,26 @@ class AdapterRegistry:
         self,
         domain: str,
         opname: str,
-        target_version: int,
+        source_version: int,
         up_conversion: bool = True,
     ) -> AdapterFunction | None:
-        adapter_func = self.op_adapters.get((domain, opname, target_version, up_conversion))
+        adapter_func = self.op_adapters.get((domain, opname, source_version, up_conversion))
         if adapter_func is not None:
             return adapter_func
         return None
 
     def register(
-        self, opname: str, domain: str = "", target_version=None, up_conversion=True
+        self, opname: str, domain: str = "", node_version=None, up_conversion=True
     ) -> Callable[[AdapterFunction], AdapterFunction]:
-        """Register an adapter based on the domain, operator type, target version and whether to upgrade/downgrade node version.
+        """Register an adapter based on the domain, operator type, node version and whether to upgrade/downgrade node version.
 
-        Adapters are keyed by the opset version they convert *to* (``target_version``).
-        This allows an adapter to be found even when an op has version gaps (for
-        example an op whose schema only changed at versions 13 and 18). For such an
-        op, a single adapter registered with ``target_version=18`` is applied when a
-        model is upgraded across that gap, regardless of the model's current opset.
+        ``node_version`` is the operator's schema version (``since_version``) of the
+        form the adapter converts *from*. An operator's schema only changes at a few
+        opset versions, so the adapter is found by mapping the model's current opset
+        to the operator's effective schema version. This allows an adapter to be
+        applied even when an op has version gaps (for example an op whose schema only
+        changed at versions 13 and 18): a model anywhere in ``[13, 18)`` maps to the
+        v13 schema and resolves the same ``13 -> 18`` adapter.
         """
 
         def decorator(function: AdapterFunction) -> AdapterFunction:
@@ -111,7 +114,7 @@ class AdapterRegistry:
             def wrapped_function(*args, **kwargs):
                 return function(*args, **kwargs)
 
-            self.op_adapters[(domain, opname, target_version, up_conversion)] = function
+            self.op_adapters[(domain, opname, node_version, up_conversion)] = function
             return wrapped_function
 
         return decorator
@@ -120,6 +123,19 @@ class AdapterRegistry:
 registry: AdapterRegistry = AdapterRegistry()
 
 register = registry.register
+
+
+def _op_since_version(op_type: str, domain: str, opset_version: int) -> int | None:
+    """Return the operator's schema version (``since_version``) for the given opset.
+
+    Maps a model opset version to the operator's effective schema version. Returns
+    ``None`` if no schema is available for the operator at that opset version.
+    """
+    try:
+        return onnx.defs.get_schema(op_type, opset_version, domain).since_version
+    except Exception:  # pylint: disable=broad-exception-caught
+        # No schema available (e.g. custom op or opset below the op's first version).
+        return None
 
 
 def _get_input(node: ir.Node, index: int) -> ir.Value | None:
@@ -161,7 +177,7 @@ def _get_str_attribute(node: ir.Node, name: str, default: str | None = None) -> 
 # Opset 19 -> 20
 
 
-@register("DFT", target_version=20, up_conversion=True)
+@register("DFT", node_version=17, up_conversion=True)
 def dft_19_20(node: ir.Node, op):
     input = node.inputs[0]
     dft_length = node.inputs[1] if len(node.inputs) > 1 else None
@@ -174,7 +190,7 @@ def dft_19_20(node: ir.Node, op):
     return None
 
 
-@register("GridSample", target_version=20, up_conversion=True)
+@register("GridSample", node_version=16, up_conversion=True)
 def gridsample_19_20(node: ir.Node, op):
     x = node.inputs[0]
     grid = node.inputs[1]
@@ -195,7 +211,7 @@ def gridsample_19_20(node: ir.Node, op):
 # Opset 20 -> 21
 
 
-@register("GroupNormalization", target_version=21, up_conversion=True)
+@register("GroupNormalization", node_version=18, up_conversion=True)
 def groupnormalization_20_21(node: ir.Node, op):
     x = _get_input(node, 0)
     scale = _get_input(node, 1)
@@ -256,11 +272,24 @@ class _VersionConverter:
         )
 
     def process_node(
-        self, node: ir.Node, target_version: int, up_conversion: bool = True
+        self, node: ir.Node, from_version: int, to_version: int, up_conversion: bool = True
     ) -> Replacement | None:
         assert node.domain == ""
+        # Map the model opset versions to the operator's schema versions. An
+        # operator's schema only changes at a few opset versions, so the model
+        # opset (``from_version``/``to_version``) usually differs from the
+        # operator's effective schema version. A conversion is only needed when
+        # the step crosses an operator schema boundary.
+        source_schema_version = _op_since_version(node.op_type, node.domain, from_version)
+        target_schema_version = _op_since_version(node.op_type, node.domain, to_version)
+        if source_schema_version is None or target_schema_version is None:
+            return None
+        if source_schema_version == target_schema_version:
+            # The operator's schema is unchanged between these opsets.
+            return None
+        # Resolve the adapter using the operator's source schema version.
         adapter = registry.lookup_adapters(
-            node.domain, node.op_type, target_version, up_conversion
+            node.domain, node.op_type, source_schema_version, up_conversion
         )
         if adapter is None:
             return None
@@ -300,7 +329,7 @@ class _VersionConverter:
             to_version = from_version + 1
         else:
             to_version = from_version - 1
-        replacement = self.process_node(node, to_version, up_conversion)
+        replacement = self.process_node(node, from_version, to_version, up_conversion)
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():

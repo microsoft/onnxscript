@@ -615,19 +615,19 @@ class VersionGapAdapterTest(unittest.TestCase):
 
         invoked = []
 
-        @_version_converter.register("ReduceLogSumExp", target_version=18, up_conversion=True)
+        @_version_converter.register("ReduceLogSumExp", node_version=13, up_conversion=True)
         def _reducelogsumexp_adapter(node: ir.Node, op):
             invoked.append(node)
             return op.ReduceLogSumExp(node.inputs[0], keepdims=0)
 
-        key = ("", "ReduceLogSumExp", 18, True)
+        key = ("", "ReduceLogSumExp", 13, True)
         try:
             # ReduceLogSumExp only changed at opsets 1, 11, 13 and 18, so a model at
             # opset 17 carries the op at its v13 schema. The node has no explicit
             # version, so it defaults to the model opset (17). The single upgrade
-            # step is 17 -> 18; looking up by the source version (17) would miss the
-            # adapter (registered for the 13 -> 18 upgrade), but looking up by the
-            # target version (18) finds it. See issue #2938.
+            # step is 17 -> 18; the model opset (17) is mapped to the op's schema
+            # version (13) to resolve the adapter registered for the 13 -> 18
+            # upgrade. See issue #2938.
             model = ir.from_onnx_text(
                 """
                 <ir_version: 8, opset_import: [ "" : 17]>
