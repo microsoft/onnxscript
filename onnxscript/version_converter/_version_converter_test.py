@@ -37,7 +37,7 @@ class AdapterCoverageTest(unittest.TestCase):
             domain, name, upgrade_version = (
                 adapter_info[0],
                 adapter_info[1],
-                adapter_info[2] + 1,
+                adapter_info[2],
             )
             self.assertEqual(domain, "")
             self.assertIn((name, upgrade_version), op_upgrades)
@@ -596,6 +596,55 @@ class NameClashAfterConversionTest(unittest.TestCase):
             _all_value_names_unique(model),
             "All value names must be unique after convert_version",
         )
+
+
+class VersionGapAdapterTest(unittest.TestCase):
+    """Adapters must be applied based on the target version, not the source version.
+
+    Some ops only change at a few opset versions (for example an op whose schema
+    last changed at versions 13 and 18).  When a model's opset sits inside such a
+    gap (for example opset 17), the node's effective version does not match the
+    adapter's lower bound, yet the adapter for the upgrade should still run.  See
+    https://github.com/microsoft/onnxscript/issues/2938.
+    """
+
+    def test_adapter_applied_across_version_gap(self):
+        from onnxscript.version_converter import (
+            _version_converter,  # pylint: disable=import-outside-toplevel
+        )
+
+        invoked = []
+
+        @_version_converter.register("ReduceLogSumExp", target_version=18, up_conversion=True)
+        def _reducelogsumexp_adapter(node: ir.Node, op):
+            invoked.append(node)
+            return op.ReduceLogSumExp(node.inputs[0], keepdims=0)
+
+        key = ("", "ReduceLogSumExp", 18, True)
+        try:
+            # ReduceLogSumExp only changed at opsets 1, 11, 13 and 18, so a model at
+            # opset 17 carries the op at its v13 schema. The node has no explicit
+            # version, so it defaults to the model opset (17). The single upgrade
+            # step is 17 -> 18; looking up by the source version (17) would miss the
+            # adapter (registered for the 13 -> 18 upgrade), but looking up by the
+            # target version (18) finds it. See issue #2938.
+            model = ir.from_onnx_text(
+                """
+                <ir_version: 8, opset_import: [ "" : 17]>
+                agraph (float[4, 4] input_x) => (float output)
+                {
+                    output = ReduceLogSumExp <axes = [0, 1], keepdims = 0> (input_x)
+                }
+                """
+            )
+            version_converter.convert_version(model, target_version=18)
+
+            self.assertEqual(model.opset_imports[""], 18)
+            self.assertTrue(invoked, "Adapter registered by target version was not applied")
+            self.assertEqual(model.graph.node(-1).op_type, "ReduceLogSumExp")
+            self.assertEqual(model.graph.node(-1).version, 18)
+        finally:
+            del _version_converter.registry.op_adapters[key]
 
 
 if __name__ == "__main__":

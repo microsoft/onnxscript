@@ -86,25 +86,32 @@ class AdapterRegistry:
         self,
         domain: str,
         opname: str,
-        original_version: int,
+        target_version: int,
         up_conversion: bool = True,
     ) -> AdapterFunction | None:
-        adapter_func = self.op_adapters.get((domain, opname, original_version, up_conversion))
+        adapter_func = self.op_adapters.get((domain, opname, target_version, up_conversion))
         if adapter_func is not None:
             return adapter_func
         return None
 
     def register(
-        self, opname: str, domain: str = "", node_version=None, up_conversion=True
+        self, opname: str, domain: str = "", target_version=None, up_conversion=True
     ) -> Callable[[AdapterFunction], AdapterFunction]:
-        """Register an adapter based on the domain, operator type, node version and whether to upgrade/downgrade node version"""
+        """Register an adapter based on the domain, operator type, target version and whether to upgrade/downgrade node version.
+
+        Adapters are keyed by the opset version they convert *to* (``target_version``).
+        This allows an adapter to be found even when an op has version gaps (for
+        example an op whose schema only changed at versions 13 and 18). For such an
+        op, a single adapter registered with ``target_version=18`` is applied when a
+        model is upgraded across that gap, regardless of the model's current opset.
+        """
 
         def decorator(function: AdapterFunction) -> AdapterFunction:
             @functools.wraps(function)
             def wrapped_function(*args, **kwargs):
                 return function(*args, **kwargs)
 
-            self.op_adapters[(domain, opname, node_version, up_conversion)] = function
+            self.op_adapters[(domain, opname, target_version, up_conversion)] = function
             return wrapped_function
 
         return decorator
@@ -154,7 +161,7 @@ def _get_str_attribute(node: ir.Node, name: str, default: str | None = None) -> 
 # Opset 19 -> 20
 
 
-@register("DFT", node_version=19, up_conversion=True)
+@register("DFT", target_version=20, up_conversion=True)
 def dft_19_20(node: ir.Node, op):
     input = node.inputs[0]
     dft_length = node.inputs[1] if len(node.inputs) > 1 else None
@@ -167,7 +174,7 @@ def dft_19_20(node: ir.Node, op):
     return None
 
 
-@register("GridSample", node_version=19, up_conversion=True)
+@register("GridSample", target_version=20, up_conversion=True)
 def gridsample_19_20(node: ir.Node, op):
     x = node.inputs[0]
     grid = node.inputs[1]
@@ -188,7 +195,7 @@ def gridsample_19_20(node: ir.Node, op):
 # Opset 20 -> 21
 
 
-@register("GroupNormalization", node_version=20, up_conversion=True)
+@register("GroupNormalization", target_version=21, up_conversion=True)
 def groupnormalization_20_21(node: ir.Node, op):
     x = _get_input(node, 0)
     scale = _get_input(node, 1)
@@ -249,11 +256,11 @@ class _VersionConverter:
         )
 
     def process_node(
-        self, node: ir.Node, from_version: int, up_conversion: bool = True
+        self, node: ir.Node, target_version: int, up_conversion: bool = True
     ) -> Replacement | None:
         assert node.domain == ""
         adapter = registry.lookup_adapters(
-            node.domain, node.op_type, from_version, up_conversion
+            node.domain, node.op_type, target_version, up_conversion
         )
         if adapter is None:
             return None
@@ -293,7 +300,7 @@ class _VersionConverter:
             to_version = from_version + 1
         else:
             to_version = from_version - 1
-        replacement = self.process_node(node, from_version, up_conversion)
+        replacement = self.process_node(node, to_version, up_conversion)
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():
