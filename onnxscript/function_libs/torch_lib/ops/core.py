@@ -8277,29 +8277,22 @@ def aten_repeat_interleave_self_int(
     output_size: Optional[int] = None,
 ) -> TensorType:
     """repeat_interleave.self_int(Tensor self, SymInt repeats, int? dim=None, *, SymInt? output_size=None) -> Tensor
-
     The trick is to repeat in one direction orthogonal to reshape.
-
     .. code-block:: python
-
-        x = torch.tensor([[0, 1, 2], [3, 4, 5]])
-        x.repeat_interleave(2, dim=0)
-
+    x = torch.tensor([[0, 1, 2], [3, 4, 5]])
+    x.repeat_interleave(2, dim=0)
     is equivalent to:
-
     .. code-block:: python
-
-        x = torch.tensor([[0, 1, 2], [3, 4, 5]])
-        x.repeat((1, 2)).reshape((-1, t.shape[1]))
+    x = torch.tensor([[0, 1, 2], [3, 4, 5]])
+    x.repeat((1, 2)).reshape((-1, t.shape[1]))
     """
     if dim is None:
-        self = op.Reshape(self,[-1])
+        self = op.Reshape(self, [-1])
         dim = 0
         self_rank = 1
     else:
         self_rank = len(self.shape)
-
-    self_rank = len(self.shape)
+    
     pos_dim = (dim + self_rank) % self_rank
     unsqueezed = op.Unsqueeze(self, [pos_dim + 1])
     if isinstance(repeats, int):
