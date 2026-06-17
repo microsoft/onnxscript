@@ -8292,7 +8292,7 @@ def aten_repeat_interleave_self_int(
         self_rank = 1
     else:
         self_rank = len(self.shape)
-    
+
     pos_dim = (dim + self_rank) % self_rank
     unsqueezed = op.Unsqueeze(self, [pos_dim + 1])
     if isinstance(repeats, int):

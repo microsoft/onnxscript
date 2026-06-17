@@ -141,6 +141,20 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_repeat_interleave_int_dim_none(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.repeat_interleave(x, 2)
+
+        inputs = (torch.tensor([2]),)
+        onnx_program = torch.onnx.export(
+            Model(),
+            inputs,
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_repeat_interleave_symbolic_tensor(self):
         class Model(torch.nn.Module):
             def forward(self, x, y):

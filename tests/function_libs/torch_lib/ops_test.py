@@ -324,38 +324,5 @@ common_device_type.instantiate_device_type_tests(
     TestOutputConsistencyFullGraph, globals(), only_for=["cpu", "cuda"]
 )
 
-def test_repeat_interleave_dim_none_regression():
-    """Regression test for repeat_interleave shape inference error when dim is None.
-    
-    Previously, this would raise:
-    InferenceError: Inferred shape and existing shape differ in rank: (2) vs (1)
-    """
-    import torch
-    import onnx
-    import tempfile
-    import os
-
-    class MyModule(torch.nn.Module):
-        def forward(self, x):
-            return torch.repeat_interleave(x, 2)
-
-    model = MyModule()
-    model.eval()
-    x = torch.tensor([2])
-    
-    with tempfile.TemporaryDirectory() as tmpdir:
-        onnx_path = os.path.join(tmpdir, "model.onnx")
-        
-        # Use standard torch.onnx.export which is compatible across PyTorch 2.x versions
-        torch.onnx.export(
-            model,
-            (x,),
-            onnx_path,
-            opset_version=18,
-        )
-        
-        #  raise an InferenceError if the fix is not applied
-        onnx.shape_inference.infer_shapes_path(onnx_path, strict_mode=True)
-
 if __name__ == "__main__":
     unittest.main()
