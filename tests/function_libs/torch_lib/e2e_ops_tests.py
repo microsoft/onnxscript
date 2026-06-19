@@ -9,6 +9,9 @@ import parameterized
 
 # TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
 import torch
+
+# Importing this module registers the quantized_decomposed::* operators used below.
+import torch.ao.quantization.fx._decomposed  # noqa: F401
 from torch.onnx._internal.exporter import _testing
 
 
@@ -627,6 +630,115 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(
             model, (x,), dynamo=True, verbose=False, dynamic_shapes=({1: "seq_len"},)
         )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_quantize_per_channel_int8(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([0, 5, -3], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.quantize_per_channel(
+                    x, scales, zero_points, 0, -128, 127, torch.int8
+                )
+
+        x = torch.randn(3, 4) * 5
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_quantize_per_channel_uint8(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([10, 128, 250], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.quantize_per_channel(
+                    x, scales, zero_points, 0, 0, 255, torch.uint8
+                )
+
+        x = torch.randn(3, 4) * 5
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_quantize_per_channel_non_zero_axis(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                scales = torch.tensor([0.1, 0.2, 0.05, 0.3], dtype=torch.float64)
+                zero_points = torch.tensor([0, 5, -3, 2], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.quantize_per_channel(
+                    x, scales, zero_points, 1, -128, 127, torch.int8
+                )
+
+        x = torch.randn(2, 4, 3) * 4
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_quantize_per_channel_clamps_to_quant_min_max(self):
+        # quant_min/quant_max are narrower than the int8 range, so values must be
+        # clamped to [-20, 20] to match the PyTorch reference semantics.
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                scales = torch.tensor([0.1, 0.2], dtype=torch.float64)
+                zero_points = torch.tensor([0, 0], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.quantize_per_channel(
+                    x, scales, zero_points, 0, -20, 20, torch.int8
+                )
+
+        x = torch.randn(2, 4) * 10
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_dequantize_per_channel_int8(self):
+        class Model(torch.nn.Module):
+            def forward(self, q):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([0, 5, -3], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.dequantize_per_channel(
+                    q, scales, zero_points, 0, -128, 127, torch.int8
+                )
+
+        q = torch.randint(-128, 128, (3, 4), dtype=torch.int8)
+        onnx_program = torch.onnx.export(Model(), (q,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_dequantize_per_channel_uint8(self):
+        class Model(torch.nn.Module):
+            def forward(self, q):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([10, 128, 250], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.dequantize_per_channel(
+                    q, scales, zero_points, 0, 0, 255, torch.uint8
+                )
+
+        q = torch.randint(0, 256, (3, 4), dtype=torch.uint8)
+        onnx_program = torch.onnx.export(Model(), (q,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_dequantize_per_channel_non_zero_axis(self):
+        class Model(torch.nn.Module):
+            def forward(self, q):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([1, 2, 3], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.dequantize_per_channel(
+                    q, scales, zero_points, 2, -128, 127, torch.int8
+                )
+
+        q = torch.randint(-128, 128, (2, 4, 3), dtype=torch.int8)
+        onnx_program = torch.onnx.export(Model(), (q,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_quantize_dequantize_per_channel_roundtrip(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([0, 5, -3], dtype=torch.int64)
+                q = torch.ops.quantized_decomposed.quantize_per_channel(
+                    x, scales, zero_points, 0, -128, 127, torch.int8
+                )
+                return torch.ops.quantized_decomposed.dequantize_per_channel(
+                    q, scales, zero_points, 0, -128, 127, torch.int8
+                )
+
+        x = torch.randn(3, 4) * 5
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
         _testing.assert_onnx_program(onnx_program)
 
     @parameterized.parameterized.expand(
