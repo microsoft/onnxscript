@@ -47,16 +47,3 @@ def l2norm(x: FLOAT["N"], y: FLOAT["N"]) -> FLOAT[1]:  # noqa: F821
 
 model = l2norm.to_model_proto()
 print(onnx.printer.to_text(model))
-
-# %%
-# Let's now explicitly specify which functions to include.
-# First, generate a model with no model-local functions:
-
-model = l2norm.to_model_proto(functions=[])
-print(onnx.printer.to_text(model))
-
-# %%
-# Now, generate a model with one model-local function:
-
-model = l2norm.to_model_proto(functions=[sum])
-print(onnx.printer.to_text(model))

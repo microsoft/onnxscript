@@ -31,11 +31,13 @@ class EvaluatorTest(unittest.TestCase):
         np.testing.assert_equal(output, expected)
 
         # Test using ort-mixed-evaluator
-        output = seq_map[evaluator.ort_mixed_evaluator](x)
+        with evaluator.default_as(evaluator.ort_mixed_evaluator):
+            output = seq_map(x)
         np.testing.assert_equal(output, expected)
 
         # Test using ort-evaluator
-        output = seq_map[evaluator.ort_evaluator](x)
+        with evaluator.default_as(evaluator.ort_evaluator):
+            output = seq_map(x)
         np.testing.assert_equal(output, expected)
 
 

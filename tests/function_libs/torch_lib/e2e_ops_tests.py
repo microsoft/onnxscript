@@ -9,6 +9,7 @@ import parameterized
 
 # TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
 import torch
+import torchvision
 
 # Importing this module registers the quantized_decomposed::* operators used below.
 import torch.ao.quantization.fx._decomposed  # noqa: F401
@@ -231,6 +232,37 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_optional_enable_gqa_in_attention(self):
+        class Model(torch.nn.Module):
+            def forward(self, q, k, v):
+                return torch.nn.functional.scaled_dot_product_attention(  # pylint: disable=not-callable
+                    q,
+                    k,
+                    v,
+                )
+
+        model = Model()
+
+        # scaled_dot_product_attention works even if query.shape[1] != key.shape[1]
+        # due to broadcasting
+        query = torch.randn(2, 1, 8, 16)
+        key = torch.randn(2, 2, 8, 16)
+        value = torch.randn(2, 2, 8, 16)
+
+        onnx_program = torch.onnx.export(
+            model,
+            (
+                query,
+                key,
+                value,
+            ),
+            input_names=["query", "key", "value"],
+            output_names=["output"],
+            opset_version=18,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_bitwise_and_scalar(self):
         class Model(torch.nn.Module):
             def forward(self, x):
@@ -241,6 +273,50 @@ class TorchLibe2eTest(unittest.TestCase):
             (torch.tensor([1, 2, 3, 4, 5]),),
             dynamo=True,
             verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_torchvision_deform_conv2d(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, offset, weight, bias):
+                return torchvision.ops.deform_conv2d(x, offset, weight, bias=bias)
+
+        x = torch.randn(1, 2, 5, 5, dtype=torch.float32)
+        weight = torch.randn(3, 2, 3, 3, dtype=torch.float32)
+        offset = torch.randn(1, 18, 3, 3, dtype=torch.float32)
+        bias = torch.randn(3, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, offset, weight, bias),
+            opset_version=19,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_torchvision_deform_conv2d_with_mask_groups_and_padding(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, offset, weight, bias, mask):
+                return torchvision.ops.deform_conv2d(
+                    x,
+                    offset,
+                    weight,
+                    bias=bias,
+                    padding=(1, 1),
+                    mask=mask,
+                )
+
+        x = torch.randn(1, 4, 5, 5, dtype=torch.float32)
+        weight = torch.randn(4, 2, 3, 3, dtype=torch.float32)
+        offset = torch.randn(1, 36, 5, 5, dtype=torch.float32)
+        bias = torch.randn(4, dtype=torch.float32)
+        mask = torch.randn(1, 18, 5, 5, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, offset, weight, bias, mask),
+            opset_version=19,
+            dynamo=True,
         )
         _testing.assert_onnx_program(onnx_program)
 
@@ -982,6 +1058,63 @@ class TorchLibe2eTest(unittest.TestCase):
             dynamic_shapes=({0: "a", 1: "b", 2: "c"}, {0: "d"}, {0: "e", 1: "f", 2: "g"}),
         )
         _testing.assert_onnx_program(onnx_program)
+
+    def test_std_mean(self):
+        """Test torch.std_mean which will be decomposed into prims.sum."""
+
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.std_mean(x)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.rand(10, 10, 10),), dynamo=True, verbose=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_histc_float(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.histc(x, 3, 0, 2)
+
+        model = Model()
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.rand(10, 10, 10),),
+            dynamo=True,
+            verbose=False,
+            dynamic_shapes=({0: "batch"},),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        for k in range(101):
+            with self.subTest(k=k):
+                inputs = (torch.tensor([(k - 1) / 49.0], dtype=torch.float32),)
+                expected = model(*inputs)
+                got = onnx_program.call_reference({"x": inputs[0]})
+                torch.testing.assert_close(expected, got[0])
+
+    @unittest.skip("see https://github.com/pytorch/pytorch/issues/174668")
+    def test_aten_histc_float16(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.histc(x, 60, -10, 10)
+
+        model = Model()
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.rand((10, 10, 10), dtype=torch.float16),),
+            dynamo=True,
+            verbose=False,
+            dynamic_shapes=({0: "batch"},),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        for k in range(101):
+            with self.subTest(k=k):
+                inputs = (torch.tensor([(k - 1) / 49.0], dtype=torch.float16),)
+                expected = model(*inputs)
+                got = onnx_program.call_reference({"x": inputs[0]})
+                torch.testing.assert_close(expected, got[0])
 
 
 if __name__ == "__main__":

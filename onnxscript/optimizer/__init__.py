@@ -8,6 +8,7 @@ __all__ = [
     "basic_constant_propagation",
     "fold_constants_ir",
     "fold_constants",
+    "FOLDED_FROM_KEY",
     "inline",
     "optimize_ir",
     "optimize",
@@ -19,7 +20,7 @@ import onnx_ir.passes.common as common_passes
 
 import onnxscript.optimizer._constant_folding as constant_folding
 from onnxscript import ir
-from onnxscript.optimizer._constant_folding import basic_constant_propagation
+from onnxscript.optimizer._constant_folding import FOLDED_FROM_KEY, basic_constant_propagation
 from onnxscript.optimizer._constant_folding import fold_constants as fold_constants_ir
 from onnxscript.optimizer._optimizer import optimize_ir
 

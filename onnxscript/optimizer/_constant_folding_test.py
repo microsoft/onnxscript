@@ -689,6 +689,36 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
             np.ones((42, 42), dtype=np.int64),
         )
 
+    def test_quantize_linear_is_not_folded(self):
+        model_text = """
+            <ir_version: 10, opset_import: [ "" : 20]>
+            agraph () => (uint8[4] z)
+            <float[4] x = {1.0, 2.0, 3.0, 4.0}, float[1] scale = {1.0}, uint8[1] zero_point = {0}>
+            {
+                z = QuantizeLinear (x, scale, zero_point)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        optimized = self._fold(model)
+        ops = [node.op_type for node in optimized.graph]
+        # QuantizeLinear should not be folded even when all inputs are constants
+        self.assertEqual(ops, ["QuantizeLinear"])
+
+    def test_dequantize_linear_is_not_folded(self):
+        model_text = """
+            <ir_version: 10, opset_import: [ "" : 20]>
+            agraph () => (float[4] z)
+            <uint8[4] x = {1, 2, 3, 4}, float[1] scale = {1.0}, uint8[1] zero_point = {0}>
+            {
+                z = DequantizeLinear (x, scale, zero_point)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        optimized = self._fold(model)
+        ops = [node.op_type for node in optimized.graph]
+        # DequantizeLinear should not be folded even when all inputs are constants
+        self.assertEqual(ops, ["DequantizeLinear"])
+
     def test_multi_graph_identity_output_preserves_output_name(self):
         model = """
             <ir_version: 10, opset_import: ["" : 20]>
@@ -765,6 +795,62 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         output_names = [o.name for o in optimized.graph.outputs]
         self.assertIn("y", output_names)
         self.assertIn("z", output_names)
+
+
+def _all_value_names_unique(model: ir.Model) -> bool:
+    """Return True if all named values in the top-level graph have unique names."""
+    names = []
+    for v in model.graph.inputs:
+        if v.name:
+            names.append(v.name)
+    for v in model.graph.initializers.values():
+        if v.name:
+            names.append(v.name)
+    for node in model.graph:
+        for output in node.outputs:
+            if output.name:
+                names.append(output.name)
+    return len(names) == len(set(names))
+
+
+class NameClashAfterFoldTest(unittest.TestCase):
+    """Tests that fold_constants calls NameFixPass to deduplicate value names.
+
+    TapeBuilder may assign names that collide with existing graph values when
+    new nodes are inserted via replace_nodes_and_values.  NameFixPass, invoked
+    by FoldConstantsPass.call when the model was modified, resolves the
+    duplicates.
+    """
+
+    def test_fold_constants_deduplicates_names(self):
+        """Duplicate value names present alongside a constant-fold are fixed."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[N] z) {
+                two = Constant <value_float=2.0> ()
+                four = Add(two, two)
+                extra = Relu(x)
+                z = Mul(extra, four)
+            }
+            """
+        )
+
+        # Simulate the name clash that TapeBuilder can introduce: 'extra' (a
+        # non-folded node that survives) is given the same name as 'four' (the
+        # folded Add output) because NameAuthority does not check for conflicts
+        # when registering pre-named values inserted by TapeBuilder.
+        four_node = next(n for n in model.graph if n.op_type == "Add")
+        extra_node = next(n for n in model.graph if n.op_type == "Relu")
+        extra_node.outputs[0].name = four_node.outputs[0].name  # inject clash
+
+        result = _constant_folding.fold_constants(model)
+
+        self.assertTrue(result.modified, "Folding must have modified the model")
+        self.assertTrue(
+            _all_value_names_unique(model),
+            "All value names must be unique after fold_constants",
+        )
 
 
 if __name__ == "__main__":

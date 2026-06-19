@@ -28,7 +28,7 @@ COMMON_TEST_DEPENDENCIES = (
     "typing_extensions>=4.10",
     "ml-dtypes",
 )
-ONNX = "onnx==1.17"
+ONNX = "onnx==1.18"
 ONNX_RUNTIME = "onnxruntime==1.23.0"
 PYTORCH = "torch==2.7.1"
 TORCHVISON = "torchvision==0.22.1"
@@ -41,7 +41,7 @@ ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "packaging",
     "protobuf",
 )
-ONNX_IR = "onnx_ir==0.1.13"
+ONNX_IR = "onnx_ir==0.1.16"
 ONNX_IR_MAIN = "git+https://github.com/onnx/ir-py.git@main#egg=onnx_ir"
 
 

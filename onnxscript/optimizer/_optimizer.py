@@ -64,6 +64,8 @@ def optimize_ir(
         common_passes.LiftSubgraphInitializersToMainGraphPass(),
         common_passes.DeduplicateInitializersPass(),
         common_passes.CommonSubexpressionEliminationPass(),
+        common_passes.OutputFixPass(),
+        common_passes.NameFixPass(),
     ]
     if inline:
         # Inline all functions first before optimizing

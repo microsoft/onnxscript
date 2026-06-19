@@ -320,6 +320,8 @@ def _to_function_proto(f):
         return f.to_function_proto()
     if isinstance(f, str):
         return parser.parse_function(f)
+    if isinstance(f, ir.Function):
+        return ir.to_proto(f)
     raise TypeError(f"Cannot convert {type(f)} to FunctionProto")
 
 
@@ -330,6 +332,8 @@ def _to_graph_proto(g):
         return g.to_model_proto().graph
     if isinstance(g, str):
         return parser.parse_graph(g)
+    if isinstance(g, ir.Graph):
+        return ir.to_proto(g)
     raise TypeError(f"Cannot convert {type(g)} to ModelProto")
 
 
@@ -342,6 +346,10 @@ def _to_function_or_graph(obj):
         return obj.graph
     if isinstance(obj, onnxscript.OnnxFunction):
         return obj.to_function_proto()
+    if isinstance(obj, ir.Function):
+        return ir.to_proto(obj)
+    if isinstance(obj, ir.Graph):
+        return ir.to_proto(obj)
     raise TypeError(f"Cannot convert {type(obj)} to FunctionProto or GraphProto")
 
 

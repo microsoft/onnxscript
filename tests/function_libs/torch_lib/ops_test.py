@@ -109,17 +109,6 @@ class TestFunctionValidity(unittest.TestCase):
         function_proto = torchlib_op_info.op.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
-    @parameterized.parameterized.expand(
-        [(info.op_info_name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
-    )
-    def test_function_has_op_schema(self, _, torchlib_op_info: ops_test_data.TorchLibOpInfo):
-        func = torchlib_op_info.op
-        if not hasattr(func, "op_schema"):
-            raise AssertionError(f"Function {func.__name__} does not have op_schema attribute")
-        schema = func.op_schema
-        self.assertIsNotNone(schema)
-        self.assertEqual(schema.name, func.name)
-
 
 def run_test_output_match(
     test_suite: unittest.TestCase,
@@ -157,12 +146,12 @@ def run_test_output_match(
     onnx_function = torchlib_op_info.op
     input_wrangler = torchlib_op_info.input_wrangler
     if (
-        not ops_test_common.dtype_op_schema_compatible(dtype, onnx_function.op_schema)
+        not ops_test_common.dtype_op_schema_compatible(dtype, onnx_function.op_signature)
         and dtype not in COMPLEX_TYPES
     ):
         test_suite.skipTest(
             f"dtype '{dtype}' is not supported by the op '{op.name}'. "
-            f"Type constraints: {onnx_function.op_schema.type_constraints}"
+            f"Type constraints: {onnx_function.op_signature.params}"
         )
 
     # Obtain the tolerance for the op
