@@ -9,10 +9,10 @@ import parameterized
 
 # TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
 import torch
-import torchvision
 
 # Importing this module registers the quantized_decomposed::* operators used below.
 import torch.ao.quantization.fx._decomposed  # noqa: F401
+import torchvision
 from torch.onnx._internal.exporter import _testing
 
 
