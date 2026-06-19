@@ -817,7 +817,10 @@ def aten_argwhere(self: TensorType) -> TensorType:
 
 @torch_op("aten::as_strided", trace_only=True)
 def aten_as_strided(
-    self: TTensor, size: Sequence[INT64], stride: Sequence[INT64], storage_offset: Optional[INT64] = None
+    self: TTensor,
+    size: Sequence[INT64],
+    stride: Sequence[INT64],
+    storage_offset: Optional[INT64] = None,
 ) -> TTensor:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
 
