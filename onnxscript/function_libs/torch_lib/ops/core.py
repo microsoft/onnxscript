@@ -8282,54 +8282,44 @@ def aten_repeat_interleave_self_int(
 
     .. code-block:: python
 
-        import torch
+        x = torch.tensor([[0, 1, 2], [3, 4, 5]])
+        x.repeat_interleave(2, dim=0)
+
+    is equivalent to:
+
+    .. code-block:: python
 
         x = torch.tensor([[0, 1, 2], [3, 4, 5]])
-        result = x.repeat_interleave(2, dim=0)
-
-        print(result)
+        x.repeat((1, 2)).reshape((-1, x.shape[1]))
     """
-    
     if dim is None:
-        flat_self = op.Reshape(self, [-1])
-        unsqueezed = op.Unsqueeze(flat_self, [1])
-        
-        if isinstance(repeats, int):
-            tile_repeat = op.Constant(value=ir.tensor([1, repeats], dtype=INT64.dtype))
-        else:
-            # repeats is a symbolic tensor
-            tile_repeat = op.Concat(
-                op.Constant(value=ir.tensor([1], dtype=INT64.dtype)),
-                op.Reshape(repeats, op.Constant(value=ir.tensor([-1], dtype=INT64.dtype))),
-                axis=0,
-            )
-            
-        tiled = op.Expand(unsqueezed, tile_repeat)
-        return op.Reshape(tiled, op.Constant(value_ints=[-1]))
+        self = op.Reshape(self, [-1])
+        dim = 0
+        self_rank = 1
+    else:
+        self_rank = len(self.shape)
 
-    self_rank = len(self.shape)
     pos_dim = (dim + self_rank) % self_rank
     unsqueezed = op.Unsqueeze(self, [pos_dim + 1])
-    
     if isinstance(repeats, int):
         tiles = [1] * (self_rank + 1)
         tiles[pos_dim + 1] = repeats
         tile_repeat = op.Constant(value=ir.tensor(tiles, dtype=INT64.dtype))
     else:
+        # repeats is a symbolic tensor
         tile_repeat = op.Concat(
             op.Constant(value=ir.tensor([1] * pos_dim, dtype=INT64.dtype)),
             op.Reshape(repeats, op.Constant(value=ir.tensor([-1], dtype=INT64.dtype))),
             op.Constant(value=ir.tensor([1] * (self_rank - pos_dim), dtype=INT64.dtype)),
             axis=0,
         )
-        
     tiled = op.Expand(unsqueezed, tile_repeat)
     final_shape = op.Concat(
-        op.Shape(self, start=0, end=pos_dim),
+        op.Shape(self, start=0, end=dim),
         op.Constant(value_ints=[-1]),
         op.Shape(self, start=pos_dim + 1),
         axis=0,
-    )    
+    )
     return op.Reshape(tiled, final_shape)
 
 

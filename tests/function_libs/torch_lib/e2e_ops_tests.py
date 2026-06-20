@@ -66,10 +66,7 @@ class TorchLibe2eTest(unittest.TestCase):
                 return x**2
 
         onnx_program = torch.onnx.export(
-            PowModel(),
-            (torch.tensor(0.5, dtype=torch.float16),),
-            dynamo=True,
-            optimize=False,
+            PowModel(), (torch.tensor(0.5, dtype=torch.float16),), dynamo=True, optimize=False
         )
         _testing.assert_onnx_program(onnx_program)
 
@@ -79,10 +76,7 @@ class TorchLibe2eTest(unittest.TestCase):
                 return x**0.5
 
         onnx_program = torch.onnx.export(
-            PowModel(),
-            (torch.tensor(0.5, dtype=torch.float16),),
-            dynamo=True,
-            optimize=False,
+            PowModel(), (torch.tensor(0.5, dtype=torch.float16),), dynamo=True, optimize=False
         )
         _testing.assert_onnx_program(onnx_program)
 
@@ -152,11 +146,9 @@ class TorchLibe2eTest(unittest.TestCase):
             def forward(self, x):
                 return torch.repeat_interleave(x, 2)
 
-        model = Model().eval()
-        inputs = (torch.tensor([2], dtype=torch.int64),)
-
+        inputs = (torch.tensor([2]),)
         onnx_program = torch.onnx.export(
-            model,
+            Model(),
             inputs,
             dynamo=True,
             optimize=False,
@@ -166,9 +158,9 @@ class TorchLibe2eTest(unittest.TestCase):
     def test_repeat_interleave_symbolic_tensor(self):
         class Model(torch.nn.Module):
             def forward(self, x, y):
-                return torch.repeat_interleave(
-                    x, y.shape[1], dim=1
-                ) * torch.repeat_interleave(y, x.shape[1], dim=1)
+                return torch.repeat_interleave(x, y.shape[1], dim=1) * torch.repeat_interleave(
+                    y, x.shape[1], dim=1
+                )
 
         inputs = (
             torch.arange(4, dtype=torch.float32).reshape((2, 2)),
@@ -342,9 +334,7 @@ class TorchLibe2eTest(unittest.TestCase):
     def test_dft_axis_promoted_from_attribute_to_input(self):
         class Model(torch.nn.Module):
             def forward(self, x):
-                return torch.ops.aten._fft_r2c(
-                    x, [0], normalization=1, onesided=True
-                )  # pylint: disable=protected-access
+                return torch.ops.aten._fft_r2c(x, [0], normalization=1, onesided=True)  # pylint: disable=protected-access
 
         onnx_program = torch.onnx.export(
             Model(),
@@ -359,24 +349,12 @@ class TorchLibe2eTest(unittest.TestCase):
         class Model(torch.nn.Module):
             def forward(self, x2d, x3d, x4d, x5d):
                 return (
-                    torch.nn.functional.avg_pool1d(
-                        x2d, 2
-                    ),  # pylint: disable=not-callable
-                    torch.nn.functional.avg_pool1d(
-                        x3d, 2
-                    ),  # pylint: disable=not-callable
-                    torch.nn.functional.avg_pool2d(
-                        x3d, 2
-                    ),  # pylint: disable=not-callable
-                    torch.nn.functional.avg_pool2d(
-                        x4d, 2
-                    ),  # pylint: disable=not-callable
-                    torch.nn.functional.avg_pool3d(
-                        x4d, 2
-                    ),  # pylint: disable=not-callable
-                    torch.nn.functional.avg_pool3d(
-                        x5d, 2
-                    ),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool1d(x2d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool1d(x3d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool2d(x3d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool2d(x4d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool3d(x4d, 2),  # pylint: disable=not-callable
+                    torch.nn.functional.avg_pool3d(x5d, 2),  # pylint: disable=not-callable
                 )
 
         x2d = torch.randn(10, 10)
@@ -554,9 +532,7 @@ class TorchLibe2eTest(unittest.TestCase):
     def test_aten_unique_consecutive_return(self):
         class Model(torch.nn.Module):
             def forward(self, x):
-                return torch.unique_consecutive(
-                    x, return_inverse=True, return_counts=True
-                )
+                return torch.unique_consecutive(x, return_inverse=True, return_counts=True)
 
         model = Model()
         x = torch.tensor([0, 1, 2, 2, 3, 3, 3, 0, 0], dtype=torch.int64)
@@ -602,9 +578,7 @@ class TorchLibe2eTest(unittest.TestCase):
         class Model(torch.nn.Module):
             def forward(self, x):
                 window = torch.ones(16, dtype=torch.float32)
-                return torch.ops.aten.stft(
-                    x, n_fft=16, window=window, return_complex=False
-                )
+                return torch.ops.aten.stft(x, n_fft=16, window=window, return_complex=False)
 
         x = torch.randn(100, dtype=torch.float32)
 
@@ -712,9 +686,7 @@ class TorchLibe2eTest(unittest.TestCase):
         tokens = torch.tensor([1])
         h = torch.randn(2, 1, 64)  # 2 layers
         c = torch.randn(2, 1, 64)  # 2 layers
-        onnx_program = torch.onnx.export(
-            model, (tokens, h, c), dynamo=True, verbose=False
-        )
+        onnx_program = torch.onnx.export(model, (tokens, h, c), dynamo=True, verbose=False)
         _testing.assert_onnx_program(onnx_program)
 
     def test_unbind_dynamic_dim0(self):
@@ -806,12 +778,7 @@ class TorchLibe2eTest(unittest.TestCase):
                 (2,),
                 "contiguous_non_broadcast_indices_new_dim1",
             ),
-            (
-                (6, 6, 6),
-                [None, [0, 1], [2, 3]],
-                (),
-                "contiguous_non_broadcast_indices_scalar",
-            ),
+            ((6, 6, 6), [None, [0, 1], [2, 3]], (), "contiguous_non_broadcast_indices_scalar"),
             # Multiple advanced indices, with broadcasting among indices.
             # Contiguous advanced indices:
             # This produces index tuples [(0,2), (0, 3), (1,2), (1,3)] in shape (2,2)
@@ -862,18 +829,8 @@ class TorchLibe2eTest(unittest.TestCase):
                 "non_contiguous_non_first",
             ),
             ((6, 6, 6), [0, None, None], (6, 6), "single_scalar_index"),
-            (
-                (6, 6, 6),
-                [0, None, [0, 1]],
-                (2, 6),
-                "non_contiguous_scalar_index_and_1d_index",
-            ),
-            (
-                (6, 6, 6),
-                [None, 0, [0, 1]],
-                (6, 2),
-                "contiguous_scalar_index_and_1d_index",
-            ),
+            ((6, 6, 6), [0, None, [0, 1]], (2, 6), "non_contiguous_scalar_index_and_1d_index"),
+            ((6, 6, 6), [None, 0, [0, 1]], (6, 2), "contiguous_scalar_index_and_1d_index"),
             # (TODO): Exporter doesn't yet support all None indices
             # ((6, 6, 6), [None, None, None], (6, 6, 6), "all_none_indices"),
         ]
@@ -928,9 +885,7 @@ class TorchLibe2eTest(unittest.TestCase):
                 update = (torch.arange(2) + 10).reshape((2,)).to(torch.float32)
                 index1 = torch.tensor([1, 2], dtype=torch.int64)
                 index2 = torch.tensor([3, 4], dtype=torch.int64)
-                feeds = dict(
-                    zip(["update", "index1", "index2"], (update, index1, index2))
-                )
+                feeds = dict(zip(["update", "index1", "index2"], (update, index1, index2)))
                 onnx_program = torch.onnx.export(
                     Model(dimension),
                     tuple(feeds.values()),
@@ -1002,11 +957,7 @@ class TorchLibe2eTest(unittest.TestCase):
             output_names=["output"],
             opset_version=18,
             dynamo=True,
-            dynamic_shapes=(
-                {0: "a", 1: "b", 2: "c"},
-                {0: "d"},
-                {0: "e", 1: "f", 2: "g"},
-            ),
+            dynamic_shapes=({0: "a", 1: "b", 2: "c"}, {0: "d"}, {0: "e", 1: "f", 2: "g"}),
         )
         _testing.assert_onnx_program(onnx_program)
 
