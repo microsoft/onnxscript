@@ -9332,16 +9332,16 @@ def aten_stft(
         # hop_length = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
         hop_length = n_fft // 4
 
-    # Pre-process input if needed
-    is_signal_rank1 = len(self.shape) == 1
-    if is_signal_rank1:
-        # Add a batch dimension
-        self = op.Identity(op.Unsqueeze(self, op.Constant(value_ints=[0])))
-
     # ONNX's STFT requires a rank-3 signal of shape [batch_size, signal_length, 1]
     # (the trailing dimension is the real component). torch.stft accepts rank-1 or
-    # rank-2 signals, so add the trailing dimension here for both cases.
-    self = op.Unsqueeze(self, op.Constant(value_ints=[-1]))
+    # rank-2 signals.
+    is_signal_rank1 = len(self.shape) == 1
+    if is_signal_rank1:
+        # [signal_length] -> [1, signal_length, 1]: add batch dim and trailing real-component dim
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0, -1]))
+    else:
+        # [batch_size, signal_length] -> [batch_size, signal_length, 1]
+        self = op.Unsqueeze(self, op.Constant(value_ints=[-1]))
 
     # Get window and make sure it's the same size as `win_length` or `n_fft`
     if window is not None and window.shape[0] is not None:
