@@ -712,10 +712,21 @@ class RewriteRuleSet:
                     initializers = graph_or_function.initializers
                     for initializer in delta.new_initializers:
                         if initializer.name in initializers:
+                            existing = initializers[initializer.name]
+                            if existing is initializer:
+                                # Same Value already registered, skip.
+                                continue
+                            # Name conflict with a different Value: generate a unique name.
+                            base_name = initializer.name
+                            counter = 1
+                            while f"{base_name}_{counter}" in initializers:
+                                counter += 1
                             if verbose:
-                                print(f"Initializer {initializer.name} already exists.")
-                            continue
-                    for initializer in delta.new_initializers:
+                                print(
+                                    f"Initializer '{initializer.name}' already exists. "
+                                    f"Renaming to '{base_name}_{counter}'."
+                                )
+                            initializer.name = f"{base_name}_{counter}"
                         initializers[initializer.name] = initializer  # type: ignore[index]
                 # TODO: This does not yet handle the problem of determining the correct insertion point
                 # for inserted nodes in the case of patterns with multiple output-nodes. The following
