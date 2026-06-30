@@ -8290,12 +8290,15 @@ def aten_repeat_interleave_self_int(
     .. code-block:: python
 
         x = torch.tensor([[0, 1, 2], [3, 4, 5]])
-        x.repeat((1, 2)).reshape((-1, t.shape[1]))
+        x.repeat((1, 2)).reshape((-1, x.shape[1]))
     """
     if dim is None:
-        raise NotImplementedError("No conversion available yet when dim is None.")
+        self = op.Reshape(self, [-1])
+        dim = 0
+        self_rank = 1
+    else:
+        self_rank = len(self.shape)
 
-    self_rank = len(self.shape)
     pos_dim = (dim + self_rank) % self_rank
     unsqueezed = op.Unsqueeze(self, [pos_dim + 1])
     if isinstance(repeats, int):
@@ -8311,8 +8314,6 @@ def aten_repeat_interleave_self_int(
             axis=0,
         )
     tiled = op.Expand(unsqueezed, tile_repeat)
-    if self_rank == 1:
-        return op.Identity(tiled)
     final_shape = op.Concat(
         op.Shape(self, start=0, end=dim),
         op.Constant(value_ints=[-1]),
