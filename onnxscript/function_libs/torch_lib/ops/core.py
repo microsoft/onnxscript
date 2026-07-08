@@ -614,7 +614,7 @@ def _adjust_args_for_arange_int_dtype(
 def aten_arange_start_step(
     start: TRealUnlessFloat16OrInt8,
     end: TRealUnlessFloat16OrInt8,
-    step: TRealUnlessFloat16OrInt8 = 1.0,
+    step: TRealUnlessFloat16OrInt8 = 1,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -4091,7 +4091,7 @@ def aten_from_file(
 def aten_full(
     size: Union[INT64, INT32],
     fill_value: TensorType,
-    dtype: int = FLOAT.dtype,
+    dtype: int = -1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
@@ -4254,7 +4254,7 @@ def aten_gru(
         # Extract hidden state for this layer
         layer_start = layer_idx * num_directions
         layer_end = (layer_idx + 1) * num_directions
-        layer_h = op.Slice(hx, layer_start, layer_end, axes=[0])
+        layer_h = op.Slice(hx, [layer_start], [layer_end], axes=[0])
 
         # Extract parameters for this layer
         # Parameter layout: [W_ih, W_hh, b_ih, b_hh] for each direction
@@ -4348,6 +4348,11 @@ def aten_gru(
         # Extract hidden_size from hx shape: [num_layers * num_directions, batch, hidden_size]
         hidden_size_attr = hx.shape[2]
 
+        # linear_before_reset=1 matches PyTorch's GRU formulation where the linear
+        # transformation is applied before multiplying by the reset gate:
+        #   ht = g(Xt*(Wh^T) + rt (.) (Ht-1*(Rh^T) + Rbh) + Wbh)
+        # The ONNX default (linear_before_reset=0) uses a different equation and
+        # would produce numerically incorrect results.
         if B is not None:
             Y, Y_h = op.GRU(
                 current_input,
@@ -4357,6 +4362,7 @@ def aten_gru(
                 initial_h=layer_h,
                 direction=direction,
                 hidden_size=hidden_size_attr,
+                linear_before_reset=1,
             )
         else:
             Y, Y_h = op.GRU(
@@ -4366,6 +4372,7 @@ def aten_gru(
                 initial_h=layer_h,
                 direction=direction,
                 hidden_size=hidden_size_attr,
+                linear_before_reset=1,
             )
 
         # Y shape: [seq_length, num_directions, batch_size, hidden_size]
@@ -4608,12 +4615,53 @@ def aten_hinge_embedding_loss(
     raise NotImplementedError()
 
 
+@torch_op("aten::histc", trace_only=True)
 def aten_histc(
     self: TensorType, bins: int = 100, min: float = 0.0, max: float = 0.0
 ) -> TensorType:
     """histc(Tensor self, int bins=100, Scalar min=0, Scalar max=0) -> Tensor"""
+    if min == max:
+        # This ONNXScript implementation precomputes static bin edges and cannot
+        # faithfully reproduce torch.histc's dynamic behavior when min == max
+        # (including the default min=0, max=0, which infers the range from data).
+        raise NotImplementedError(
+            f"aten_histc with min == max ({min}) is not supported in this export path."
+        )
+    delta = (max - min) / (bins * 1.0)
+    values = [min + delta * i for i in range(bins + 1)]
 
-    raise NotImplementedError()
+    flat_self = op.Reshape(self, [-1])
+    computation_type = self.dtype
+
+    cond = op.And(
+        op.GreaterOrEqual(flat_self, op.CastLike([min], self)),
+        op.LessOrEqual(flat_self, op.CastLike([max], self)),
+    )
+
+    assert self.type.dtype not in {ir.DataType.INT32, ir.DataType.INT64}, (
+        f"torch.histc only works on float but {self.type.dtype=}"
+    )
+
+    cond = op.And(cond, op.Not(op.IsNaN(flat_self)))
+    # max is included.
+    dtype = self.type.dtype.numpy()
+    values = np.array(values, dtype=dtype)
+    values[-1] = np.nextafter(values[-1], np.array(np.inf, dtype=dtype), dtype=dtype)
+    typed_values = op.Constant(value=ir.tensor(values, dtype=self.type.dtype))
+
+    clipped = op.Where(cond, flat_self, op.CastLike([min - 1], self))
+    bins = op.Unsqueeze(typed_values, [1])
+
+    less = op.Cast(
+        op.Less(op.Unsqueeze(clipped, [0]), bins),
+        to=computation_type,
+    )
+    sums = op.ReduceSum(less, [1], keepdims=0)
+    res = op.Sub(
+        op.Slice(sums, [1], op.Shape(sums), [0]),
+        op.Slice(sums, [0], [-1], [0]),
+    )
+    return res
 
 
 def aten_histogramdd(
@@ -5770,8 +5818,8 @@ def aten_lstm(
         # Extract hidden and cell states for this layer
         layer_start = layer_idx * num_directions
         layer_end = (layer_idx + 1) * num_directions
-        layer_h = op.Slice(initial_h, layer_start, layer_end, axes=[0])
-        layer_c = op.Slice(initial_c, layer_start, layer_end, axes=[0])
+        layer_h = op.Slice(initial_h, [layer_start], [layer_end], axes=[0])
+        layer_c = op.Slice(initial_c, [layer_start], [layer_end], axes=[0])
 
         # Extract parameters for this layer
         # Parameter layout: [W_ih, W_hh, b_ih, b_hh] for each direction
@@ -6040,10 +6088,12 @@ def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
 def aten_masked_scatter(self: TTensor, mask: TTensor, source: TTensor) -> TTensor:
     """masked_scatter(Tensor self, Tensor mask, Tensor source) -> Tensor"""
 
-    if len(mask.shape) < len(self.shape):
-        mask = op.Expand(mask, op.Shape(self))
-    else:
-        self = op.Expand(self, op.Shape(mask))
+    # Broadcast self and mask to their common shape so NonZero enumerates every
+    # masked element. The previous rank-only check missed same-rank broadcasting
+    # (e.g. mask (1, S, 1) vs self (1, S, D)): it left mask un-expanded, so only a
+    # subset of masked positions were scattered (pytorch/pytorch#186146).
+    self = op.Expand(self, op.Shape(mask))
+    mask = op.Expand(mask, op.Shape(self))
     index = op.Transpose(op.NonZero(mask), perm=[1, 0])
 
     # NOTE: source can have more elements than needed.
@@ -6190,7 +6240,7 @@ def aten_mean_complex(self: TReal) -> TReal:
 
 
 @torch_op("aten::mean.dim", trace_only=True)
-def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1) -> TReal:
     """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
     if len(self.shape) == 0:
@@ -6198,11 +6248,17 @@ def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     else:
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result = op.ReduceMean(self, dims, keepdims=keepdim)
+
+    if dtype != -1 and dtype is not None:
+        result = op.Cast(result, to=dtype)
+
     return result
 
 
 @torch_op("aten::mean.dim", trace_only=True, complex=True)
-def aten_mean_dim_complex(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+def aten_mean_dim_complex(
+    self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1
+) -> TReal:
     """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
     if len(self.shape) == 1:
@@ -6213,6 +6269,12 @@ def aten_mean_dim_complex(self: TReal, dim: INT64, keepdim: bool = False) -> TRe
         dim = op.Where(op.Less(dim, zero), op.Sub(dim, one), dim)
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result = op.ReduceMean(self, dims, keepdims=keepdim)
+
+    if dtype != -1 and dtype is not None:
+        raise NotImplementedError(
+            "support for the dtype argument is not implemented for complex tensors"
+        )
+
     return result
 
 
@@ -7565,20 +7627,38 @@ def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
 @torch_op("aten::pixel_unshuffle", trace_only=True)
 def aten_pixel_unshuffle(self: TReal, downscale_factor: int) -> TReal:
     """pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor"""
-    if len(self.shape) == 4:
-        return op.SpaceToDepth(self, blocksize=downscale_factor)
+    # pixel_unshuffle is the inverse of pixel_shuffle (which uses DepthToSpace with mode="CRD").
+    # SpaceToDepth only supports DCR channel ordering, so we implement via Reshape->Transpose->Reshape
+    # to get the correct CRD ordering.
+    # Input: [..., C, H*r, W*r] -> Output: [..., C*r*r, H, W]
 
     # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
     batch_dims = op.Shape(self, end=-3)
     chw_in_dims = op.Shape(self, start=-3)
+    self_4d = op.Reshape(self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0))
 
-    reshaped_self = op.Reshape(
-        self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0)
-    )
-    space_to_depth = op.SpaceToDepth(reshaped_self, blocksize=downscale_factor)
-    final_dims = op.Shape(space_to_depth, start=1)
+    r = op.Constant(value_ints=[downscale_factor])
+    c = op.Shape(self_4d, start=1, end=2)
+    h_r = op.Shape(self_4d, start=2, end=3)
+    w_r = op.Shape(self_4d, start=3, end=4)
+    h = op.Div(h_r, r)
+    w = op.Div(w_r, r)
+
+    # Step 1: Reshape to [batch, C, H, r, W, r]
+    shape_6d = op.Concat(op.Constant(value_ints=[-1]), c, h, r, w, r, axis=0)
+    tmp = op.Reshape(self_4d, shape_6d)
+
+    # Step 2: Transpose to [batch, C, r, r, H, W] (inverse of CRD DepthToSpace transpose)
+    tmp = op.Transpose(tmp, perm=[0, 1, 3, 5, 2, 4])
+
+    # Step 3: Reshape to [batch, C*r*r, H, W]
+    c_out = op.Mul(c, op.Mul(r, r))
+    shape_4d_out = op.Concat(op.Constant(value_ints=[-1]), c_out, h, w, axis=0)
+    pixel_unshuffled = op.Reshape(tmp, shape_4d_out)
+
+    final_dims = op.Shape(pixel_unshuffled, start=1)
     output_shape = op.Concat(batch_dims, final_dims, axis=0)
-    return op.Reshape(space_to_depth, output_shape, allowzero=True)
+    return op.Reshape(pixel_unshuffled, output_shape, allowzero=True)
 
 
 def aten_poisson(self: TensorType, generator: Optional[str] = None) -> TensorType:
@@ -9027,7 +9107,7 @@ def aten_sparse_mask(self: TensorType, mask: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::split", "aten::split.Tensor"))
+@torch_op(("aten::split", "aten::split.Tensor"), trace_only=True)
 def aten_split(self: TTensor, split_size: INT64, dim: int = 0) -> TTensor:
     """split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]"""
 
@@ -9040,7 +9120,7 @@ def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> Tensor
     raise NotImplementedError()
 
 
-@torch_op("aten::split_with_sizes")
+@torch_op(("aten::split_with_sizes",), trace_only=True)
 def aten_split_with_sizes(self: TTensor, split_sizes: INT64, dim: int = 0) -> TTensor:
     """split_with_sizes(Tensor(a -> *) self, SymInt[] split_sizes, int dim=0) -> Tensor(a)[]"""
 
@@ -9260,13 +9340,17 @@ def aten_stft(
         # core dump
         # hop_length = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
         hop_length = n_fft // 4
-    frame_step_const = op.Reshape(hop_length, op.Constant(value_ints=[1]))
 
-    # Pre-process input if needed
+    # ONNX's STFT requires a rank-3 signal of shape [batch_size, signal_length, 1]
+    # (the trailing dimension is the real component). torch.stft accepts rank-1 or
+    # rank-2 signals.
     is_signal_rank1 = len(self.shape) == 1
     if is_signal_rank1:
-        # Add a batch dimension
-        self = op.Identity(op.Unsqueeze(self, op.Constant(value_ints=[0])))
+        # [signal_length] -> [1, signal_length, 1]: add batch dim and trailing real-component dim
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0, -1]))
+    else:
+        # [batch_size, signal_length] -> [batch_size, signal_length, 1]
+        self = op.Unsqueeze(self, op.Constant(value_ints=[-1]))
 
     # Get window and make sure it's the same size as `win_length` or `n_fft`
     if window is not None and window.shape[0] is not None:
@@ -9296,7 +9380,7 @@ def aten_stft(
     else:
         onesided = 0
     window = op.CastLike(window, self)
-    result = op.STFT(self, frame_step_const, window, n_fft, onesided=onesided)
+    result = op.STFT(self, hop_length, window, n_fft, onesided=onesided)
     result = op.Transpose(result, perm=[0, 2, 1, 3])
     # Remove batch dimension, if needed
     if is_signal_rank1:
@@ -10060,7 +10144,7 @@ def aten_unsafe_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType
     raise NotImplementedError()
 
 
-@torch_op("aten::unsafe_split.Tensor")
+@torch_op("aten::unsafe_split.Tensor", trace_only=True)
 def aten_unsafe_split(self: TTensor, split_size: INT64, dim: int = 0) -> Sequence[TTensor]:
     """unsafe_split.Tensor(Tensor self, SymInt split_size, int dim=0) -> Tensor[]"""
 

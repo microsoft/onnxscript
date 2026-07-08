@@ -7,15 +7,16 @@ from __future__ import annotations
 import collections
 from typing import Any, OrderedDict
 
-from onnxscript.ir import _schemas
+from onnxscript import ir
 
 
 def separate_input_attributes_from_arguments(
-    op_signature: _schemas.OpSignature,
+    op_signature: ir.schemas.OpSignature,
     args,
     kwargs,
     fill_defaults: bool = True,
     allow_extra_kwargs: bool = False,
+    allow_extra_args: bool = True,
 ) -> tuple[list[Any], OrderedDict[str, Any]]:
     """Separate Python args and kwargs into ONNX inputs and attributes.
 
@@ -26,6 +27,9 @@ def separate_input_attributes_from_arguments(
         fill_defaults: Whether to fill the default values for attributes.
         allow_extra_kwargs: Whether to allow extra keyword arguments.
             When set to True, extra/unknown arguments will be ignored.
+        allow_extra_args: Whether to allow extra positional arguments beyond
+            what the schema declares (when no variadic parameter exists).
+            When set to False, a TypeError is raised for extra args.
 
     Returns:
         A tuple of two elements:
@@ -34,6 +38,7 @@ def separate_input_attributes_from_arguments(
 
     Raises:
         TypeError: When allow_extra_kwargs is False and there are unknown kwargs.
+        TypeError: When allow_extra_args is False and there are extra positional args.
         TypeError: When a required input is not provided.
     """
     # args, kwargs and op_signature.params should be all in order
@@ -46,12 +51,14 @@ def separate_input_attributes_from_arguments(
 
     onnx_inputs = []
     onnx_attributes = collections.OrderedDict()
+    has_variadic = False
 
     for i, param in enumerate(op_signature.params):
-        is_input = isinstance(param, _schemas.Parameter)
-        is_variadic = isinstance(param, _schemas.Parameter) and param.variadic
+        is_input = param.is_param()
+        is_variadic = is_input and param.variadic
 
         if is_variadic:
+            has_variadic = True
             # Exhaust all remaining args
             onnx_inputs.extend(args[i:])
             args = []
@@ -66,7 +73,7 @@ def separate_input_attributes_from_arguments(
                 onnx_inputs.append(kwargs[param.name])
             else:
                 onnx_attributes[param.name] = kwargs[param.name]
-        elif isinstance(param, _schemas.AttributeParameter) and param.has_default():
+        elif isinstance(param, ir.schemas.AttributeParameter) and param.has_default():
             # User did not provide the attribute
             if fill_defaults:
                 # Extract the value from the Attr object
@@ -74,18 +81,24 @@ def separate_input_attributes_from_arguments(
         elif param.required:
             raise TypeError(f"Required input '{param}' was not provided")
 
+    if not allow_extra_args and not has_variadic and len(args) > len(op_signature.params):
+        raise TypeError(
+            f"Too many positional arguments: expected {len(op_signature.params)}, "
+            f"got {len(args)}"
+        )
+
     return onnx_inputs, onnx_attributes
 
 
 def tag_arguments_with_signature(
-    op_signature: _schemas.OpSignature,
+    op_signature: ir.schemas.OpSignature,
     args,
     kwargs,
     fill_defaults: bool = True,
     allow_extra_kwargs: bool = False,
 ) -> tuple[
-    list[tuple[Any, _schemas.Parameter | _schemas.AttributeParameter]],
-    dict[str, tuple[Any, _schemas.Parameter | _schemas.AttributeParameter]],
+    list[tuple[Any, ir.schemas.Parameter | ir.schemas.AttributeParameter]],
+    dict[str, tuple[Any, ir.schemas.Parameter | ir.schemas.AttributeParameter]],
 ]:
     """Tag Python args and kwargs with matching ONNX Parameter/AttributeParameter.
 
@@ -115,11 +128,13 @@ def tag_arguments_with_signature(
     if extra_kwargs and not allow_extra_kwargs:
         raise TypeError(f"Unexpected keyword arguments '{extra_kwargs}'")
 
-    tagged_args: list[tuple[Any, _schemas.Parameter | _schemas.AttributeParameter]] = []
-    tagged_kwargs: dict[str, tuple[Any, _schemas.Parameter | _schemas.AttributeParameter]] = {}
+    tagged_args: list[tuple[Any, ir.schemas.Parameter | ir.schemas.AttributeParameter]] = []
+    tagged_kwargs: dict[
+        str, tuple[Any, ir.schemas.Parameter | ir.schemas.AttributeParameter]
+    ] = {}
 
     for i, param in enumerate(op_signature.params):
-        is_variadic = isinstance(param, _schemas.Parameter) and param.variadic
+        is_variadic = param.is_param() and param.variadic
 
         if is_variadic:
             # Exhaust all remaining args
@@ -135,7 +150,7 @@ def tag_arguments_with_signature(
             if fill_defaults:
                 default_value = param.default
                 # Extract value from Attr object if it's an AttributeParameter
-                if isinstance(param, _schemas.AttributeParameter):
+                if param.is_attribute():
                     default_value = param.default.value
                 tagged_kwargs[param.name] = (default_value, param)
         elif param.required:
@@ -145,14 +160,14 @@ def tag_arguments_with_signature(
 
 
 def turn_to_kwargs_to_avoid_ordering(
-    op_signature: _schemas.OpSignature,
+    op_signature: ir.schemas.OpSignature,
     inputs: list[Any],
     attributes: dict[str, Any],
 ) -> dict[str, Any]:
     """Return the inputs and attributes to the order of the function signature."""
     for idx, param in enumerate(op_signature.params):
         if param.name not in attributes:
-            is_variadic = isinstance(param, _schemas.Parameter) and param.variadic
+            is_variadic = isinstance(param, ir.schemas.Parameter) and param.variadic
             if is_variadic:
                 attributes[param.name] = inputs[idx:]
             elif inputs:

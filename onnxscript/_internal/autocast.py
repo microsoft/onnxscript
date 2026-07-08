@@ -9,7 +9,6 @@ import numpy as np
 import onnx
 
 from onnxscript import ir, tensor
-from onnxscript.ir import _schemas
 
 if TYPE_CHECKING:
     from onnxscript._internal import converter
@@ -112,7 +111,7 @@ def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
 def cast_inputs(
     get_type_info: Callable[[Any], Any],
     cast: Callable[[Any, Any], Any],
-    op_signature: _schemas.OpSignature | None,
+    op_signature: ir.schemas.OpSignature | None,
     args,
 ) -> tuple[Any, ...]:
     """Uses schema specification to support a limited form of auto-casting.
@@ -164,7 +163,7 @@ def cast_inputs(
     return tuple(cast_args)
 
 
-def dynamic_cast_inputs(op_signature: _schemas.OpSignature, args):
+def dynamic_cast_inputs(op_signature: ir.schemas.OpSignature, args):
     """Used for autocast during eager-mode execution."""
 
     def get_type_info(x):
@@ -175,7 +174,7 @@ def dynamic_cast_inputs(op_signature: _schemas.OpSignature, args):
 
 def static_cast_inputs(
     converter_: converter.Converter,
-    op_signature: Optional[_schemas.OpSignature],
+    op_signature: Optional[ir.schemas.OpSignature],
     args: Sequence[Optional[ir.Value]],
 ) -> tuple[str, ...]:
     """Used for autocast during script-translation.
@@ -188,15 +187,15 @@ def static_cast_inputs(
         argument of CastLike) and None otherwise. In the expression "Add(X, 1), 1 is
         castable, while X can serve as the target-type.
         """
-        return None if x is None or converter_.is_castable(x.name) else x
+        return None if x is None or converter_._is_castable(x.name) else x  # pylint: disable=protected-access
 
     def cast_like(x: Optional[ir.Value], y: Optional[ir.Value]) -> Optional[str]:
         if x is None:
             return None
-        if converter_.is_castable(x.name) and y is not None:
+        if converter_._is_castable(x.name) and y is not None:  # pylint: disable=protected-access
             # Polymorphic constant x is cast to the type of y:
-            x_cast = converter_.generate_unique_name(f"{x.name}_cast")
-            return converter_.emit1([x_cast], "CastLike", [x, y])
+            x_cast = converter_._generate_unique_name(f"{x.name}_cast")  # pylint: disable=protected-access
+            return converter_._emit1([x_cast], "CastLike", [x, y])  # pylint: disable=protected-access
         return x
 
     return cast_inputs(get_type_info, cast_like, op_signature, args)

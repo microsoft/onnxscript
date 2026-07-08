@@ -36,7 +36,6 @@ from torch.testing._internal.opinfo import core as opinfo_core
 import onnxscript
 import onnxscript.evaluator
 from onnxscript import ir
-from onnxscript.ir import _schemas
 from tests.function_libs.torch_lib import error_reproduction
 
 T = TypeVar("T")
@@ -411,7 +410,7 @@ _TORCH_DTYPE_TO_ONNX_TYPE = {
 }
 
 
-def dtype_op_schema_compatible(dtype: torch.dtype, schema: _schemas.OpSignature) -> bool:
+def dtype_op_schema_compatible(dtype: torch.dtype, schema: ir.schemas.OpSignature) -> bool:
     """Checks if the dtype is compatible with the schema.
 
     When a dtype is "compatible" with the schema, it means we can use the dtype

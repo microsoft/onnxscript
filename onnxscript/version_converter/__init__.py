@@ -37,19 +37,35 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         super().__init__()
         self.target_version = target_version
         self.fallback = fallback
-        self.convert_pass = ir.passes.Sequential(
+        self._inline_pass = ir.passes.Sequential(
+            # NOTE: The current version converter only supports inlined models.
             common_passes.InlinePass(),
-            _ConvertVersionPassRequiresInline(
-                target_version=target_version,
-                fallback=fallback,
-            ),
+            # NOTE: Old torch version might include legacy Rank onnx functions which is
+            # not used in the converted model.
+            common_passes.RemoveUnusedFunctionsPass(),
+            common_passes.RemoveUnusedOpsetsPass(),
+        )
+        self._convert_pass = _ConvertVersionPassRequiresInline(
+            target_version=target_version,
+            fallback=fallback,
+        )
+        self._cleanup_passes = ir.passes.Sequential(
             common_passes.RemoveUnusedNodesPass(),
             common_passes.RemoveUnusedFunctionsPass(),
             common_passes.RemoveUnusedOpsetsPass(),
         )
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        return self.convert_pass(model)
+        # Run the conversion pass outside of Sequential so that errors
+        # (e.g. VersionConverterError) propagate directly without being
+        # wrapped in PassError.
+        inline_result = self._inline_pass(model)
+        result = self._convert_pass(inline_result.model)
+        cleanup_result = self._cleanup_passes(result.model)
+        return ir.passes.PassResult(
+            cleanup_result.model,
+            result.modified or cleanup_result.modified or inline_result.modified,
+        )
 
 
 class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
@@ -73,12 +89,6 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         self.fallback = fallback
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        if model.functions:
-            raise ValueError(
-                "The model contains functions. The version conversion pass does not support "
-                "functions. Please use `common_passes.InlinePass` to inline the "
-                f"functions before applying this pass ({self.__class__.__name__})."
-            )
         if "" in model.graph.opset_imports:
             onnx_opset_version = model.graph.opset_imports[""]
             if onnx_opset_version == self.target_version:

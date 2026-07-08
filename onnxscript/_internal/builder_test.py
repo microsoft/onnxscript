@@ -1,0 +1,2062 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+from __future__ import annotations
+
+import ast
+import unittest
+from typing import Sequence
+
+import onnx_ir as ir
+
+import onnxscript._internal.builder as builder
+import onnxscript.testing
+from onnxscript import script
+from onnxscript.onnx_types import DOUBLE, FLOAT, INT64
+
+_default_opset_version = 23
+_opset = {"": _default_opset_version}
+
+# Convenience alias for tests — creates an ir.Value from (name, TypeSpec).
+_input = builder.make_value
+
+
+def _resolve_type_spec(spec: builder.TypeSpec) -> ir.TypeAndShape:
+    """Convert a *TypeSpec* to an :class:`ir.TypeAndShape`.
+
+    Accepts either an :class:`ir.TypeAndShape` directly, or a
+    :class:`~onnxscript.onnx_types.TensorType` subclass (e.g. ``FLOAT[1024]``
+    or ``FLOAT['M', 'N']``).
+
+    NOTE: This is a local helper used by the legacy ``_build()`` test utility.
+    """
+    from onnxscript.onnx_types import TensorType  # pylint: disable=import-outside-toplevel
+
+    if isinstance(spec, ir.TypeAndShape):
+        return spec
+    if isinstance(spec, type) and issubclass(spec, TensorType):
+        return spec.to_ir_type_and_shape()
+    raise TypeError(f"Expected ir.TypeAndShape or a TensorType subclass, got {type(spec)!r}.")
+
+
+def _build(
+    input_types: Sequence,
+    trace_function=None,
+    output_types: Sequence | None = None,
+) -> ir.Graph:
+    graph = ir.Graph(
+        name="test_model",
+        inputs=[],
+        outputs=[],
+        nodes=[],
+        opset_imports={"": _default_opset_version},
+    )
+
+    resolved_inputs = [_resolve_type_spec(t) for t in input_types]
+    for i, ts in enumerate(resolved_inputs):
+        graph.inputs.append(ir.Value(name=f"input_{i}", type=ts.type, shape=ts.shape))
+
+    if trace_function is not None:
+        graph_builder = builder.GraphBuilder(graph)
+        outputs = trace_function(graph_builder.op, *graph.inputs)
+        if not isinstance(outputs, Sequence):
+            outputs = [outputs]
+
+        if output_types is not None:
+            resolved_outputs = [_resolve_type_spec(t) for t in output_types]
+            if len(outputs) != len(resolved_outputs):
+                raise ValueError(
+                    f"Expected {len(resolved_outputs)} outputs, but got {len(outputs)}."
+                )
+            for output, ts in zip(outputs, resolved_outputs):
+                output.type = ts.type
+                output.merge_shapes(ts.shape)
+
+        graph.outputs.extend(outputs)
+
+    return graph
+
+
+def _create_builder_with_inputs() -> tuple[builder.OpBuilder, ir.Value, ir.Value]:
+    """Create a graph builder with two float tensor inputs (shape [2, 3, 4]).
+
+    Returns:
+        A tuple of (op_builder, input_x, input_y).
+    """
+    graph = _build(input_types=[FLOAT[2, 3, 4], FLOAT[2, 3, 4]])
+    graph_builder = builder.GraphBuilder(graph)
+    x, y = graph.inputs
+    return graph_builder.op, x, y
+
+
+class GraphBuilderTest(unittest.TestCase):
+    def test_builder_basic(self):
+        def _add_mul_add(op: builder.OpBuilder, x: ir.Value, y: ir.Value) -> ir.Value:
+            t1 = op.Add(x, y)
+            t2 = op.Mul(x, y)
+            z = op.Add(t1, t2)
+            return z
+
+        float_2d = ir.TypeAndShape(ir.TensorType(ir.DataType.FLOAT), ir.Shape([3, 4]))
+        graph = _build(
+            input_types=[float_2d, float_2d],
+            trace_function=_add_mul_add,
+            output_types=[float_2d],
+        )
+        # Expect exactly 3 nodes: Add, Mul, Add
+        op_types = [node.op_type for node in graph]
+        self.assertEqual(op_types, ["Add", "Mul", "Add"])
+
+        # Verify inputs and outputs
+        self.assertEqual(len(graph.inputs), 2)
+        self.assertEqual(len(graph.outputs), 1)
+
+        # Verify the connectivity: final Add takes outputs of the first Add and Mul
+        nodes = list(graph)
+        add1, mul, add2 = nodes
+        self.assertEqual(list(add2.inputs), [add1.outputs[0], mul.outputs[0]])
+
+    def test_value_naming(self):
+        """Test that output names can be specified via the _outputs option."""
+
+        def _add_with_custom_names(
+            op: builder.OpBuilder, x: ir.Value, y: ir.Value
+        ) -> ir.Value:
+            # Specify custom names for output values
+            t1 = op.Add(x, y, _outputs=["add_result"])
+            t2 = op.Mul(x, y, _outputs=["mul_result"])
+            z = op.Add(t1, t2, _outputs=["final_add"])
+            return z
+
+        float_2d = ir.TypeAndShape(ir.TensorType(ir.DataType.FLOAT), ir.Shape([3, 4]))
+        graph = _build(
+            input_types=[float_2d, float_2d],
+            trace_function=_add_with_custom_names,
+            output_types=[float_2d],
+        )
+
+        # Verify that the nodes have outputs with the specified names
+        nodes = list(graph)
+        self.assertEqual(len(nodes), 3)
+
+        # Check output names (v_ prefix is added to all value names)
+        self.assertEqual(nodes[0].outputs[0].name, "v_add_result")
+        self.assertEqual(nodes[1].outputs[0].name, "v_mul_result")
+        self.assertEqual(nodes[2].outputs[0].name, "v_final_add")
+
+        # Verify the final output has the correct name
+        self.assertEqual(len(graph.outputs), 1)
+        self.assertEqual(graph.outputs[0].name, "v_final_add")
+
+    def test_value_naming_with_hierarchy(self):
+        """Test that hierarchical naming works with user-specified output names."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Test custom names at root level
+        t1 = op.Add(x, y, _outputs=["my_add"])
+        self.assertEqual(t1.name, "v_my_add")
+
+        # Test custom names with hierarchical context
+        op.builder.push_module("layer1")
+        t2 = op.Mul(t1, y, _outputs=["my_mul"])
+        self.assertEqual(t2.name, "v_layer1.my_mul")
+
+        # Test nested hierarchical context with custom names
+        op.builder.push_module("attention")
+        t3 = op.Add(t2, x, _outputs=["my_nested_add"])
+        self.assertEqual(t3.name, "v_layer1.attention.my_nested_add")
+
+        # Pop back and verify prefix is applied correctly
+        op.builder.pop_module()
+        t4 = op.Mul(t3, y, _outputs=["another_mul"])
+        self.assertEqual(t4.name, "v_layer1.another_mul")
+
+        op.builder.pop_module()
+        t5 = op.Add(t4, x, _outputs=["final_result"])
+        self.assertEqual(t5.name, "v_final_result")
+
+    def test_value_naming_with_ir_value_objects(self):
+        """Test that hierarchical naming works when passing ir.Value objects as _outputs."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create pre-named ir.Value objects
+        out1 = ir.Value(name="my_output")
+        out2 = ir.Value(name="layer_output")
+        out3 = ir.Value(name="nested_output")
+
+        # Test at root level
+        t1 = op.Add(x, y, _outputs=[out1])
+        self.assertEqual(t1.name, "v_my_output")
+        self.assertIs(t1, out1)
+
+        # Test with hierarchical context
+        op.builder.push_module("layer1")
+        t2 = op.Mul(t1, y, _outputs=[out2])
+        self.assertEqual(t2.name, "v_layer1.layer_output")
+        self.assertIs(t2, out2)
+
+        # Test nested hierarchical context
+        op.builder.push_module("attention")
+        t3 = op.Add(t2, x, _outputs=[out3])
+        self.assertEqual(t3.name, "v_layer1.attention.nested_output")
+        self.assertIs(t3, out3)
+
+    def test_default_output_naming_strategy(self):
+        """Test the default naming strategy for generated output values using op_type_nX_output format."""
+
+        def _ops_with_default_names(
+            op: builder.OpBuilder, x: ir.Value, y: ir.Value
+        ) -> ir.Value:
+            # Single output operations should be named {op_type}_nX_output where X is node count
+            t1 = op.Add(x, y)
+            t2 = op.Mul(x, y)
+            z = op.Add(t1, t2)
+            return z
+
+        float_2d = ir.TypeAndShape(ir.TensorType(ir.DataType.FLOAT), ir.Shape([3, 4]))
+        graph = _build(
+            input_types=[float_2d, float_2d],
+            trace_function=_ops_with_default_names,
+            output_types=[float_2d],
+        )
+
+        # Verify the nodes use the new naming strategy
+        nodes = list(graph)
+        self.assertEqual(len(nodes), 3)
+
+        # Check output names follow the v_{op_type}_{count} pattern for single outputs
+        self.assertEqual(nodes[0].outputs[0].name, "v_Add_0")
+        self.assertEqual(nodes[1].outputs[0].name, "v_Mul_1")
+        self.assertEqual(nodes[2].outputs[0].name, "v_Add_2")
+
+        # Verify the final output has the correct name
+        self.assertEqual(len(graph.outputs), 1)
+        self.assertEqual(graph.outputs[0].name, "v_Add_2")
+
+    def test_hierarchical_naming(self):
+        """Test the hierarchical naming strategy (for value and node names)."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Test node and value naming at root level
+        t1 = op.Add(x, y)
+        self.assertEqual(t1.name, "v_Add_0")
+        self.assertEqual(t1.producer().name, "Add_node_0")
+
+        t2 = op.Mul(t1, y)
+        self.assertEqual(t2.name, "v_Mul_1")
+        self.assertEqual(t2.producer().name, "Mul_node_1")
+
+        # Test node and value naming with hierarchical context prefix
+        op.builder.push_module("layer1")
+        t3 = op.Add(t2, x)
+        self.assertEqual(t3.name, "v_layer1.Add_2")
+        self.assertEqual(t3.producer().name, "layer1/Add_node_2")
+
+        # Test nested hierarchical context
+        op.builder.push_module("attention")
+        t4 = op.Mul(t3, y)
+        self.assertEqual(t4.name, "v_layer1.attention.Mul_3")
+        self.assertEqual(t4.producer().name, "layer1/attention/Mul_node_3")
+
+        # Pop back to layer1 and verify naming continues correctly
+        op.builder.pop_module()
+        t5 = op.Add(t4, x)
+        self.assertEqual(t5.name, "v_layer1.Add_4")
+        self.assertEqual(t5.producer().name, "layer1/Add_node_4")
+
+        # Pop back to root context
+        op.builder.pop_module()
+        t6 = op.Mul(t5, y)
+        self.assertEqual(t6.name, "v_Mul_5")
+        self.assertEqual(t6.producer().name, "Mul_node_5")
+
+    def test_shape_inference_add(self):
+        """Test that shape inference works correctly for Add operation."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create Add node without explicitly setting output type/shape
+        result = op.Add(x, y)
+
+        # Verify output type is inferred correctly
+        self.assertIsNotNone(result.type)
+        self.assertEqual(result.type.dtype, ir.DataType.FLOAT)
+
+        # Verify output shape is inferred correctly
+        self.assertIsNotNone(result.shape)
+        self.assertEqual(list(result.shape), [2, 3, 4])
+
+        self.assertEqual(result.name, "v_Add_0")
+
+    def test_custom_domain_explicit(self):
+        """Test using operations from custom domains with explicit _domain parameter."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create a custom domain operation with explicit _domain parameter
+        # Using "com.microsoft" as an example domain
+        result = op.CustomOp(x, y, _domain="com.microsoft")
+
+        # Verify the node was created with the correct domain
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        node = nodes[0]
+        self.assertEqual(node.domain, "com.microsoft")
+        self.assertEqual(node.op_type, "CustomOp")
+
+        # Verify inputs and outputs are connected correctly
+        self.assertEqual(list(node.inputs), [x, y])
+        self.assertEqual(node.outputs[0], result)
+
+    def test_custom_domain_with_version(self):
+        """Test using operations from custom domains with explicit _domain and _version parameters."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create a custom domain operation with explicit _domain and _version parameters
+        result = op.MicrosoftOp(x, y, _domain="com.microsoft", _version=10)
+
+        # Verify the node was created with the correct domain and version
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        node = nodes[0]
+        self.assertEqual(node.domain, "com.microsoft")
+        self.assertEqual(node.op_type, "MicrosoftOp")
+        self.assertEqual(node.version, 10)
+
+        # Verify output value is created
+        self.assertIsNotNone(result)
+        self.assertEqual(result.name, "v_MicrosoftOp_0")
+
+    def test_multiple_custom_domain_operations(self):
+        """Test mixing operations from multiple domains."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create standard domain operation
+        t1 = op.Add(x, y)
+
+        # Create custom domain operation
+        t2 = op.CustomOp(t1, y, _domain="com.microsoft")
+
+        # Create another custom domain operation with different domain
+        _ = op.AnotherOp(t2, x, _domain="com.custom")
+
+        # Verify all nodes were created with correct domains
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 3)
+
+        self.assertEqual(nodes[0].domain, "")
+        self.assertEqual(nodes[0].op_type, "Add")
+
+        self.assertEqual(nodes[1].domain, "com.microsoft")
+        self.assertEqual(nodes[1].op_type, "CustomOp")
+
+        self.assertEqual(nodes[2].domain, "com.custom")
+        self.assertEqual(nodes[2].op_type, "AnotherOp")
+
+    def test_opset_builder_for_custom_domain(self):
+        """Test creating and using an opset builder for a custom domain."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create an OpBuilder for the "com.microsoft" domain with version 1
+        ms_op = op.builder.opset("com.microsoft", 1)
+
+        # Use operations through the custom domain opset builder
+        t1 = ms_op.CustomOp(x, y)
+        _ = ms_op.AnotherOp(t1, x)
+
+        # Verify all nodes were created with the correct domain
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 2)
+
+        # Verify first operation
+        self.assertEqual(nodes[0].domain, "com.microsoft")
+        self.assertEqual(nodes[0].op_type, "CustomOp")
+        self.assertEqual(nodes[0].version, 1)
+        self.assertEqual(list(nodes[0].inputs), [x, y])
+
+        # Verify second operation
+        self.assertEqual(nodes[1].domain, "com.microsoft")
+        self.assertEqual(nodes[1].op_type, "AnotherOp")
+        self.assertEqual(nodes[1].version, 1)
+        self.assertEqual(list(nodes[1].inputs), [t1, x])
+
+    def test_mixed_domain_opsets(self):
+        """Test using both standard domain and custom domain opset builders together."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Create custom domain opset builder
+        ms_op = op.builder.opset("com.microsoft", 2)
+
+        # Mix operations from different domains
+        t1 = op.Add(x, y)  # Standard domain operation
+        t2 = ms_op.MsAdd(t1, y)  # Custom domain operation
+        _ = op.Mul(t2, x)  # Back to standard domain
+
+        # Verify nodes were created with correct domains
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 3)
+
+        self.assertEqual(nodes[0].domain, "")
+        self.assertEqual(nodes[0].op_type, "Add")
+
+        self.assertEqual(nodes[1].domain, "com.microsoft")
+        self.assertEqual(nodes[1].op_type, "MsAdd")
+        self.assertEqual(nodes[1].version, 2)
+
+        self.assertEqual(nodes[2].domain, "")
+        self.assertEqual(nodes[2].op_type, "Mul")
+
+    def test_scalar_constant_initializers_are_cached(self):
+        """Test that scalar constants produce named initializers and are shared across nodes."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        # Create one int64 input and one float32 input
+        x = ir.Value(name="x", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([3]))
+        y = ir.Value(name="y", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([3]))
+        graph.inputs.extend([x, y])
+
+        graph_builder = builder.GraphBuilder(graph)
+        op = graph_builder.op
+
+        # Two Adds that both use the integer constant 1
+        r1 = op.Add(x, 1)
+        r2 = op.Add(x, 1)
+        # Two Adds that both use the float constant 1.0
+        r3 = op.Add(y, 1.0)
+        r4 = op.Add(y, 1.0)
+
+        # The two int Add nodes should share the same constant initializer (same ir.Value)
+        int_const_1 = r1.producer().inputs[1]
+        int_const_2 = r2.producer().inputs[1]
+        self.assertIs(int_const_1, int_const_2)
+        self.assertEqual(int_const_1.name, "const_1_i64")
+
+        # The two float Add nodes should share the same constant initializer
+        float_const_1 = r3.producer().inputs[1]
+        float_const_2 = r4.producer().inputs[1]
+        self.assertIs(float_const_1, float_const_2)
+        self.assertEqual(float_const_1.name, "const_1.0_f32")
+
+        # The int and float constants should be different ir.Values
+        self.assertIsNot(int_const_1, float_const_1)
+
+    def test_int_constant_cast_to_float_via_like_type(self):
+        """Test that op.Add(float_x, 1) converts the int 1 to a float tensor.
+
+        When the schema binds the int constant to the same type variable as a float
+        input, the constant should be created with dtype FLOAT and named accordingly.
+        """
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        x = ir.Value(name="x", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([3]))
+        graph.inputs.append(x)
+
+        graph_builder = builder.GraphBuilder(graph)
+        op = graph_builder.op
+
+        _ = op.Add(x, 1)
+
+        nodes = list(graph)
+        self.assertEqual(len(nodes), 1)
+
+        # The int constant 1 should have been cast to float and named with f32 suffix
+        const_input = nodes[0].inputs[1]
+        self.assertEqual(const_input.name, "const_1_f32")
+        # The constant's type should be FLOAT, not INT64
+        self.assertEqual(const_input.const_value.dtype, ir.DataType.FLOAT)
+
+    def test_int_constant_with_unknown_type_uses_cast_like(self):
+        """Test that op.Add(unknown_x, 1) produces an int tensor + CastLike.
+
+        When the input type is unknown, the constant is created with its natural
+        Python type (int -> i64), and a CastLike node is inserted to dynamically
+        cast it at runtime.
+        """
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        # Input with no type information
+        x = ir.Value(name="x", shape=ir.Shape([3]))
+        graph.inputs.append(x)
+
+        graph_builder = builder.GraphBuilder(graph)
+        op = graph_builder.op
+
+        _ = op.Add(x, 1)
+
+        nodes = list(graph)
+        # Expect 2 nodes: CastLike (to cast the int constant to x's type) + Add
+        self.assertEqual(len(nodes), 2)
+
+        cast_like_node = nodes[0]
+        add_node = nodes[1]
+
+        self.assertEqual(cast_like_node.op_type, "CastLike")
+        self.assertEqual(add_node.op_type, "Add")
+
+        # The original constant should be int64-typed
+        const_initializer = cast_like_node.inputs[0]
+        self.assertEqual(const_initializer.name, "const_1_i64")
+        self.assertEqual(const_initializer.const_value.dtype, ir.DataType.INT64)
+
+        # CastLike's second input should be x (the like_type reference)
+        self.assertIs(cast_like_node.inputs[1], x)
+
+        # Add should use the CastLike output, not the raw constant
+        self.assertIs(add_node.inputs[1], cast_like_node.outputs[0])
+
+    def test_int_literal_no_clash_across_typed_and_untyped_contexts(self):
+        """Test that the same int literal used in typed and untyped positions
+        does not cause an initializer name collision.
+
+        Regression test: previously, (1, None) and (1, INT64) were separate
+        cache keys but generated the same name 'const_1_i64', causing
+        register_initializer to raise ValueError.
+        """
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        x = ir.Value(name="x", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([3]))
+        graph.inputs.append(x)
+
+        graph_builder = builder.GraphBuilder(graph)
+        op = graph_builder.op
+
+        # Gather index: int literal in untyped position (Tind has no binding)
+        _ = op.Gather(x, 1, axis=0)
+        # Add: int literal in typed position (T bound to INT64 from x)
+        _ = op.Add(x, 1)
+
+        # Both ops should share the same initializer (same ir.Value object)
+        gather_node = graph.node(0)
+        add_node = graph.node(1)
+        self.assertIs(gather_node.inputs[1], add_node.inputs[1])
+        self.assertEqual(gather_node.inputs[1].name, "const_1_i64")
+
+    def test_int_list_no_clash_across_typed_and_untyped_contexts(self):
+        """Test that the same int list used in typed and untyped positions
+        does not cause an initializer name collision (sequence variant).
+        """
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        x = ir.Value(name="x", type=ir.TensorType(ir.DataType.INT64), shape=ir.Shape([2, 3]))
+        graph.inputs.append(x)
+
+        graph_builder = builder.GraphBuilder(graph)
+        op = graph_builder.op
+
+        # Reshape target: int list in untyped position
+        _ = op.Reshape(x, [3, 2])
+        # Add with a constant tensor of same values in typed position
+        _ = op.Add(x, [3, 2])
+
+        # Should not raise; both should share the same initializer
+        nodes = list(graph)
+        reshape_node = nodes[0]
+        add_node = nodes[1]
+        self.assertIs(reshape_node.inputs[1], add_node.inputs[1])
+
+    def test_pop_module_raises_on_empty_stack(self):
+        """Test that pop_module raises RuntimeError when no module has been pushed."""
+        op, _, _ = _create_builder_with_inputs()
+
+        # Popping without any push should raise
+        with self.assertRaises(RuntimeError):
+            op.builder.pop_module()
+
+        # Push then pop is fine; a second pop should raise
+        op.builder.push_module("layer1")
+        op.builder.pop_module()
+        with self.assertRaises(RuntimeError):
+            op.builder.pop_module()
+
+    def test_output_names_are_unique_for_same_op_type(self):
+        """Test that repeated calls to the same op produce unique output names."""
+        op, x, y = _create_builder_with_inputs()
+
+        t1 = op.Add(x, y)
+        t2 = op.Add(x, y)
+        t3 = op.Add(x, y)
+
+        # Each Add output should have a unique name via the node count suffix
+        self.assertEqual(t1.name, "v_Add_0")
+        self.assertEqual(t2.name, "v_Add_1")
+        self.assertEqual(t3.name, "v_Add_2")
+
+        # Verify all names are distinct
+        names = [t1.name, t2.name, t3.name]
+        self.assertEqual(len(set(names)), 3)
+
+    def test_input_creates_and_registers_graph_input(self):
+        """Test that GraphBuilder.input creates and appends a graph input value."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        value = graph_builder.input("data", dtype=ir.DataType.FLOAT, shape=[2, 3])
+
+        self.assertEqual(value.name, "data")
+        self.assertEqual(value.type.dtype, ir.DataType.FLOAT)
+        self.assertEqual(list(value.shape), [2, 3])
+        self.assertEqual(len(graph.inputs), 1)
+        self.assertIs(graph.inputs[0], value)
+
+    def test_input_with_const_value_registers_initializer(self):
+        """Test that GraphBuilder.input registers initializer when const_value is provided."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        const_tensor = ir.tensor([1.0, 2.0], dtype=ir.DataType.FLOAT, name="const_data")
+        value = graph_builder.input("const_input", const_value=const_tensor)
+
+        self.assertEqual(len(graph.inputs), 1)
+        self.assertIs(graph.inputs[0], value)
+        self.assertIn("const_input", graph.initializers)
+        self.assertIs(graph.initializers["const_input"], value)
+        self.assertIs(value.const_value, const_tensor)
+
+    def test_input_without_const_value_does_not_register_initializer(self):
+        """Test that GraphBuilder.input does not register initializer without const_value."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        value = graph_builder.input("regular_input", dtype=ir.DataType.FLOAT, shape=[2])
+
+        self.assertEqual(len(graph.inputs), 1)
+        self.assertIs(graph.inputs[0], value)
+        self.assertNotIn("regular_input", graph.initializers)
+
+    def test_add_output_renames_and_registers_output(self):
+        """Test that GraphBuilder.add_output renames (optionally) and appends outputs."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        output = ir.Value(name="old_name")
+        graph_builder.add_output(output, "new_name")
+
+        self.assertEqual(output.name, "new_name")
+        self.assertEqual(len(graph.outputs), 1)
+        self.assertIs(graph.outputs[0], output)
+
+    def test_initializer_qualification_behavior(self):
+        """Test that GraphBuilder.initializer qualifies names unless explicitly disabled."""
+        graph = ir.Graph(
+            name="test_model",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        graph_builder = builder.GraphBuilder(graph)
+
+        graph_builder.push_module("layer1")
+        qualified = graph_builder.initializer(ir.tensor([1.0], name="w"), name="weight")
+        unqualified = graph_builder.initializer(
+            ir.tensor([2.0], name="b"), name="bias", qualify=False
+        )
+
+        self.assertEqual(qualified.name, "layer1.weight")
+        self.assertEqual(unqualified.name, "bias")
+        self.assertIn("layer1.weight", graph.initializers)
+        self.assertIn("bias", graph.initializers)
+
+    def test_multi_output_names_are_unique(self):
+        """Test that multi-output ops produce unique names with counter suffix."""
+        op, x, y = _create_builder_with_inputs()
+
+        # First multi-output call
+        out1_a, out1_b = op.TopK(x, 1, axis=-1, _outputs=2)
+        # Second multi-output call
+        out2_a, out2_b = op.TopK(y, 1, axis=-1, _outputs=2)
+
+        # Each call should produce unique names
+        self.assertNotEqual(out1_a.name, out2_a.name)
+        self.assertNotEqual(out1_b.name, out2_b.name)
+
+    def test_node_metadata_props_namespace(self):
+        """Test that nodes have namespace metadata matching the scope hierarchy."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Root-level node
+        t1 = op.Add(x, y)
+        self.assertEqual(t1.producer().metadata_props["namespace"], "")
+
+        # Node inside a module scope
+        op.builder.push_module("layer1", "DecoderLayer")
+        t2 = op.Mul(t1, y)
+        self.assertEqual(t2.producer().metadata_props["namespace"], "layer1: DecoderLayer")
+
+        # Nested scope
+        op.builder.push_module("self_attn", "Attention")
+        t3 = op.Add(t2, x)
+        self.assertEqual(
+            t3.producer().metadata_props["namespace"],
+            "layer1: DecoderLayer/self_attn: Attention",
+        )
+        op.builder.pop_module()
+        op.builder.pop_module()
+
+    def test_node_metadata_props_class_hierarchy(self):
+        """Test that nodes have class hierarchy metadata."""
+        op, x, y = _create_builder_with_inputs()
+
+        op.builder.push_module("layer1", "DecoderLayer")
+        op.builder.push_module("self_attn", "Attention")
+        t1 = op.MatMul(x, y)
+        node = t1.producer()
+
+        self.assertEqual(
+            node.metadata_props["pkg.onnxscript.class_hierarchy"],
+            repr(["DecoderLayer", "Attention"]),
+        )
+        self.assertEqual(
+            node.metadata_props["pkg.onnxscript.name_scopes"],
+            repr(["layer1", "self_attn"]),
+        )
+        # class_hierarchy and name_scopes have the same length
+        self.assertEqual(
+            len(ast.literal_eval(node.metadata_props["pkg.onnxscript.class_hierarchy"])),
+            len(ast.literal_eval(node.metadata_props["pkg.onnxscript.name_scopes"])),
+        )
+        op.builder.pop_module()
+        op.builder.pop_module()
+
+    def test_attributes_are_created_properly(self):
+        """Test that int, float, str, and list attributes are set correctly on a node."""
+        op, x, y = _create_builder_with_inputs()
+
+        result = op.DummyOp(
+            x,
+            y,
+            _domain="test.domain",
+            int_attr=42,
+            float_attr=3.14,
+            str_attr="hello",
+            ints_attr=[1, 2, 3],
+            floats_attr=[1.0, 2.0, 3.0],
+            strs_attr=["a", "b", "c"],
+        )
+
+        node = result.producer()
+        self.assertEqual(node.op_type, "DummyOp")
+        self.assertEqual(node.domain, "test.domain")
+
+        # Verify scalar attributes
+        int_attr = node.attributes["int_attr"]
+        self.assertEqual(int_attr.type, ir.AttributeType.INT)
+        self.assertEqual(int_attr.value, 42)
+
+        float_attr = node.attributes["float_attr"]
+        self.assertEqual(float_attr.type, ir.AttributeType.FLOAT)
+        self.assertAlmostEqual(float_attr.value, 3.14)
+
+        str_attr = node.attributes["str_attr"]
+        self.assertEqual(str_attr.type, ir.AttributeType.STRING)
+        self.assertEqual(str_attr.value, "hello")
+
+        # Verify list attributes
+        ints_attr = node.attributes["ints_attr"]
+        self.assertEqual(ints_attr.type, ir.AttributeType.INTS)
+        self.assertEqual(list(ints_attr.value), [1, 2, 3])
+
+        floats_attr = node.attributes["floats_attr"]
+        self.assertEqual(floats_attr.type, ir.AttributeType.FLOATS)
+        self.assertEqual(list(floats_attr.value), [1.0, 2.0, 3.0])
+
+        strs_attr = node.attributes["strs_attr"]
+        self.assertEqual(strs_attr.type, ir.AttributeType.STRINGS)
+        self.assertEqual(list(strs_attr.value), ["a", "b", "c"])
+
+    def test_call_inline_inlines_onnxscript_function(self):
+        """Test that GraphBuilder.call_inline inlines an @onnxscript.script function."""
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+
+        # Define the script function after creating op, using op as default_opset
+        @script(default_opset=op)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op.Relu(tmp)
+
+        result = op.call_inline(mul_add_relu, x, y)
+
+        # The inlined function should produce 3 nodes: Mul, Add, Relu
+        nodes = list(op.builder.graph)
+        op_types = [n.op_type for n in nodes]
+        self.assertEqual(op_types, ["Mul", "Add", "Relu"])
+
+        # The result should be a single ir.Value (the Relu output)
+        self.assertIsInstance(result, ir.Value)
+
+        # Verify connectivity: Relu takes the Add output
+        relu_node = nodes[2]
+        add_node = nodes[1]
+        self.assertIs(relu_node.inputs[0], add_node.outputs[0])
+
+        # Verify the Add takes the Mul output and original input x
+        mul_node = nodes[0]
+        self.assertIs(add_node.inputs[0], mul_node.outputs[0])
+        self.assertIs(add_node.inputs[1], x)
+
+        # Verify the Mul takes the original inputs x and y
+        self.assertIs(mul_node.inputs[0], x)
+        self.assertIs(mul_node.inputs[1], y)
+
+    def test_call_inline_with_outputs_option(self):
+        """Test that GraphBuilder.call_inline respects the _outputs option for renaming."""
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+
+        # Define the script function after creating op, using op as default_opset
+        @script(default_opset=op)
+        def add_mul(X, Y):
+            a = X + Y
+            b = X * Y
+            return a, b
+
+        result = op.call_inline(add_mul, x, y, _outputs=["sum_result", "product_result"])
+
+        # The result should be a list of 2 ir.Values (when function returns multiple outputs)
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 2)
+        sum_result, product_result = result
+
+        # Verify output names are correctly set (with v_ prefix from value naming convention)
+        self.assertEqual(sum_result.name, "v_sum_result")
+        self.assertEqual(product_result.name, "v_product_result")
+
+        # Verify the nodes were created correctly
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 2)
+        self.assertEqual(nodes[0].op_type, "Add")
+        self.assertEqual(nodes[1].op_type, "Mul")
+
+    def test_call_inline_with_outer_scope_value(self):
+        """Test that script supports references to pre-existing values."""
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+        product = op.Mul(x, y)
+
+        @script()
+        def add_product(X):
+            return op.Add(X, product)  # Reference to 'product' from outer scope
+
+        x_plus = op.call_inline(add_product, x, _outputs=["x_plus"])
+        y_plus = op.call_inline(add_product, y, _outputs=["y_plus"])
+
+        op.builder.graph.outputs.extend([x_plus, y_plus])
+
+        # Now, create the same graph directly:
+        op2, x2, y2 = _create_builder_with_inputs()
+        product2 = op2.Mul(x2, y2)
+        x2_plus = op2.Add(x2, product2, _outputs=["x_plus"])
+        y2_plus = op2.Add(y2, product2, _outputs=["y_plus"])
+        op2.builder.graph.outputs.extend([x2_plus, y2_plus])
+
+        # Verify that the two graphs are structurally equivalent
+        onnxscript.testing.assert_isomorphic_graph(op.builder.graph, op2.builder.graph)
+
+    def test_call_inline_with_prefix_option(self):
+        """Test that GraphBuilder.call_inline respects the _prefix option for hierarchical naming."""
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+
+        # Define the script function after creating op, using op as default_opset
+        @script(default_opset=op)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op.Relu(tmp)
+
+        result = op.call_inline(mul_add_relu, x, y, _prefix="layer1")
+
+        # The nodes should have the prefix in their names
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 3)
+
+        # Check that all node names start with the prefix (node names use / separator)
+        for node in nodes:
+            self.assertTrue(
+                node.name.startswith("layer1/"),
+                f"Node name {node.name} should start with layer1/",
+            )
+
+        # Verify the result is a single ir.Value
+        self.assertIsInstance(result, ir.Value)
+
+    def test_call_inline_with_outputs_and_prefix_options(self):
+        """Test that GraphBuilder.call_inline respects both _outputs and _prefix options together.
+
+        Note: _outputs names are set before the prefix context is applied, so they don't get
+        the prefix in their names. However, the inlined nodes do get the prefix applied, and
+        intermediate values (not renamed by _outputs) do get the prefix applied.
+        """
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+
+        # Define the script function after creating op, using op as default_opset
+        @script(default_opset=op)
+        def add_mul(X, Y):
+            # Intermediate values that are not explicitly renamed by _outputs
+            XSquare = X * X
+            YSquare = Y * Y
+            # Final outputs that will be renamed by _outputs
+            a = XSquare + Y
+            b = XSquare * YSquare
+            return a, b
+
+        result = op.call_inline(
+            add_mul, x, y, _outputs=["custom_sum", "custom_product"], _prefix="math_ops"
+        )
+
+        # The result should be a list of 2 ir.Values
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 2)
+        sum_result, product_result = result
+
+        # Verify output names are set (with v_ prefix from value naming convention)
+        self.assertEqual(sum_result.name, "v_custom_sum")
+        self.assertEqual(product_result.name, "v_custom_product")
+
+        # Verify all nodes have the prefix applied to their names
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 4)  # Mul (XSquare), Mul (YSquare), Add, Mul (final)
+
+        # All node names should start with prefix (node names use / separator)
+        for node in nodes:
+            self.assertTrue(
+                node.name.startswith("math_ops/"),
+                f"Node name {node.name} should start with math_ops/",
+            )
+
+        # Verify intermediate value names also get the prefix (value names use v_ prefix and . separator)
+        # The first Mul produces XSquare
+        x_square = nodes[0].outputs[0]
+        self.assertTrue(
+            x_square.name.startswith("v_math_ops."),
+            f"Intermediate value {x_square.name} should have prefix",
+        )
+
+        # The second Mul produces YSquare
+        y_square = nodes[1].outputs[0]
+        self.assertTrue(
+            y_square.name.startswith("v_math_ops."),
+            f"Intermediate value {y_square.name} should have prefix",
+        )
+
+    def test_call_inline_outputs_mismatch_error(self):
+        """Test that GraphBuilder.call_inline raises an error if _outputs has wrong count."""
+        # Create a GraphBuilder first
+        op, x, y = _create_builder_with_inputs()
+
+        # Define the script function after creating op, using op as default_opset
+        @script(default_opset=op)
+        def add_mul(X, Y):
+            a = X + Y
+            b = X * Y
+            return a, b
+
+        # The function returns 2 outputs, but we provide only 1 name
+        with self.assertRaises(ValueError) as cm:
+            op.call_inline(add_mul, x, y, _outputs=["only_one_name"])
+
+        self.assertIn("does not match", str(cm.exception))
+
+    def test_none_input_is_passed_through(self):
+        """Test that None inputs are preserved as None in the node's inputs."""
+        op, x, y = _create_builder_with_inputs()
+
+        # Gemm's third input (C) is optional; passing None should work
+        result = op.Gemm(x, y, None, alpha=1.0)
+
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        node = nodes[0]
+        self.assertEqual(node.op_type, "Gemm")
+        # The third input should be None (optional, omitted)
+        self.assertEqual(len(list(node.inputs)), 3)
+        self.assertIs(node.inputs[0], x)
+        self.assertIs(node.inputs[1], y)
+        self.assertIsNone(node.inputs[2])
+        self.assertIsNotNone(result)
+
+    def test_none_input_with_custom_domain(self):
+        """Test that None inputs work with custom domain ops."""
+        op, x, y = _create_builder_with_inputs()
+
+        result = op.CustomOp(x, None, y, _domain="com.custom")
+
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        node = nodes[0]
+        self.assertEqual(node.op_type, "CustomOp")
+        self.assertIs(node.inputs[0], x)
+        self.assertIsNone(node.inputs[1])
+        self.assertIs(node.inputs[2], y)
+        self.assertIsNotNone(result)
+
+    def test_call_creates_single_function_node(self):
+        """Test that GraphBuilder.call creates a single function call node."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op.Relu(tmp)
+
+        result = op.call(mul_add_relu, x, y)
+
+        # Only a single node should be created (the function call)
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+
+        node = nodes[0]
+        self.assertEqual(node.op_type, "mul_add_relu")
+        self.assertEqual(list(node.inputs), [x, y])
+
+        # The result should be a single ir.Value
+        self.assertIsInstance(result, ir.Value)
+        self.assertIs(result, node.outputs[0])
+
+    def test_call_registers_function(self):
+        """Test that GraphBuilder.call registers the function in GraphBuilder.functions."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        op.call(simple_add, x, y)
+
+        # The function should be registered
+        self.assertEqual(len(op.builder.functions), 1)
+        registered = next(iter(op.builder.functions.values()))
+        self.assertEqual(registered.name, "simple_add")
+
+    def test_call_same_function_twice(self):
+        """Test that calling the same function twice creates two nodes but registers the function only once."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        op.call(simple_add, x, y)
+        op.call(simple_add, x, y)
+
+        # Two function call nodes should be created
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 2)
+
+        # The function should be registered only once
+        self.assertEqual(len(op.builder.functions), 1)
+
+    def test_call_inline_does_not_register_function(self):
+        """Test that GraphBuilder.call_inline does not register the function."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        op.call_inline(simple_add, x, y)
+
+        # No function should be registered when inlining
+        self.assertEqual(len(op.builder.functions), 0)
+
+    def test_call_with_outputs_option(self):
+        """Test that GraphBuilder.call respects the _outputs option for renaming."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def add_mul(X, Y):
+            a = X + Y
+            b = X * Y
+            return a, b
+
+        result = op.call(add_mul, x, y, _outputs=["sum_result", "product_result"])
+
+        # The result should be a sequence of 2 ir.Values
+        self.assertEqual(len(result), 2)
+        sum_result, product_result = result
+
+        # Verify output names
+        self.assertEqual(sum_result.name, "v_sum_result")
+        self.assertEqual(product_result.name, "v_product_result")
+
+        # Only one node (the function call)
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(nodes[0].op_type, "add_mul")
+
+    def test_call_with_push_module_prefix(self):
+        """Test that GraphBuilder.call respects push_module for hierarchical naming."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def mul_add_relu(X, Y):
+            tmp = X * Y
+            tmp = tmp + X
+            return op.Relu(tmp)
+
+        op.builder.push_module("layer1")
+        result = op.call(mul_add_relu, x, y)
+        op.builder.pop_module()
+
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+
+        # The node name should have the prefix
+        self.assertTrue(
+            nodes[0].name.startswith("layer1/"),
+            f"Node name {nodes[0].name} should start with layer1/",
+        )
+
+        self.assertIsInstance(result, ir.Value)
+
+    def test_call_via_op_builder(self):
+        """Test that GraphBuilder.call works when called through OpBuilder.call."""
+        op, x, y = _create_builder_with_inputs()
+
+        @script(default_opset=op)
+        def simple_add(X, Y):
+            return op.Add(X, Y)
+
+        # Call through OpBuilder (not GraphBuilder directly)
+        result = op.call(simple_add, x, y)
+
+        # Should produce a single function call node
+        nodes = list(op.builder.graph)
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(nodes[0].op_type, "simple_add")
+        self.assertIsInstance(result, ir.Value)
+
+        # Function should be registered
+        self.assertEqual(len(op.builder.functions), 1)
+
+
+class BuildSubgraphTest(unittest.TestCase):
+    """Tests for GraphBuilder.subgraph()."""
+
+    def _make_builder(self, opset_version: int = 23) -> builder.GraphBuilder:
+        """Return a minimal GraphBuilder for the given opset version."""
+        graph = ir.Graph(
+            name="parent",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": opset_version},
+        )
+        return builder.GraphBuilder(graph)
+
+    def test_basic_subgraph(self):
+        """Subgraph returns a valid ir.Graph with correct inputs/outputs."""
+
+        def _add(op, x, y):
+            return op.Add(x, y)
+
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _add,
+            inputs=[_input("x", FLOAT[3, 4]), _input("y", FLOAT[3, 4])],
+            outputs=[_input("sum", FLOAT[3, 4])],
+        )
+        self.assertIsInstance(graph, ir.Graph)
+        self.assertEqual(len(graph.inputs), 2)
+        self.assertEqual(len(graph.outputs), 1)
+        op_types = [node.op_type for node in graph]
+        self.assertEqual(op_types, ["Add"])
+
+    def test_subgraph_inherits_opset_version(self):
+        """The subgraph opset version matches the parent GraphBuilder."""
+        gb = self._make_builder(opset_version=17)
+        graph = gb.subgraph(
+            lambda op, x: op.Identity(x),
+            inputs=[_input("x", FLOAT[...])],
+            outputs=[_input("y", FLOAT[...])],
+        )
+        self.assertEqual(graph.opset_imports[""], 17)
+
+    def test_subgraph_with_ir_type_and_shape(self):
+        """Subgraph also accepts ir.Value with ir.TypeAndShape-derived types."""
+
+        def _mul(op, x, y):
+            return op.Mul(x, y)
+
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _mul,
+            inputs=[
+                ir.Value(
+                    name="x",
+                    type=ir.TensorType(ir.DataType.FLOAT),
+                    shape=ir.Shape([2, 3]),
+                ),
+                ir.Value(
+                    name="y",
+                    type=ir.TensorType(ir.DataType.FLOAT),
+                    shape=ir.Shape([2, 3]),
+                ),
+            ],
+            outputs=[
+                ir.Value(
+                    name="z",
+                    type=ir.TensorType(ir.DataType.FLOAT),
+                    shape=ir.Shape([2, 3]),
+                ),
+            ],
+        )
+        self.assertIsInstance(graph, ir.Graph)
+        self.assertEqual(len(list(graph)), 1)
+        self.assertEqual(next(iter(graph)).op_type, "Mul")
+
+    def test_subgraph_multiple_outputs(self):
+        """Subgraph handles multiple outputs."""
+
+        def _add_and_mul(op, x, y):
+            return op.Add(x, y), op.Mul(x, y)
+
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _add_and_mul,
+            inputs=[_input("x", FLOAT[...]), _input("y", FLOAT[...])],
+            outputs=[_input("sum", FLOAT[...]), _input("prod", FLOAT[...])],
+        )
+        self.assertEqual(len(graph.outputs), 2)
+
+    def test_subgraph_output_count_mismatch_raises(self):
+        """Subgraph raises ValueError when output count does not match."""
+
+        def _returns_one(op, x, y):
+            return op.Add(x, y)
+
+        gb = self._make_builder()
+        with self.assertRaises(ValueError):
+            gb.subgraph(
+                _returns_one,
+                inputs=[_input("x", FLOAT[...]), _input("y", FLOAT[...])],
+                outputs=[
+                    _input("a", FLOAT[...]),
+                    _input("b", FLOAT[...]),
+                ],  # expects 2, gets 1
+            )
+
+    def test_subgraph_custom_name(self):
+        """Subgraph passes the name through to the ir.Graph."""
+
+        def _id(op, x):
+            return op.Identity(x)
+
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _id,
+            inputs=[_input("x", DOUBLE[...])],
+            outputs=[_input("y", DOUBLE[...])],
+            name="scan_body",
+        )
+        self.assertEqual(graph.name, "scan_body")
+
+    def test_subgraph_input_with_producer_raises(self):
+        """Subgraph raises ValueError for inputs that already have a producer."""
+
+        def _id(op, x):
+            return op.Identity(x)
+
+        gb = self._make_builder()
+        # Create a value with a producer node
+        node = ir.Node("", "Dummy", inputs=[], num_outputs=1)
+        used_value = node.outputs[0]
+        used_value.name = "bad_input"
+        with self.assertRaises(ValueError):
+            gb.subgraph(
+                _id,
+                inputs=[used_value],
+                outputs=[_input("y", FLOAT[...])],
+            )
+
+    def test_subgraph_named_inputs_outputs(self):
+        """Subgraph accepts ir.Value objects with names."""
+
+        def _add(op, x, y):
+            return op.Add(x, y)
+
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _add,
+            inputs=[_input("x", FLOAT[3, 4]), _input("y", FLOAT[3, 4])],
+            outputs=[_input("sum", FLOAT[3, 4])],
+        )
+        self.assertIsInstance(graph, ir.Graph)
+        self.assertEqual(len(graph.inputs), 2)
+        self.assertEqual(graph.inputs[0].name, "x")
+        self.assertEqual(graph.inputs[1].name, "y")
+        self.assertEqual(len(graph.outputs), 1)
+        self.assertEqual(graph.outputs[0].name, "sum")
+
+    def test_subgraph_untyped_inputs(self):
+        """Subgraph accepts ir.Value objects without type/shape."""
+
+        def _id(op, x):
+            return op.Identity(x)
+
+        gb = self._make_builder()
+        graph = gb.subgraph(
+            _id,
+            inputs=[ir.Value(name="x")],
+            outputs=[ir.Value(name="y")],
+        )
+        self.assertEqual(graph.inputs[0].name, "x")
+        self.assertEqual(graph.outputs[0].name, "y")
+
+
+class BuildGraphFunctionTest(unittest.TestCase):
+    """Tests for the module-level build_graph() utility."""
+
+    def test_build_graph_basic(self):
+        """build_graph works without a parent GraphBuilder."""
+        graph = builder.build_graph(
+            lambda op, x, y: op.Add(x, y),
+            inputs=[_input("x", FLOAT[3, 4]), _input("y", FLOAT[3, 4])],
+            outputs=[_input("sum", FLOAT[3, 4])],
+            opset_imports={"": 20},
+        )
+        self.assertIsInstance(graph, ir.Graph)
+        self.assertEqual(graph.opset_imports[""], 20)
+        self.assertEqual(graph.inputs[0].name, "x")
+        self.assertEqual(graph.inputs[1].name, "y")
+        self.assertEqual(graph.outputs[0].name, "sum")
+
+    def test_build_graph_custom_name(self):
+        """build_graph passes name to the ir.Graph."""
+        graph = builder.build_graph(
+            lambda op, x: op.Identity(x),
+            inputs=[_input("x", FLOAT[...])],
+            outputs=[_input("y", FLOAT[...])],
+            name="loop_body",
+            opset_imports=_opset,
+        )
+        self.assertEqual(graph.name, "loop_body")
+
+    def test_build_graph_with_parent(self):
+        """build_graph with parent sets root on the sub-builder."""
+        parent_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        parent_builder = builder.GraphBuilder(parent_graph)
+
+        def body(op, x):
+            self.assertIs(op.builder.parent, parent_builder)
+            self.assertIs(op.builder.root, parent_builder)
+            return op.Identity(x)
+
+        builder.build_graph(
+            body,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+            parent=parent_builder,
+            opset_imports=_opset,
+        )
+
+    def test_subgraph_sets_parent_and_root(self):
+        """GraphBuilder.subgraph() sets parent=self on the sub-builder."""
+        parent_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        parent_builder = builder.GraphBuilder(parent_graph)
+
+        def body(op, x):
+            self.assertIs(op.builder.parent, parent_builder)
+            self.assertIs(op.builder.root, parent_builder)
+            return op.Identity(x)
+
+        parent_builder.subgraph(
+            body,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+        )
+
+    def test_build_graph_inherits_parent_scope_stack(self):
+        """build_graph copies the parent's scope stack so nodes in the subgraph carry scoped names."""
+        parent_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        parent_builder = builder.GraphBuilder(parent_graph)
+        parent_builder.push_module("encoder", "Encoder")
+        parent_builder.push_module("layers.0", "TransformerBlock")
+
+        subgraph = builder.build_graph(
+            lambda op, x: op.Relu(x),
+            inputs=[_input("x", FLOAT[3, 4])],
+            outputs=[_input("y", FLOAT[3, 4])],
+            parent=parent_builder,
+            opset_imports=_opset,
+        )
+        # The single node created inside the subgraph should carry the
+        # parent's scope prefix in its name and metadata.
+        node = subgraph.node(0)
+        self.assertIn("encoder", node.name)
+        self.assertIn("layers.0", node.name)
+        self.assertIn("encoder", node.metadata_props["namespace"])
+        self.assertIn("TransformerBlock", node.metadata_props["namespace"])
+
+    def test_root_graph_builder_is_its_own_root(self):
+        """A top-level GraphBuilder has root == self."""
+        graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        gb = builder.GraphBuilder(graph)
+        self.assertIs(gb.root, gb)
+        self.assertIsNone(gb.parent)
+
+
+class PartitionInputsAttributesTest(unittest.TestCase):
+    """Tests for GraphBuilder._partition_inputs_attributes."""
+
+    def test_unknown_op_passes_inputs_and_kwargs_through(self):
+        """An unknown op has no schema, so inputs and kwargs pass through unchanged."""
+
+        def _dummy(op, x, y):
+            return op.DummyOp(x, y, alpha=1.0)
+
+        graph = _build(
+            input_types=[FLOAT[3, 4], FLOAT[3, 4]],
+            trace_function=_dummy,
+        )
+        x, y = graph.inputs
+        node = graph.node(0)
+        self.assertEqual(node.op_type, "DummyOp")
+        self.assertEqual(list(node.inputs), [x, y])
+        self.assertEqual(node.attributes["alpha"].as_float(), 1.0)
+
+    def test_op_with_only_inputs(self):
+        """Add has two inputs and no attributes."""
+
+        def _add(op, x, y):
+            return op.Add(x, y)
+
+        graph = _build(
+            input_types=[FLOAT[3, 4], FLOAT[3, 4]],
+            trace_function=_add,
+        )
+        x, y = graph.inputs
+        node = graph.node(0)
+        self.assertEqual(node.op_type, "Add")
+        self.assertEqual(list(node.inputs), [x, y])
+        self.assertEqual(len(node.attributes), 0)
+
+    def test_op_with_inputs_and_attributes_in_kwargs(self):
+        """Gemm has 3 inputs (A, B, C) and attributes (alpha, beta, transA, transB)."""
+
+        def _gemm(op, a, b, c):
+            return op.Gemm(a, b, c, alpha=2.0, transB=1)
+
+        graph = _build(
+            input_types=[FLOAT[3, 4], FLOAT[4, 5], FLOAT[3, 5]],
+            trace_function=_gemm,
+        )
+        a, b, c = graph.inputs
+        node = graph.node(0)
+        self.assertEqual(node.op_type, "Gemm")
+        self.assertEqual(list(node.inputs), [a, b, c])
+        self.assertEqual(node.attributes["alpha"].as_float(), 2.0)
+        self.assertEqual(node.attributes["transB"].as_int(), 1)
+
+    def test_op_with_optional_input_omitted(self):
+        """Gemm's third input (C) is optional. Omitting it should work."""
+
+        def _gemm_no_c(op, a, b):
+            return op.Gemm(a, b, alpha=2.0)
+
+        graph = _build(
+            input_types=[FLOAT[3, 4], FLOAT[4, 5]],
+            trace_function=_gemm_no_c,
+        )
+        a, b = graph.inputs
+        node = graph.node(0)
+        self.assertEqual(node.op_type, "Gemm")
+        self.assertEqual(list(node.inputs), [a, b])
+        self.assertEqual(node.attributes["alpha"].as_float(), 2.0)
+
+    def test_does_not_fill_attribute_defaults(self):
+        """Attribute defaults should not be filled in (fill_defaults=False)."""
+
+        def _gemm_no_attrs(op, a, b):
+            return op.Gemm(a, b)
+
+        graph = _build(
+            input_types=[FLOAT[3, 4], FLOAT[4, 5]],
+            trace_function=_gemm_no_attrs,
+        )
+        node = graph.node(0)
+        # alpha, beta, transA, transB all have defaults but should NOT appear
+        self.assertFalse(node.attributes)
+
+    def test_variadic_inputs_with_attribute(self):
+        """Concat has variadic inputs and an axis attribute."""
+
+        def _concat(op, x, y, z):
+            return op.Concat(x, y, z, axis=0)
+
+        graph = _build(
+            input_types=[FLOAT[3, 4], FLOAT[3, 4], FLOAT[3, 4]],
+            trace_function=_concat,
+        )
+        x, y, z = graph.inputs
+        node = graph.node(0)
+        self.assertEqual(node.op_type, "Concat")
+        self.assertEqual(list(node.inputs), [x, y, z])
+        self.assertEqual(node.attributes["axis"].as_int(), 0)
+
+    def test_slice_kwargs_are_correctly_ordered_as_inputs(self):
+        """Calling op.Slice with keyword arguments should place them in schema order."""
+
+        def _slice(op, data, starts, ends, axes, steps):
+            # Pass optional inputs as kwargs in non-schema order
+            return op.Slice(data, ends=ends, steps=steps, starts=starts, axes=axes)
+
+        graph = _build(
+            input_types=[FLOAT[20, 10], INT64[2], INT64[2], INT64[2], INT64[2]],
+            trace_function=_slice,
+        )
+        data, starts, ends, axes, steps = graph.inputs
+
+        slice_node = graph.node(0)
+        self.assertEqual(slice_node.op_type, "Slice")
+        # Schema order: data, starts, ends, axes, steps
+        self.assertEqual(list(slice_node.inputs), [data, starts, ends, axes, steps])
+
+    def test_omitting_required_input_raises(self):
+        """Omitting a required input should raise TypeError."""
+
+        def _add_missing_input(op, x):
+            return op.Add(x)
+
+        with self.assertRaises(TypeError):
+            _build(
+                input_types=[FLOAT[3, 4]],
+                trace_function=_add_missing_input,
+            )
+
+    def test_extra_inputs_raises(self):
+        """Extra positional inputs beyond the schema should raise TypeError."""
+
+        def _add_extra_input(op, x, y, z):
+            return op.Add(x, y, z)
+
+        with self.assertRaises(TypeError):
+            _build(
+                input_types=[FLOAT[3, 4], FLOAT[3, 4], FLOAT[3, 4]],
+                trace_function=_add_extra_input,
+            )
+
+
+class RootInitializerTest(unittest.TestCase):
+    """Tests for root-graph initializer storage and lift_initializers_to_constants."""
+
+    def test_subgraph_literal_creates_initializer_in_root(self):
+        """A literal used inside a subgraph creates an initializer in the root graph."""
+        root_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        root_builder = builder.GraphBuilder(root_graph)
+
+        def body(op, x):
+            return op.Add(x, 1.0)
+
+        sub = root_builder.subgraph(
+            body,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+        )
+        # Initializer should be in the root graph, not in the subgraph.
+        self.assertTrue(
+            any("const_1.0" in name for name in root_graph.initializers),
+            f"Expected const_1.0 in root initializers: {list(root_graph.initializers)}",
+        )
+        self.assertEqual(
+            len(sub.initializers),
+            0,
+            f"Subgraph should have no initializers: {list(sub.initializers)}",
+        )
+
+    def test_sibling_subgraphs_share_root_cache(self):
+        """Two subgraphs using the same literal share one root initializer."""
+        root_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        root_builder = builder.GraphBuilder(root_graph)
+
+        def body1(op, x):
+            return op.Add(x, 2.0)
+
+        def body2(op, x):
+            return op.Mul(x, 2.0)
+
+        root_builder.subgraph(
+            body1,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+        )
+        root_builder.subgraph(
+            body2,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+        )
+
+        # Only one initializer should exist (shared via cache).
+        const_names = [n for n in root_graph.initializers if "const_2.0" in n]
+        self.assertEqual(len(const_names), 1, f"Expected 1 shared initializer: {const_names}")
+
+    def test_direct_initializer_in_subgraph_goes_to_root(self):
+        """builder.initializer() called on a sub-builder registers in root graph."""
+        import numpy as np
+
+        root_graph = ir.Graph(
+            name="main",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        root_builder = builder.GraphBuilder(root_graph)
+
+        def body(op, x):
+            tensor = ir.Tensor(np.array([1.0, 2.0], dtype=np.float32))
+            bias = op.builder.initializer(tensor, name="my_bias")
+            return op.Add(x, bias)
+
+        sub = root_builder.subgraph(
+            body,
+            inputs=[_input("x", FLOAT[3])],
+            outputs=[_input("y", FLOAT[3])],
+        )
+        # Initializer should be in root, not subgraph
+        self.assertIn("my_bias", root_graph.initializers)
+        self.assertEqual(len(sub.initializers), 0)
+
+    def test_lift_initializers_to_constants_converts_all(self):
+        """lift_initializers_to_constants replaces initializers with Constant nodes."""
+        graph = ir.Graph(
+            name="func_body",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        gb = builder.GraphBuilder(graph)
+        x = gb.input("x", ir.DataType.FLOAT, ir.Shape([3]))
+        result = gb.op.Add(x, 1.5)
+        gb.add_output(result, "y")
+
+        # Before lift: should have an initializer
+        self.assertGreater(len(graph.initializers), 0)
+
+        builder.lift_initializers_to_constants(graph)
+
+        # After lift: no initializers, but a Constant node at the start
+        self.assertEqual(len(graph.initializers), 0)
+        first_node = graph.node(0)
+        self.assertEqual(first_node.op_type, "Constant")
+
+    def test_lift_preserves_value_identity(self):
+        """lift_initializers_to_constants reuses existing ir.Value objects."""
+        graph = ir.Graph(
+            name="func_body",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        gb = builder.GraphBuilder(graph)
+        x = gb.input("x", ir.DataType.FLOAT, ir.Shape([3]))
+        # Use the literal 3.14 in two ops so the same ir.Value feeds both
+        const_val = gb.op.Add(x, 3.14)
+        result = gb.op.Mul(const_val, 3.14)
+        gb.add_output(result, "y")
+
+        # Grab the initializer value before lifting
+        init_values = list(graph.initializers.values())
+        self.assertEqual(len(init_values), 1)
+        original_value = init_values[0]
+
+        builder.lift_initializers_to_constants(graph)
+
+        # The Constant node's output should be the same ir.Value object
+        const_node = graph.node(0)
+        self.assertEqual(const_node.op_type, "Constant")
+        self.assertIs(const_node.outputs[0], original_value)
+
+    def test_lift_skips_graph_inputs_that_are_initializers(self):
+        """Graph inputs that are also initializers are NOT lifted."""
+        graph = ir.Graph(
+            name="func_body",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        gb = builder.GraphBuilder(graph)
+        # Create an input that is also an initializer (default value pattern)
+        import numpy as np
+
+        default_tensor = ir.Tensor(np.array([1.0, 2.0, 3.0], dtype=np.float32))
+        input_with_default = gb.input(
+            "bias", ir.DataType.FLOAT, ir.Shape([3]), const_value=default_tensor
+        )
+        x = gb.input("x", ir.DataType.FLOAT, ir.Shape([3]))
+        result = gb.op.Add(x, input_with_default)
+        gb.add_output(result, "y")
+
+        self.assertEqual(len(graph.initializers), 1)
+
+        builder.lift_initializers_to_constants(graph)
+
+        # The input/initializer should NOT have been lifted
+        self.assertEqual(len(graph.initializers), 1)
+        # No Constant nodes should have been created
+        for node in graph:
+            self.assertNotEqual(node.op_type, "Constant")
+
+    def test_function_body_with_literal_after_lift(self):
+        """End-to-end: build a function body with a literal, lift, wrap in ir.Function."""
+        graph = ir.Graph(
+            name="MyFunc_body",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": _default_opset_version},
+        )
+        gb = builder.GraphBuilder(graph)
+        x = gb.input("x", ir.DataType.FLOAT, ir.Shape([3]))
+        # Use a float literal — this creates an initializer
+        scaled = gb.op.Mul(x, 0.5)
+        gb.add_output(scaled, "y")
+
+        # Lift before wrapping in ir.Function
+        builder.lift_initializers_to_constants(graph)
+
+        func = ir.Function(
+            domain="test.domain",
+            name="MyFunc",
+            graph=graph,
+            attributes={},
+        )
+        # Validate: function body should have no initializers
+        self.assertEqual(len(func.graph.initializers), 0)
+        # Should have a Constant node
+        const_nodes = [n for n in func.graph if n.op_type == "Constant"]
+        self.assertEqual(len(const_nodes), 1)
+
+
+class BuildFunctionTest(unittest.TestCase):
+    """Tests for the module-level build_function() utility."""
+
+    def test_build_function_basic(self):
+        """build_function creates an ir.Function with correct domain/name."""
+        fn = builder.build_function(
+            lambda op, x, y: op.Add(x, y),
+            [_input("x", FLOAT[3, 4]), _input("y", FLOAT[3, 4])],
+            domain="com.test",
+            name="MyAdd",
+            opset_imports=_opset,
+        )
+        self.assertIsInstance(fn, ir.Function)
+        self.assertEqual(fn.domain, "com.test")
+        self.assertEqual(fn.name, "MyAdd")
+        self.assertEqual(len(fn.graph.inputs), 2)
+        self.assertEqual(fn.graph.inputs[0].name, "x")
+        self.assertEqual(fn.graph.inputs[1].name, "y")
+        self.assertEqual(len(fn.graph.outputs), 1)
+
+    def test_build_function_multiple_outputs(self):
+        """build_function handles multiple return values."""
+
+        def body(op, x, y):
+            return op.Add(x, y), op.Mul(x, y)
+
+        fn = builder.build_function(
+            body,
+            [_input("x"), _input("y")],
+            domain="com.test",
+            name="AddAndMul",
+            opset_imports=_opset,
+        )
+        self.assertEqual(len(fn.graph.outputs), 2)
+
+    def test_build_function_with_attributes(self):
+        """build_function passes attributes to ir.Function."""
+        fn = builder.build_function(
+            lambda op, x: op.Identity(x),
+            [_input("x")],
+            domain="com.test",
+            name="WithAttr",
+            attributes=[
+                ir.Attr("scale", ir.AttributeType.FLOAT, 0.5),
+                ir.Attr("mode", ir.AttributeType.STRING, "fast"),
+            ],
+            opset_imports=_opset,
+        )
+        self.assertIn("scale", fn.attributes)
+        self.assertIn("mode", fn.attributes)
+
+    def test_build_function_attributes_as_dict(self):
+        """build_function accepts attributes as Mapping[str, ir.Attr]."""
+        attr = ir.Attr("scale", ir.AttributeType.FLOAT, 1.0)
+        fn = builder.build_function(
+            lambda op, x: op.Identity(x),
+            [_input("x")],
+            domain="com.test",
+            name="DictAttr",
+            attributes={"scale": attr},
+            opset_imports=_opset,
+        )
+        self.assertIn("scale", fn.attributes)
+
+    def test_build_function_lifts_initializers(self):
+        """build_function lifts initializers to Constant nodes automatically."""
+        fn = builder.build_function(
+            lambda op, x: op.Add(x, 1.5),
+            [_input("x", FLOAT[3])],
+            domain="com.test",
+            name="WithLiteral",
+            opset_imports=_opset,
+        )
+        # No initializers in function body
+        self.assertEqual(len(fn.graph.initializers), 0)
+        # Should have a Constant node for the literal
+        const_nodes = [n for n in fn.graph if n.op_type == "Constant"]
+        self.assertGreater(len(const_nodes), 0)
+
+    def test_build_function_optional_inputs_none(self):
+        """build_function passes None for absent optional inputs but declares them."""
+
+        def body(op, x, y, z):
+            self.assertIsNotNone(x)
+            self.assertIsNone(y)
+            self.assertIsNotNone(z)
+            return op.Add(x, z)
+
+        fn = builder.build_function(
+            body,
+            [_input("x", FLOAT[3]), None, _input("z", FLOAT[3])],
+            domain="com.test",
+            name="OptionalInputs",
+            opset_imports=_opset,
+        )
+        # Graph has 3 inputs: x, a placeholder for the absent y, and z
+        self.assertEqual(len(fn.graph.inputs), 3)
+        self.assertEqual(fn.graph.inputs[0].name, "x")
+        self.assertEqual(fn.graph.inputs[1].name, "input_1")  # placeholder
+        self.assertIsNone(fn.graph.inputs[1].type)  # untyped
+        self.assertEqual(fn.graph.inputs[2].name, "z")
+
+    def test_build_function_trace_appends_outputs(self):
+        """build_function supports trace functions that append outputs directly."""
+
+        def body(op, x):
+            result = op.Identity(x)
+            result.name = "result"
+            op.builder._graph.outputs.append(result)
+            return None
+
+        fn = builder.build_function(
+            body,
+            [_input("x")],
+            domain="com.test",
+            name="AppendOutputs",
+            opset_imports=_opset,
+        )
+        self.assertEqual(len(fn.graph.outputs), 1)
+        self.assertEqual(fn.graph.outputs[0].name, "result")
+
+    def test_build_function_mixed_output_raises(self):
+        """build_function raises if trace both returns and appends outputs."""
+
+        def body(op, x):
+            result = op.Identity(x)
+            op.builder._graph.outputs.append(result)
+            return op.Identity(x)  # also returns — should raise
+
+        with self.assertRaises(ValueError):
+            builder.build_function(
+                body,
+                [_input("x")],
+                domain="com.test",
+                name="MixedOutputs",
+                opset_imports=_opset,
+            )
+
+    def test_build_function_no_outputs_raises(self):
+        """build_function raises if trace returns None and appends nothing."""
+
+        def body(op, x):
+            op.Identity(x)
+            return None
+
+        with self.assertRaises(ValueError):
+            builder.build_function(
+                body,
+                [_input("x")],
+                domain="com.test",
+                name="NoOutputs",
+                opset_imports=_opset,
+            )
+
+    def test_build_function_input_with_producer_raises(self):
+        """build_function raises for inputs that already have a producer."""
+        node = ir.Node("", "Dummy", inputs=[], num_outputs=1)
+        used_value = node.outputs[0]
+        used_value.name = "bad"
+
+        with self.assertRaises(ValueError):
+            builder.build_function(
+                lambda op, x: op.Identity(x),
+                [used_value],
+                domain="com.test",
+                name="BadInput",
+                opset_imports=_opset,
+            )
+
+    def test_build_function_input_attached_to_graph_raises(self):
+        """build_function raises for inputs already attached to a graph."""
+        graph = ir.Graph(
+            name="other",
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 23},
+        )
+        attached = ir.Value(name="attached")
+        graph.inputs.append(attached)
+
+        with self.assertRaises(ValueError):
+            builder.build_function(
+                lambda op, x: op.Identity(x),
+                [attached],
+                domain="com.test",
+                name="AttachedInput",
+                opset_imports=_opset,
+            )
+
+    def test_build_function_custom_opset(self):
+        """build_function passes custom opset_imports to the graph."""
+        fn = builder.build_function(
+            lambda op, x: op.Identity(x),
+            [_input("x")],
+            domain="com.test",
+            name="CustomOpset",
+            opset_imports={"": 20},
+        )
+        self.assertEqual(fn.graph.opset_imports[""], 20)
+
+    def test_build_function_no_parent_isolation(self):
+        """build_function has no parent — literals stay in the function graph."""
+        fn = builder.build_function(
+            lambda op, x: op.Mul(x, 2.0),
+            [_input("x", FLOAT[3])],
+            domain="com.test",
+            name="Isolated",
+            opset_imports=_opset,
+        )
+        # After lifting, there should be a Constant node and no initializers
+        self.assertEqual(len(fn.graph.initializers), 0)
+        const_nodes = [n for n in fn.graph if n.op_type == "Constant"]
+        self.assertGreater(len(const_nodes), 0)
+
+
+class MakeValueTest(unittest.TestCase):
+    """Tests for the make_value() convenience helper."""
+
+    def test_make_value_name_only(self):
+        """make_value with just a name creates an untyped Value."""
+        v = builder.make_value("x")
+        self.assertEqual(v.name, "x")
+        self.assertIsNone(v.type)
+        self.assertIsNone(v.shape)
+
+    def test_make_value_with_type_spec(self):
+        """make_value with a TypeSpec sets type and shape."""
+        v = builder.make_value("x", FLOAT[3, 4])
+        self.assertEqual(v.name, "x")
+        self.assertIsNotNone(v.type)
+        self.assertIsNotNone(v.shape)
+
+    def test_make_value_with_dynamic_shape(self):
+        """make_value with symbolic dims works."""
+        v = builder.make_value("x", FLOAT["B", "T"])
+        self.assertEqual(v.name, "x")
+        self.assertIsNotNone(v.shape)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -2073,7 +2073,7 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
     # Turn the Boolean mask to float: attn_mask.masked_fill(not attn_mask, -float('inf'))
     zero = op.Constant(value=ir.tensor(0.0, dtype=query.dtype))
-    neg_inf = op.Constant(value=ir.tensor(-float("inf"), dtype=query.dtype))
+    neg_inf = op.Constant(value=ir.tensor(query.dtype.min, dtype=query.dtype))
     attn_mask = op.Where(attn_mask, zero, neg_inf)
     attn_weight = op.Softmax(
         op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
@@ -2320,7 +2320,7 @@ def aten_unflatten_dense_tensors(
 
 
 def _get_upsample_align_corners_mode(align_corners: bool) -> str:
-    return "align_corners" if align_corners else "pytorch_half_pixel"
+    return "align_corners" if align_corners else "half_pixel"
 
 
 def _aten_upsample_output_size(
@@ -2329,6 +2329,8 @@ def _aten_upsample_output_size(
     mode: str,
     coordinate_transformation_mode: str,
     antialias: int = 0,
+    cubic_coeff_a: float = -0.75,
+    exclude_outside: int = 0,
 ) -> TReal:
     batch_and_channel = op.Shape(self, end=2, start=0)
     # When output_size is passed in as a list of integers, the torch.onnx
@@ -2344,8 +2346,10 @@ def _aten_upsample_output_size(
         output_size,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
+        cubic_coeff_a=cubic_coeff_a,
         nearest_mode="floor",
         antialias=antialias,
+        exclude_outside=exclude_outside,
     )
 
 
@@ -2355,6 +2359,8 @@ def _aten_upsample_scales(
     mode: str,
     coordinate_transformation_mode: str,
     antialias: int = 0,
+    cubic_coeff_a: float = -0.75,
+    exclude_outside: int = 0,
 ) -> TReal:
     return op.Resize(
         self,
@@ -2365,8 +2371,10 @@ def _aten_upsample_scales(
         None,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
+        cubic_coeff_a=cubic_coeff_a,
         nearest_mode="floor",
         antialias=antialias,
+        exclude_outside=exclude_outside,
     )
 
 
@@ -2404,12 +2412,20 @@ def aten__upsample_bicubic2d_aa(
     # NOTE: Based on experimentation, scales_h and scales_w are always ignored in PyTorch,
     # unless when align_corners is True, in which case we do not know what is going on.
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    # PyTorch uses cubic_coeff_a=-0.5 (Keys interpolation, PIL-compatible) when
+    # antialias=True, as opposed to -0.75 (OpenCV-compatible) for the non-antialias case.
+    # exclude_outside=1 matches PyTorch's antialias kernel, which drops out-of-bounds
+    # samples from the filter window and renormalizes the remaining weights so they
+    # sum to 1. Without it the ONNX Resize keeps phantom out-of-bounds weight in the
+    # denominator and produces values that differ from eager near the boundary.
     return _aten_upsample_output_size(
         self,
         output_size,
         mode="cubic",
         coordinate_transformation_mode=coordinate_transformation_mode,
         antialias=1,
+        cubic_coeff_a=-0.5,
+        exclude_outside=1,
     )
 
 
@@ -2488,12 +2504,17 @@ def aten__upsample_bilinear2d_aa(
     # NOTE: Based on experimentation, scales_h and scales_w are always ignored in PyTorch,
     # unless when align_corners is True, in which case we do not know what is going on.
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    # exclude_outside=1 matches PyTorch's antialias kernel, which drops out-of-bounds
+    # samples from the filter window and renormalizes the remaining weights so they
+    # sum to 1. Without it the ONNX Resize keeps phantom out-of-bounds weight in the
+    # denominator and produces values that differ from eager near the boundary.
     return _aten_upsample_output_size(
         self,
         output_size,
         coordinate_transformation_mode=coordinate_transformation_mode,
         mode="linear",
         antialias=1,
+        exclude_outside=1,
     )
 
 

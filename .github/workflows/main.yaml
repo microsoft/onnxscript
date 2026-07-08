@@ -73,7 +73,7 @@ jobs:
           CREATE_REPRODUCTION_REPORT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
       - name: Upload coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload test results to Codecov
@@ -83,7 +83,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload torchlib error reports
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Error reports (${{ matrix.name }}-${{ matrix.os }})
           path: error_reports

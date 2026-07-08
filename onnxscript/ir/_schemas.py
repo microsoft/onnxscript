@@ -3,28 +3,18 @@
 from __future__ import annotations
 
 import collections.abc
-import dataclasses
 import inspect
 import logging
 import types
 import typing
-from typing import Any, Iterator, Mapping, Optional, Sequence, TypeVar, Union
+from typing import Any, Optional, Sequence, TypeVar, Union
 
-import onnx
+import onnx_ir as ir
 
 import onnxscript
-from onnxscript import ir
 
 logger = logging.getLogger(__name__)
 
-
-# A special value to indicate that the default value is not specified
-class _Empty:
-    def __repr__(self):
-        return "_EMPTY_DEFAULT"
-
-
-_EMPTY_DEFAULT = _Empty()
 
 # Map from python type to corresponding ONNX AttributeProto type
 _PY_TYPE_TO_ATTR_TYPE = {
@@ -51,7 +41,7 @@ _LIST_TYPE_TO_ATTR_TYPE = {
     ir.GraphProtocol: ir.AttributeType.GRAPHS,
 }
 
-_ALL_VALUE_TYPES = (
+_ALL_VALUE_TYPES = frozenset(
     {ir.TensorType(dtype) for dtype in ir.DataType}
     | {ir.SequenceType(ir.TensorType(dtype)) for dtype in ir.DataType}
     | {ir.OptionalType(ir.TensorType(dtype)) for dtype in ir.DataType}
@@ -67,132 +57,6 @@ _ALL_VALUE_TYPES = (
 # - TypeVars with above bounds
 # - Above types with annotation attached
 TypeAnnotationValue = Any
-
-
-@dataclasses.dataclass(frozen=True)
-class TypeConstraintParam:
-    """Type constraint for a parameter.
-
-    Attributes:
-        name: Name of the parameter. E.g. "TFloat"
-        allowed_types: Allowed types for the parameter.
-    """
-
-    name: str
-    allowed_types: set[ir.TypeProtocol]
-    description: str = ""
-
-    def __hash__(self) -> int:
-        return hash((self.name, tuple(self.allowed_types)))
-
-    def __str__(self) -> str:
-        allowed_types_str = " | ".join(str(t) for t in self.allowed_types)
-        return f"{self.name}={allowed_types_str}"
-
-    @classmethod
-    def any_tensor(cls, name: str, description: str = "") -> TypeConstraintParam:
-        return cls(name, {ir.TensorType(dtype) for dtype in ir.DataType}, description)
-
-    @classmethod
-    def any_value(cls, name: str, description: str = "") -> TypeConstraintParam:
-        return cls(name, _ALL_VALUE_TYPES, description)  # type: ignore[arg-type]
-
-
-@dataclasses.dataclass(frozen=True)
-class Parameter:
-    """A formal parameter of an operator."""
-
-    name: str
-    type_constraint: TypeConstraintParam
-    required: bool
-    variadic: bool
-    homogeneous: bool = True
-    min_arity: int = 1
-    # TODO: Add differentiation_category
-    default: Any = _EMPTY_DEFAULT
-
-    def __str__(self) -> str:
-        type_str = self.type_constraint.name
-        if self.has_default():
-            return f"{self.name}: {type_str} = {self.default}"
-        return f"{self.name}: {type_str}"
-
-    def has_default(self) -> bool:
-        return self.default is not _EMPTY_DEFAULT
-
-
-@dataclasses.dataclass(frozen=True)
-class AttributeParameter:
-    """A parameter in the function signature that represents an ONNX attribute."""
-
-    name: str
-    type: ir.AttributeType
-    required: bool
-    default: ir.Attr | None = None
-
-    def __str__(self) -> str:
-        type_str = self.type.name
-        if self.has_default():
-            return f"{self.name}: {type_str} = {self.default}"
-        return f"{self.name}: {type_str}"
-
-    def has_default(self) -> bool:
-        return self.default is not None
-
-
-def _get_type_from_str(
-    type_str: str,
-) -> ir.TensorType | ir.SequenceType | ir.OptionalType:
-    """Converter a type_str from ONNX OpSchema to ir.TypeProtocol.
-
-    A type str has the form of "tensor(float)" or composite type like "seq(tensor(float))".
-    """
-    # Split the type_str a sequence types and dtypes
-    # 1. Remove the ending ")"
-    striped = type_str.rstrip(")")
-    # 2. Split the type_str by "("
-    type_parts = striped.split("(")
-
-    # Convert the dtype to ir.DataType
-    dtype = ir.DataType[type_parts[-1].upper()]
-
-    # Create a place holder type first
-    type_: ir.TypeProtocol = ir.TensorType(ir.DataType.UNDEFINED)
-
-    # Construct the type
-    for type_part in reversed(type_parts[:-1]):
-        if type_part == "tensor":
-            type_ = ir.TensorType(dtype)
-        elif type_part == "seq":
-            type_ = ir.SequenceType(type_)
-        elif type_part == "optional":
-            type_ = ir.OptionalType(type_)
-        else:
-            raise ValueError(f"Unknown type part: '{type_part}' in type '{type_str}'")
-    return type_  # type: ignore[return-value]
-
-
-def _convert_formal_parameter(
-    param: onnx.defs.OpSchema.FormalParameter,
-    type_constraints: Mapping[str, TypeConstraintParam],
-) -> Parameter:
-    """Convert a formal parameter from ONNX OpSchema to Parameter."""
-    if param.type_str in type_constraints:
-        type_constraint = type_constraints[param.type_str]
-    else:
-        # param.type_str can be a plain type like 'int64'.
-        type_constraint = TypeConstraintParam(
-            name=param.name,
-            allowed_types={_get_type_from_str(param.type_str)},
-        )
-    return Parameter(
-        name=param.name,
-        type_constraint=type_constraint,
-        required=param.option != onnx.defs.OpSchema.FormalParameterOption.Optional,
-        variadic=param.option == onnx.defs.OpSchema.FormalParameterOption.Variadic,
-        homogeneous=param.is_homogeneous,
-        min_arity=param.min_arity,
-    )
 
 
 def _is_optional(type_: type) -> bool:
@@ -267,11 +131,11 @@ def _get_type_constraint_name(type_: TypeAnnotationValue) -> str | None:
 
 def _get_allowed_types_from_type_annotation(
     type_: TypeAnnotationValue,
-) -> set[ir.TypeProtocol]:
+) -> frozenset[ir.TypeProtocol]:
     """Obtain the allowed types from a type annotation."""
     if type_ is onnxscript.onnx_types.TensorType:
         # Any tensor type
-        return {ir.TensorType(dtype) for dtype in ir.DataType}
+        return frozenset(ir.TensorType(dtype) for dtype in ir.DataType)
 
     allowed_types: set[ir.TypeProtocol]
 
@@ -283,13 +147,13 @@ def _get_allowed_types_from_type_annotation(
         else:
             bound = type_.__bound__
             if bound is None:
-                allowed_types = _ALL_VALUE_TYPES  # type: ignore[assignment]
+                allowed_types.update(_ALL_VALUE_TYPES)
             else:
                 allowed_types.update(_get_allowed_types_from_type_annotation(bound))
-        return allowed_types
+        return frozenset(allowed_types)
     if hasattr(type_, "dtype"):
         # A single tensor type like INT64, FLOAT, etc.
-        return {ir.TensorType(ir.DataType(type_.dtype))}
+        return frozenset({ir.TensorType(ir.DataType(type_.dtype))})
     if _is_optional(type_):
         allowed_types = set()
         subtypes = typing.get_args(type_)
@@ -298,7 +162,7 @@ def _get_allowed_types_from_type_annotation(
                 continue
             allowed_types.update(_get_allowed_types_from_type_annotation(subtype))
         # NOTE: We do not consider dynamic optional types like optional(float) because they are not very useful.
-        return allowed_types
+        return frozenset(allowed_types)
 
     origin_type = typing.get_origin(type_)
     if origin_type is Union:
@@ -309,265 +173,156 @@ def _get_allowed_types_from_type_annotation(
                 "Union should not contain None type because it is handled by _is_optional."
             )
             allowed_types.update(_get_allowed_types_from_type_annotation(subtype))
-        return allowed_types
+        return frozenset(allowed_types)
 
     if isinstance(origin_type, type) and issubclass(origin_type, Sequence):
         subtypes = typing.get_args(type_)
-        return {
-            ir.SequenceType(t) for t in _get_allowed_types_from_type_annotation(subtypes[0])
-        }
+        return frozenset(
+            {ir.SequenceType(t) for t in _get_allowed_types_from_type_annotation(subtypes[0])}
+        )
 
     # Allow everything by default
-    return _ALL_VALUE_TYPES  # type: ignore[return-value]
+    return _ALL_VALUE_TYPES
 
 
-@dataclasses.dataclass
-class OpSignature:
-    """Schema for an operator.
+def op_signature_from_function(
+    func,
+    domain: str,
+    name: str | None = None,
+    overload: str = "",
+    since_version: int = 1,
+) -> ir.schemas.OpSignature:
+    """Produce an OpSignature from a function using type annotation."""
 
-    Attributes:
-        domain: Domain of the operator. E.g. "".
-        name: Name of the operator. E.g. "Add".
-        overload: Overload name of the operator.
-        params: Input parameters. When the op is an ONNX function definition,
-          the order is according to the function signature. This mean we can
-          interleave ONNX inputs and ONNX attributes in the list.
-        outputs: Output parameters.
-    """
+    py_signature = inspect.signature(func)
+    # Not using inspect.get_annotations because typing.get_type_hints seems to handle more cases
+    # https://github.com/python/cpython/issues/102405
+    type_hints = typing.get_type_hints(func)
 
-    domain: str
-    name: str
-    overload: str
-    params: Sequence[Parameter | AttributeParameter]
-    outputs: Sequence[Parameter]
-    params_map: Mapping[str, Parameter | AttributeParameter] = dataclasses.field(
-        init=False, repr=False
-    )
-    since_version: int = 1
+    params: list[ir.schemas.Parameter | ir.schemas.AttributeParameter] = []
+    # Create a mapping from type to a unique name
+    type_constraints: dict[str, ir.schemas.TypeConstraintParam] = {}
 
-    def __post_init__(self):
-        self.params_map = {param.name: param for param in self.params}
-
-    def get(self, name: str) -> Parameter | AttributeParameter:
-        return self.params_map[name]
-
-    def __contains__(self, name: str) -> bool:
-        return name in self.params_map
-
-    def __iter__(self) -> Iterator[Parameter | AttributeParameter]:
-        return iter(self.params)
-
-    def __str__(self) -> str:
-        domain = self.domain or "''"
-        # TODO: Double check the separator for overload
-        overload = f"::{self.overload}" if self.overload else ""
-        params = ", ".join(str(param) for param in self.params)
-        outputs = ", ".join(str(param.type_constraint.name) for param in self.outputs)
-        type_constraints = {}
-        for param in self.params:
-            if isinstance(param, Parameter):
-                type_constraints[param.type_constraint.name] = param.type_constraint
-        for param in self.outputs:
-            type_constraints[param.type_constraint.name] = param.type_constraint
-        type_constraints_str = ", ".join(
-            str(type_constraint) for type_constraint in type_constraints.values()
-        )
-        return f"{domain}::{self.name}{overload}({params}) -> ({outputs}) where {type_constraints_str}"
-
-    @property
-    def inputs(self) -> Sequence[Parameter]:
-        """Returns the input parameters."""
-        return [param for param in self.params if isinstance(param, Parameter)]
-
-    @property
-    def attributes(self) -> Sequence[AttributeParameter]:
-        """Returns the attribute parameters."""
-        return [param for param in self.params if isinstance(param, AttributeParameter)]
-
-    @classmethod
-    def from_op_schema(cls, op_schema: onnx.defs.OpSchema) -> OpSignature:
-        """Produce an OpSignature from an ONNX OpSchema."""
-        type_constraints = {
-            constraint.type_param_str: TypeConstraintParam(
-                name=constraint.type_param_str,
-                allowed_types={
-                    _get_type_from_str(type_str) for type_str in constraint.allowed_type_strs
-                },
-                description=constraint.description,
+    for param in py_signature.parameters.values():
+        if param.name not in type_hints:
+            logger.debug(
+                "Missing annotation for parameter '%s' from %s. Treating as an Input.",
+                param.name,
+                py_signature,
             )
-            for constraint in op_schema.type_constraints
-        }
-
-        params = [
-            _convert_formal_parameter(param, type_constraints) for param in op_schema.inputs
-        ]
-
-        for param in op_schema.attributes.values():
-            default_attr = (
-                ir.serde.deserialize_attribute(param.default_value)
-                if param.default_value is not None
-                else None
+            type_constraint = ir.schemas.TypeConstraintParam.any_value(f"T_{param.name}")
+            type_constraints[param.name] = type_constraint
+            default_kwargs = (
+                {"default": param.default}
+                if param.default is not inspect.Parameter.empty
+                else {}
             )
-            if default_attr is not None:
-                # Set the name of the default attribute because it may have a different name from the parameter
-                default_attr.name = param.name
             params.append(
-                AttributeParameter(
+                ir.schemas.Parameter(
                     name=param.name,
-                    type=ir.AttributeType(param.type),  # type: ignore[arg-type]
-                    required=param.required,
-                    default=default_attr,  # type: ignore[arg-type]
+                    type_constraint=type_constraint,
+                    required=param.default is inspect.Parameter.empty,
+                    # TODO: Handle variadic
+                    variadic=False,
+                    homogeneous=True,
+                    **default_kwargs,
                 )
             )
-
-        outputs = [
-            _convert_formal_parameter(param, type_constraints) for param in op_schema.outputs
-        ]
-
-        return cls(
-            domain=op_schema.domain,
-            name=op_schema.name,
-            overload="",
-            params=params,
-            outputs=outputs,
-            since_version=op_schema.since_version,
-        )
-
-    @classmethod
-    def from_function(
-        cls,
-        func,
-        domain: str,
-        name: str | None = None,
-        overload: str = "",
-        since_version: int = 1,
-    ) -> OpSignature:
-        """Produce an OpSignature from a function using type annotation."""
-
-        py_signature = inspect.signature(func)
-        # Not using inspect.get_annotations because typing.get_type_hints seems to handle more cases
-        # https://github.com/python/cpython/issues/102405
-        type_hints = typing.get_type_hints(func)
-
-        params: list[Parameter | AttributeParameter] = []
-        # Create a mapping from type to a unique name
-        type_constraints: dict[str, TypeConstraintParam] = {}
-
-        for param in py_signature.parameters.values():
-            if param.name not in type_hints:
-                logger.debug(
-                    "Missing annotation for parameter '%s' from %s. Treating as an Input.",
-                    param.name,
-                    py_signature,
-                )
-                type_constraint = TypeConstraintParam.any_value(f"T_{param.name}")
-                type_constraints[param.name] = type_constraint
+        else:
+            type_ = type_hints[param.name]
+            if (attr_type := get_attr_type(type_)) != ir.AttributeType.UNDEFINED:
+                # Construct the default attribute
+                if param.default is not inspect.Parameter.empty:
+                    # TODO: Use ir_convenience instead to handle int as float
+                    default = ir.Attr(param.name, attr_type, param.default)
+                else:
+                    default = None
                 params.append(
-                    Parameter(
+                    ir.schemas.AttributeParameter(
+                        name=param.name,
+                        type=attr_type,
+                        required=param.default is inspect.Parameter.empty,
+                        default=default,
+                    )
+                )
+            else:
+                # Obtain the type constraint from the type annotation
+
+                # 1. Get a type constraint name from the type annotation
+                # If the type annotation is a TypeVar or Optional[TypeVar], get its name
+                # Otherwise, name it T_{param.name}
+                type_constraint_name = _get_type_constraint_name(type_)
+                if type_constraint_name is None:
+                    type_constraint_name = f"T_{param.name}"
+
+                # 2. If the type constraint param is already initialized, use it
+                if type_constraint_name in type_constraints:
+                    type_constraint = type_constraints[type_constraint_name]
+                else:
+                    # 3. Otherwise, create a new TypeConstraintParam
+                    type_constraint = ir.schemas.TypeConstraintParam(
+                        name=type_constraint_name,
+                        allowed_types=_get_allowed_types_from_type_annotation(type_),
+                    )
+                    type_constraints[type_constraint_name] = type_constraint
+                # 4. Create Parameter
+                default_kwargs = (
+                    {"default": param.default}
+                    if param.default is not inspect.Parameter.empty
+                    else {}
+                )
+                params.append(
+                    ir.schemas.Parameter(
                         name=param.name,
                         type_constraint=type_constraint,
                         required=param.default is inspect.Parameter.empty,
                         # TODO: Handle variadic
                         variadic=False,
                         homogeneous=True,
-                        default=param.default
-                        if param.default is not inspect.Parameter.empty
-                        else _EMPTY_DEFAULT,
+                        **default_kwargs,
                     )
                 )
-            else:
-                type_ = type_hints[param.name]
-                if (attr_type := get_attr_type(type_)) != ir.AttributeType.UNDEFINED:
-                    # Construct the default attribute
-                    if param.default is not inspect.Parameter.empty:
-                        # TODO: Use ir_convenience instead to handle int as float
-                        default = ir.Attr(param.name, attr_type, param.default)
-                    else:
-                        default = None
-                    params.append(
-                        AttributeParameter(
-                            name=param.name,
-                            type=attr_type,
-                            required=param.default is inspect.Parameter.empty,
-                            default=default,
-                        )
-                    )
-                else:
-                    # Obtain the type constraint from the type annotation
 
-                    # 1. Get a type constraint name from the type annotation
-                    # If the type annotation is a TypeVar or Optional[TypeVar], get its name
-                    # Otherwise, name it T_{param.name}
-                    type_constraint_name = _get_type_constraint_name(type_)
-                    if type_constraint_name is None:
-                        type_constraint_name = f"T_{param.name}"
+    return_type = type_hints.get("return")
 
-                    # 2. If the type constraint param is already initialized, use it
-                    if type_constraint_name in type_constraints:
-                        type_constraint = type_constraints[type_constraint_name]
-                    else:
-                        # 3. Otherwise, create a new TypeConstraintParam
-                        type_constraint = TypeConstraintParam(
-                            name=type_constraint_name,
-                            allowed_types=_get_allowed_types_from_type_annotation(type_),
-                        )
-                        type_constraints[type_constraint_name] = type_constraint
-                    # 4. Create Parameter
-                    params.append(
-                        Parameter(
-                            name=param.name,
-                            type_constraint=type_constraint,
-                            required=param.default is inspect.Parameter.empty,
-                            # TODO: Handle variadic
-                            variadic=False,
-                            homogeneous=True,
-                            default=param.default
-                            if param.default is not inspect.Parameter.empty
-                            else _EMPTY_DEFAULT,
-                        )
-                    )
-
-        return_type = type_hints.get("return")
-
-        outputs = []
-        if return_type is None:
-            # No returns
-            pass
+    outputs = []
+    if return_type is None:
+        # No returns
+        pass
+    else:
+        if typing.get_origin(return_type) is tuple:
+            # Multiple returns
+            return_types = typing.get_args(return_type)
         else:
-            if typing.get_origin(return_type) is tuple:
-                # Multiple returns
-                return_types = typing.get_args(return_type)
+            return_types = [return_type]  # type: ignore[assignment]
+
+        for i, return_type_i in enumerate(return_types):
+            if (
+                return_param_name := _get_type_constraint_name(return_type_i)
+            ) in type_constraints:
+                type_constraint = type_constraints[return_param_name]
             else:
-                return_types = [return_type]  # type: ignore[assignment]
-
-            for i, return_type_i in enumerate(return_types):
-                if (
-                    return_param_name := _get_type_constraint_name(return_type_i)
-                ) in type_constraints:
-                    type_constraint = type_constraints[return_param_name]
-                else:
-                    return_param_name = f"TReturn{i}"
-                    type_constraint = TypeConstraintParam(
-                        name=return_param_name,
-                        allowed_types=_get_allowed_types_from_type_annotation(return_type_i),
-                    )
-                    type_constraints[return_param_name] = type_constraint
-                outputs.append(
-                    Parameter(
-                        name=return_param_name,
-                        type_constraint=type_constraint,
-                        required=True,
-                        variadic=False,
-                        homogeneous=True,
-                        default=_EMPTY_DEFAULT,
-                    )
+                return_param_name = f"TReturn{i}"
+                type_constraint = ir.schemas.TypeConstraintParam(
+                    name=return_param_name,
+                    allowed_types=_get_allowed_types_from_type_annotation(return_type_i),
                 )
+                type_constraints[return_param_name] = type_constraint
+            outputs.append(
+                ir.schemas.Parameter(
+                    name=return_param_name,
+                    type_constraint=type_constraint,
+                    required=True,
+                    variadic=False,
+                    homogeneous=True,
+                )
+            )
 
-        return cls(
-            domain=domain,
-            name=name or func.__name__,
-            overload=overload,
-            params=params,
-            outputs=outputs,
-            since_version=since_version,
-        )
+    return ir.schemas.OpSignature(
+        domain=domain,
+        name=name or func.__name__,
+        overload=overload,
+        params=params,
+        outputs=outputs,
+        since_version=since_version,
+    )

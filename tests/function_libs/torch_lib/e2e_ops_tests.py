@@ -9,6 +9,10 @@ import parameterized
 
 # TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
 import torch
+
+# Importing this module registers the quantized_decomposed::* operators used below.
+import torch.ao.quantization.fx._decomposed  # noqa: F401
+import torchvision
 from torch.onnx._internal.exporter import _testing
 
 
@@ -269,6 +273,50 @@ class TorchLibe2eTest(unittest.TestCase):
             (torch.tensor([1, 2, 3, 4, 5]),),
             dynamo=True,
             verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_torchvision_deform_conv2d(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, offset, weight, bias):
+                return torchvision.ops.deform_conv2d(x, offset, weight, bias=bias)
+
+        x = torch.randn(1, 2, 5, 5, dtype=torch.float32)
+        weight = torch.randn(3, 2, 3, 3, dtype=torch.float32)
+        offset = torch.randn(1, 18, 3, 3, dtype=torch.float32)
+        bias = torch.randn(3, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, offset, weight, bias),
+            opset_version=19,
+            dynamo=True,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_torchvision_deform_conv2d_with_mask_groups_and_padding(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, offset, weight, bias, mask):
+                return torchvision.ops.deform_conv2d(
+                    x,
+                    offset,
+                    weight,
+                    bias=bias,
+                    padding=(1, 1),
+                    mask=mask,
+                )
+
+        x = torch.randn(1, 4, 5, 5, dtype=torch.float32)
+        weight = torch.randn(4, 2, 3, 3, dtype=torch.float32)
+        offset = torch.randn(1, 36, 5, 5, dtype=torch.float32)
+        bias = torch.randn(4, dtype=torch.float32)
+        mask = torch.randn(1, 18, 5, 5, dtype=torch.float32)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x, offset, weight, bias, mask),
+            opset_version=19,
+            dynamo=True,
         )
         _testing.assert_onnx_program(onnx_program)
 
@@ -554,6 +602,53 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("rank1", (100,)),
+            ("rank2", (4, 100)),
+        ]
+    )
+    def test_aten_stft_emits_spec_compliant_node(self, _: str, shape: tuple[int, ...]):
+        # Regression test for https://github.com/microsoft/onnxscript/issues/2942
+        # The ONNX STFT op requires a rank-3 signal ([batch, signal_length, 1]) and
+        # `frame_step`/`frame_length` to share the same (scalar) type. torch.stft
+        # accepts rank-1 or rank-2 signals, so aten_stft must reshape accordingly.
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.stft(x, n_fft=16, return_complex=False)
+
+        x = torch.randn(*shape, dtype=torch.float32)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        model = onnx_program.model_proto
+
+        def _rank(name: str) -> int:
+            for vi in (
+                list(model.graph.value_info)
+                + list(model.graph.input)
+                + list(model.graph.output)
+            ):
+                if vi.name == name:
+                    return len(vi.type.tensor_type.shape.dim)
+            raise AssertionError(f"value_info for {name} not found")
+
+        stft_nodes = [n for n in model.graph.node if n.op_type == "STFT"]
+        self.assertEqual(len(stft_nodes), 1)
+        node = stft_nodes[0]
+        signal, frame_step = node.input[0], node.input[1]
+        frame_length = node.input[3]
+        # signal must be rank 3: [batch, signal_length, 1]
+        self.assertEqual(_rank(signal), 3)
+        # frame_step and frame_length must share the same (scalar) rank
+        self.assertEqual(_rank(frame_step), 0)
+        self.assertEqual(_rank(frame_length), 0)
+
     def test_unbind_dim0(self):
         """Test unbind along dimension 0"""
 
@@ -658,6 +753,115 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(
             model, (x,), dynamo=True, verbose=False, dynamic_shapes=({1: "seq_len"},)
         )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_quantize_per_channel_int8(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([0, 5, -3], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.quantize_per_channel(
+                    x, scales, zero_points, 0, -128, 127, torch.int8
+                )
+
+        x = torch.randn(3, 4) * 5
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_quantize_per_channel_uint8(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([10, 128, 250], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.quantize_per_channel(
+                    x, scales, zero_points, 0, 0, 255, torch.uint8
+                )
+
+        x = torch.randn(3, 4) * 5
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_quantize_per_channel_non_zero_axis(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                scales = torch.tensor([0.1, 0.2, 0.05, 0.3], dtype=torch.float64)
+                zero_points = torch.tensor([0, 5, -3, 2], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.quantize_per_channel(
+                    x, scales, zero_points, 1, -128, 127, torch.int8
+                )
+
+        x = torch.randn(2, 4, 3) * 4
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_quantize_per_channel_clamps_to_quant_min_max(self):
+        # quant_min/quant_max are narrower than the int8 range, so values must be
+        # clamped to [-20, 20] to match the PyTorch reference semantics.
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                scales = torch.tensor([0.1, 0.2], dtype=torch.float64)
+                zero_points = torch.tensor([0, 0], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.quantize_per_channel(
+                    x, scales, zero_points, 0, -20, 20, torch.int8
+                )
+
+        x = torch.randn(2, 4) * 10
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_dequantize_per_channel_int8(self):
+        class Model(torch.nn.Module):
+            def forward(self, q):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([0, 5, -3], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.dequantize_per_channel(
+                    q, scales, zero_points, 0, -128, 127, torch.int8
+                )
+
+        q = torch.randint(-128, 128, (3, 4), dtype=torch.int8)
+        onnx_program = torch.onnx.export(Model(), (q,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_dequantize_per_channel_uint8(self):
+        class Model(torch.nn.Module):
+            def forward(self, q):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([10, 128, 250], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.dequantize_per_channel(
+                    q, scales, zero_points, 0, 0, 255, torch.uint8
+                )
+
+        q = torch.randint(0, 256, (3, 4), dtype=torch.uint8)
+        onnx_program = torch.onnx.export(Model(), (q,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_dequantize_per_channel_non_zero_axis(self):
+        class Model(torch.nn.Module):
+            def forward(self, q):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([1, 2, 3], dtype=torch.int64)
+                return torch.ops.quantized_decomposed.dequantize_per_channel(
+                    q, scales, zero_points, 2, -128, 127, torch.int8
+                )
+
+        q = torch.randint(-128, 128, (2, 4, 3), dtype=torch.int8)
+        onnx_program = torch.onnx.export(Model(), (q,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_quantize_dequantize_per_channel_roundtrip(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                scales = torch.tensor([0.1, 0.2, 0.05], dtype=torch.float64)
+                zero_points = torch.tensor([0, 5, -3], dtype=torch.int64)
+                q = torch.ops.quantized_decomposed.quantize_per_channel(
+                    x, scales, zero_points, 0, -128, 127, torch.int8
+                )
+                return torch.ops.quantized_decomposed.dequantize_per_channel(
+                    q, scales, zero_points, 0, -128, 127, torch.int8
+                )
+
+        x = torch.randn(3, 4) * 5
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
         _testing.assert_onnx_program(onnx_program)
 
     @parameterized.parameterized.expand(
@@ -913,6 +1117,51 @@ class TorchLibe2eTest(unittest.TestCase):
             Model(), (torch.rand(10, 10, 10),), dynamo=True, verbose=False
         )
         _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_histc_float(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.histc(x, 3, 0, 2)
+
+        model = Model()
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.rand(10, 10, 10),),
+            dynamo=True,
+            verbose=False,
+            dynamic_shapes=({0: "batch"},),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        for k in range(101):
+            with self.subTest(k=k):
+                inputs = (torch.tensor([(k - 1) / 49.0], dtype=torch.float32),)
+                expected = model(*inputs)
+                got = onnx_program.call_reference({"x": inputs[0]})
+                torch.testing.assert_close(expected, got[0])
+
+    @unittest.skip("see https://github.com/pytorch/pytorch/issues/174668")
+    def test_aten_histc_float16(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.histc(x, 60, -10, 10)
+
+        model = Model()
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.rand((10, 10, 10), dtype=torch.float16),),
+            dynamo=True,
+            verbose=False,
+            dynamic_shapes=({0: "batch"},),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        for k in range(101):
+            with self.subTest(k=k):
+                inputs = (torch.tensor([(k - 1) / 49.0], dtype=torch.float16),)
+                expected = model(*inputs)
+                got = onnx_program.call_reference({"x": inputs[0]})
+                torch.testing.assert_close(expected, got[0])
 
 
 if __name__ == "__main__":

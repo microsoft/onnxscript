@@ -178,11 +178,11 @@ class SlicesSplit(RewriteRuleClassBase):
         axes = axes0.const_value.numpy().tolist()
         if len(axes) != 1:
             return check_result.fail("Axes has more than one dimension.")
-        if x.shape:
-            rk = len(x.shape)
+        if x.shape is not None:
+            rank = len(x.shape)
         else:
-            rk = x.rank
-        if axes[0] != -1 and axes[0] != rk - 1:
+            return check_result.fail("Input rank is not known.")
+        if axes[0] != -1 and axes[0] != rank - 1:
             return check_result.fail("Axes is not -1 or last dimension.")
         if (
             begin0.const_value is None
@@ -305,7 +305,7 @@ class UnsqueezeUnsqueeze(RewriteRuleClassBase):
 class Flatten2Reshape(RewriteRuleClassBase):
     """Convert ``Flatten(x)`` to Reshape."""
 
-    def pattern(self, op, x: ir.Value):
+    def pattern(self, op, x):
         return op.Flatten(x)
 
     def rewrite(self, op, x: ir.Value):

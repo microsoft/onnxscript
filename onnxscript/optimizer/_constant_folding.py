@@ -22,16 +22,20 @@ import numpy as np
 import onnx
 import onnx.reference.ops
 import onnx_ir as ir
+import onnx_ir.passes.common as ir_passes_common
 
 import onnxscript.utils.utils as utils
-from onnxscript.ir import _tape
+from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
+
+OptimizerContext = BuilderBase
 
 DEFAULT_CONSTANT_FOLD_BLACKLIST = [
     # ConstantOfShape is preserved to avoid increasing model size unnecessarily
     "ConstantOfShape",
     # Quantize/DequantizeLinear are preserved to keep the quantization info
-    "QuantizeLinear",
     "DequantizeLinear",
+    "DynamicQuantizeLinear",
+    "QuantizeLinear",
 ]
 
 DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 8192
@@ -210,14 +214,13 @@ class OptimizerState:
 # The "partial evaluators" below are non-standard evaluators. They are used to perform
 # partial evaluation and/or static program analysis (abstract interpretation).
 
-# A partial-evaluator function takes a node, a RewriterContext, OptimizerState and returns
+# A partial-evaluator function takes a node, an OptimizerContext, OptimizerState and returns
 # a Replacement for the node or None (if no replacement is needed). It may also return just
 # the ir.Value or ir.Values to replace the output values of the node, when the new nodes
-# can be inferred from the RewriterContext used to build the new nodes.
+# can be inferred from the OptimizerContext used to build the new nodes.
 
-RewriterContext = _tape.Builder
 ReturnValue = Union[Replacement, Sequence[ir.Value], ir.Value, None]
-PartialEvaluatorFunction = Callable[[ir.Node, RewriterContext, OptimizerState], ReturnValue]
+PartialEvaluatorFunction = Callable[[ir.Node, OptimizerContext, OptimizerState], ReturnValue]
 
 
 @dataclasses.dataclass
@@ -1175,7 +1178,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
         for optimizer in op_optimizers:
             assert optimizer
-            context = RewriterContext()
+            context = TapeBuilder()
             try:
                 output = optimizer(node, context, self._state)
             except Exception as e:
@@ -1392,6 +1395,11 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
+        if self._modified:
+            # TapeBuilder may create values with names that clash with existing graph
+            # values when nodes are inserted via replace_nodes_and_values.
+            # NameFixPass ensures all value names are unique before returning.
+            ir_passes_common.NameFixPass()(model)
         return FoldConstantsResult(model, self._modified, self._state.symbolic_value_map)
 
 
