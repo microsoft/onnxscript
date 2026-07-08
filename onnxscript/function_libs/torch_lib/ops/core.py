@@ -8218,7 +8218,7 @@ def _aten_remainder(self: TTensor, other: TTensor, integer: bool) -> TTensor:
     return op.Sub(self, op.Mul(rounded_quotient, other))
 
 
-@torch_op("aten::remainder.Tensor", trace_only=True)
+@torch_op(("aten::remainder.Tensor", "prims::remainder"), trace_only=True)
 def aten_remainder(self: TTensor, other: TTensor) -> TTensor:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
