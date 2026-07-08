@@ -1835,7 +1835,7 @@ def aten_scaled_dot_product_attention(
     if is_causal:
         attn_mask = _causal_attention_mask(query, key)
 
-    if enable_gqa:
+    if enable_gqa and query.shape[1] != key.shape[1]:
         key, value = _attention_repeat_kv_for_group_query(query, key, value)
 
     if attn_mask is None:
