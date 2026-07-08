@@ -4520,9 +4520,11 @@ def aten_grouped_mm(
 ) -> TFloat:
     """_grouped_mm(Tensor self, Tensor mat2, *, Tensor? offs=None, Tensor? bias=None, int? out_dtype=None) -> Tensor"""
 
-    # If offs is None, it uses the "dense" / "batch" mode where groups are implicit in the batch dimension.
-    # self: (G, M, K), mat2: (G, K, N) -> (G, M, N)
-    # TODO: Implement sparse mode when offs is not None.
+    if offs is not None:
+        raise NotImplementedError(
+            "Grouped matmul with offsets (ragged/MoE) is not supported."
+        )
+
     res = op.MatMul(self, mat2)
     if bias is not None:
         res = op.Add(res, bias)

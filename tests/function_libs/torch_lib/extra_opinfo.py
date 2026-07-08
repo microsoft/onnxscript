@@ -28,7 +28,10 @@ def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
     del kwargs
 
     make_arg = functools.partial(
-        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
     )
 
     cases = [
@@ -41,14 +44,33 @@ def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
         self_t = make_arg(self_shape)
         mat2_t = make_arg(mat2_shape)
 
-        # Test without bias
+        # Test without bias and without out_dtype
         yield opinfo_core.SampleInput(self_t, args=(mat2_t,))
+
+        # Test with bias
+        g, _, _ = self_shape
+        _, _, n = mat2_shape
+        bias_t = make_arg((g, 1, n))
+        yield opinfo_core.SampleInput(self_t, args=(mat2_t, None, bias_t))
+
+        # Test with bias and out_dtype
+        if dtype in (torch.float16, torch.bfloat16):
+            yield opinfo_core.SampleInput(
+                self_t, args=(mat2_t, None, bias_t, torch.float32)
+            )
 
 
 def _mock_grouped_mm(self, mat2, offs=None, bias=None, out_dtype=None):
+    if hasattr(torch.ops.aten, "_grouped_mm"):
+        try:
+            return torch.ops.aten._grouped_mm(self, mat2, offs, bias, out_dtype)
+        except Exception:
+            pass
     res = torch.matmul(self, mat2)
     if bias is not None:
         res = res + bias
+    if out_dtype is not None:
+        res = res.to(out_dtype)
     return res
 
 
