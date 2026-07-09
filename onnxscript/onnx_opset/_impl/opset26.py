@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D402
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -186,6 +186,4 @@ class Opset26(Opset25):
 
         schema = get_schema("CumProd", 26, "")
         op = Op(self, "CumProd", schema)
-        return op(
-            *self._prepare_inputs(schema, x, axis), exclusive=exclusive, reverse=reverse
-        )
+        return op(*self._prepare_inputs(schema, x, axis), exclusive=exclusive, reverse=reverse)

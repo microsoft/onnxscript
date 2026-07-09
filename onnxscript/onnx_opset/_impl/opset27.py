@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: N801,E741,RUF036,D214,D402,D405,D411,D412,D416,D417
+# ruff: noqa: D402
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -248,6 +248,4 @@ class Opset27(Opset26):
 
         schema = get_schema("Range", 27, "")
         op = Op(self, "Range", schema)
-        return op(
-            *self._prepare_inputs(schema, start, limit, delta), stash_type=stash_type
-        )
+        return op(*self._prepare_inputs(schema, start, limit, delta), stash_type=stash_type)
