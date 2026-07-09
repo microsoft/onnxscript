@@ -257,6 +257,7 @@ class Opset14(Opset13):
 
         This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
 
+        For integer inputs, the result is computed using truncating division (rounding toward zero).
         (Opset 14 change): Extend supported types to include uint8, int8, uint16, and int16.
 
 
