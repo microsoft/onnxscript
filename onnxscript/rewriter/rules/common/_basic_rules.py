@@ -145,7 +145,7 @@ class ReshapeReshape(RewriteRuleClassBase):
 
         # Constraints for shape.
         self._allowzero = context.nodes[0].attributes.get_int("allowzero", 0)
-        self._new_shape_name = f"{context.nodes[1].name or shape.name}/shape"
+        self._new_shape_name = f"{context.output_values[0].name}/shape"
         if self._allowzero == 1 and any(self._new_shape == 0):
             return check_result
         if any(self._new_shape == 0) and any(self._new_shape < 0):
