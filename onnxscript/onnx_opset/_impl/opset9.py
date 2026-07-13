@@ -920,9 +920,11 @@ class Opset9(Opset8):
         r"""[🌐 PRelu(9)](https://onnx.ai/onnx/operators/onnx__PRelu.html#prelu-9 "Online Documentation")
 
 
+
         PRelu takes input data (Tensor<T>) and slope tensor as input, and produces one
         output data (Tensor<T>) where the function `f(x) = slope * x for x < 0`,
         `f(x) = x for x >= 0`., is applied to the data tensor elementwise.
+
         This operator supports **unidirectional broadcasting** (tensor slope should be unidirectional broadcastable to input tensor X); for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
 
         Args:

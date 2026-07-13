@@ -144,6 +144,20 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_repeat_interleave_int_dim_none(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.repeat_interleave(x, 2)
+
+        inputs = (torch.tensor([2]),)
+        onnx_program = torch.onnx.export(
+            Model(),
+            inputs,
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_repeat_interleave_symbolic_tensor(self):
         class Model(torch.nn.Module):
             def forward(self, x, y):
@@ -601,6 +615,53 @@ class TorchLibe2eTest(unittest.TestCase):
             verbose=False,
         )
         _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
+            ("rank1", (100,)),
+            ("rank2", (4, 100)),
+        ]
+    )
+    def test_aten_stft_emits_spec_compliant_node(self, _: str, shape: tuple[int, ...]):
+        # Regression test for https://github.com/microsoft/onnxscript/issues/2942
+        # The ONNX STFT op requires a rank-3 signal ([batch, signal_length, 1]) and
+        # `frame_step`/`frame_length` to share the same (scalar) type. torch.stft
+        # accepts rank-1 or rank-2 signals, so aten_stft must reshape accordingly.
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.stft(x, n_fft=16, return_complex=False)
+
+        x = torch.randn(*shape, dtype=torch.float32)
+        onnx_program = torch.onnx.export(
+            Model(),
+            (x,),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        model = onnx_program.model_proto
+
+        def _rank(name: str) -> int:
+            for vi in (
+                list(model.graph.value_info)
+                + list(model.graph.input)
+                + list(model.graph.output)
+            ):
+                if vi.name == name:
+                    return len(vi.type.tensor_type.shape.dim)
+            raise AssertionError(f"value_info for {name} not found")
+
+        stft_nodes = [n for n in model.graph.node if n.op_type == "STFT"]
+        self.assertEqual(len(stft_nodes), 1)
+        node = stft_nodes[0]
+        signal, frame_step = node.input[0], node.input[1]
+        frame_length = node.input[3]
+        # signal must be rank 3: [batch, signal_length, 1]
+        self.assertEqual(_rank(signal), 3)
+        # frame_step and frame_length must share the same (scalar) rank
+        self.assertEqual(_rank(frame_step), 0)
+        self.assertEqual(_rank(frame_length), 0)
 
     def test_unbind_dim0(self):
         """Test unbind along dimension 0"""
