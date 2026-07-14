@@ -607,6 +607,24 @@ class TestConverter(testutils.TestBase):
         outputs = duplicate_output.to_function_proto().output
         self.assertNotEqual(outputs[0], outputs[1])
 
+    def test_returning_input_renames_output(self):
+        """Test that returning a graph input produces a distinct output name."""
+
+        @script()
+        def return_input(X):
+            return X
+
+        function_proto = return_input.to_function_proto()
+
+        self.assertEqual(function_proto.input[0], "X")
+        self.assertNotEqual(function_proto.output[0], "X")
+        self.assertTrue(function_proto.output[0].startswith("X_"))
+
+        self.assertEqual(len(function_proto.node), 1)
+        self.assertEqual(function_proto.node[0].op_type, "Identity")
+        self.assertEqual(function_proto.node[0].input[0], "X")
+        self.assertEqual(function_proto.node[0].output[0], function_proto.output[0])
+
     def test_bool_attr_promotion(self):
         @script()
         def if_then_else(flag: bool, Y, Z):
