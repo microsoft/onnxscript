@@ -451,7 +451,7 @@ def gather(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     output = _get_output(node, 0)
     if output is not None:
         state.set_sym_value(output, ir.Shape(gathered))
-    if all(isinstance(d, int) for d in gathered):
+    if all(isinstance(d, int) and d >= 0 for d in gathered):
         return op.Constant(value_ints=ir.AttrInt64s("value_ints", gathered))
     return None
 
@@ -543,7 +543,7 @@ def shape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     output = _get_output(node, 0)
     if output is not None:
         state.set_sym_value(output, ir.Shape(shape_slice))
-    if all(isinstance(d, int) for d in shape_slice):
+    if all(isinstance(d, int) and d >= 0 for d in shape_slice):
         return op.Constant(value_ints=ir.AttrInt64s("value_ints", list(shape_slice)))
     return None
 
