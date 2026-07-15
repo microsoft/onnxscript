@@ -8218,7 +8218,7 @@ def _aten_remainder(self: TTensor, other: TTensor, integer: bool) -> TTensor:
     return op.Sub(self, op.Mul(rounded_quotient, other))
 
 
-@torch_op("aten::remainder.Tensor", trace_only=True)
+@torch_op(("aten::remainder.Tensor", "prims::remainder"), trace_only=True)
 def aten_remainder(self: TTensor, other: TTensor) -> TTensor:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -8290,12 +8290,15 @@ def aten_repeat_interleave_self_int(
     .. code-block:: python
 
         x = torch.tensor([[0, 1, 2], [3, 4, 5]])
-        x.repeat((1, 2)).reshape((-1, t.shape[1]))
+        x.repeat((1, 2)).reshape((-1, x.shape[1]))
     """
     if dim is None:
-        raise NotImplementedError("No conversion available yet when dim is None.")
+        self = op.Reshape(self, [-1])
+        dim = 0
+        self_rank = 1
+    else:
+        self_rank = len(self.shape)
 
-    self_rank = len(self.shape)
     pos_dim = (dim + self_rank) % self_rank
     unsqueezed = op.Unsqueeze(self, [pos_dim + 1])
     if isinstance(repeats, int):
@@ -8311,8 +8314,6 @@ def aten_repeat_interleave_self_int(
             axis=0,
         )
     tiled = op.Expand(unsqueezed, tile_repeat)
-    if self_rank == 1:
-        return op.Identity(tiled)
     final_shape = op.Concat(
         op.Shape(self, start=0, end=dim),
         op.Constant(value_ints=[-1]),
@@ -9340,13 +9341,17 @@ def aten_stft(
         # core dump
         # hop_length = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
         hop_length = n_fft // 4
-    frame_step_const = op.Reshape(hop_length, op.Constant(value_ints=[1]))
 
-    # Pre-process input if needed
+    # ONNX's STFT requires a rank-3 signal of shape [batch_size, signal_length, 1]
+    # (the trailing dimension is the real component). torch.stft accepts rank-1 or
+    # rank-2 signals.
     is_signal_rank1 = len(self.shape) == 1
     if is_signal_rank1:
-        # Add a batch dimension
-        self = op.Identity(op.Unsqueeze(self, op.Constant(value_ints=[0])))
+        # [signal_length] -> [1, signal_length, 1]: add batch dim and trailing real-component dim
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0, -1]))
+    else:
+        # [batch_size, signal_length] -> [batch_size, signal_length, 1]
+        self = op.Unsqueeze(self, op.Constant(value_ints=[-1]))
 
     # Get window and make sure it's the same size as `win_length` or `n_fft`
     if window is not None and window.shape[0] is not None:
@@ -9376,7 +9381,7 @@ def aten_stft(
     else:
         onesided = 0
     window = op.CastLike(window, self)
-    result = op.STFT(self, frame_step_const, window, n_fft, onesided=onesided)
+    result = op.STFT(self, hop_length, window, n_fft, onesided=onesided)
     result = op.Transpose(result, perm=[0, 2, 1, 3])
     # Remove batch dimension, if needed
     if is_signal_rank1:

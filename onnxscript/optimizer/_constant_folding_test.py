@@ -130,6 +130,45 @@ class FoldConstantsTest(unittest.TestCase):
         self.assertEqual(optimized.graph[0].outputs[0].name, "z")
         self.assertEqual(optimized.graph[0].op_type, "Mul")
 
+    def test_fold_if_cond_with_subgraph_initializer(self):
+        """If branch initializers should be moved to the main graph when the branch is inlined."""
+        # A model with a non-constant condition; constants inside the then_branch will
+        # be folded into subgraph initializers on the first fold pass.
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[16, 16] x, bool cond) => (float[16, 16] z) {
+                two = Constant <value_float=2.0> ()
+                three = Constant <value_float=3.0> ()
+                z = If (cond) <
+                    then_branch = then_graph () => (then_z) {
+                        temp = Add (two, three)
+                        then_z = Mul (temp, x)
+                    },
+                    else_branch = else_graph () => (else_z) {
+                        else_z = Identity (x)
+                    }
+                >
+            }
+        """)
+        # First fold: 'temp = Add(2.0, 3.0)' gets folded into a subgraph initializer.
+        _constant_folding.fold_constants(model)
+        optimizer.remove_unused_nodes(model)
+        if_node = next(n for n in model.graph if n.op_type == "If")
+        then_branch = if_node.attributes["then_branch"].as_graph()
+        self.assertIn("temp", then_branch.initializers)
+        self.assertNotIn("temp", model.graph.initializers)
+
+        # Make the condition constant (True) to trigger inlining of the then_branch.
+        const_true = ir.Value(name="const_true")
+        const_true.const_value = ir.Tensor(np.array(True))
+        if_node.replace_input_with(0, const_true)
+
+        # Second fold: the If is inlined; 'temp' must be moved to the main graph.
+        _constant_folding.fold_constants(model)
+        optimizer.remove_unused_nodes(model)
+        onnx.checker.check_model(ir.serde.serialize_model(model))
+        self.assertIn("temp", model.graph.initializers)
+
     def test_fold_inside_if_branch(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>
@@ -283,6 +322,50 @@ func (float[1,512] x) => (float[1,512] return_val) {
         self.assertEqual(len(optimized.graph), 2)
         self.assertEqual(len(optimized.graph[-2].outputs), 4)
         self.assertEqual(optimized.graph[-2].op_type, "Split")
+
+    def test_static_split_to_sequence_with_unequal_scalar_split_and_sequence_at_is_folded_as_split(
+        self,
+    ):
+        """Test that an unequal scalar split is preserved correctly (not turned into equal split).
+
+        Regression test for: SplitToSequence with scalar split that doesn't evenly divide
+        the axis dimension should produce a Split with explicit split sizes, not an equal split.
+        E.g., splitting dim=8400 with split=5000 should produce [5000, 3400], not [4200, 4200].
+        """
+        model = """
+<
+   ir_version: 8,
+   opset_import: ["" : 18]
+>
+func (float[1,8400,80] x) => (float[1,N,80] return_val) {
+   int64_5000 = Constant <value: tensor = int64 int64_5000 {5000}> ()
+   splits = SplitToSequence <axis: int = 1> (x, int64_5000)
+   int64_0 = Constant <value: tensor = int64 int64_0 {0}> ()
+   split_0 = SequenceAt (splits, int64_0)
+   int64_1 = Constant <value: tensor = int64 int64_1 {1}> ()
+   split_1 = SequenceAt (splits, int64_1)
+   return_val = Concat <axis: int = 1> (split_0, split_1)
+}"""
+
+        optimized = self._fold(model)
+        split_nodes = [n for n in optimized.graph if n.op_type == "Split"]
+        self.assertEqual(len(split_nodes), 1)
+        split_node = split_nodes[0]
+        self.assertEqual(len(split_node.outputs), 2)
+        # The Split node must have an explicit split input (not just num_outputs),
+        # so that the split is [5000, 3400] and not [4200, 4200].
+        self.assertEqual(
+            len(split_node.inputs),
+            2,
+            "Split node must have an explicit split sizes input",
+        )
+        split_sizes_input = split_node.inputs[1]
+        self.assertIsNotNone(split_sizes_input, "Split node must have explicit split sizes")
+        # Verify the actual split sizes are [5000, 3400], not [4200, 4200]
+        self.assertIsNotNone(split_sizes_input.const_value)
+        np.testing.assert_array_equal(split_sizes_input.const_value.numpy(), [5000, 3400])
+        # Check no SequenceAt remains
+        self.assertTrue(all(n.op_type != "SequenceAt" for n in optimized.graph))
 
     def test_static_split_to_sequence_with_list_split_and_squence_at_is_folded_as_split(
         self,
