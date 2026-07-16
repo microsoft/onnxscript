@@ -4545,7 +4545,7 @@ def aten_grouped_mm(
     mat2: TFloat,
     offs: Optional[TInt] = None,
     bias: Optional[TFloat] = None,
-    out_dtype: Optional[int] = None,
+    out_dtype: int = -1,
 ) -> TFloat:
     """_grouped_mm(Tensor self, Tensor mat2, *, Tensor? offs=None, Tensor? bias=None, int? out_dtype=None) -> Tensor"""
 
@@ -4557,7 +4557,7 @@ def aten_grouped_mm(
     res = op.MatMul(self, mat2)
     if bias is not None:
         res = op.Add(res, bias)
-    if out_dtype is not None:
+    if out_dtype is not None and out_dtype != -1:
         res = op.Cast(res, to=out_dtype)
     return res
 

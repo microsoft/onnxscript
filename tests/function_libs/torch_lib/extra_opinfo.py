@@ -51,19 +51,25 @@ def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
         g, _, _ = self_shape
         _, _, n = mat2_shape
         bias_t = make_arg((g, 1, n))
-        yield opinfo_core.SampleInput(self_t, args=(mat2_t, None, bias_t))
+        yield opinfo_core.SampleInput(
+            self_t, args=(mat2_t,), kwargs={"bias": bias_t}
+        )
 
         # Test with bias and out_dtype
         if dtype in (torch.float16, torch.bfloat16):
             yield opinfo_core.SampleInput(
-                self_t, args=(mat2_t, None, bias_t, torch.float32)
+                self_t,
+                args=(mat2_t,),
+                kwargs={"bias": bias_t, "out_dtype": torch.float32},
             )
 
 
 def _mock_grouped_mm(self, mat2, offs=None, bias=None, out_dtype=None):
     if hasattr(torch.ops.aten, "_grouped_mm"):
         try:
-            return torch.ops.aten._grouped_mm(self, mat2, offs, bias, out_dtype)
+            return torch.ops.aten._grouped_mm(
+                self, mat2, offs=offs, bias=bias, out_dtype=out_dtype
+            )
         except Exception:
             pass
     res = torch.matmul(self, mat2)
