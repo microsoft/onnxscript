@@ -51,7 +51,14 @@ class TorchLibe2eTest(unittest.TestCase):
                 return out
 
         h = torch.tensor(
-            [[1.0, 10.0], [3.0, 30.0], [5.0, 50.0], [7.0, 70.0], [2.0, 20.0], [4.0, 40.0]],
+            [
+                [1.0, 10.0],
+                [3.0, 30.0],
+                [5.0, 50.0],
+                [7.0, 70.0],
+                [2.0, 20.0],
+                [4.0, 40.0],
+            ],
             dtype=torch.float32,
         )
         batch = torch.tensor([0, 0, 1, 1, 2, 2], dtype=torch.int64)
@@ -70,7 +77,14 @@ class TorchLibe2eTest(unittest.TestCase):
 
         x = torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], dtype=torch.float32)
         index = torch.tensor([[0, 0], [1, 1], [0, 1]], dtype=torch.int64)
-        src = torch.tensor([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]], dtype=torch.float32)
+        src = torch.tensor(
+            [
+                [10.0, 20.0],
+                [30.0, 40.0],
+                [50.0, 60.0],
+            ],
+            dtype=torch.float32,
+        )
         onnx_program = torch.onnx.export(
             ScatterMeanIncludeSelfModel(), (x, index, src), dynamo=True
         )

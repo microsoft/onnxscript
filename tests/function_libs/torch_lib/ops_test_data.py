@@ -1859,7 +1859,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .xfail(
         variant_name="mean",
         dtypes=(torch.int32, torch.int64),
-        reason="fixme: integer mean reduction uses truncating division in torch, which the float-division based ONNX lowering does not match",
+        reason="fixme: integer mean reduction still mismatches torch for scatter_reduce(mean)",
     )
     .xfail(
         variant_name="mean",
