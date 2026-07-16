@@ -1143,10 +1143,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(dtypes=(torch.bool,), reason="bool not supported")
     .skip(
-        matcher=lambda sample: sample.kwargs.get("dim") is None,
-        reason="fixme: conversion not implemented if dim is None",
-    )
-    .skip(
         matcher=lambda sample: sample.input.numel() == 0,
         reason="fixme: conversion not implemented when input tensor is empty",
     ),
@@ -1156,10 +1152,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason=("ignore cases when repeasts is an int"),
     )
     .skip(dtypes=(torch.bool,), reason="bool not supported")
-    .skip(
-        matcher=lambda sample: sample.kwargs.get("dim") is None,
-        reason="fixme: conversion not implemented if dim is None",
-    )
     .skip(
         matcher=lambda sample: sample.input.numel() == 0,
         reason="fixme: conversion not implemented when input tensor is empty",

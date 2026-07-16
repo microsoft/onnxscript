@@ -125,7 +125,7 @@ class ReshapeReshape(RewriteRuleClassBase):
         return op.Reshape(op.Reshape(x, shape_ignored), shape)
 
     def rewrite(self, op, x: ir.Value, shape_ignored: ir.Value, shape: ir.Value):
-        new_shape = op.initializer(ir.Tensor(self._new_shape, name=shape.name))
+        new_shape = op.initializer(ir.Tensor(self._new_shape, name=self._new_shape_name))
         return op.Reshape(x, new_shape, allowzero=self._allowzero)
 
     def check(self, context, x, shape_ignored, shape) -> MatchResult:
@@ -145,6 +145,7 @@ class ReshapeReshape(RewriteRuleClassBase):
 
         # Constraints for shape.
         self._allowzero = context.nodes[0].attributes.get_int("allowzero", 0)
+        self._new_shape_name = f"{context.output_values[0].name}/shape"
         if self._allowzero == 1 and any(self._new_shape == 0):
             return check_result
         if any(self._new_shape == 0) and any(self._new_shape < 0):

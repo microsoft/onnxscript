@@ -12,8 +12,9 @@ import parameterized
 
 import onnxscript
 import onnxscript.onnx_types as ot
-from onnxscript import ir
+from onnxscript import ir, rewriter
 from onnxscript.onnx_opset import opset18
+from onnxscript.optimizer import _constant_folding, common_passes
 from onnxscript.rewriter import MatchingTracer, testing
 from onnxscript.rewriter import pattern as orp
 from onnxscript.rewriter.rules.common import _basic_rules
@@ -505,6 +506,57 @@ class ReshapeReshapeTest(unittest.TestCase):
             "shape_": shape1,
         }
         testing.assert_numerically_equal(model, updated_model, feeds, atol=0, rtol=0)
+
+    def test_reshape_reshape_rule_with_shared_negative_one_shape(self):
+        input1 = ir.val("input1", ir.DataType.FLOAT, ir.Shape((2, 3)))
+        input2 = ir.val("input2", ir.DataType.FLOAT, ir.Shape((2, 6)))
+        output1 = ir.val("out1", ir.DataType.FLOAT, ir.Shape((2, 3)))
+        output2 = ir.val("out2", ir.DataType.FLOAT, ir.Shape((2, 6)))
+        tape = ir.tape.Tape(
+            ir.Graph(
+                [input1, input2],
+                [output1, output2],
+                nodes=[],
+                opset_imports={"": 21},
+                name="test_reshape_reshape_rule_with_shared_negative_one_shape",
+            )
+        )
+
+        shape_mid_a = tape.initializer(
+            ir.Tensor(np.array([6], dtype=np.int64), name="shape_mid_a")
+        )
+        shape_mid_b = tape.initializer(
+            ir.Tensor(np.array([12], dtype=np.int64), name="shape_mid_b")
+        )
+        shared_shape = tape.initializer(
+            ir.Tensor(np.array([2, -1], dtype=np.int64), name="shared_shape")
+        )
+
+        mid1 = tape.op("Reshape", inputs=[input1, shape_mid_a])
+        mid2 = tape.op("Reshape", inputs=[input2, shape_mid_b])
+        tape.op("Reshape", inputs=[mid1, shared_shape], output=output1)
+        tape.op("Reshape", inputs=[mid2, shared_shape], output=output2)
+        model = ir.Model(tape.graph_like, ir_version=10)
+
+        _constant_folding.FoldConstantsPass(
+            shape_inference=True, input_size_limit=1024, output_size_limit=1024
+        )(model)
+        rewriter.RewritePass(rewriter._DEFAULT_REWRITE_RULES)(model)
+        common_passes.RemoveUnusedNodesPass()(model)
+        common_passes.LiftConstantsToInitializersPass(lift_all_constants=True, size_limit=0)(
+            model
+        )
+        common_passes.DeduplicateInitializersPass()(model)
+
+        reshape_shape_inputs = [
+            node.inputs[1] for node in model.graph if node.op_type == "Reshape"
+        ]
+        self.assertEqual(len(reshape_shape_inputs), 2)
+        self.assertEqual(len({shape.name for shape in reshape_shape_inputs}), 2)
+        for shape in reshape_shape_inputs:
+            self.assertIn(shape.name, model.graph.initializers)
+
+        onnx.checker.check_model(ir.to_proto(model), full_check=True)
 
     @parameterized.parameterized.expand(
         [((3, 6, 9), [0, 3, 2, -1]), ((0, 6, 2), [0, 0, 3], 1)]
