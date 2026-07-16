@@ -1847,7 +1847,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_scatter_reduce,
         input_wrangler=_scatter_reduce_input_wrangler,
     )
-    .xfail(variant_name="mean", reason="ONNX doesn't support reduce='mean' option")
     .xfail(
         variant_name="prod",
         dtypes=(torch.float16, torch.float64),
@@ -1857,6 +1856,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="sum",
         dtypes=(torch.float16, torch.float64),
         reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'add'",
+    )
+    .xfail(
+        variant_name="mean",
+        dtypes=(torch.float16, torch.float64),
+        reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'add'",
+    )
+    .xfail(
+        variant_name="mean",
+        dtypes=(torch.int32, torch.int64),
+        reason="fixme: integer mean reduction still mismatches torch for scatter_reduce(mean)",
     )
     .xfail(
         variant_name="mean",
