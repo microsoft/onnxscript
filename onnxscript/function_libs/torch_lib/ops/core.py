@@ -4970,8 +4970,21 @@ def aten_index_put(
     See implementation of `torch.onnx.symbolic_opset11.index_put
     <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
     """
-    if any(index is not None and index.dtype == BOOL.dtype for index in indices):
+    bool_index_positions = [
+        i for i, index in enumerate(indices) if index is not None and index.dtype == BOOL.dtype
+    ]
+    if len(indices) == 1 and bool_index_positions == [0]:
         return _aten_index_put_bool(self, indices, values, accumulate)
+    if bool_index_positions:
+        neg_1 = op.Constant(value_ints=[-1])
+        indices = list(indices)
+        for i in bool_index_positions:
+            index = indices[i]
+            if len(index.shape) != 1:
+                raise NotImplementedError(
+                    "Boolean index_put with mixed or multi-indices supports only 1-D boolean masks."
+                )
+            indices[i] = op.Reshape(op.Transpose(op.NonZero(index), perm=[1, 0]), neg_1)
 
     # Ensure the number of indices matches the tensor rank by appending trailing Nones.
     self_rank = len(self.shape)
@@ -4985,6 +4998,11 @@ def aten_index_put(
     def is_advanced_index(index):
         # Note: In this function, the index is assumed to be either None or an int64 Tensor.
         return index is not None
+
+    def index_rank(index_position: int) -> int:
+        if index_position in bool_index_positions:
+            return 1
+        return len(indices[index_position].shape)
 
     advanced_indices: list[int] = []
     none_indices: list[int] = []
@@ -5024,15 +5042,15 @@ def aten_index_put(
         all_same_shape = all(same_shape(indices[i].shape) for i in advanced_indices)
         if not all_same_shape:
             # Broadcast advanced indices to a common shape.
-            advanced_index_rank = max(len(indices[i].shape) for i in advanced_indices)
+            advanced_index_rank = max(index_rank(i) for i in advanced_indices)
             shapes = []
             for i in advanced_indices:
                 index = indices[i]
-                index_rank = len(index.shape)
+                current_index_rank = index_rank(i)
                 index_shape = op.Shape(index)
-                if index_rank < advanced_index_rank:
+                if current_index_rank < advanced_index_rank:
                     padding = op.Constant(
-                        value_ints=[1 for _ in range(advanced_index_rank - index_rank)]
+                        value_ints=[1 for _ in range(advanced_index_rank - current_index_rank)]
                     )
                     index_shape = op.Concat(padding, index_shape, axis=0)
                 shapes.append(index_shape)
@@ -5043,10 +5061,10 @@ def aten_index_put(
             ]
         else:
             advanced_indices_shape = op.Shape(indices[advanced_indices[0]])
-            advanced_index_rank = len(indices[advanced_indices[0]].shape)
+            advanced_index_rank = index_rank(advanced_indices[0])
     else:
         advanced_indices_shape = op.Shape(indices[advanced_indices[0]])
-        advanced_index_rank = len(indices[advanced_indices[0]].shape)
+        advanced_index_rank = index_rank(advanced_indices[0])
 
     # ONNX ScatterND supports only the case where all advanced indices appear first,
     # followed by None indices. So, we need to transpose self and values so that the
@@ -5120,34 +5138,6 @@ def _aten_index_put_bool(
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
     bool_mask = indices[0]
-    if len(indices) > 1:
-        if any(index is None for index in indices):
-            raise NotImplementedError(
-                "Boolean index_put with multiple indices does not support None indices."
-            )
-
-        advanced_indices = []
-        selected_positions = []
-        minus_one = op.Constant(value_ints=[-1])
-        for index in indices:
-            if index.dtype != BOOL.dtype or len(index.shape) != 1:
-                raise NotImplementedError(
-                    "Boolean index_put with multiple indices supports only 1-D boolean masks."
-                )
-            positions = op.Reshape(op.Transpose(op.NonZero(index), perm=[1, 0]), minus_one)
-            selected_positions.append(positions)
-            advanced_indices.append(op.Unsqueeze(positions, minus_one))
-        onnx_index = op.Concat(*advanced_indices, axis=-1)
-        target_shape = op.Concat(
-            op.Shape(selected_positions[0]),
-            op.Slice(op.Shape(self), starts=[len(indices)], ends=[len(self.shape)], axes=[0]),
-            axis=0,
-        )
-        expanded_values = op.Expand(values, target_shape)
-        return op.ScatterND(
-            self, onnx_index, expanded_values, reduction="add" if accumulate else None
-        )
-
     if bool_mask is None or bool_mask.dtype != BOOL.dtype:
         raise NotImplementedError(
             "Boolean index_put expects a boolean mask as the first index."
