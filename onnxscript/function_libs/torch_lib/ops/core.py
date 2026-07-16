@@ -4051,8 +4051,12 @@ def aten_floor_divide(self: TTensor, other: TTensor) -> TTensor:
     # Reference: https://github.com/pytorch/pytorch/blob/ffc645c870f0abd368606ba1e2b3b58cacb03046/torch/_refs/__init__.py#L1401C1-L1409C70
     # offset = (torch.signbit(a) != torch.signbit(b)).logical_and(torch.fmod(a, b) != 0)
     # return prims.div(a, b) - _maybe_convert_to_dtype(offset, a.dtype)
+    # The sign-mismatch check ``signbit(a) != signbit(b)`` (for nonzero divisors)
+    # is expressed as ``(a < 0) == (b > 0)``, which avoids Sign (limited integral
+    # support on some EPs) and enables optimizations when ``self`` is provably
+    # non-negative.
     offset = op.And(
-        op.Not(op.Equal(op.Sign(self), op.Sign(other))),
+        op.Equal(op.Less(self, 0), op.Greater(other, 0)),
         op.Cast(op.Mod(self, other), to=BOOL.dtype),
     )
     offset = op.Cast(offset, to=self.dtype)
