@@ -258,6 +258,30 @@ class PartialEvaluatorRegistry:
     def register(
         self, opname: str, domain: str = "", version=None
     ) -> Callable[[PartialEvaluatorFunction], PartialEvaluatorFunction]:
+        """Register a custom constant folding rule for an operator.
+
+        The decorated function must have the signature:
+        `(node: ir.Node, op: OptimizerContext, state: OptimizerState) -> ReturnValue`
+
+        Args:
+            opname: The name of the operator to fold (e.g., "Add").
+            domain: The domain of the operator. Defaults to "" (standard ONNX).
+            version: The opset version or version range for which this rule is valid.
+                Can be an integer (e.g., 13) or a tuple of (min_version, max_version)
+                where None indicates no limit (e.g., (13, None)).
+
+        Returns:
+            A decorator that registers the function as a constant folder for the op.
+
+        Example::
+
+            .. code-block:: python
+
+                @register_constant_folder("CustomOp", domain="my.domain")
+                def fold_custom_op(node: ir.Node, op: OptimizerContext, state: OptimizerState) -> ReturnValue:
+                    # custom folding logic
+                    return op.Constant(value_int=42)
+        """
         if (domain, opname) in self.op_evaluators:
             evaluator_list = self.op_evaluators[(domain, opname)]
         else:
