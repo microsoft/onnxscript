@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: D214, D402, D405, D411, D412, D416
+# ruff: noqa: D402, D412
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -897,7 +897,7 @@ class Opset21(Opset20):
               %keepgoing = Constant[value = <Scalar Tensor [1]>]()
               %max_trip_count = Constant[value = <Scalar Tensor [10]>]()
               %keepgoing_out, %b_out, %user_defined_vals = Loop[body = <graph body-net>](%max_trip_count, %keepgoing, %b)
-              return
+              return  // end of graph
             }
 
             graph body-net (
