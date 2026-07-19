@@ -697,6 +697,59 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
 
+    def test_shape_gather_concat_reshape_with_neg1_dim(self):
+        """Test that Shape->Gather->Concat->Reshape is not incorrectly folded when shape has -1 dims.
+
+        When a tensor shape has -1 as an integer (representing an unknown dynamic
+        dimension), the Shape operator should not be folded to a constant containing -1,
+        because that would cause downstream Reshape ops to receive multiple -1 values
+        (which is invalid in ONNX: at most one -1 is allowed in a Reshape shape).
+        See: https://github.com/microsoft/onnxscript/issues/2963
+        """
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 512, 4, 1] x) => (float[?] val_5)
+            {
+                shape = Shape(x)
+                index_0 = Constant <value_int=0> ()
+                gathered = Gather <axis=0> (shape, index_0)
+                axes = Constant <value_ints=[0]> ()
+                unsqueezed = Unsqueeze(gathered, axes)
+                neg_one = Constant <value_ints=[-1]> ()
+                concat_shape = Concat <axis=0> (unsqueezed, neg_one)
+                val_5 = Reshape(x, concat_shape)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        # Set x to have -1 as an integer dim (not SymbolicDim), which is how some
+        # tools represent unknown dimensions in ONNX IR
+        model.graph.inputs[0].shape = ir.Shape([-1, 512, 4, 1])
+
+        # Fold should NOT fold Shape to a constant [-1, 512, 4, 1] because -1 dims
+        # represent unknown/dynamic dimensions, not literal -1 values
+        optimized = self._fold(model, onnx_shape_inference=True, dce=True)
+
+        # Shape node must be preserved (not folded) since it has a -1 dim
+        shape_nodes = [n for n in optimized.graph if n.op_type == "Shape"]
+        self.assertEqual(
+            len(shape_nodes),
+            1,
+            "Shape node should be preserved when input shape has -1 (unknown) dims",
+        )
+
+        # Reshape must not receive [-1, -1] as its shape (two -1 values is invalid)
+        reshape_nodes = [n for n in optimized.graph if n.op_type == "Reshape"]
+        self.assertEqual(len(reshape_nodes), 1)
+        reshape_shape_input = reshape_nodes[0].inputs[1]
+        if reshape_shape_input is not None and reshape_shape_input.const_value is not None:
+            shape_vals = reshape_shape_input.const_value.numpy().tolist()
+            neg_one_count = sum(1 for v in shape_vals if v == -1)
+            self.assertLessEqual(
+                neg_one_count,
+                1,
+                f"Reshape shape {shape_vals} must not have more than one -1 value",
+            )
+
     def test_input_size_limit(self):
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>
