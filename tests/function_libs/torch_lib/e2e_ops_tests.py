@@ -1266,6 +1266,57 @@ class TorchLibe2eTest(unittest.TestCase):
                 got = onnx_program.call_reference({"x": inputs[0]})
                 torch.testing.assert_close(expected, got[0])
 
+    def test_aten_convolution_sets_kernel_shape_when_static(self):
+        # Regression test for https://github.com/microsoft/onnxscript/pull/2972
+        # The emitted Conv node must carry a kernel_shape attribute when the
+        # weight's spatial dimensions are statically known.
+        class Model(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.conv = torch.nn.Conv2d(3, 4, kernel_size=3)
+
+            def forward(self, x):
+                return self.conv(x)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.randn(1, 3, 8, 8),),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        conv_nodes = [
+            n for n in onnx_program.model_proto.graph.node if n.op_type == "Conv"
+        ]
+        self.assertEqual(len(conv_nodes), 1)
+        attribute_names = {a.name for a in conv_nodes[0].attribute}
+        self.assertIn("kernel_shape", attribute_names)
+
+    def test_aten_convolution_omits_kernel_shape_when_dynamic(self):
+        # Regression test for https://github.com/microsoft/onnxscript/pull/2972
+        # The kernel_shape attribute must be omitted when the weight's spatial
+        # dimensions are dynamic, so that ONNX infers it from the weight tensor.
+        class Model(torch.nn.Module):
+            def forward(self, x, weight):
+                return torch.nn.functional.conv2d(x, weight)
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.randn(1, 3, 8, 8), torch.randn(4, 3, 3, 3)),
+            dynamo=True,
+            verbose=False,
+            dynamic_shapes=({}, {2: "kh", 3: "kw"}),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        conv_nodes = [
+            n for n in onnx_program.model_proto.graph.node if n.op_type == "Conv"
+        ]
+        self.assertEqual(len(conv_nodes), 1)
+        attribute_names = {a.name for a in conv_nodes[0].attribute}
+        self.assertNotIn("kernel_shape", attribute_names)
+
     @unittest.skip("see https://github.com/pytorch/pytorch/issues/174668")
     def test_aten_histc_float16(self):
         class Model(torch.nn.Module):
