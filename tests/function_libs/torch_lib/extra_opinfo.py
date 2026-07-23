@@ -51,9 +51,7 @@ def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
         g, _, _ = self_shape
         _, _, n = mat2_shape
         bias_t = make_arg((g, 1, n))
-        yield opinfo_core.SampleInput(
-            self_t, args=(mat2_t,), kwargs={"bias": bias_t}
-        )
+        yield opinfo_core.SampleInput(self_t, args=(mat2_t,), kwargs={"bias": bias_t})
 
         # Test with bias and out_dtype
         if dtype in (torch.float16, torch.bfloat16):

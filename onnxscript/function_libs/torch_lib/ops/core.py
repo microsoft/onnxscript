@@ -4550,9 +4550,7 @@ def aten_grouped_mm(
     """_grouped_mm(Tensor self, Tensor mat2, *, Tensor? offs=None, Tensor? bias=None, int? out_dtype=None) -> Tensor"""
 
     if offs is not None:
-        raise NotImplementedError(
-            "Grouped matmul with offsets (ragged/MoE) is not supported."
-        )
+        raise NotImplementedError("Grouped matmul with offsets (ragged/MoE) is not supported.")
 
     res = op.MatMul(self, mat2)
     if bias is not None:
