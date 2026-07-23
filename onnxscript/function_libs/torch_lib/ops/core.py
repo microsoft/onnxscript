@@ -2305,18 +2305,24 @@ def aten_convolution(
     return result
 
 
-def _conv_kernel_shape(weight: TFloat) -> Optional[Sequence[int]]:
+def _conv_kernel_shape(weight: TFloat, complex: bool = False) -> Optional[Sequence[int]]:
     """Return the spatial (kernel) shape of the convolution weight if statically known.
 
     The kernel_shape attribute of ONNX Conv/ConvTranspose corresponds to the spatial
     dimensions of the weight tensor, i.e. all dimensions except the leading two
-    (output and input channels). Returns None when the spatial shape is not fully
-    static, in which case the attribute is omitted and inferred by ONNX.
+    (output and input channels). When ``complex`` is True, the weight has a trailing
+    dimension of size 2 (real/imaginary parts) which is also excluded. Returns None
+    when the spatial shape is not fully static, in which case the attribute is omitted
+    and inferred by ONNX.
     """
     shape = weight.shape
-    if shape is None or len(shape) <= 2:
+    if shape is None:
         return None
-    kernel_shape = shape[2:]
+    # Exclude the leading output/input channel dims, and for complex weights the
+    # trailing real/imag dim as well.
+    kernel_shape = shape[2:-1] if complex else shape[2:]
+    if len(kernel_shape) == 0:
+        return None
     if any(not isinstance(dim, int) for dim in kernel_shape):
         return None
     return list(kernel_shape)
@@ -2414,12 +2420,7 @@ def _aten_convolution_complex_onnx(
     # The complex weight has a trailing dimension of size 2 (real/imaginary parts),
     # so the spatial (kernel) shape excludes both leading channel dimensions and the
     # trailing complex dimension.
-    weight_shape = weight.shape
-    kernel_shape: Optional[Sequence[int]] = None
-    if weight_shape is not None and len(weight_shape) > 3:
-        spatial_shape = weight_shape[2:-1]
-        if all(isinstance(dim, int) for dim in spatial_shape):
-            kernel_shape = list(spatial_shape)
+    kernel_shape = _conv_kernel_shape(weight, complex=True)
 
     if transposed:
         result_real = op.Sub(
