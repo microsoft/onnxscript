@@ -1232,43 +1232,6 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-    def test_index_put_bool_multi_mask_broadcast(self):
-        class Model(torch.nn.Module):
-            def forward(self, x, mask0, mask1, update):
-                return torch.ops.aten.index_put(x, [mask0, mask1], update)
-
-        x = torch.zeros((3, 4), dtype=torch.float32)
-        mask0 = torch.tensor([False, True, False], dtype=torch.bool)
-        mask1 = torch.tensor([True, False, True, True], dtype=torch.bool)
-        update = torch.tensor([10.0, 20.0, 30.0], dtype=torch.float32)
-        onnx_program = torch.onnx.export(
-            Model(),
-            (x, mask0, mask1, update),
-            input_names=["x", "mask0", "mask1", "update"],
-            output_names=["output"],
-            opset_version=18,
-            dynamo=True,
-        )
-        _testing.assert_onnx_program(onnx_program)
-
-    def test_index_put_bool_mask_with_none_index(self):
-        class Model(torch.nn.Module):
-            def forward(self, x, mask, update):
-                return torch.ops.aten.index_put(x, [None, mask], update)
-
-        x = torch.arange(6, dtype=torch.float32).reshape((2, 3))
-        mask = torch.tensor([True, False, True], dtype=torch.bool)
-        update = torch.tensor(9.0, dtype=torch.float32)
-        onnx_program = torch.onnx.export(
-            Model(),
-            (x, mask, update),
-            input_names=["x", "mask", "update"],
-            output_names=["output"],
-            opset_version=18,
-            dynamo=True,
-        )
-        _testing.assert_onnx_program(onnx_program)
-
     def test_std_mean(self):
         """Test torch.std_mean which will be decomposed into prims.sum."""
 
