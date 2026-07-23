@@ -68,7 +68,7 @@ def _mock_grouped_mm(self, mat2, offs=None, bias=None, out_dtype=None):
             return torch.ops.aten._grouped_mm(
                 self, mat2, offs=offs, bias=bias, out_dtype=out_dtype
             )
-        except Exception:
+        except (TypeError, RuntimeError):
             pass
     res = torch.matmul(self, mat2)
     if bias is not None:
