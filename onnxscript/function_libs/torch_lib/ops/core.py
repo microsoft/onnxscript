@@ -2305,6 +2305,23 @@ def aten_convolution(
     return result
 
 
+def _conv_kernel_shape(weight: TFloat) -> Optional[Sequence[int]]:
+    """Return the spatial (kernel) shape of the convolution weight if statically known.
+
+    The kernel_shape attribute of ONNX Conv/ConvTranspose corresponds to the spatial
+    dimensions of the weight tensor, i.e. all dimensions except the leading two
+    (output and input channels). Returns None when the spatial shape is not fully
+    static, in which case the attribute is omitted and inferred by ONNX.
+    """
+    shape = weight.shape
+    if shape is None or len(shape) <= 2:
+        return None
+    kernel_shape = shape[2:]
+    if any(not isinstance(dim, int) for dim in kernel_shape):
+        return None
+    return list(kernel_shape)
+
+
 def _aten_convolution_onnx(
     input: TFloat,
     weight: TFloat,
@@ -2328,6 +2345,11 @@ def _aten_convolution_onnx(
     if no_batch:
         input = op.Unsqueeze(input, op.Constant(value_ints=[0]))
 
+    # kernel_shape is the spatial shape of the weight tensor (excluding the
+    # output-channel and input-channel dimensions). It is optional in the ONNX
+    # spec but is set explicitly here to match the ONNX Conv specification.
+    kernel_shape = _conv_kernel_shape(weight)
+
     if transposed:
         result = op.ConvTranspose(
             input,
@@ -2338,6 +2360,7 @@ def _aten_convolution_onnx(
             group=groups,
             dilations=dilations,
             output_padding=output_padding,
+            kernel_shape=kernel_shape,
         )
     else:
         result = op.Conv(
@@ -2348,6 +2371,7 @@ def _aten_convolution_onnx(
             pads=pads,
             group=groups,
             dilations=dilations,
+            kernel_shape=kernel_shape,
         )
 
     if no_batch:
@@ -2387,6 +2411,16 @@ def _aten_convolution_complex_onnx(
     bias_imag = op.Gather(bias, 1, axis=-1)
     bias_zero = op.Expand(op.CastLike(0.0, weight), op.Shape(bias_real))
 
+    # The complex weight has a trailing dimension of size 2 (real/imaginary parts),
+    # so the spatial (kernel) shape excludes both leading channel dimensions and the
+    # trailing complex dimension.
+    weight_shape = weight.shape
+    kernel_shape: Optional[Sequence[int]] = None
+    if weight_shape is not None and len(weight_shape) > 3:
+        spatial_shape = weight_shape[2:-1]
+        if all(isinstance(dim, int) for dim in spatial_shape):
+            kernel_shape = list(spatial_shape)
+
     if transposed:
         result_real = op.Sub(
             op.ConvTranspose(
@@ -2398,6 +2432,7 @@ def _aten_convolution_complex_onnx(
                 group=groups,
                 dilations=dilations,
                 output_padding=output_padding,
+                kernel_shape=kernel_shape,
             ),
             op.ConvTranspose(
                 input_imag,
@@ -2408,6 +2443,7 @@ def _aten_convolution_complex_onnx(
                 group=groups,
                 dilations=dilations,
                 output_padding=output_padding,
+                kernel_shape=kernel_shape,
             ),
         )
         result_imag = op.Add(
@@ -2420,6 +2456,7 @@ def _aten_convolution_complex_onnx(
                 group=groups,
                 dilations=dilations,
                 output_padding=output_padding,
+                kernel_shape=kernel_shape,
             ),
             op.ConvTranspose(
                 input_imag,
@@ -2430,6 +2467,7 @@ def _aten_convolution_complex_onnx(
                 group=groups,
                 dilations=dilations,
                 output_padding=output_padding,
+                kernel_shape=kernel_shape,
             ),
         )
     else:
@@ -2442,6 +2480,7 @@ def _aten_convolution_complex_onnx(
                 pads=pads,
                 group=groups,
                 dilations=dilations,
+                kernel_shape=kernel_shape,
             ),
             op.Conv(
                 input_imag,
@@ -2451,6 +2490,7 @@ def _aten_convolution_complex_onnx(
                 pads=pads,
                 group=groups,
                 dilations=dilations,
+                kernel_shape=kernel_shape,
             ),
         )
 
@@ -2463,6 +2503,7 @@ def _aten_convolution_complex_onnx(
                 pads=pads,
                 group=groups,
                 dilations=dilations,
+                kernel_shape=kernel_shape,
             ),
             op.Conv(
                 input_imag,
@@ -2472,6 +2513,7 @@ def _aten_convolution_complex_onnx(
                 pads=pads,
                 group=groups,
                 dilations=dilations,
+                kernel_shape=kernel_shape,
             ),
         )
 
