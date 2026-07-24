@@ -281,6 +281,29 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
         self.assertEqual(inputs, expected_inputs)
         self.assertEqual(attributes, collections.OrderedDict())
 
+    def test_empty_variadic_inputs(self):
+        type_constraint = ir.schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = ir.schemas.OpSignature(
+            domain="",
+            name="TestOp",
+            overload="",
+            params=[
+                ir.schemas.Parameter(
+                    name="a", type_constraint=type_constraint, required=False, variadic=False
+                ),
+                ir.schemas.Parameter(
+                    name="args", type_constraint=type_constraint, required=False, variadic=True
+                ),
+            ],
+            outputs=[],
+        )
+
+        inputs, _ = param_manipulation.separate_input_attributes_from_arguments(
+            op_signature, (), {}
+        )
+
+        self.assertEqual(inputs, [])
+
     @parameterized.parameterized.expand(
         [
             (True, True),
