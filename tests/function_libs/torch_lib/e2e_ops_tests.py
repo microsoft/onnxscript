@@ -679,23 +679,23 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-        model = onnx_program.model_proto
+        model = onnx_program.model
 
         def _rank(name: str) -> int:
             for vi in (
                 list(model.graph.value_info)
-                + list(model.graph.input)
-                + list(model.graph.output)
+                + list(model.graph.inputs)
+                + list(model.graph.outputs)
             ):
                 if vi.name == name:
                     return len(vi.type.tensor_type.shape.dim)
             raise AssertionError(f"value_info for {name} not found")
 
-        stft_nodes = [n for n in model.graph.node if n.op_type == "STFT"]
+        stft_nodes = [n for n in model.graph if n.op_type == "STFT"]
         self.assertEqual(len(stft_nodes), 1)
         node = stft_nodes[0]
-        signal, frame_step = node.input[0], node.input[1]
-        frame_length = node.input[3]
+        signal, frame_step = node.inputs[0], node.inputs[1]
+        frame_length = node.inputs[3]
         # signal must be rank 3: [batch, signal_length, 1]
         self.assertEqual(_rank(signal), 3)
         # frame_step and frame_length must share the same (scalar) rank
@@ -1286,15 +1286,11 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-        conv_nodes = [
-            n for n in onnx_program.model_proto.graph.node if n.op_type == "Conv"
-        ]
+        conv_nodes = [n for n in onnx_program.model.graph if n.op_type == "Conv"]
         self.assertEqual(len(conv_nodes), 1)
-        kernel_shape_attrs = [
-            a for a in conv_nodes[0].attribute if a.name == "kernel_shape"
-        ]
+        kernel_shape_attrs = [conv_nodes[0].attributes["kernel_shape"]]
         self.assertEqual(len(kernel_shape_attrs), 1)
-        self.assertEqual(list(kernel_shape_attrs[0].ints), [3, 3])
+        self.assertEqual(list(kernel_shape_attrs[0].value), [3, 3])
 
     def test_aten_convolution_transpose_sets_kernel_shape_when_static(self):
         # Regression test for https://github.com/microsoft/onnxscript/pull/2972
@@ -1316,17 +1312,11 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-        conv_nodes = [
-            n
-            for n in onnx_program.model_proto.graph.node
-            if n.op_type == "ConvTranspose"
-        ]
+        conv_nodes = [n for n in onnx_program.model.graph if n.op_type == "ConvTranspose"]
         self.assertEqual(len(conv_nodes), 1)
-        kernel_shape_attrs = [
-            a for a in conv_nodes[0].attribute if a.name == "kernel_shape"
-        ]
-        self.assertEqual(len(kernel_shape_attrs), 1)
-        self.assertEqual(list(kernel_shape_attrs[0].ints), [3, 3])
+        self.assertIn("kernel_shape", conv_nodes[0].attributes)
+        kernel_shape_attr = conv_nodes[0].attributes["kernel_shape"]
+        self.assertEqual(list(kernel_shape_attr.value), [3, 3])
 
     def test_aten_convolution_complex_sets_kernel_shape_when_static(self):
         # Regression test for https://github.com/microsoft/onnxscript/pull/2972
@@ -1351,16 +1341,12 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-        conv_nodes = [
-            n for n in onnx_program.model_proto.graph.node if n.op_type == "Conv"
-        ]
+        conv_nodes = [n for n in onnx_program.model.graph if n.op_type == "Conv"]
         self.assertGreater(len(conv_nodes), 0)
         for node in conv_nodes:
-            kernel_shape_attrs = [
-                a for a in node.attribute if a.name == "kernel_shape"
-            ]
-            self.assertEqual(len(kernel_shape_attrs), 1)
-            self.assertEqual(list(kernel_shape_attrs[0].ints), [3, 3])
+            self.assertIn("kernel_shape", node.attributes)
+            kernel_shape_attr = node.attributes["kernel_shape"]
+            self.assertEqual(list(kernel_shape_attr.value), [3, 3])
 
     def test_aten_convolution_omits_kernel_shape_when_dynamic(self):
         # Regression test for https://github.com/microsoft/onnxscript/pull/2972
@@ -1379,12 +1365,9 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-        conv_nodes = [
-            n for n in onnx_program.model_proto.graph.node if n.op_type == "Conv"
-        ]
+        conv_nodes = [n for n in onnx_program.model.graph if n.op_type == "Conv"]
         self.assertEqual(len(conv_nodes), 1)
-        attribute_names = {a.name for a in conv_nodes[0].attribute}
-        self.assertNotIn("kernel_shape", attribute_names)
+        self.assertNotIn("kernel_shape", conv_nodes[0].attributes)
 
     @unittest.skip("see https://github.com/pytorch/pytorch/issues/174668")
     def test_aten_histc_float16(self):
