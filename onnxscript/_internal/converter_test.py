@@ -575,6 +575,18 @@ class TestConverter(testutils.TestBase):
 
         onnxscript.testing.assert_isomorphic_function(positional, keyword)
 
+    def test_keyword_input_preserves_optional_input_positions(self):
+        @script()
+        def resize(X: FLOAT[3, 4]) -> FLOAT[2, 2]:
+            return op.Resize(X, sizes=[2, 2])
+
+        model = resize.to_model_proto()
+        resize_node = next(node for node in model.graph.node if node.op_type == "Resize")
+
+        self.assertEqual(list(resize_node.input[1:3]), ["", ""])
+        self.assertEqual(len(resize_node.input), 4)
+        create_cpu_inference_session(model.SerializeToString())
+
     def test_none_as_input_for_op_with_no_schema(self):
         """Test conversion of None as an input value in a call to an op with no known schema."""
 
