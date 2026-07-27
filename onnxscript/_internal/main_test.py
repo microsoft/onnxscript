@@ -6,7 +6,6 @@ import unittest
 
 import onnx
 
-import onnxscript
 from onnxscript import FLOAT, script
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.values import Opset
@@ -39,7 +38,9 @@ class ScriptCustomOpTypeTest(unittest.TestCase):
             {("com.example.custom", "MY_NEW_NAME_OP")},
         )
         self.assertNotIn("op_type", custom_op.kwargs)
-        self.assertEqual(custom_op.to_model_proto(io_types=FLOAT).producer_name, "onnxscript-test")
+        self.assertEqual(
+            custom_op.to_model_proto(io_types=FLOAT).producer_name, "onnxscript-test"
+        )
         onnx.checker.check_model(model)
 
     def test_issue_example_uses_default_local_opset(self):
@@ -91,9 +92,7 @@ class ScriptCustomOpTypeTest(unittest.TestCase):
             {
                 ("com.example.first", "SharedName"),
                 ("com.example.second", "SharedName"),
-            }.issubset(
-                {(function.domain, function.name) for function in model.functions}
-            )
+            }.issubset({(function.domain, function.name) for function in model.functions})
         )
         onnx.checker.check_model(model)
 
@@ -133,12 +132,11 @@ class ScriptCustomOpTypeTest(unittest.TestCase):
         invalid_values = ("", "   ", 42)
 
         for value in invalid_values:
-            with self.subTest(value=value):
-                with self.assertRaises((TypeError, ValueError)):
+            with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
 
-                    @script(op_type=value)
-                    def invalid(x: FLOAT) -> FLOAT:
-                        return op.Abs(x)
+                @script(op_type=value)
+                def invalid(x: FLOAT) -> FLOAT:
+                    return op.Abs(x)
 
     def test_non_c_identifier_names_are_supported(self):
         for value in ("1LeadingDigit", "Name-With-Punctuation", "Name With Spaces"):
