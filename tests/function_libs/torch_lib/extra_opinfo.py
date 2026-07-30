@@ -2498,12 +2498,61 @@ def sample_inputs_masked_scatter(op_info, device, dtype, requires_grad, **kwargs
         yield opinfo_core.SampleInput(self_tensor, args=(mask, source))
 
 
+def sample_inputs_linear_1d_weight(op_info, device, dtype, requires_grad, **kwargs):
+    """Sample inputs for nn.functional.linear with a 1D weight tensor.
+
+    PyTorch's built-in sample_inputs_linear never generates 1D-weight cases.
+    When weight is 1D (shape ``(in_features,)``), ``aten::linear`` performs a
+    dot-product contraction that drops the last dimension of *input*, producing
+    output of rank ``input.rank - 1``.  This function exercises that path so
+    that the squeeze-back behaviour is covered by the op correctness tests.
+
+    Note: the 2D-input + 1D-weight + bias combination is rejected by PyTorch
+    eager even today (``mat2 must be a matrix``), so bias samples are only
+    generated for 1-D and 3-D inputs where PyTorch itself succeeds.
+    """
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    # Without-bias cases: all input ranks work.
+    for input_shape, in_features in [
+        ((3,), 3),  # 1-D input -> scalar output
+        ((2, 4), 4),  # 2-D input -> 1-D output
+        ((2, 3, 5), 5),  # 3-D input -> 2-D output
+    ]:
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape), args=(make_arg((in_features,)),)
+        )
+
+    # With-bias cases: only 1-D and 3-D inputs are accepted by PyTorch eager
+    # when weight is 1-D (2-D input + bias raises a mat2-must-be-matrix error).
+    for input_shape, in_features in [
+        ((3,), 3),  # 1-D input -> scalar output
+        ((2, 3, 5), 5),  # 3-D input -> 2-D output
+    ]:
+        bias = make_arg(())  # scalar bias, broadcast-compatible with any output
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape), args=(make_arg((in_features,)), bias)
+        )
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "bilinear",
         op=torch.nn.functional.bilinear,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_bilinear,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "nn.functional.linear_1d_weight",
+        op=torch.nn.functional.linear,
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_linear_1d_weight,
         supports_out=False,
     ),
     opinfo_core.OpInfo(

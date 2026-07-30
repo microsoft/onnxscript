@@ -822,12 +822,15 @@ def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) ->
         # Use Gemm for the rank 2 input
         return op.Gemm(input, weight, bias, transB=True)
     if len(weight.shape) == 1:
-        # In rare cases the weight can be 1d
+        # In rare cases the weight can be 1d. Unsqueeze to (in_features, 1) for
+        # MatMul, then squeeze the added trailing dim back off so the result has
+        # rank input.rank - 1, matching PyTorch eager semantics.
         weight_transposed = op.Unsqueeze(weight, [1])
+        mul = op.Squeeze(op.MatMul(input, weight_transposed), [-1])
     else:
         assert len(weight.shape) == 2
         weight_transposed = op.Transpose(weight, perm=[1, 0])
-    mul = op.MatMul(input, weight_transposed)
+        mul = op.MatMul(input, weight_transposed)
     if bias is None:
         return mul
     return op.Add(mul, bias)
