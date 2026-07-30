@@ -902,8 +902,14 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
             self.assertIsNotNone(z_value.const_value)
             np.testing.assert_equal(z_value.const_value.numpy(), np.array(42, dtype=np.int64))
         finally:
-            if ("test.custom", "CustomAdd") in _constant_folding.registry.op_evaluators:
-                del _constant_folding.registry.op_evaluators[("test.custom", "CustomAdd")]
+            key = ("test.custom", "CustomAdd")
+            evaluators = _constant_folding.registry.op_evaluators.get(key)
+            if evaluators is not None:
+                _constant_folding.registry.op_evaluators[key] = [
+                    e for e in evaluators if e.function is not fold_custom_add
+                ]
+                if not _constant_folding.registry.op_evaluators[key]:
+                    del _constant_folding.registry.op_evaluators[key]
 
 
 def _all_value_names_unique(model: ir.Model) -> bool:
