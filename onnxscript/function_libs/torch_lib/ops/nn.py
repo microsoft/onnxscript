@@ -826,6 +826,9 @@ def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) ->
         # bias with a 1d weight (mat2 must be a matrix). eager linear contracts
         # the last dim away in this case, so squeeze the dim added for MatMul
         # back off.
+        if bias is not None:
+            raise NotImplementedError("aten::linear with 1d weight and bias is not supported")
+
         weight_transposed = op.Unsqueeze(weight, [1])
         return op.Squeeze(op.MatMul(input, weight_transposed), [-1])
     assert len(weight.shape) == 2
