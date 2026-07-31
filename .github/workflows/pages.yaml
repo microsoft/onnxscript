@@ -19,6 +19,8 @@ concurrency:
 
 jobs:
   deploy:
+    # Skip on forks so the workflow doesn't run on fork sync
+    if: ${{ !github.event.repository.fork }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
