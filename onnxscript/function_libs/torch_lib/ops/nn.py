@@ -822,11 +822,14 @@ def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) ->
         # Use Gemm for the rank 2 input
         return op.Gemm(input, weight, bias, transB=True)
     if len(weight.shape) == 1:
-        # In rare cases the weight can be 1d
+        # In rare cases the weight can be 1d. aten::linear does not support a
+        # bias with a 1d weight (mat2 must be a matrix). eager linear contracts
+        # the last dim away in this case, so squeeze the dim added for MatMul
+        # back off.
         weight_transposed = op.Unsqueeze(weight, [1])
-    else:
-        assert len(weight.shape) == 2
-        weight_transposed = op.Transpose(weight, perm=[1, 0])
+        return op.Squeeze(op.MatMul(input, weight_transposed), [-1])
+    assert len(weight.shape) == 2
+    weight_transposed = op.Transpose(weight, perm=[1, 0])
     mul = op.MatMul(input, weight_transposed)
     if bias is None:
         return mul
