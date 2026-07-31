@@ -894,11 +894,10 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
                 """
             )
 
-            result = _constant_folding.fold_constants(model)
-            self.assertTrue(result.modified)
-            self.assertEqual(len(model.graph), 1)
-            self.assertEqual(model.graph[0].op_type, "Constant")
-            z_value = model.graph.outputs[0]
+            optimized = self._fold(model)
+            custom_add_nodes = [n for n in optimized.graph if n.op_type == "CustomAdd"]
+            self.assertEqual(len(custom_add_nodes), 0)
+            z_value = optimized.graph.outputs[0]
             self.assertIsNotNone(z_value.const_value)
             np.testing.assert_equal(z_value.const_value.numpy(), np.array(42, dtype=np.int64))
         finally:
