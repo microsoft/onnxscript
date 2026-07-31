@@ -273,9 +273,11 @@ class PartialEvaluatorRegistry:
         Returns:
             A decorator that registers the function as a constant folder for the op.
 
-        Example::
+        Example:
 
             .. code-block:: python
+                
+                from onnxscript.optimizer import register_constant_folder
 
                 @register_constant_folder("CustomOp", domain="my.domain")
                 def fold_custom_op(node: ir.Node, op: OptimizerContext, state: OptimizerState) -> ReturnValue:
