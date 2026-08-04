@@ -84,6 +84,30 @@ class OptimizerTest(unittest.TestCase):
         self.assertEqual(len(model_ir.graph.node(0).outputs), 2)
         self.assertEqual(model_ir.graph.node(0).op_type, "Split")
 
+    def test_unused_outputs_remain_unnamed(self):
+        model_proto = onnx.parser.parse_model(
+            """
+                <ir_version: 10, opset_import: ["" : 18]>
+                main_graph (
+                    float[1, 2, 3, 3] x,
+                    float[2] scale,
+                    float[2] bias,
+                    float[2] mean,
+                    float[2] variance
+                ) => (float[1, 2, 3, 3] y) {
+                    y, running_mean, running_var = BatchNormalization
+                        <training_mode: int = 1> (x, scale, bias, mean, variance)
+                }
+                """
+        )
+        model_ir = ir.serde.deserialize_model(model_proto)
+
+        optimizer.optimize_ir(model_ir, num_iterations=1, onnx_shape_inference=False)
+
+        self.assertEqual(
+            [output.name for output in model_ir.graph.node(0).outputs], ["y", "", ""]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
