@@ -40,6 +40,7 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 from onnxscript._internal import version_utils
+from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from tests.function_libs.torch_lib import (
     error_reproduction,
     ops_test_common,
@@ -108,6 +109,33 @@ class TestFunctionValidity(unittest.TestCase):
             self.skipTest("Traced functions does not have a function proto")
         function_proto = torchlib_op_info.op.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
+
+
+class _FakeTensor:
+    __slots__ = ("shape",)
+
+    def __init__(self, shape: Sequence[int]):
+        self.shape = shape
+
+
+class TestTrilinearHelpers(unittest.TestCase):
+    def test_resolve_trilinear_total_dim_validates_operand_dims(self):
+        i1 = _FakeTensor((2, 3))
+        i2 = _FakeTensor((4, 5, 6))
+        i3 = _FakeTensor((7,))
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "i2\\+expand2 resolved 3",
+        ):
+            core_ops._resolve_trilinear_total_dim(
+                i1,
+                i2,
+                i3,
+                (1, 3),
+                (),
+                (1, 2),
+            )
 
 
 def run_test_output_match(
