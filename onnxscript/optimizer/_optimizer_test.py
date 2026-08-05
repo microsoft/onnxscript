@@ -84,7 +84,7 @@ class OptimizerTest(unittest.TestCase):
         self.assertEqual(len(model_ir.graph.node(0).outputs), 2)
         self.assertEqual(model_ir.graph.node(0).op_type, "Split")
 
-    def test_unused_outputs_remain_unnamed(self):
+    def test_name_fix_preserves_unnamed_unused_outputs(self):
         model_proto = onnx.parser.parse_model(
             """
                 <ir_version: 10, opset_import: ["" : 18]>
@@ -101,9 +101,11 @@ class OptimizerTest(unittest.TestCase):
                 """
         )
         model_ir = ir.serde.deserialize_model(model_proto)
+        model_ir.graph.inputs[1].name = "x"
 
         optimizer.optimize_ir(model_ir, num_iterations=1, onnx_shape_inference=False)
 
+        self.assertEqual([input.name for input in model_ir.graph.inputs[:2]], ["x", "x_1"])
         self.assertEqual(
             [output.name for output in model_ir.graph.node(0).outputs], ["y", "", ""]
         )
