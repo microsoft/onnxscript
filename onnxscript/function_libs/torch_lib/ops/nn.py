@@ -1595,8 +1595,9 @@ def aten_relu(self: TReal) -> TReal:
 def aten_relu6(self: TReal) -> TReal:
     """relu6(Tensor self) -> Tensor"""
 
+    zero = op.CastLike(op.Constant(value_int=0), self)
     six = op.CastLike(op.Constant(value_int=6), self)
-    return op.Min(op.Relu(self), six)
+    return op.Clip(self, zero, six)
 
 
 @torch_op("aten::replication_pad1d", trace_only=True)
