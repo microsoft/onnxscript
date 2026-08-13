@@ -558,7 +558,7 @@ def size(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return None
     size = 1
     for d in shape:
-        if not isinstance(d, int):
+        if not isinstance(d, int) or d < 0:
             return None
         size *= d
     return op.Constant(value_int=size)
