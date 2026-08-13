@@ -708,15 +708,13 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         """
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[N, 512, 4, 1] x) => (float[?] val_5)
+            agraph (float[N, 512, 4, 1] x) => (float[?, ?] val_5)
             {
                 shape = Shape(x)
-                index_0 = Constant <value_int=0> ()
+                index_0 = Constant <value_ints=[0]> ()
                 gathered = Gather <axis=0> (shape, index_0)
-                axes = Constant <value_ints=[0]> ()
-                unsqueezed = Unsqueeze(gathered, axes)
                 neg_one = Constant <value_ints=[-1]> ()
-                concat_shape = Concat <axis=0> (unsqueezed, neg_one)
+                concat_shape = Concat <axis=0> (gathered, neg_one)
                 val_5 = Reshape(x, concat_shape)
             }
         """
