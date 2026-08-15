@@ -1713,13 +1713,17 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     attn_mask = op.Expand(op.Constant(value_float=1.0), size)
     # }
     attn_mask = op.Trilu(attn_mask, upper=0)
-    # The causal mask has 0s in the lower triangle and -inf in the upper triangle.
+    # The causal mask has 0s in the lower triangle and the lowest representable value
+    # of the query dtype in the upper triangle. The lowest finite value is used instead
+    # of -inf to stay consistent with the boolean mask path and to avoid producing NaN
+    # in the subsequent Softmax when a row is fully masked.
+    # The constants are built in the query dtype directly rather than in float32 and
+    # cast down, because casting float32's lowest value to float16 overflows to -inf.
     attn_mask = op.Where(
         op.Equal(attn_mask, op.Constant(value_float=0.0)),
-        op.Constant(value_float=-float("inf")),
-        op.Constant(value_float=0.0),
+        op.Constant(value=ir.tensor(query.dtype.min, dtype=query.dtype)),
+        op.Constant(value=ir.tensor(0.0, dtype=query.dtype)),
     )
-    attn_mask = op.CastLike(attn_mask, query)
     return attn_mask
 
 
