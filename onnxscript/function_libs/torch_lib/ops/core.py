@@ -2156,7 +2156,7 @@ def aten_conv3d(
 
     if bias is None:
         weight_dim_0 = op.Shape(weight, start=0, end=1)
-        bias_shape = op.Concat(weight_dim_0, op.Constant(value_ints=[2]), axis=0)
+        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
         zero = op.CastLike(0.0, input)
         bias = op.Expand(zero, bias_shape)
 
