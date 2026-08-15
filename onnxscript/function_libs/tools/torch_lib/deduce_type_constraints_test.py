@@ -28,7 +28,6 @@ def torch_lib_onnx_functions_from_registry() -> Generator[onnxscript.OnnxFunctio
 
 class TestDeduceTypeConstraints(unittest.TestCase):
     _SKIP_FUNCTIONS_WITH_LOOP_OR_SCAN = (
-        "_aten_as_strided_onnx",
         "_aten_unfold_onnx",
         "_aten_embedding_bag_onnx",
         "_aten_embedding_bag_1d_padding_idx_onnx",
