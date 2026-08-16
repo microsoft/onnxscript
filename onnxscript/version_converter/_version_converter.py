@@ -86,10 +86,10 @@ class AdapterRegistry:
         self,
         domain: str,
         opname: str,
-        original_version: int,
+        target_version: int,
         up_conversion: bool = True,
     ) -> AdapterFunction | None:
-        adapter_func = self.op_adapters.get((domain, opname, original_version, up_conversion))
+        adapter_func = self.op_adapters.get((domain, opname, target_version, up_conversion))
         if adapter_func is not None:
             return adapter_func
         return None
@@ -97,7 +97,7 @@ class AdapterRegistry:
     def register(
         self, opname: str, domain: str = "", node_version=None, up_conversion=True
     ) -> Callable[[AdapterFunction], AdapterFunction]:
-        """Register an adapter based on the domain, operator type, node version and whether to upgrade/downgrade node version"""
+        """Register an adapter based on the domain, operator type, target node version and whether the target version is a result of an up-conversion or down-conversion."""
 
         def decorator(function: AdapterFunction) -> AdapterFunction:
             @functools.wraps(function)
@@ -154,7 +154,7 @@ def _get_str_attribute(node: ir.Node, name: str, default: str | None = None) -> 
 # Opset 19 -> 20
 
 
-@register("DFT", node_version=19, up_conversion=True)
+@register("DFT", node_version=20, up_conversion=True)
 def dft_19_20(node: ir.Node, op):
     input = node.inputs[0]
     dft_length = node.inputs[1] if len(node.inputs) > 1 else None
@@ -167,7 +167,7 @@ def dft_19_20(node: ir.Node, op):
     return None
 
 
-@register("GridSample", node_version=19, up_conversion=True)
+@register("GridSample", node_version=20, up_conversion=True)
 def gridsample_19_20(node: ir.Node, op):
     x = node.inputs[0]
     grid = node.inputs[1]
@@ -188,7 +188,7 @@ def gridsample_19_20(node: ir.Node, op):
 # Opset 20 -> 21
 
 
-@register("GroupNormalization", node_version=20, up_conversion=True)
+@register("GroupNormalization", node_version=21, up_conversion=True)
 def groupnormalization_20_21(node: ir.Node, op):
     x = _get_input(node, 0)
     scale = _get_input(node, 1)
@@ -249,11 +249,11 @@ class _VersionConverter:
         )
 
     def process_node(
-        self, node: ir.Node, from_version: int, up_conversion: bool = True
+        self, node: ir.Node, to_version: int, up_conversion: bool = True
     ) -> Replacement | None:
         assert node.domain == ""
         adapter = registry.lookup_adapters(
-            node.domain, node.op_type, from_version, up_conversion
+            node.domain, node.op_type, to_version, up_conversion
         )
         if adapter is None:
             return None
@@ -293,7 +293,7 @@ class _VersionConverter:
             to_version = from_version + 1
         else:
             to_version = from_version - 1
-        replacement = self.process_node(node, from_version, up_conversion)
+        replacement = self.process_node(node, to_version, up_conversion)
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():
