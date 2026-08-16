@@ -251,13 +251,25 @@ class BaseEvaluator(Evaluator, abc.ABC):
         args: Sequence[ExtendedModeValue],
         kwargs: Mapping[str, ExtendedModeValue],
     ):
+        from onnxscript._internal.typed_sequence import (
+            _TypedSequence,  # pylint: disable=import-outside-toplevel
+        )
+
         op_signature = op.op_signature
         assert op_signature is not None, f"Op {op.name} has no signature."
         attributes = _unwrap_tensors_in_kwargs(kwargs)
         attributes, closure = self._adapt_attributes(op_signature, attributes)
         inputs = self._adapt_inputs(op_signature, args)
         outputs = self._eval(op.op_schema, inputs, attributes, closure)
-        return self._adapt_outputs(outputs)
+        result = self._adapt_outputs(outputs)
+
+        # Handle SequenceEmpty: wrap result with _TypedSequence to preserve dtype
+        # for empty sequences where type cannot be inferred from elements.
+        if op.name == "SequenceEmpty":
+            dtype = attributes.get("dtype") or onnx.TensorProto.FLOAT
+            return _TypedSequence(dtype, result)
+
+        return result
 
     def eval_function(
         self,
@@ -364,8 +376,15 @@ def compute_num_outputs(
 
 def _onnxscript_to_numpy_value(v):
     """Converts an onnxscript encoding of an ONNX value into the numpy encoding used by runtimes."""
+    from onnxscript._internal.typed_sequence import (
+        _TypedSequence,  # pylint: disable=import-outside-toplevel
+    )
+
     if isinstance(v, tensor.Tensor):
         return v.value
+    # Handle _TypedSequence BEFORE generic list check to preserve dtype info
+    if isinstance(v, _TypedSequence):
+        return _TypedSequence(v.onnx_dtype, [_onnxscript_to_numpy_value(x) for x in v])
     if isinstance(v, list):
         return [_onnxscript_to_numpy_value(x) for x in v]
     if isinstance(v, tuple):

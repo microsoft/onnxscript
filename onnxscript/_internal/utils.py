@@ -10,6 +10,7 @@ import onnx
 import onnx_ir as ir
 
 from onnxscript import tensor
+from onnxscript._internal.typed_sequence import _TypedSequence
 
 
 def external_tensor(
@@ -72,6 +73,13 @@ def value_to_type_proto(val):
         return onnx.helper.make_tensor_type_proto(onnx.TensorProto.INT32, [])  # noqa: TID251
     if isinstance(val, (float, np.float32)):
         return onnx.helper.make_tensor_type_proto(onnx.TensorProto.FLOAT, [])  # noqa: TID251
+
+    # Handle _TypedSequence BEFORE generic list check
+    if isinstance(val, _TypedSequence):
+        return onnx.helper.make_sequence_type_proto(  # noqa: TID251
+            onnx.helper.make_tensor_type_proto(val.onnx_dtype, None)  # noqa: TID251
+        )
+
     if isinstance(val, list):
         if len(val) > 0:
             return onnx.helper.make_sequence_type_proto(value_to_type_proto(val[0]))  # noqa: TID251
