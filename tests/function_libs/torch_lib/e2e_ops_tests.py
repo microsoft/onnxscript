@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import unittest
 
+import numpy as np
 import parameterized
 
 # TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
@@ -1410,6 +1411,53 @@ class TorchLibe2eTest(unittest.TestCase):
                 expected = model(*inputs)
                 got = onnx_program.call_reference({"x": inputs[0]})
                 torch.testing.assert_close(expected, got[0])
+
+    @parameterized.parameterized.expand(
+        [
+            ("float32", torch.float32),
+            ("float16", torch.float16),
+        ]
+    )
+    def test_scaled_dot_product_attention_causal_mask_uses_dtype_min(
+        self, _: str, dtype: torch.dtype
+    ):
+        # The causal mask must fill masked positions with the lowest finite value of
+        # the query dtype rather than -inf, matching the boolean mask path.
+        # The constant has to be built in the query dtype directly: creating it in
+        # float32 and casting down overflows back to -inf for float16.
+        target_length = source_length = 4
+
+        class Model(torch.nn.Module):
+            def forward(self, query, key, value):
+                return torch.nn.functional.scaled_dot_product_attention(
+                    query, key, value, is_causal=True
+                )
+
+        inputs = tuple(torch.randn(1, 2, target_length, 8, dtype=dtype) for _ in range(3))
+        onnx_program = torch.onnx.export(Model().eval(), inputs, dynamo=True, verbose=False)
+        if dtype is torch.float32:
+            # float16 attention accumulates enough rounding error to exceed the
+            # default tolerances, independently of the mask value asserted below.
+            _testing.assert_onnx_program(onnx_program)
+
+        masks = [
+            initializer.const_value.numpy()
+            for initializer in onnx_program.model.graph.initializers.values()
+            if initializer.const_value.shape == (target_length, source_length)
+        ]
+        self.assertEqual(len(masks), 1)
+        mask = masks[0]
+        self.assertFalse(np.isinf(mask).any())
+
+        expected = (
+            torch.zeros(target_length, source_length, dtype=dtype)
+            .masked_fill(
+                ~torch.ones(target_length, source_length, dtype=torch.bool).tril(),
+                torch.finfo(dtype).min,
+            )
+            .numpy()
+        )
+        np.testing.assert_array_equal(mask, expected)
 
 
 if __name__ == "__main__":
