@@ -122,6 +122,25 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_full_like_memory_format(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.full_like(
+                    x,
+                    1.0,
+                    memory_format=torch.preserve_format,
+                )
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.randn(10, 10),),
+            input_names=["input"],
+            output_names=["output"],
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_repeat_interleave_integer_1(self):
         class Model(torch.nn.Module):
             def forward(self, x):
