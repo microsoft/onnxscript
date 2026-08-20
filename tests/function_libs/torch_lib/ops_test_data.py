@@ -1654,6 +1654,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.linear", nn_ops.aten_linear, tolerance={torch.float16: (1e-2, 1e-3)}
     ),
     TorchLibOpInfo(
+        "ops.aten.linear.1d_weight",
+        nn_ops.aten_linear,
+        tolerance={torch.float16: (1e-2, 1e-3)},
+    ),
+    TorchLibOpInfo(
         "nn.functional.unfold",
         nn_ops.aten_im2col,
         input_wrangler=_im2col_input_wrangler,
