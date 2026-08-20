@@ -407,6 +407,23 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_rfft_produces_correct_dft_length(self):
+        class RFFTModel(torch.nn.Module):
+            def forward(self, x):
+                x = torch.fft.rfft(x, n=512, dim=-1)
+                return x.real**2 + x.imag**2
+
+        x = torch.randn(4, 512, dtype=torch.float32)
+        onnx_program = torch.onnx.export(
+            RFFTModel(),
+            (x,),
+            opset_version=20,
+            dynamo=True,
+            optimize=False,
+        )
+
+        self.assertEqual(onnx_program.model.graph.outputs[0].shape, [4, 512 // 2 + 1])
+
     def test_avg_pool(self):
         class Model(torch.nn.Module):
             def forward(self, x2d, x3d, x4d, x5d):

@@ -172,17 +172,33 @@ def aten__fft_r2c(
         transformed = op.Unsqueeze(self, axes=[-1])
 
     for idx, dimension in enumerate(reversed(dim)):
+        dft_length = op.Squeeze(
+            op.Shape(transformed, start=dimension, end=dimension + 1),
+            axes=[0],
+        )
         transformed = _fftn_onnx_normalization(
             transformed,
             normalization,
-            op.Shape(transformed, start=dimension, end=dimension + 1),
+            dft_length,
             inverse=False,
         )
         if idx > 0:
-            transformed = op.DFT(transformed, axis=dimension, inverse=False, onesided=False)
+            transformed = op.DFT(
+                transformed,
+                dft_length=dft_length,
+                axis=dimension,
+                inverse=False,
+                onesided=False,
+            )
         else:
             # Torch computes one-sided FFT on the last dimension only.
-            transformed = op.DFT(transformed, axis=dimension, inverse=False, onesided=onesided)
+            transformed = op.DFT(
+                transformed,
+                dft_length=dft_length,
+                axis=dimension,
+                inverse=False,
+                onesided=onesided,
+            )
 
     if unsqueeze_first_dim:
         transformed = op.Squeeze(transformed, axes=[0])
