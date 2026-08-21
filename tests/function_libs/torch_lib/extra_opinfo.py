@@ -37,6 +37,31 @@ def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs)
         yield opinfo_core.SampleInput(item, dtype=dtype)
 
 
+def sample_inputs_linear_1d_weight(op_info, device, dtype, requires_grad, **kwargs):
+    """Sample inputs for linear with a 1D weight (in_features,), no out_features dim.
+
+    Regression coverage for https://github.com/microsoft/onnxscript/issues/2982:
+    the upstream `sample_inputs_linear` in
+    torch/testing/_internal/common_methods_invocations.py never generates a
+    1D-weight case, so this branch of aten_linear went untested.
+
+    Note: aten::linear does not accept a bias together with a 1D weight
+    ("mat2 must be a matrix, got 1-D tensor"), so no bias samples are
+    generated here.
+    """
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    for in_features, batch_shape in itertools.product([3, 8], [(), (2,), (2, 3)]):
+        input_tensor = make_arg((*batch_shape, in_features))
+        weight = make_arg((in_features,))
+        yield opinfo_core.SampleInput(input_tensor, args=(weight, None))
+
+
 def sample_inputs_bilinear(op_info, device, dtype, requires_grad, **kwargs):
     """Sample inputs for bilinear operation."""
     del op_info
@@ -2504,6 +2529,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torch.nn.functional.bilinear,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_bilinear,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.linear.1d_weight",
+        op=torch.nn.functional.linear,
+        aten_name="linear",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_linear_1d_weight,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
