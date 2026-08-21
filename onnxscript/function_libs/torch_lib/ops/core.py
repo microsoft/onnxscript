@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import functools
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
@@ -56,9 +57,17 @@ _INT32_MAX = 2147483647
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
-_INT64_ARANGE_NON_INTEGRAL_USES_FLOAT_LENGTH = (
-    torch.arange(3.1, dtype=torch.int64, device="cpu").numel() == 4
-)
+
+
+@functools.lru_cache(maxsize=None)
+def _int64_arange_non_integral_uses_float_length() -> bool:
+    """Whether torch computes the arange length in float when dtype is integral.
+
+    Newer versions of torch return 4 elements for ``torch.arange(3.1, dtype=torch.int64)``,
+    while older versions return 3. This is evaluated lazily to avoid running torch code
+    at import time.
+    """
+    return torch.arange(3.1, dtype=torch.int64, device="cpu").numel() == 4
 
 
 @torch_op("aten::_local_scalar_dense", trace_only=True)
@@ -600,7 +609,7 @@ def aten_arange(
     elif (
         _is_integral_dtype(dtype)
         and not _is_integral_scalar(end)
-        and (dtype != INT64.dtype or _INT64_ARANGE_NON_INTEGRAL_USES_FLOAT_LENGTH)
+        and (dtype != INT64.dtype or _int64_arange_non_integral_uses_float_length())
     ):
         result = _arange_integral_dtype_with_non_integral_args(0, end, 1, dtype)
     elif _range_supported(dtype):
@@ -638,7 +647,7 @@ def aten_arange_start(
     elif (
         _is_integral_dtype(dtype)
         and not (_is_integral_scalar(start) and _is_integral_scalar(end))
-        and (dtype != INT64.dtype or _INT64_ARANGE_NON_INTEGRAL_USES_FLOAT_LENGTH)
+        and (dtype != INT64.dtype or _int64_arange_non_integral_uses_float_length())
     ):
         result = _arange_integral_dtype_with_non_integral_args(start, end, 1, dtype)
     elif _range_supported(dtype):
@@ -731,7 +740,7 @@ def aten_arange_start_step(
             and _is_integral_scalar(end)
             and _is_integral_scalar(step)
         )
-        and (dtype != INT64.dtype or _INT64_ARANGE_NON_INTEGRAL_USES_FLOAT_LENGTH)
+        and (dtype != INT64.dtype or _int64_arange_non_integral_uses_float_length())
     ):
         result = _arange_integral_dtype_with_non_integral_args(start, end, step, dtype)
     elif dtype == INT64.dtype:
