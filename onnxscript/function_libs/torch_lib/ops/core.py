@@ -57,7 +57,7 @@ _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
 _INT64_ARANGE_NON_INTEGRAL_USES_FLOAT_LENGTH = (
-    torch.arange(3.1, dtype=torch.int64).numel() == 4
+    torch.arange(3.1, dtype=torch.int64, device="cpu").numel() == 4
 )
 
 
