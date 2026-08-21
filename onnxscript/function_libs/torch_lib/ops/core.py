@@ -9130,10 +9130,8 @@ def aten_slice_scatter(
 ) -> TTensor:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
-    # Although 'start' and 'end' can be None in signature, but actually 'start' must be specified
-    # Assert(start is not None)
-    # And, 'end' also must be specified, and end-start must be equal to the size of 'src'
-    # Assert(end-start == shape(src) > 0)
+    # 'start' and 'end' are optional (aten schema: SymInt? start=None, SymInt? end=None).
+    # When absent, default start to 0 and end to _INT64_MAX (a full slice), mirroring aten_slice.
     # Try torch sample to get more information:
     # https://pytorch.org/docs/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
     # Take (torch.zeros(8, 8), torch.ones(2, 8), 0, 6, 64, 1) as example:
@@ -9146,10 +9144,14 @@ def aten_slice_scatter(
     self_shape = op.Shape(self)
     dim_shape = op.Gather(self_shape, dim, axis=0)
     index_base = op.Range(0, dim_shape, 1)
+    start_index = zero if start is None else op.Unsqueeze(start, zero)
+    end_index = (
+        op.Constant(value_ints=[_INT64_MAX]) if end is None else op.Unsqueeze(end, zero)
+    )
     index_base = op.Slice(
         index_base,
-        op.Unsqueeze(start, zero),
-        op.Unsqueeze(end, zero),
+        start_index,
+        end_index,
         zero,
         op.Unsqueeze(step, zero),
     )

@@ -1540,6 +1540,12 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         ((L, L, L), (L, L // 2, L), (1, L // 2, L * 2, 1)),  # end > L
         ((L, L, L), (L, L, L), (-2, 0, L, 1)),  # negative dim
         ((L, L, L), (L, L, L // 4), (-1, L // 2, L * 2, 2)),  # end > L and negative dim
+        # start/end = None (regression for #2372)
+        ((L, L, L), (L, L, L), (0, None, None, 1)),  # full replace, dim 0
+        ((L, L, L), (L // 2, L, L), (0, None, L // 2, 1)),  # None start
+        ((L, L, L), (L // 2, L, L), (0, L // 2, None, 1)),  # None end
+        ((L, L, L), (L, L, L), (1, None, None, 1)),  # None start & end, dim 1
+        ((L, L, L), (L // 2, L, L), (0, None, None, 2)),  # None start & end, step 2
     )
 
     for input_shape, src_shape, args in cases:
