@@ -6350,21 +6350,33 @@ def aten_maximum(self: TTensor, other: TTensor) -> TTensor:
     return op.Max(self, other)
 
 
-@torch_op("aten::mean")
-def aten_mean(self: TReal) -> TReal:
+@torch_op("aten::mean", trace_only=True)
+def aten_mean(self: TReal, dtype: int = -1) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
+
+    if dtype != -1 and dtype is not None:
+        # Cast before reducing so that the accumulation happens in the requested
+        # dtype, matching PyTorch. Casting the result afterwards would keep the
+        # precision loss of the input dtype.
+        self = op.Cast(self, to=dtype)
 
     result = op.ReduceMean(self)
     return op.Squeeze(result)
 
 
 @torch_op("aten::mean", complex=True, trace_only=True)
-def aten_mean_complex(self: TReal) -> TReal:
+def aten_mean_complex(self: TReal, dtype: int = -1) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
     rank = len(self.shape) - 1
     dim = op.Constant(value_ints=list(range(rank)))
     result = op.ReduceMean(self, dim, keepdims=False)
+
+    if dtype != -1 and dtype is not None:
+        raise NotImplementedError(
+            "support for the dtype argument is not implemented for complex tensors"
+        )
+
     return result
 
 
