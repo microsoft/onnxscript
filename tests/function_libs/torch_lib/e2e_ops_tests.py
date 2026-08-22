@@ -90,7 +90,10 @@ class TorchLibe2eTest(unittest.TestCase):
                 return x.to(torch.float32) * 1.0
 
         onnx_program = torch.onnx.export(
-            Model(), (torch.tensor([1, 2, 3], dtype=torch.float16),), dynamo=True, optimize=False
+            Model(),
+            (torch.tensor([1, 2, 3], dtype=torch.float16),),
+            dynamo=True,
+            optimize=False,
         )
         _testing.assert_onnx_program(onnx_program)
 
