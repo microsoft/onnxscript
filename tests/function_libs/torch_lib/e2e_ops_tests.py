@@ -1281,6 +1281,19 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_mean_dtype_casts_before_reduction(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.mean(x, dtype=torch.float64)
+
+        model = Model()
+        x = torch.tensor([1e8, 1.0, -1e8], dtype=torch.float32)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, optimize=False)
+
+        _testing.assert_onnx_program(onnx_program)
+        actual = onnx_program.call_reference({onnx_program.model.graph.inputs[0].name: x})[0]
+        torch.testing.assert_close(actual, model(x))
+
     def test_aten_histc_float(self):
         class Model(torch.nn.Module):
             def forward(self, x):
