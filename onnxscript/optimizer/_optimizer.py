@@ -14,6 +14,27 @@ from onnxscript.optimizer import _constant_folding
 logger = logging.getLogger(__name__)
 
 
+class _RemoveUnusedBatchNormalizationOutputsPass(ir.passes.InPlacePass):
+    """Remove BatchNormalization output slots marked unused by earlier passes."""
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        modified = False
+        for graph_like in (model.graph, *model.functions.values()):
+            for node in ir.traversal.RecursiveGraphIterator(graph_like):
+                if node.domain not in {"", "ai.onnx"} or node.op_type != "BatchNormalization":
+                    continue
+                output_count = len(node.outputs)
+                while output_count:
+                    output = node.outputs[output_count - 1]
+                    if output.name or output.uses():
+                        break
+                    output_count -= 1
+                if output_count != len(node.outputs):
+                    node.resize_outputs(output_count)
+                    modified = True
+        return ir.passes.PassResult(model, modified=modified)
+
+
 def optimize_ir(
     model: ir.Model,
     num_iterations: int = 2,
@@ -65,6 +86,7 @@ def optimize_ir(
         common_passes.DeduplicateInitializersPass(),
         common_passes.CommonSubexpressionEliminationPass(),
         common_passes.OutputFixPass(),
+        _RemoveUnusedBatchNormalizationOutputsPass(),
         common_passes.NameFixPass(),
     ]
     if inline:

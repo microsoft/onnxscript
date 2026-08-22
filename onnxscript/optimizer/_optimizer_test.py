@@ -84,6 +84,32 @@ class OptimizerTest(unittest.TestCase):
         self.assertEqual(len(model_ir.graph.node(0).outputs), 2)
         self.assertEqual(model_ir.graph.node(0).op_type, "Split")
 
+    def test_name_fix_does_not_restore_unused_outputs(self):
+        model_proto = onnx.parser.parse_model(
+            """
+                <ir_version: 10, opset_import: ["" : 18]>
+                main_graph (
+                    float[1, 2, 3, 3] x,
+                    float[2] scale,
+                    float[2] bias,
+                    float[2] mean,
+                    float[2] variance
+                ) => (float[1, 2, 3, 3] y) {
+                    y, running_mean, running_var = BatchNormalization
+                        <training_mode: int = 1> (x, scale, bias, mean, variance)
+                }
+                """
+        )
+        model_ir = ir.serde.deserialize_model(model_proto)
+        model_ir.graph.inputs[1].name = "x"
+
+        optimizer.optimize_ir(model_ir, num_iterations=1, onnx_shape_inference=False)
+
+        self.assertEqual([input.name for input in model_ir.graph.inputs[:2]], ["x", "x_1"])
+        self.assertEqual([output.name for output in model_ir.graph.node(0).outputs], ["y"])
+        self.assertNotIn("training_mode", model_ir.graph.node(0).attributes)
+        onnx.checker.check_model(ir.serde.serialize_model(model_ir), full_check=True)
+
 
 if __name__ == "__main__":
     unittest.main()
