@@ -6350,9 +6350,12 @@ def aten_maximum(self: TTensor, other: TTensor) -> TTensor:
     return op.Max(self, other)
 
 
-@torch_op("aten::mean")
-def aten_mean(self: TReal) -> TReal:
+@torch_op("aten::mean", trace_only=True)
+def aten_mean(self: TReal, dtype: int = -1) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
+
+    if dtype != -1:
+        self = op.Cast(self, to=dtype)
 
     result = op.ReduceMean(self)
     return op.Squeeze(result)
