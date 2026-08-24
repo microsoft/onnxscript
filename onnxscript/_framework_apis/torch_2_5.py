@@ -59,9 +59,13 @@ def convert_version(model: ir.Model, target_version: int) -> ir.Model:
 
 
 def check_model(model: ir.Model) -> None:
-    """Check the model."""
+    """No-op retained for API compatibility.
 
-    del model  # Unused yet
+    This intentionally performs no validation. Running the ONNX checker here was
+    dropped because it can report false positives and adds overhead to export.
+    """
+
+    del model  # Intentionally unused: this function performs no validation.
 
 
 def save_model_with_external_data(
@@ -117,6 +121,7 @@ def get_torchlib_ops() -> list[_OnnxFunctionMeta]:
     del ops  # Unused
 
     torchlib_registry = registration.default_registry
+
     function_metas = []
 
     for qualified_name, aten_overloads_func in torchlib_registry.items():
