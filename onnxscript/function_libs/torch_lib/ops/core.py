@@ -6844,6 +6844,14 @@ def aten_mul_complex(self: TReal, other: TReal) -> TReal:
     return op.Concat(real, imag, axis=-1)
 
 
+@torch_op(("aten::mul.Scalar", "aten::multiply.Scalar"), trace_only=True)
+def aten_mul_scalar(self: TTensor, other: float) -> TTensor:
+    """mul.Scalar(Tensor self, Scalar other) -> Tensor"""
+
+    other = op.Constant(value=ir.tensor(other, dtype=self.dtype))
+    return aten_mul(self, other)
+
+
 @torch_op("aten::multinomial", trace_only=True)
 def aten_multinomial(
     self: TFloat,
