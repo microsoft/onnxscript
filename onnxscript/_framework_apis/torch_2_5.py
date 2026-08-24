@@ -121,7 +121,6 @@ def get_torchlib_ops() -> list[_OnnxFunctionMeta]:
     del ops  # Unused
 
     torchlib_registry = registration.default_registry
-
     function_metas = []
 
     for qualified_name, aten_overloads_func in torchlib_registry.items():
