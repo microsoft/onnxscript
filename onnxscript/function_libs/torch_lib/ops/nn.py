@@ -822,11 +822,17 @@ def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) ->
         # Use Gemm for the rank 2 input
         return op.Gemm(input, weight, bias, transB=True)
     if len(weight.shape) == 1:
-        # In rare cases the weight can be 1d
+        # In rare cases the weight can be 1d. aten::linear does not support a
+        # bias with a 1d weight (mat2 must be a matrix). eager linear contracts
+        # the last dim away in this case, so squeeze the dim added for MatMul
+        # back off.
+        if bias is not None:
+            raise NotImplementedError("aten::linear with 1d weight and bias is not supported")
+
         weight_transposed = op.Unsqueeze(weight, [1])
-    else:
-        assert len(weight.shape) == 2
-        weight_transposed = op.Transpose(weight, perm=[1, 0])
+        return op.Squeeze(op.MatMul(input, weight_transposed), [-1])
+    assert len(weight.shape) == 2
+    weight_transposed = op.Transpose(weight, perm=[1, 0])
     mul = op.MatMul(input, weight_transposed)
     if bias is None:
         return mul
@@ -1595,8 +1601,9 @@ def aten_relu(self: TReal) -> TReal:
 def aten_relu6(self: TReal) -> TReal:
     """relu6(Tensor self) -> Tensor"""
 
+    zero = op.CastLike(op.Constant(value_int=0), self)
     six = op.CastLike(op.Constant(value_int=6), self)
-    return op.Min(op.Relu(self), six)
+    return op.Clip(self, zero, six)
 
 
 @torch_op("aten::replication_pad1d", trace_only=True)
@@ -1706,13 +1713,17 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     attn_mask = op.Expand(op.Constant(value_float=1.0), size)
     # }
     attn_mask = op.Trilu(attn_mask, upper=0)
-    # The causal mask has 0s in the lower triangle and -inf in the upper triangle.
+    # The causal mask has 0s in the lower triangle and the lowest representable value
+    # of the query dtype in the upper triangle. The lowest finite value is used instead
+    # of -inf to stay consistent with the boolean mask path and to avoid producing NaN
+    # in the subsequent Softmax when a row is fully masked.
+    # The constants are built in the query dtype directly rather than in float32 and
+    # cast down, because casting float32's lowest value to float16 overflows to -inf.
     attn_mask = op.Where(
         op.Equal(attn_mask, op.Constant(value_float=0.0)),
-        op.Constant(value_float=-float("inf")),
-        op.Constant(value_float=0.0),
+        op.Constant(value=ir.tensor(query.dtype.min, dtype=query.dtype)),
+        op.Constant(value=ir.tensor(0.0, dtype=query.dtype)),
     )
-    attn_mask = op.CastLike(attn_mask, query)
     return attn_mask
 
 
