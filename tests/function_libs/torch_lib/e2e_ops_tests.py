@@ -97,6 +97,50 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_rand_like_memory_format(self):
+        # These random *_like ops are non-deterministic, so assert the export
+        # succeeds rather than comparing values (see issue #3002).
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.rand_like(x, memory_format=torch.preserve_format)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(10, 10),), dynamo=True, optimize=False
+        )
+        self.assertIsNotNone(onnx_program)
+
+    def test_randn_like_memory_format(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.randn_like(x, memory_format=torch.preserve_format)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(10, 10),), dynamo=True, optimize=False
+        )
+        self.assertIsNotNone(onnx_program)
+
+    def test_randint_like_memory_format(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.randint_like(x, 10, memory_format=torch.preserve_format)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(10, 10),), dynamo=True, optimize=False
+        )
+        self.assertIsNotNone(onnx_program)
+
+    def test_randint_like_low_dtype_memory_format(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.randint_like(
+                    x, 0, 10, memory_format=torch.preserve_format
+                )
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(10, 10),), dynamo=True, optimize=False
+        )
+        self.assertIsNotNone(onnx_program)
+
     def test_bincount(self):
         class Model(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:

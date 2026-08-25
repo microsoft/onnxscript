@@ -8164,7 +8164,12 @@ def aten_rand(
 
 @torch_op("aten::rand_like", trace_only=True)
 def aten_rand_like(
-    self: TFloat, dtype: int = -1, layout: str = "", device: str = "", pin_memory: bool = False
+    self: TFloat,
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+    memory_format: str = "",
 ) -> TFloat:
     """rand_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -8224,6 +8229,7 @@ def aten_randint_like(
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
+    memory_format: str = "",
 ) -> IntType:
     """randint_like(Tensor self, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -8247,6 +8253,7 @@ def aten_randint_like_low_dtype(
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
+    memory_format: str = "",
 ) -> IntType:
     """randint_like.low_dtype(Tensor self, SymInt low, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
@@ -8282,7 +8289,12 @@ def aten_randn(
 
 @torch_op("aten::randn_like", trace_only=True)
 def aten_randn_like(
-    self: TFloat, dtype: int = -1, layout: str = "", device: str = "", pin_memory: bool = False
+    self: TFloat,
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+    memory_format: str = "",
 ) -> TFloat:
     """randn_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
