@@ -902,6 +902,16 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_unfold_emits_scalar_range_bounds(self):
+        class UnfoldModel(torch.nn.Module):
+            def forward(self, x):
+                return x.unfold(1, 2, 1)
+
+        onnx_program = torch.onnx.export(
+            UnfoldModel(), (torch.randn(3, 4),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_quantize_per_channel_int8(self):
         class Model(torch.nn.Module):
             def forward(self, x):
