@@ -10104,7 +10104,12 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
             dimension = dimension + self_rank
 
         input_shape = op.Shape(self)
-        dim_size = op.Gather(input_shape, op.Constant(value_ints=[dimension]))
+        # Range requires rank 0 (scalar) inputs, so squeeze the [1] shaped
+        # Gather result down to a scalar.
+        dim_size = op.Squeeze(
+            op.Gather(input_shape, op.Constant(value_ints=[dimension])),
+            op.Constant(value_ints=[0]),
+        )
 
         # Create indices for each window
         window_starts = op.Range(0, op.Sub(dim_size, size - 1), step)
