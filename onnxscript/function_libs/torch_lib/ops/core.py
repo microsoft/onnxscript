@@ -2388,6 +2388,29 @@ def aten_convolution(
     return result
 
 
+def _conv_kernel_shape(weight: TFloat, complex: bool = False) -> Optional[Sequence[int]]:
+    """Return the spatial (kernel) shape of the convolution weight if statically known.
+
+    The kernel_shape attribute of ONNX Conv/ConvTranspose corresponds to the spatial
+    dimensions of the weight tensor, i.e. all dimensions except the leading two
+    (output and input channels). When ``complex`` is True, the weight has a trailing
+    dimension of size 2 (real/imaginary parts) which is also excluded. Returns None
+    when the spatial shape is not fully static, in which case the attribute is omitted
+    and inferred by ONNX.
+    """
+    shape = weight.shape
+    if shape is None:
+        return None
+    # Exclude the leading output/input channel dims, and for complex weights the
+    # trailing real/imag dim as well.
+    kernel_shape = shape[2:-1] if complex else shape[2:]
+    if len(kernel_shape) == 0:
+        return None
+    if any(not isinstance(dim, int) for dim in kernel_shape):
+        return None
+    return list(kernel_shape)
+
+
 def _aten_convolution_onnx(
     input: TFloat,
     weight: TFloat,
@@ -2411,6 +2434,11 @@ def _aten_convolution_onnx(
     if no_batch:
         input = op.Unsqueeze(input, op.Constant(value_ints=[0]))
 
+    # kernel_shape is the spatial shape of the weight tensor (excluding the
+    # output-channel and input-channel dimensions). It is optional in the ONNX
+    # spec but is set explicitly here to match the ONNX Conv specification.
+    kernel_shape = _conv_kernel_shape(weight)
+
     if transposed:
         result = op.ConvTranspose(
             input,
@@ -2421,6 +2449,7 @@ def _aten_convolution_onnx(
             group=groups,
             dilations=dilations,
             output_padding=output_padding,
+            kernel_shape=kernel_shape,
         )
     else:
         result = op.Conv(
@@ -2431,6 +2460,7 @@ def _aten_convolution_onnx(
             pads=pads,
             group=groups,
             dilations=dilations,
+            kernel_shape=kernel_shape,
         )
 
     if no_batch:
@@ -2470,6 +2500,11 @@ def _aten_convolution_complex_onnx(
     bias_imag = op.Gather(bias, 1, axis=-1)
     bias_zero = op.Expand(op.CastLike(0.0, weight), op.Shape(bias_real))
 
+    # The complex weight has a trailing dimension of size 2 (real/imaginary parts),
+    # so the spatial (kernel) shape excludes both leading channel dimensions and the
+    # trailing complex dimension.
+    kernel_shape = _conv_kernel_shape(weight, complex=True)
+
     if transposed:
         result_real = op.Sub(
             op.ConvTranspose(
@@ -2481,6 +2516,7 @@ def _aten_convolution_complex_onnx(
                 group=groups,
                 dilations=dilations,
                 output_padding=output_padding,
+                kernel_shape=kernel_shape,
             ),
             op.ConvTranspose(
                 input_imag,
@@ -2491,6 +2527,7 @@ def _aten_convolution_complex_onnx(
                 group=groups,
                 dilations=dilations,
                 output_padding=output_padding,
+                kernel_shape=kernel_shape,
             ),
         )
         result_imag = op.Add(
@@ -2503,6 +2540,7 @@ def _aten_convolution_complex_onnx(
                 group=groups,
                 dilations=dilations,
                 output_padding=output_padding,
+                kernel_shape=kernel_shape,
             ),
             op.ConvTranspose(
                 input_imag,
@@ -2513,6 +2551,7 @@ def _aten_convolution_complex_onnx(
                 group=groups,
                 dilations=dilations,
                 output_padding=output_padding,
+                kernel_shape=kernel_shape,
             ),
         )
     else:
@@ -2525,6 +2564,7 @@ def _aten_convolution_complex_onnx(
                 pads=pads,
                 group=groups,
                 dilations=dilations,
+                kernel_shape=kernel_shape,
             ),
             op.Conv(
                 input_imag,
@@ -2534,6 +2574,7 @@ def _aten_convolution_complex_onnx(
                 pads=pads,
                 group=groups,
                 dilations=dilations,
+                kernel_shape=kernel_shape,
             ),
         )
 
@@ -2546,6 +2587,7 @@ def _aten_convolution_complex_onnx(
                 pads=pads,
                 group=groups,
                 dilations=dilations,
+                kernel_shape=kernel_shape,
             ),
             op.Conv(
                 input_imag,
@@ -2555,6 +2597,7 @@ def _aten_convolution_complex_onnx(
                 pads=pads,
                 group=groups,
                 dilations=dilations,
+                kernel_shape=kernel_shape,
             ),
         )
 
@@ -4134,8 +4177,12 @@ def aten_floor_divide(self: TTensor, other: TTensor) -> TTensor:
     # Reference: https://github.com/pytorch/pytorch/blob/ffc645c870f0abd368606ba1e2b3b58cacb03046/torch/_refs/__init__.py#L1401C1-L1409C70
     # offset = (torch.signbit(a) != torch.signbit(b)).logical_and(torch.fmod(a, b) != 0)
     # return prims.div(a, b) - _maybe_convert_to_dtype(offset, a.dtype)
+    # The sign-mismatch check ``signbit(a) != signbit(b)`` (for nonzero divisors)
+    # is expressed as ``(a < 0) == (b > 0)``, which avoids Sign (limited integral
+    # support on some EPs) and enables optimizations when ``self`` is provably
+    # non-negative.
     offset = op.And(
-        op.Not(op.Equal(op.Sign(self), op.Sign(other))),
+        op.Equal(op.Less(self, 0), op.Greater(other, 0)),
         op.Cast(op.Mod(self, other), to=BOOL.dtype),
     )
     offset = op.Cast(offset, to=self.dtype)
@@ -4225,6 +4272,7 @@ def aten_full_like(
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
+    memory_format: str = "",
 ) -> TensorType:
     """full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -6386,21 +6434,33 @@ def aten_maximum(self: TTensor, other: TTensor) -> TTensor:
     return op.Max(self, other)
 
 
-@torch_op("aten::mean")
-def aten_mean(self: TReal) -> TReal:
+@torch_op("aten::mean", trace_only=True)
+def aten_mean(self: TReal, dtype: int = -1) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
+
+    if dtype != -1 and dtype is not None:
+        # Cast before reducing so that the accumulation happens in the requested
+        # dtype, matching PyTorch. Casting the result afterwards would keep the
+        # precision loss of the input dtype.
+        self = op.Cast(self, to=dtype)
 
     result = op.ReduceMean(self)
     return op.Squeeze(result)
 
 
 @torch_op("aten::mean", complex=True, trace_only=True)
-def aten_mean_complex(self: TReal) -> TReal:
+def aten_mean_complex(self: TReal, dtype: int = -1) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
     rank = len(self.shape) - 1
     dim = op.Constant(value_ints=list(range(rank)))
     result = op.ReduceMean(self, dim, keepdims=False)
+
+    if dtype != -1 and dtype is not None:
+        raise NotImplementedError(
+            "support for the dtype argument is not implemented for complex tensors"
+        )
+
     return result
 
 
@@ -6866,6 +6926,14 @@ def aten_mul_complex(self: TReal, other: TReal) -> TReal:
     imag = op.Add(ad, bc)
 
     return op.Concat(real, imag, axis=-1)
+
+
+@torch_op(("aten::mul.Scalar", "aten::multiply.Scalar"), trace_only=True)
+def aten_mul_scalar(self: TTensor, other: float) -> TTensor:
+    """mul.Scalar(Tensor self, Scalar other) -> Tensor"""
+
+    other = op.Constant(value=ir.tensor(other, dtype=self.dtype))
+    return aten_mul(self, other)
 
 
 @torch_op("aten::multinomial", trace_only=True)
@@ -8180,7 +8248,12 @@ def aten_rand(
 
 @torch_op("aten::rand_like", trace_only=True)
 def aten_rand_like(
-    self: TFloat, dtype: int = -1, layout: str = "", device: str = "", pin_memory: bool = False
+    self: TFloat,
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+    memory_format: str = "",
 ) -> TFloat:
     """rand_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -8240,6 +8313,7 @@ def aten_randint_like(
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
+    memory_format: str = "",
 ) -> IntType:
     """randint_like(Tensor self, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -8263,6 +8337,7 @@ def aten_randint_like_low_dtype(
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
+    memory_format: str = "",
 ) -> IntType:
     """randint_like.low_dtype(Tensor self, SymInt low, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
@@ -8298,7 +8373,12 @@ def aten_randn(
 
 @torch_op("aten::randn_like", trace_only=True)
 def aten_randn_like(
-    self: TFloat, dtype: int = -1, layout: str = "", device: str = "", pin_memory: bool = False
+    self: TFloat,
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+    memory_format: str = "",
 ) -> TFloat:
     """randn_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -9171,10 +9251,8 @@ def aten_slice_scatter(
 ) -> TTensor:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
-    # Although 'start' and 'end' can be None in signature, but actually 'start' must be specified
-    # Assert(start is not None)
-    # And, 'end' also must be specified, and end-start must be equal to the size of 'src'
-    # Assert(end-start == shape(src) > 0)
+    # 'start' and 'end' are optional (aten schema: SymInt? start=None, SymInt? end=None).
+    # When absent, default start to 0 and end to _INT64_MAX (a full slice), mirroring aten_slice.
     # Try torch sample to get more information:
     # https://pytorch.org/docs/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
     # Take (torch.zeros(8, 8), torch.ones(2, 8), 0, 6, 64, 1) as example:
@@ -9187,10 +9265,14 @@ def aten_slice_scatter(
     self_shape = op.Shape(self)
     dim_shape = op.Gather(self_shape, dim, axis=0)
     index_base = op.Range(0, dim_shape, 1)
+    start_index = zero if start is None else op.Unsqueeze(start, zero)
+    end_index = (
+        op.Constant(value_ints=[_INT64_MAX]) if end is None else op.Unsqueeze(end, zero)
+    )
     index_base = op.Slice(
         index_base,
-        op.Unsqueeze(start, zero),
-        op.Unsqueeze(end, zero),
+        start_index,
+        end_index,
         zero,
         op.Unsqueeze(step, zero),
     )
@@ -10118,7 +10200,12 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
             dimension = dimension + self_rank
 
         input_shape = op.Shape(self)
-        dim_size = op.Gather(input_shape, op.Constant(value_ints=[dimension]))
+        # Range requires rank 0 (scalar) inputs, so squeeze the [1] shaped
+        # Gather result down to a scalar.
+        dim_size = op.Squeeze(
+            op.Gather(input_shape, op.Constant(value_ints=[dimension])),
+            op.Constant(value_ints=[0]),
+        )
 
         # Create indices for each window
         window_starts = op.Range(0, op.Sub(dim_size, size - 1), step)

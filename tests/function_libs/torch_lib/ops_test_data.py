@@ -872,6 +872,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("dim") is not None,
         reason="this Aten overload only accept 1 inputs: self",
     ),
+    TorchLibOpInfo("ops.aten.mean.dtype", core_ops.aten_mean),
     TorchLibOpInfo(
         "mean_dim", core_ops.aten_mean_dim, input_wrangler=_mean_input_wrangler
     ).skip(
@@ -1651,6 +1652,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("nn.functional.glu", nn_ops.aten_glu),
     TorchLibOpInfo(
         "nn.functional.linear", nn_ops.aten_linear, tolerance={torch.float16: (1e-2, 1e-3)}
+    ),
+    TorchLibOpInfo(
+        "ops.aten.linear.1d_weight",
+        nn_ops.aten_linear,
+        tolerance={torch.float16: (1e-2, 1e-3)},
     ),
     TorchLibOpInfo(
         "nn.functional.unfold",
