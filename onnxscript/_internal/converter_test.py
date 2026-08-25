@@ -586,6 +586,28 @@ class TestConverter(testutils.TestBase):
         node = none_as_input.to_function_proto().node[0]
         self.assertEqual(node.input[1], "")
 
+    def test_skipped_optional_input_becomes_empty_placeholder(self):
+        """Interior optional inputs skipped via keyword become "" placeholders (issue #2007)."""
+        from onnxscript import opset19
+
+        @script()
+        def resize_sizes(X):
+            return opset19.Resize(X, sizes=[512, 512])
+
+        node = next(n for n in resize_sizes.to_function_proto().node if n.op_type == "Resize")
+        # roi and scales are skipped; sizes must stay in the 4th slot.
+        self.assertEqual(len(node.input), 4)
+        self.assertEqual(node.input[1], "")  # roi
+        self.assertEqual(node.input[2], "")  # scales
+
+        @script()
+        def clip_max(X):
+            return opset19.Clip(X, max=1.0)
+
+        node = next(n for n in clip_max.to_function_proto().node if n.op_type == "Clip")
+        # min stays empty so the max value keeps its own slot.
+        self.assertEqual(node.input[1], "")
+
     def test_unique_names_in_subscript_expr(self):
         @script()
         def nested_index_expr(X):

@@ -619,10 +619,14 @@ class Converter:
         result = self._generate_unique_name(target)
         return self._emit1([result], callee, args, attrs)
 
-    def _translate_opt_expr(self, node: ast.expr) -> ir.Value | None:
+    def _translate_opt_expr(self, node: ast.expr | None) -> ir.Value | None:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
         None is represented as a Constant in Python 3.9+.
         """
+        # A bare None marks a skipped optional input injected by
+        # separate_input_attributes_from_arguments; keep it as an empty input.
+        if node is None:
+            return None
         if isinstance(node, ast.Constant) and (node.value is None):
             return None
         return self._translate_expr(node)

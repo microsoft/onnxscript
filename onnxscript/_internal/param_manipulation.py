@@ -80,12 +80,24 @@ def separate_input_attributes_from_arguments(
                 onnx_attributes[param.name] = param.default.value
         elif param.required:
             raise TypeError(f"Required input '{param}' was not provided")
+        elif is_input:
+            # A skipped optional input still occupies a positional slot. Emit a
+            # None placeholder so any later provided input keeps its position;
+            # serialization renders None as the "" empty-input marker.
+            onnx_inputs.append(None)
 
     if not allow_extra_args and not has_variadic and len(args) > len(op_signature.params):
         raise TypeError(
             f"Too many positional arguments: expected {len(op_signature.params)}, "
             f"got {len(args)}"
         )
+
+    # Interior skipped optional inputs must stay as None (-> "") to hold their
+    # positional slot. Trailing optional inputs may be omitted per ONNX, so drop
+    # trailing Nones. This also drops an explicit trailing None (e.g.
+    # Foo(x, y, None)), which is ONNX-equivalent to omitting it.
+    while onnx_inputs and onnx_inputs[-1] is None:
+        onnx_inputs.pop()
 
     return onnx_inputs, onnx_attributes
 

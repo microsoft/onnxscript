@@ -265,6 +265,52 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
                 allow_extra_kwargs=allow_extra_kwargs,
             )
 
+    def test_it_emits_placeholder_for_skipped_optional_input(self):
+        # Signature with one required input followed by two optional inputs.
+        type_constraint = ir.schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = ir.schemas.OpSignature(
+            domain="",
+            name="TestOp",
+            overload="",
+            params=[
+                ir.schemas.Parameter(
+                    name="a", type_constraint=type_constraint, required=True, variadic=False
+                ),
+                ir.schemas.Parameter(
+                    name="b", type_constraint=type_constraint, required=False, variadic=False
+                ),
+                ir.schemas.Parameter(
+                    name="c", type_constraint=type_constraint, required=False, variadic=False
+                ),
+            ],
+            outputs=[],
+        )
+
+        # Interior optional input skipped via keyword -> None placeholder holds the slot.
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+            op_signature, ("A",), {"c": "C"}
+        )
+        self.assertEqual(inputs, ["A", None, "C"])
+        self.assertEqual(attributes, collections.OrderedDict())
+
+        # Trailing optional inputs are omitted, not materialized as placeholders.
+        inputs, _ = param_manipulation.separate_input_attributes_from_arguments(
+            op_signature, ("A",), {}
+        )
+        self.assertEqual(inputs, ["A"])
+
+        # b provided positionally, c trailing -> trimmed.
+        inputs, _ = param_manipulation.separate_input_attributes_from_arguments(
+            op_signature, ("A", "B"), {}
+        )
+        self.assertEqual(inputs, ["A", "B"])
+
+        # An interior explicit None is preserved (guards the is-None trailing trim).
+        inputs, _ = param_manipulation.separate_input_attributes_from_arguments(
+            op_signature, ("A", None, "C"), {}
+        )
+        self.assertEqual(inputs, ["A", None, "C"])
+
 
 if __name__ == "__main__":
     unittest.main()
