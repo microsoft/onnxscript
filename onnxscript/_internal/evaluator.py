@@ -26,6 +26,7 @@ from typing_extensions import TypeAlias
 
 from onnxscript import onnx_opset, tensor
 from onnxscript._internal import autocast, param_manipulation, utils, values
+from onnxscript._internal.typed_sequence import _TypedSequence
 
 UserModeValue: TypeAlias = Union[Optional[np.ndarray], Sequence["UserModeValue"]]
 
@@ -77,6 +78,11 @@ def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> tuple[EagerModeValue, boo
             return tensor.Tensor(np.array(input, dtype=np.int64))
         if input is None:
             return None
+        if isinstance(input, _TypedSequence):
+            return _TypedSequence(
+                input.onnx_dtype,
+                [adapt(elt) for elt in input],
+            )
         if isinstance(input, list):
             return [adapt(elt) for elt in input]
         if isinstance(input, tuple):
@@ -266,7 +272,9 @@ class BaseEvaluator(Evaluator, abc.ABC):
         # Handle SequenceEmpty: wrap result with _TypedSequence to preserve dtype
         # for empty sequences where type cannot be inferred from elements.
         if op.name == "SequenceEmpty":
-            dtype = attributes.get("dtype") or onnx.TensorProto.FLOAT
+            dtype = attributes.get("dtype")
+            if dtype is None:
+                dtype = onnx.TensorProto.FLOAT
             return _TypedSequence(dtype, result)
 
         return result

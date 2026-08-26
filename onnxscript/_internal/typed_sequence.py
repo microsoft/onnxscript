@@ -29,5 +29,13 @@ class _TypedSequence(list):
         """Return the ONNX TensorProto data type for sequence elements."""
         return self._onnx_dtype
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _TypedSequence):
+            return NotImplemented
+        return self._onnx_dtype == other._onnx_dtype and super().__eq__(other)
+
+    def __hash__(self) -> int:
+        raise TypeError(f"unhashable type: '{type(self).__name__}'")
+
     def __repr__(self) -> str:
         return f"_TypedSequence(dtype={self._onnx_dtype}, {list(self)})"

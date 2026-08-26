@@ -76,6 +76,8 @@ def value_to_type_proto(val):
 
     # Handle _TypedSequence BEFORE generic list check
     if isinstance(val, _TypedSequence):
+        if len(val) > 0:
+            return onnx.helper.make_sequence_type_proto(value_to_type_proto(val[0]))  # noqa: TID251
         return onnx.helper.make_sequence_type_proto(  # noqa: TID251
             onnx.helper.make_tensor_type_proto(val.onnx_dtype, None)  # noqa: TID251
         )
