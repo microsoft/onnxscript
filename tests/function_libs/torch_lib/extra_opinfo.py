@@ -37,6 +37,44 @@ def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs)
         yield opinfo_core.SampleInput(item, dtype=dtype)
 
 
+def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
+    """Sample all supported 2D/3D operand layouts for grouped matrix multiplication."""
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    groups, rows, contraction, columns = 3, 5, 8, 8
+
+    # 3D x 3D: regular batched matrix multiplication.
+    yield opinfo_core.SampleInput(
+        make_arg((groups, rows, contraction)),
+        args=(make_arg((groups, contraction, columns)),),
+    )
+
+    # 2D x 3D: offsets split rows of the left operand.
+    row_offsets = torch.tensor([2, 5, 9], dtype=torch.int32, device=device)
+    yield opinfo_core.SampleInput(
+        make_arg((9, contraction)),
+        args=(make_arg((groups, contraction, columns)), row_offsets),
+    )
+
+    # 3D x 2D: offsets split columns of the right operand.
+    column_offsets = torch.tensor([4, 12, 16], dtype=torch.int32, device=device)
+    yield opinfo_core.SampleInput(
+        make_arg((groups, rows, contraction)),
+        args=(make_arg((contraction, 16)), column_offsets),
+    )
+
+    # 2D x 2D: offsets split the contraction dimension of both operands.
+    contraction_offsets = torch.tensor([4, 12, 16], dtype=torch.int32, device=device)
+    yield opinfo_core.SampleInput(
+        make_arg((rows, 16)),
+        args=(make_arg((16, columns)), contraction_offsets),
+    )
+
+
 def sample_inputs_linear_1d_weight(op_info, device, dtype, requires_grad, **kwargs):
     """Sample inputs for linear with a 1D weight (in_features,), no out_features dim.
 
@@ -2558,6 +2596,21 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_bilinear,
         supports_out=False,
+    ),
+    *(
+        (
+            opinfo_core.OpInfo(
+                "ops.aten._grouped_mm",
+                op=torch.ops.aten._grouped_mm.default,
+                aten_name="_grouped_mm",
+                dtypes=(torch.float32,),
+                sample_inputs_func=sample_inputs_grouped_mm,
+                supports_autograd=False,
+                supports_out=False,
+            ),
+        )
+        if hasattr(torch.ops.aten, "_grouped_mm")
+        else ()
     ),
     opinfo_core.OpInfo(
         "ops.aten.linear.1d_weight",

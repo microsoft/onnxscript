@@ -472,6 +472,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         fft_ops.aten__fft_r2c,
         tolerance={torch.float64: (2e-6, 2e-6), torch.float32: (3e-2, 3e-4)},
     ),
+    *(
+        (TorchLibOpInfo("ops.aten._grouped_mm", core_ops.aten__grouped_mm),)
+        if hasattr(torch.ops.aten, "_grouped_mm")
+        else ()
+    ),
     TorchLibOpInfo("ops.aten._local_scalar_dense", core_ops.aten__local_scalar_dense),
     TorchLibOpInfo(
         "ops.aten._log_softmax",

@@ -99,6 +99,65 @@ def aten__log_softmax(self: TFloat, dim: int, half_to_float: bool) -> TFloatHigh
     return result
 
 
+@torch_op("aten::_grouped_mm", trace_only=True)
+def aten__grouped_mm(
+    self: TFloat,
+    mat2: TFloat,
+    offs: Optional[INT32] = None,
+    bias: Optional[TFloat] = None,
+    out_dtype: Optional[int] = None,
+) -> TFloat:
+    """_grouped_mm(Tensor self, Tensor mat2, Tensor? offs=None, Tensor? bias=None, ScalarType? out_dtype=None) -> Tensor"""
+
+    del out_dtype  # PyTorch currently requires the output dtype to match ``self``.
+    if bias is not None:
+        raise NotImplementedError("aten::_grouped_mm does not support bias in PyTorch")
+
+    self_is_2d = len(self.shape) == 2
+    mat2_is_2d = len(mat2.shape) == 2
+    if not self_is_2d and not mat2_is_2d:
+        if offs is not None:
+            raise ValueError("aten::_grouped_mm does not accept offsets for 3D operands")
+        return op.MatMul(self, mat2)
+
+    if offs is None:
+        raise ValueError("aten::_grouped_mm requires offsets when an operand is 2D")
+    group_count = offs.shape[0]
+    if not isinstance(group_count, int):
+        raise NotImplementedError(
+            "aten::_grouped_mm requires a statically known number of groups"
+        )
+    if group_count < 1:
+        raise ValueError("aten::_grouped_mm requires at least one group")
+
+    start = op.Constant(value_ints=[0])
+    outputs = []
+    for group_index in range(group_count):
+        end = op.Unsqueeze(op.Cast(op.Gather(offs, group_index, axis=0), to=INT64.dtype), [0])
+
+        if self_is_2d:
+            self_group = op.Slice(self, start, end, [1 if mat2_is_2d else 0])
+        else:
+            self_group = op.Gather(self, group_index, axis=0)
+
+        if mat2_is_2d:
+            mat2_group = op.Slice(mat2, start, end, [0 if self_is_2d else 1])
+        else:
+            mat2_group = op.Gather(mat2, group_index, axis=0)
+
+        output = op.MatMul(self_group, mat2_group)
+        if self_is_2d and mat2_is_2d:
+            output = op.Unsqueeze(output, [0])
+        outputs.append(output)
+        start = end
+
+    if self_is_2d and mat2_is_2d:
+        return op.Concat(*outputs, axis=0)
+    if self_is_2d:
+        return op.Concat(*outputs, axis=0)
+    return op.Concat(*outputs, axis=1)
+
+
 @torch_op("aten::_softmax", trace_only=True)
 def aten__softmax(self: TFloat, dim: int, half_to_float: bool) -> TFloatHighPrecision:
     """_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
