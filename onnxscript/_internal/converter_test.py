@@ -607,6 +607,23 @@ class TestConverter(testutils.TestBase):
         outputs = duplicate_output.to_function_proto().output
         self.assertNotEqual(outputs[0], outputs[1])
 
+    def test_returned_input_alias_preserves_name(self):
+        @script(default_opset=op)
+        def returned_alias(X):
+            Y = X
+            return Y
+
+        function_proto = returned_alias.to_function_proto()
+        self.assertEqual(function_proto.output[0], "Y")
+        self.assertEqual(function_proto.node[-1].op_type, "Identity")
+        self.assertEqual(function_proto.node[-1].output[0], "Y")
+
+        @script(default_opset=op)
+        def returned_input(X):
+            return X
+
+        self.assertEqual(returned_input.to_function_proto().output[0], "return_val")
+
     def test_bool_attr_promotion(self):
         @script()
         def if_then_else(flag: bool, Y, Z):
