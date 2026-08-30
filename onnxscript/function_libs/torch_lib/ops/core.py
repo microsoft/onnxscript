@@ -8735,6 +8735,9 @@ def aten_roll(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) ->
         result = self
         for i, shift in enumerate(shifts):
             dim = dims[i]
+            # PyTorch accepts negative dim as reversed counting
+            if dim < 0:
+                dim = self_rank + dim
             result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
         return result
 
@@ -8770,6 +8773,9 @@ def aten_roll_complex(
     else:
         assert len(shifts) == len(dims)
         for i, dim in enumerate(dims):
+            if dim < 0:
+                # Account for the complex dimension in ONNX
+                dim = self_rank + dim - 1
             self_real = _aten_roll_shift_and_dim_onnx(self_real, shifts[i], dim)
             self_imag = _aten_roll_shift_and_dim_onnx(self_imag, shifts[i], dim)
 
@@ -8781,33 +8787,30 @@ def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: int) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
     # flatten the self tensor: from [[A,B],[C,D]] to [A,B,C,D]
     self_flatten = op.Reshape(self, neg_1)
-    # Compute slice length
-    if shift < 0:
-        # For [A,B,C,D], if shift is -1, slice_length = -(-1) = 1, means move [A] to the end
-        slice_length = op.Constant(value_ints=[-shift])
-    else:
-        # For [A,B,C,D], if shift is 1, slice_length = 4 - 1 = 3, means move [A,B,C] to the end
-        # The effect equals to move [D] to the beginning
-        slice_length = op.Size(self_flatten) - op.Constant(value_ints=[shift])
+    total_length = op.Shape(self_flatten)
+    # Compute slice length. roll is circular, so the shift is taken modulo the number
+    # of elements. For [A,B,C,D], if shift is 1, slice_length = 3, means move [A,B,C]
+    # to the end. The effect equals to move [D] to the beginning.
+    slice_length = op.Mod(op.Constant(value_ints=[-shift]), total_length)
     # Get second part of the tensor, e.g. [A,B,C]
     suffix = op.Slice(self_flatten, op.Constant(value_ints=[0]), slice_length)
     # Get first part of the tensor, e.g. [D]
-    prefix = op.Slice(self_flatten, slice_length, op.Reshape(op.Size(self_flatten), neg_1))
+    prefix = op.Slice(self_flatten, slice_length, total_length)
     # Concat first+second together, e.g. [D,A,B,C]
     result = op.Concat(prefix, suffix, axis=0)
     return op.Reshape(result, op.Shape(self))
 
 
 def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTensor:
-    neg_1 = op.Constant(value_ints=[-1])
+    # dim must already be normalized to a nonnegative axis, because Shape below
+    # reads an empty range when start is negative and end is zero.
     dim_tensor = op.Constant(value_ints=[dim])
-    if shift < 0:
-        slice_length = op.Constant(value_ints=[-shift])
-    else:
-        slice_length = op.Shape(self, start=dim, end=dim + 1) - op.Constant(value_ints=[shift])
+    dim_length = op.Shape(self, start=dim, end=dim + 1)
+    # roll is circular, so the shift is taken modulo the length of the dimension
+    slice_length = op.Mod(op.Constant(value_ints=[-shift]), dim_length)
     # from [A,B,C,D] -> [D,A,B,C], [D] is prefix, [A,B,C] is suffix
     suffix = op.Slice(self, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
-    prefix = op.Slice(self, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
+    prefix = op.Slice(self, slice_length, dim_length, axes=dim_tensor)
     result = op.Concat(prefix, suffix, axis=dim)
     return result
 

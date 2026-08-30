@@ -912,6 +912,52 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("negative_dim", 1, -1),
+            ("shift_larger_than_dim", 7, 1),
+            ("negative_shift_larger_than_dim", -4, 1),
+            ("no_dim_shift_larger_than_numel", 14, ()),
+            ("no_dim_negative_shift_larger_than_numel", -8, ()),
+        ]
+    )
+    def test_roll_wraps_shifts_and_normalizes_negative_dims(
+        self, _: str, shifts: int, dims: int | tuple[int, ...]
+    ):
+        # roll is circular, so a shift that exceeds the length of the dimension has
+        # to wrap instead of relying on Slice to clamp it.
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=shifts, dims=dims)
+
+        onnx_program = torch.onnx.export(
+            RollModel(), (torch.randn(2, 3),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
+            ("negative_dim", 1, -1),
+            ("shift_larger_than_dim", 7, 1),
+        ]
+    )
+    def test_roll_complex_wraps_shifts_and_normalizes_negative_dims(
+        self, _: str, shifts: int, dims: int
+    ):
+        # The complex variant carries a trailing axis for the real and imaginary
+        # parts, so a negative dim resolves against a rank one larger than torch's.
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=shifts, dims=dims)
+
+        onnx_program = torch.onnx.export(
+            RollModel(),
+            (torch.randn(2, 3, dtype=torch.complex64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_quantize_per_channel_int8(self):
         class Model(torch.nn.Module):
             def forward(self, x):
