@@ -5528,7 +5528,7 @@ def aten_is_vulkan_available() -> bool:
     raise NotImplementedError()
 
 
-@torch_op("aten::isclose")
+@torch_op("aten::isclose", trace_only=True)
 def aten_isclose(
     self: TReal,
     other: TReal,
@@ -5538,12 +5538,35 @@ def aten_isclose(
 ) -> BOOL:
     """isclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> Tensor"""
 
-    # FIXME: check equal_nan when self and other are all NaN
-    # |input - other| <= atol + rtol x |other|
-    left_part = op.Abs(op.Sub(self, other))
-    right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
-    result = op.LessOrEqual(left_part, right_part)
-    return result
+    # torch builds isclose out of three terms in aten/src/ATen/native/TensorCompare.cpp:
+    # exact equality, NaN against NaN when equal_nan is set, and the error inside the
+    # tolerance band for the elements whose error is finite.
+    # The tolerance band on its own gets the infinities wrong in both directions. Two
+    # equal infinities give a NaN error, which compares as not close, and anything
+    # measured against an infinity gets an infinite allowed error, which compares as
+    # close.
+    result = op.Equal(self, other)
+
+    # |self - other| <= atol + rtol x |other|
+    actual_error = op.Abs(op.Sub(self, other))
+    allowed_error = op.Add(
+        op.CastLike(atol, other), op.Mul(op.CastLike(rtol, other), op.Abs(other))
+    )
+    within_tolerance = op.LessOrEqual(actual_error, allowed_error)
+
+    # Integers are always finite and never NaN, so they need only the two terms above,
+    # and IsInf/IsNaN do not accept them.
+    if self.dtype.is_floating_point():
+        if equal_nan:
+            result = op.Or(result, op.And(op.IsNaN(self), op.IsNaN(other)))
+        error = actual_error
+        if self.dtype in {ir.DataType.FLOAT16, ir.DataType.BFLOAT16}:
+            # IsInf takes only FLOAT and DOUBLE before opset 20. Widening is exact.
+            error = op.Cast(actual_error, to=FLOAT.dtype)
+        error_is_finite = op.And(op.Not(op.IsInf(error)), op.Not(op.IsNaN(error)))
+        within_tolerance = op.And(error_is_finite, within_tolerance)
+
+    return op.Or(result, within_tolerance)
 
 
 @torch_op("aten::isfinite")
