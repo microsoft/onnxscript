@@ -676,16 +676,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("true_divide", core_ops.aten_div),
     TorchLibOpInfo("true_divide", core_ops.aten_div_complex, complex=True),
-    TorchLibOpInfo("div_mode", core_ops.aten_div_mode)
-    .skip(
+    TorchLibOpInfo("div_mode", core_ops.aten_div_mode).skip(
         variant_name="no_rounding_mode",
         reason="this variation requires the rounding_mode argument",
-    )
-    .skip(
-        variant_name="trunc_rounding",
-        dtypes=(torch.float16,),
-        # Numbers match sometimes but not other times
-        reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
     ),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
