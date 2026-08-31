@@ -168,7 +168,6 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertIsNotNone(axis_input)
         self.assertEqual(axis_input.producer().attributes["value_int"].value, 1)
 
-
     def test_version_convert_gridsample_linear(self):
         model = ir.from_onnx_text(
             """
