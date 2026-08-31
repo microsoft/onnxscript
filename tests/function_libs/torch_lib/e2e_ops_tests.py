@@ -84,6 +84,63 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_mul_tensor_scalar_float(self):
+        class Model(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return x.to(torch.float32) * 1.0
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([1, 2, 3], dtype=torch.float16),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_rand_like_memory_format(self):
+        # These random *_like ops are non-deterministic, so assert the export
+        # succeeds rather than comparing values (see issue #3002).
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.rand_like(x, memory_format=torch.preserve_format)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(10, 10),), dynamo=True, optimize=False
+        )
+        self.assertIsNotNone(onnx_program)
+
+    def test_randn_like_memory_format(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.randn_like(x, memory_format=torch.preserve_format)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(10, 10),), dynamo=True, optimize=False
+        )
+        self.assertIsNotNone(onnx_program)
+
+    def test_randint_like_memory_format(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.randint_like(x, 10, memory_format=torch.preserve_format)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(10, 10),), dynamo=True, optimize=False
+        )
+        self.assertIsNotNone(onnx_program)
+
+    def test_randint_like_low_dtype_memory_format(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.ops.aten.randint_like(
+                    x, 0, 10, memory_format=torch.preserve_format
+                )
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(10, 10),), dynamo=True, optimize=False
+        )
+        self.assertIsNotNone(onnx_program)
+
     def test_bincount(self):
         class Model(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -406,6 +463,23 @@ class TorchLibe2eTest(unittest.TestCase):
             dynamo=True,
         )
         _testing.assert_onnx_program(onnx_program)
+
+    def test_rfft_produces_correct_dft_length(self):
+        class RFFTModel(torch.nn.Module):
+            def forward(self, x):
+                x = torch.fft.rfft(x, n=512, dim=-1)
+                return x.real**2 + x.imag**2
+
+        x = torch.randn(4, 512, dtype=torch.float32)
+        onnx_program = torch.onnx.export(
+            RFFTModel(),
+            (x,),
+            opset_version=20,
+            dynamo=True,
+            optimize=False,
+        )
+
+        self.assertEqual(onnx_program.model.graph.outputs[0].shape, [4, 512 // 2 + 1])
 
     def test_avg_pool(self):
         class Model(torch.nn.Module):
@@ -825,6 +899,16 @@ class TorchLibe2eTest(unittest.TestCase):
         x = torch.randn(2, 3, 4)
         onnx_program = torch.onnx.export(
             model, (x,), dynamo=True, verbose=False, dynamic_shapes=({1: "seq_len"},)
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unfold_emits_scalar_range_bounds(self):
+        class UnfoldModel(torch.nn.Module):
+            def forward(self, x):
+                return x.unfold(1, 2, 1)
+
+        onnx_program = torch.onnx.export(
+            UnfoldModel(), (torch.randn(3, 4),), dynamo=True, optimize=False
         )
         _testing.assert_onnx_program(onnx_program)
 

@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import functools
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
@@ -56,6 +57,17 @@ _INT32_MAX = 2147483647
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
+
+
+@functools.lru_cache(maxsize=None)
+def _int64_arange_non_integral_uses_float_length() -> bool:
+    """Whether torch computes the arange length in float when dtype is integral.
+
+    Newer versions of torch return 4 elements for ``torch.arange(3.1, dtype=torch.int64)``,
+    while older versions return 3. This is evaluated lazily to avoid running torch code
+    at import time.
+    """
+    return torch.arange(3.1, dtype=torch.int64, device="cpu").numel() == 4
 
 
 @torch_op("aten::_local_scalar_dense", trace_only=True)
@@ -521,6 +533,56 @@ def _range_supported(dtype: int) -> bool:
     }
 
 
+def _is_integral_dtype(dtype: int) -> bool:
+    return dtype in {
+        INT8.dtype,
+        INT16.dtype,
+        INT32.dtype,
+        INT64.dtype,
+    }
+
+
+def _is_integral_scalar(arg: TRealUnlessFloat16OrInt8) -> bool:
+    if isinstance(arg, int):
+        return True
+    if isinstance(arg, float):
+        return False
+    return arg.dtype in {
+        INT8.dtype,
+        INT16.dtype,
+        INT32.dtype,
+        INT64.dtype,
+    }
+
+
+def _arange_integral_dtype_with_non_integral_args(
+    start: TRealUnlessFloat16OrInt8,
+    end: TRealUnlessFloat16OrInt8,
+    step: TRealUnlessFloat16OrInt8,
+    dtype: int,
+) -> TensorType:
+    """Implements torch.arange for integral dtypes when not all inputs are integral."""
+    start_float = op.Cast(start, to=FLOAT.dtype)
+    end_float = op.Cast(end, to=FLOAT.dtype)
+    step_float = op.Cast(step, to=FLOAT.dtype)
+
+    length = op.Cast(
+        op.Ceil(op.Div(op.Sub(end_float, start_float), step_float)), to=INT64.dtype
+    )
+    index = op.Range(op.Constant(value_int=0), length, op.Constant(value_int=1))
+
+    if _range_supported(dtype):
+        index = op.Cast(index, to=dtype)
+        start = op.Cast(start, to=dtype)
+        step = op.Cast(step, to=dtype)
+        return op.Add(start, op.Mul(step, index))
+
+    start = op.Cast(start, to=INT64.dtype)
+    step = op.Cast(step, to=INT64.dtype)
+    result = op.Add(start, op.Mul(step, index))
+    return op.Cast(result, to=dtype)
+
+
 def _integral_to_be_adjusted(dtype: int) -> bool:
     """Returns true if the dtype is special integral handled by torch."""
     return dtype in {
@@ -544,6 +606,12 @@ def aten_arange(
         zero = op.CastLike(0.0, end)
         one = op.CastLike(1.0, end)
         result = op.Range(zero, end, one)
+    elif (
+        _is_integral_dtype(dtype)
+        and not _is_integral_scalar(end)
+        and (dtype != INT64.dtype or _int64_arange_non_integral_uses_float_length())
+    ):
+        result = _arange_integral_dtype_with_non_integral_args(0, end, 1, dtype)
     elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         zero = op.Cast(0, to=dtype)
@@ -576,6 +644,12 @@ def aten_arange_start(
     if dtype == -1 or dtype is None:
         one = op.CastLike(1.0, end)
         result = op.Range(start, end, one)
+    elif (
+        _is_integral_dtype(dtype)
+        and not (_is_integral_scalar(start) and _is_integral_scalar(end))
+        and (dtype != INT64.dtype or _int64_arange_non_integral_uses_float_length())
+    ):
+        result = _arange_integral_dtype_with_non_integral_args(start, end, 1, dtype)
     elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         start = op.Cast(start, to=dtype)
@@ -659,17 +733,26 @@ def aten_arange_start_step(
             end = op.Cast(end, to=FLOAT.dtype)
             step = op.Cast(step, to=FLOAT.dtype)
             result = op.Range(start, end, step)
-    elif _integral_to_be_adjusted(dtype):
-        # PyTorch arange op handles these integral types differently from INT64,
-        # so we have to adjust these arguments accordingly.
-        # https://github.com/pytorch/pytorch/blob/121cfb60c0817816fcbe2190303b7f6d05c77cf3/torch/_refs/__init__.py#L4794
-        start, end, step = _adjust_args_for_arange_int_dtype(start, end, step)
-        result = op.Cast(op.Range(start, end, step), to=dtype)
+    elif (
+        _is_integral_dtype(dtype)
+        and not (
+            _is_integral_scalar(start)
+            and _is_integral_scalar(end)
+            and _is_integral_scalar(step)
+        )
+        and (dtype != INT64.dtype or _int64_arange_non_integral_uses_float_length())
+    ):
+        result = _arange_integral_dtype_with_non_integral_args(start, end, step, dtype)
     elif dtype == INT64.dtype:
         end = op.Cast(end, to=dtype)
         start = op.Cast(start, to=dtype)
         step = op.Cast(step, to=dtype)
         result = op.Range(start, end, step)
+    elif _integral_to_be_adjusted(dtype):
+        # PyTorch arange op handles these integral types differently from INT64
+        # when all arguments are integral.
+        start, end, step = _adjust_args_for_arange_int_dtype(start, end, step)
+        result = op.Cast(op.Range(start, end, step), to=dtype)
     else:
         # Cast input to float if dtype is not supported by Range,
         # because the input dtype may be e.g. bfloat16,
@@ -5873,8 +5956,9 @@ def aten_logit(self: TFloat, eps: Optional[float] = None) -> TFloat:
     one_minus_eps = ir.tensor(1 - eps, dtype=self.dtype)
     eps = ir.tensor(eps, dtype=self.dtype)
 
-    temporary_self = op.Where(self <= one_minus_eps, self, one_minus_eps)
-    z = op.Where(temporary_self < eps, eps, temporary_self)
+    # Match torch.clamp behavior for eps > 0.5 by applying max then min.
+    z = op.Where(self < eps, eps, self)
+    z = op.Where(z <= one_minus_eps, z, one_minus_eps)
 
     return op.Log(op.Div(z, op.Sub(one, z)))
 
@@ -6371,21 +6455,33 @@ def aten_maximum(self: TTensor, other: TTensor) -> TTensor:
     return op.Max(self, other)
 
 
-@torch_op("aten::mean")
-def aten_mean(self: TReal) -> TReal:
+@torch_op("aten::mean", trace_only=True)
+def aten_mean(self: TReal, dtype: int = -1) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
+
+    if dtype != -1 and dtype is not None:
+        # Cast before reducing so that the accumulation happens in the requested
+        # dtype, matching PyTorch. Casting the result afterwards would keep the
+        # precision loss of the input dtype.
+        self = op.Cast(self, to=dtype)
 
     result = op.ReduceMean(self)
     return op.Squeeze(result)
 
 
 @torch_op("aten::mean", complex=True, trace_only=True)
-def aten_mean_complex(self: TReal) -> TReal:
+def aten_mean_complex(self: TReal, dtype: int = -1) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
     rank = len(self.shape) - 1
     dim = op.Constant(value_ints=list(range(rank)))
     result = op.ReduceMean(self, dim, keepdims=False)
+
+    if dtype != -1 and dtype is not None:
+        raise NotImplementedError(
+            "support for the dtype argument is not implemented for complex tensors"
+        )
+
     return result
 
 
@@ -6851,6 +6947,14 @@ def aten_mul_complex(self: TReal, other: TReal) -> TReal:
     imag = op.Add(ad, bc)
 
     return op.Concat(real, imag, axis=-1)
+
+
+@torch_op(("aten::mul.Scalar", "aten::multiply.Scalar"), trace_only=True)
+def aten_mul_scalar(self: TTensor, other: float) -> TTensor:
+    """mul.Scalar(Tensor self, Scalar other) -> Tensor"""
+
+    other = op.Constant(value=ir.tensor(other, dtype=self.dtype))
+    return aten_mul(self, other)
 
 
 @torch_op("aten::multinomial", trace_only=True)
@@ -8165,7 +8269,12 @@ def aten_rand(
 
 @torch_op("aten::rand_like", trace_only=True)
 def aten_rand_like(
-    self: TFloat, dtype: int = -1, layout: str = "", device: str = "", pin_memory: bool = False
+    self: TFloat,
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+    memory_format: str = "",
 ) -> TFloat:
     """rand_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -8225,6 +8334,7 @@ def aten_randint_like(
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
+    memory_format: str = "",
 ) -> IntType:
     """randint_like(Tensor self, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -8248,6 +8358,7 @@ def aten_randint_like_low_dtype(
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
+    memory_format: str = "",
 ) -> IntType:
     """randint_like.low_dtype(Tensor self, SymInt low, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
@@ -8283,7 +8394,12 @@ def aten_randn(
 
 @torch_op("aten::randn_like", trace_only=True)
 def aten_randn_like(
-    self: TFloat, dtype: int = -1, layout: str = "", device: str = "", pin_memory: bool = False
+    self: TFloat,
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+    memory_format: str = "",
 ) -> TFloat:
     """randn_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -9156,10 +9272,8 @@ def aten_slice_scatter(
 ) -> TTensor:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
-    # Although 'start' and 'end' can be None in signature, but actually 'start' must be specified
-    # Assert(start is not None)
-    # And, 'end' also must be specified, and end-start must be equal to the size of 'src'
-    # Assert(end-start == shape(src) > 0)
+    # 'start' and 'end' are optional (aten schema: SymInt? start=None, SymInt? end=None).
+    # When absent, default start to 0 and end to _INT64_MAX (a full slice), mirroring aten_slice.
     # Try torch sample to get more information:
     # https://pytorch.org/docs/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
     # Take (torch.zeros(8, 8), torch.ones(2, 8), 0, 6, 64, 1) as example:
@@ -9172,10 +9286,14 @@ def aten_slice_scatter(
     self_shape = op.Shape(self)
     dim_shape = op.Gather(self_shape, dim, axis=0)
     index_base = op.Range(0, dim_shape, 1)
+    start_index = zero if start is None else op.Unsqueeze(start, zero)
+    end_index = (
+        op.Constant(value_ints=[_INT64_MAX]) if end is None else op.Unsqueeze(end, zero)
+    )
     index_base = op.Slice(
         index_base,
-        op.Unsqueeze(start, zero),
-        op.Unsqueeze(end, zero),
+        start_index,
+        end_index,
         zero,
         op.Unsqueeze(step, zero),
     )
@@ -10103,7 +10221,12 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
             dimension = dimension + self_rank
 
         input_shape = op.Shape(self)
-        dim_size = op.Gather(input_shape, op.Constant(value_ints=[dimension]))
+        # Range requires rank 0 (scalar) inputs, so squeeze the [1] shaped
+        # Gather result down to a scalar.
+        dim_size = op.Squeeze(
+            op.Gather(input_shape, op.Constant(value_ints=[dimension])),
+            op.Constant(value_ints=[0]),
+        )
 
         # Create indices for each window
         window_starts = op.Range(0, op.Sub(dim_size, size - 1), step)

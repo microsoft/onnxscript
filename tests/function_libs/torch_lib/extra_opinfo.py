@@ -1261,6 +1261,27 @@ def sample_inputs_max_pool3d_with_indices(op_info, device, dtype, requires_grad,
         yield opinfo_core.SampleInput(arg, kwargs=kwargs)
 
 
+def sample_inputs_mean_dtype(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    for shape in ((S, S), (S,), ()):
+        yield opinfo_core.SampleInput(make_arg(shape), kwargs={"dtype": torch.float64})
+
+    # Precision sensitive values: accumulating in float32 gives 0.0 while accumulating
+    # in float64 gives 1/3, so an implementation that casts only the reduced result
+    # cannot pass this sample.
+    yield opinfo_core.SampleInput(
+        torch.tensor(
+            [[1e8, 1.0, -1e8]], dtype=dtype, device=device, requires_grad=requires_grad
+        ),
+        kwargs={"dtype": torch.float64},
+    )
+
+
 def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
@@ -1620,6 +1641,13 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         ((L, L, L), (L, L // 2, L), (1, L // 2, L * 2, 1)),  # end > L
         ((L, L, L), (L, L, L), (-2, 0, L, 1)),  # negative dim
         ((L, L, L), (L, L, L // 4), (-1, L // 2, L * 2, 2)),  # end > L and negative dim
+        # start/end = None (regression for #2372)
+        ((L, L, L), (L, L, L), (0, None, None, 1)),  # full replace, dim 0
+        ((L, L, L), (L // 2, L, L), (0, None, L // 2, 1)),  # None start
+        ((L, L, L), (L // 2, L, L), (0, L // 2, None, 1)),  # None end
+        ((L, L, L), (L, L, L), (1, None, None, 1)),  # None start & end, dim 1
+        ((L, L, L), (L // 2, L, L), (0, None, None, 2)),  # None start & end, step 2
+        ((L, L, L), (L, L, L // 2), (-1, None, L // 2, 1)),  # None start, negative dim
     )
 
     for input_shape, src_shape, args in cases:
@@ -2792,6 +2820,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="max_pool3d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool_empty_strides,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.mean.dtype",
+        op=torch.ops.aten.mean,
+        aten_name="mean",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_mean_dtype,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
