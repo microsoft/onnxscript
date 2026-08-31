@@ -958,6 +958,44 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("trailing_dim", (2, 0), 1, 1),
+            ("trailing_dim_no_dim", (2, 0), 3, ()),
+            ("leading_dim", (0, 3), 1, 1),
+            ("leading_dim_no_dim", (0, 3), 2, ()),
+        ]
+    )
+    def test_roll_empty_tensor_is_an_identity(
+        self, _: str, shape: tuple[int, ...], shifts: int, dims: int | tuple[int, ...]
+    ):
+        # A tensor with no elements rolls to itself. It must not reach the modulo in the
+        # helpers, because the length it would divide by is zero and ONNX leaves Mod by
+        # zero undefined.
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=shifts, dims=dims)
+
+        onnx_program = torch.onnx.export(
+            RollModel(), (torch.zeros(shape),), dynamo=True, optimize=False
+        )
+        self.assertNotIn("Mod", [node.op_type for node in onnx_program.model.graph])
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_roll_complex_empty_tensor_is_an_identity(self):
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=3, dims=1)
+
+        onnx_program = torch.onnx.export(
+            RollModel(),
+            (torch.zeros(2, 0, dtype=torch.complex64),),
+            dynamo=True,
+            optimize=False,
+        )
+        self.assertNotIn("Mod", [node.op_type for node in onnx_program.model.graph])
+        _testing.assert_onnx_program(onnx_program)
+
     def test_quantize_per_channel_int8(self):
         class Model(torch.nn.Module):
             def forward(self, x):
