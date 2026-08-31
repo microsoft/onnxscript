@@ -5539,12 +5539,8 @@ def aten_isclose(
     """isclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> Tensor"""
 
     # torch builds isclose out of three terms in aten/src/ATen/native/TensorCompare.cpp:
-    # exact equality, NaN against NaN when equal_nan is set, and the error inside the
-    # tolerance band for the elements whose error is finite.
-    # The tolerance band on its own gets the infinities wrong in both directions. Two
-    # equal infinities give a NaN error, which compares as not close, and anything
-    # measured against an infinity gets an infinite allowed error, which compares as
-    # close.
+    # exact equality, NaN against NaN when equal_nan is set, and the tolerance band
+    # restricted to the elements whose error is finite.
     result = op.Equal(self, other)
 
     # |self - other| <= atol + rtol x |other|
@@ -5552,19 +5548,23 @@ def aten_isclose(
     allowed_error = op.Add(
         op.CastLike(atol, other), op.Mul(op.CastLike(rtol, other), op.Abs(other))
     )
-    within_tolerance = op.LessOrEqual(actual_error, allowed_error)
 
-    # Integers are always finite and never NaN, so they need only the two terms above,
-    # and IsInf/IsNaN do not accept them.
     if self.dtype.is_floating_point():
+        # Comparing the two sides of the band by subtraction carries the finiteness
+        # restriction on its own, so no IsInf term is needed. An infinity on either side
+        # makes both the error and the allowance infinite, their difference NaN, and
+        # every comparison against NaN false, which leaves the equality term above as the
+        # only way an infinity is reported close. On finite values the sign of the
+        # difference and the direct comparison agree exactly, so the band is unchanged.
+        zero = op.Constant(value=ir.tensor(0, dtype=self.dtype))
+        within_tolerance = op.LessOrEqual(op.Sub(actual_error, allowed_error), zero)
         if equal_nan:
             result = op.Or(result, op.And(op.IsNaN(self), op.IsNaN(other)))
-        error = actual_error
-        if self.dtype in {ir.DataType.FLOAT16, ir.DataType.BFLOAT16}:
-            # IsInf takes only FLOAT and DOUBLE before opset 20. Widening is exact.
-            error = op.Cast(actual_error, to=FLOAT.dtype)
-        error_is_finite = op.And(op.Not(op.IsInf(error)), op.Not(op.IsNaN(error)))
-        within_tolerance = op.And(error_is_finite, within_tolerance)
+    else:
+        # Integers are never infinite and never NaN, so they need no finiteness term, and
+        # IsNaN does not accept them. The subtraction is left off here because it can
+        # overflow a narrow integer type where the direct comparison cannot.
+        within_tolerance = op.LessOrEqual(actual_error, allowed_error)
 
     return op.Or(result, within_tolerance)
 

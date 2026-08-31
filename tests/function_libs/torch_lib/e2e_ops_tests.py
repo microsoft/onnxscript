@@ -1574,8 +1574,8 @@ class TorchLibe2eTest(unittest.TestCase):
         _testing.assert_onnx_program(onnx_program)
 
     def test_isclose_integer_inputs(self):
-        # Integers carry no infinities or NaNs, so the two added terms have to leave
-        # this path alone. IsInf and IsNaN do not accept integer tensors either.
+        # Integers carry no infinities or NaNs, so the NaN term has to stay off this
+        # path, and IsNaN does not accept integer tensors anyway.
         class IsCloseModel(torch.nn.Module):
             def forward(self, a, b):
                 return torch.isclose(a, b)
