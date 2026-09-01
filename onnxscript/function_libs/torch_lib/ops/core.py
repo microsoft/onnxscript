@@ -8809,7 +8809,9 @@ def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: int) -> TTensor:
     prefix = op.Slice(self_flatten, slice_length, total_length)
     # Concat first+second together, e.g. [D,A,B,C]
     result = op.Concat(prefix, suffix, axis=0)
-    return op.Reshape(result, op.Shape(self))
+    # allowzero so a dimension that is only zero at run time stays zero here, rather than
+    # being read as "copy the input dimension" against a flattened tensor.
+    return op.Reshape(result, op.Shape(self), allowzero=True)
 
 
 def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTensor:
