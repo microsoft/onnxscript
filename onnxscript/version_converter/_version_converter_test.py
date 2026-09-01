@@ -146,6 +146,28 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(3).version, 20)
         self.assertEqual(len(model.graph.node(3).inputs), 3)
 
+    def test_version_convert_dft_without_axis_attribute(self):
+        # Opset 19 defines DFT axis as an attribute defaulting to 1. Opset 20 moved
+        # it to an input defaulting to -2, so an omitted attribute has to be
+        # materialized or the converted node transforms a different axis.
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 19]>
+            agraph (float[2, 3, 4, 2] input_x) => (float[2, 3, 4, 2] output)
+            {
+                output = DFT (input_x)
+            }
+        """
+        )
+        version_converter.convert_version(model, target_version=20)
+        self.assertEqual(model.opset_imports[""], 20)
+
+        dft_node = next(node for node in model.graph if node.op_type == "DFT")
+        self.assertEqual(len(dft_node.inputs), 3)
+        axis_input = dft_node.inputs[2]
+        self.assertIsNotNone(axis_input)
+        self.assertEqual(axis_input.producer().attributes["value_int"].value, 1)
+
     def test_version_convert_gridsample_linear(self):
         model = ir.from_onnx_text(
             """

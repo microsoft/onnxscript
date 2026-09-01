@@ -160,11 +160,14 @@ def dft_19_20(node: ir.Node, op):
     dft_length = node.inputs[1] if len(node.inputs) > 1 else None
     inverse = _get_int_attribute(node, "inverse", 0)
     onesided = _get_int_attribute(node, "onesided", 0)
-    axis = _get_int_attribute(node, "axis", None)
-    if axis is not None:
-        axis_value = op.Constant(value_int=axis)
-        return op.DFT(input, dft_length, axis_value, inverse=inverse, onesided=onesided)
-    return None
+    # In opset 19 `axis` is an attribute defaulting to 1; in opset 20 it became an
+    # input defaulting to -2. An omitted attribute must therefore be materialized
+    # explicitly, or the converted node silently transforms a different axis.
+    axis = _get_int_attribute(node, "axis", 1)
+    if axis is None:
+        return None
+    axis_value = op.Constant(value_int=axis)
+    return op.DFT(input, dft_length, axis_value, inverse=inverse, onesided=onesided)
 
 
 @register("GridSample", node_version=19, up_conversion=True)
