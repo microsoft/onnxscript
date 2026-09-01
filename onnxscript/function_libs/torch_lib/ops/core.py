@@ -5552,10 +5552,12 @@ def aten_isclose(
     if self.dtype.is_floating_point():
         # Comparing the two sides of the band by subtraction carries the finiteness
         # restriction on its own, so no IsInf term is needed. An infinity on either side
-        # makes both the error and the allowance infinite, their difference NaN, and
-        # every comparison against NaN false, which leaves the equality term above as the
-        # only way an infinity is reported close. On finite values the sign of the
-        # difference and the direct comparison agree exactly, so the band is unchanged.
+        # puts a NaN into the subtraction whichever way it arrives: the error and the
+        # allowance are both infinite and cancel, or the allowance is already NaN because
+        # rtol is zero and zero times infinity is NaN. Every comparison against NaN is
+        # false, which leaves the equality term above as the only way an infinity is
+        # reported close. On finite values the sign of the difference and the direct
+        # comparison agree exactly, so the band is unchanged.
         zero = op.Constant(value=ir.tensor(0, dtype=self.dtype))
         within_tolerance = op.LessOrEqual(op.Sub(actual_error, allowed_error), zero)
         if equal_nan:
