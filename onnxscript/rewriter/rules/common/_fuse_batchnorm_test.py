@@ -396,6 +396,48 @@ class FuseBatchnormTest(unittest.TestCase):
             ),
         )
 
+    @parameterized.parameterized.expand(
+        [
+            ("beta_half", 0.5),
+            ("beta_two", 2.0),
+        ]
+    )
+    def test_fuse_batchnorm_gemm_scales_bias_by_beta(self, _: str, beta_value: float):
+        """Gemm's beta scales input C, so it must be folded into the fused bias."""
+        model_proto = onnx.parser.parse_model(f"""
+            < ir_version: 7, opset_import: ["" : 17] >
+            test_model (float[N, 32] X) => (float [N, ?] Y)
+            <float[32, 64] W, float[64] B, float[64] gamma,
+             float[64] beta, float[64] input_mean, float[64] input_var>
+            {{
+                X1 = Gemm<beta={beta_value}>(X, W, B)
+                Y = BatchNormalization(X1, gamma, beta, input_mean, input_var)
+            }}
+        """)
+        model_proto.graph.initializer.extend(
+            [
+                onnx.numpy_helper.from_array(
+                    np.random.randn(32, 64).astype(np.float32), name="W"
+                ),
+                onnx.numpy_helper.from_array(np.random.randn(64).astype(np.float32), name="B"),
+                *self._create_batchnorm_params(size=64),
+            ]
+        )
+
+        onnx.checker.check_model(model_proto, True)
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = _fuse_batchnorm.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 1)
+
+        testing.assert_numerically_equal(
+            model_proto, model, (np.random.rand(1, 32).astype(np.float32),)
+        )
+
+        output_model_proto = ir.serde.serialize_model(model)
+        onnx.checker.check_model(output_model_proto, True)
+
 
 if __name__ == "__main__":
     unittest.main()
