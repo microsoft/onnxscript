@@ -1543,6 +1543,49 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         np.testing.assert_array_equal(mask, expected)
 
+    @parameterized.parameterized.expand(
+        [
+            ("float32", torch.float32, False),
+            ("float32_equal_nan", torch.float32, True),
+            ("float16", torch.float16, False),
+            ("float16_equal_nan", torch.float16, True),
+        ]
+    )
+    def test_isclose_handles_infinities_and_equal_nan(
+        self, _: str, dtype: torch.dtype, equal_nan: bool
+    ):
+        # torch.isclose is exact equality, plus NaN against NaN when equal_nan is
+        # set, plus the tolerance band on the elements whose error is finite. The
+        # tolerance band on its own reports two equal infinities as not close, and
+        # reports anything measured against an infinity as close.
+        class IsCloseModel(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.isclose(a, b, rtol=1e-05, atol=1e-08, equal_nan=equal_nan)
+
+        inf = math.inf
+        nan = math.nan
+        # Pairs in order: matching infinities twice, opposite infinities, two finite
+        # values against an infinity, NaN against NaN, NaN against a number, an
+        # ordinary close pair and an ordinary far pair.
+        a = torch.tensor([inf, -inf, inf, 1.0, -5.0, nan, nan, 1.0, 3.0], dtype=dtype)
+        b = torch.tensor([inf, -inf, -inf, inf, -inf, nan, 1.0, 1.000001, 3.5], dtype=dtype)
+
+        onnx_program = torch.onnx.export(IsCloseModel(), (a, b), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_isclose_integer_inputs(self):
+        # Integers carry no infinities or NaNs, so the NaN term has to stay off this
+        # path, and IsNaN does not accept integer tensors anyway.
+        class IsCloseModel(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.isclose(a, b)
+
+        a = torch.tensor([1, 2, 3, -4, 0], dtype=torch.int64)
+        b = torch.tensor([1, 2, 4, -4, 7], dtype=torch.int64)
+
+        onnx_program = torch.onnx.export(IsCloseModel(), (a, b), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
