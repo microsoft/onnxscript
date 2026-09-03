@@ -3246,7 +3246,10 @@ def aten_div_mode(self: TReal, other: TReal, rounding_mode: Optional[str] = None
     if rounding_mode == "trunc":
         # Rounds the results of the division towards zero.
         # Equivalent to C-style integer division
-        return aten_trunc(op.Div(self, other))
+        quotient = op.Div(self, other)
+        if self.dtype == ir.DataType.FLOAT16:
+            quotient = op.Cast(quotient, to=FLOAT16.dtype)
+        return aten_trunc(quotient)
     if rounding_mode == "floor":
         return op.Floor(op.Div(self, other))
 
@@ -5549,7 +5552,7 @@ def aten_is_vulkan_available() -> bool:
     raise NotImplementedError()
 
 
-@torch_op("aten::isclose")
+@torch_op("aten::isclose", trace_only=True)
 def aten_isclose(
     self: TReal,
     other: TReal,
@@ -5559,12 +5562,37 @@ def aten_isclose(
 ) -> BOOL:
     """isclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> Tensor"""
 
-    # FIXME: check equal_nan when self and other are all NaN
-    # |input - other| <= atol + rtol x |other|
-    left_part = op.Abs(op.Sub(self, other))
-    right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
-    result = op.LessOrEqual(left_part, right_part)
-    return result
+    # torch builds isclose out of three terms in aten/src/ATen/native/TensorCompare.cpp:
+    # exact equality, NaN against NaN when equal_nan is set, and the tolerance band
+    # restricted to the elements whose error is finite.
+    result = op.Equal(self, other)
+
+    # |self - other| <= atol + rtol x |other|
+    actual_error = op.Abs(op.Sub(self, other))
+    allowed_error = op.Add(
+        op.CastLike(atol, other), op.Mul(op.CastLike(rtol, other), op.Abs(other))
+    )
+
+    if self.dtype.is_floating_point():
+        # Comparing the two sides of the band by subtraction carries the finiteness
+        # restriction on its own, so no IsInf term is needed. An infinity on either side
+        # puts a NaN into the subtraction whichever way it arrives: the error and the
+        # allowance are both infinite and cancel, or the allowance is already NaN because
+        # rtol is zero and zero times infinity is NaN. Every comparison against NaN is
+        # false, which leaves the equality term above as the only way an infinity is
+        # reported close. On finite values the sign of the difference and the direct
+        # comparison agree exactly, so the band is unchanged.
+        zero = op.Constant(value=ir.tensor(0, dtype=self.dtype))
+        within_tolerance = op.LessOrEqual(op.Sub(actual_error, allowed_error), zero)
+        if equal_nan:
+            result = op.Or(result, op.And(op.IsNaN(self), op.IsNaN(other)))
+    else:
+        # Integers are never infinite and never NaN, so they need no finiteness term, and
+        # IsNaN does not accept them. The subtraction is left off here because it can
+        # overflow a narrow integer type where the direct comparison cannot.
+        within_tolerance = op.LessOrEqual(actual_error, allowed_error)
+
+    return op.Or(result, within_tolerance)
 
 
 @torch_op("aten::isfinite")
