@@ -3246,7 +3246,10 @@ def aten_div_mode(self: TReal, other: TReal, rounding_mode: Optional[str] = None
     if rounding_mode == "trunc":
         # Rounds the results of the division towards zero.
         # Equivalent to C-style integer division
-        return aten_trunc(op.Div(self, other))
+        quotient = op.Div(self, other)
+        if self.dtype == ir.DataType.FLOAT16:
+            quotient = op.Cast(quotient, to=FLOAT16.dtype)
+        return aten_trunc(quotient)
     if rounding_mode == "floor":
         return op.Floor(op.Div(self, other))
 
