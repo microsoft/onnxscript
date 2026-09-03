@@ -69,6 +69,14 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
             self._scale_weights(weights, scale_factor, inbound_node.attributes)
         )
 
+        # Gemm optionally scales its bias input C by the "beta" attribute (default 1.0,
+        # https://onnx.ai/onnx/operators/onnx__Gemm.html#attributes); Conv/ConvTranspose have
+        # no such attribute. Fold that scaling into the fused bias now, and drop "beta" from
+        # the re-emitted node's attributes so it is not applied a second time there.
+        new_attributes = dict(inbound_node.attributes)
+        gemm_beta_attr = new_attributes.pop("beta", None)
+        gemm_beta = gemm_beta_attr.as_float() if gemm_beta_attr is not None else 1.0
+
         # Update bias
         if len(inbound_node.inputs) > 2:
             original_bias = inbound_node.inputs[2].const_value.numpy()
@@ -79,14 +87,14 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
             # to avoid name collision on initializer creation when there are multiple patterns
             # sharing the same parent nodes.
             bias_name = inbound_node.inputs[1].name + "_bias"
-        fused_bias = ir.tensor((original_bias - input_mean) * scale_factor + beta)
+        fused_bias = ir.tensor((gemm_beta * original_bias - input_mean) * scale_factor + beta)
 
         return op.op(
             self.op_type,
             x,
             op.initializer(fused_weights, name=inbound_node.inputs[1].name),
             op.initializer(fused_bias, name=bias_name),
-            **inbound_node.attributes,
+            **new_attributes,
         )
 
     def check(self, context, x, inbound_out: ir.Value, batchnorm_out: ir.Value) -> MatchResult:
