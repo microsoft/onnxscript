@@ -62,7 +62,6 @@ def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
             )
 
 
-
 def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -3254,7 +3253,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "ops.aten._grouped_mm",
         aten_name="_grouped_mm",
-        op=getattr(torch.ops.aten, "_grouped_mm", lambda *args, **kwargs: None),  # pylint: disable=protected-access
+        op=getattr(torch.ops.aten, "_grouped_mm", lambda *args, **kwargs: None),
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_grouped_mm,
         supports_out=False,
