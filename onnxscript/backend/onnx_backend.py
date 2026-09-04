@@ -11,6 +11,7 @@ import onnx
 import onnx.numpy_helper
 from onnx.backend.test import __file__ as backend_folder
 
+from onnxscript import ir
 from onnxscript.backend import onnx_export
 
 
@@ -102,7 +103,7 @@ class OnnxBackendTest:
     @staticmethod
     def _normalize_tensor(value):
         if isinstance(value, onnx.TensorProto):
-            return onnx.numpy_helper.to_array(value)
+            return ir.tensor(value).numpy()
         return value
 
     def __repr__(self):
