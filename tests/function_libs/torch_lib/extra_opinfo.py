@@ -23,6 +23,45 @@ S = 5
 M = 10
 
 
+def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+    )
+
+    cases = [
+        # (G, M, K), (G, K, N)
+        ((2, 3, 4), (2, 4, 5)),
+        ((1, 2, 2), (1, 2, 1)),
+    ]
+
+    for self_shape, mat2_shape in cases:
+        self_t = make_arg(self_shape)
+        mat2_t = make_arg(mat2_shape)
+
+        # Test without bias and without out_dtype
+        yield opinfo_core.SampleInput(self_t, args=(mat2_t,))
+
+        # Test with bias
+        g, _, _ = self_shape
+        _, _, n = mat2_shape
+        bias_t = make_arg((g, 1, n))
+        yield opinfo_core.SampleInput(self_t, args=(mat2_t,), kwargs={"bias": bias_t})
+
+        # Test with bias and out_dtype
+        if dtype in (torch.float16, torch.bfloat16):
+            yield opinfo_core.SampleInput(
+                self_t,
+                args=(mat2_t,),
+                kwargs={"bias": bias_t, "out_dtype": torch.float32},
+            )
+
+
 def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -35,6 +74,31 @@ def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs)
 
     for item in vals:
         yield opinfo_core.SampleInput(item, dtype=dtype)
+
+
+def sample_inputs_linear_1d_weight(op_info, device, dtype, requires_grad, **kwargs):
+    """Sample inputs for linear with a 1D weight (in_features,), no out_features dim.
+
+    Regression coverage for https://github.com/microsoft/onnxscript/issues/2982:
+    the upstream `sample_inputs_linear` in
+    torch/testing/_internal/common_methods_invocations.py never generates a
+    1D-weight case, so this branch of aten_linear went untested.
+
+    Note: aten::linear does not accept a bias together with a 1D weight
+    ("mat2 must be a matrix, got 1-D tensor"), so no bias samples are
+    generated here.
+    """
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    for in_features, batch_shape in itertools.product([3, 8], [(), (2,), (2, 3)]):
+        input_tensor = make_arg((*batch_shape, in_features))
+        weight = make_arg((in_features,))
+        yield opinfo_core.SampleInput(input_tensor, args=(weight, None))
 
 
 def sample_inputs_bilinear(op_info, device, dtype, requires_grad, **kwargs):
@@ -1181,6 +1245,27 @@ def sample_inputs_max_pool3d_with_indices(op_info, device, dtype, requires_grad,
         yield opinfo_core.SampleInput(arg, kwargs=kwargs)
 
 
+def sample_inputs_mean_dtype(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    for shape in ((S, S), (S,), ()):
+        yield opinfo_core.SampleInput(make_arg(shape), kwargs={"dtype": torch.float64})
+
+    # Precision sensitive values: accumulating in float32 gives 0.0 while accumulating
+    # in float64 gives 1/3, so an implementation that casts only the reduced result
+    # cannot pass this sample.
+    yield opinfo_core.SampleInput(
+        torch.tensor(
+            [[1e8, 1.0, -1e8]], dtype=dtype, device=device, requires_grad=requires_grad
+        ),
+        kwargs={"dtype": torch.float64},
+    )
+
+
 def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
@@ -1471,81 +1556,38 @@ def sample_inputs_replication_pad1d(op_info, device, dtype, requires_grad, **kwa
 
 
 def sample_inputs_roi_align(op_info, device, dtype, requires_grad, **kwargs):
-    del op_info
-    del kwargs
-    # roi_align signature: (input, boxes, output_size, spatial_scale=1.0, sampling_ratio=-1, aligned=False)
+    del op_info, kwargs
 
-    # Test 1: spatial_scale=1, sampling_ratio=2
-    x1 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
-    roi1 = torch.tensor([[0, 1.5, 1.5, 3, 3]], dtype=dtype, device=device)
-    yield opinfo_core.SampleInput(
-        x1,
-        args=(roi1, (5, 5)),
-        kwargs={"spatial_scale": 1.0, "sampling_ratio": 2, "aligned": True},
-    )
+    def make_x():
+        return torch.rand(
+            1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad
+        )
 
-    # Test 2: spatial_scale=0.5, sampling_ratio=3
-    x2 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
-    roi2 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
-    yield opinfo_core.SampleInput(
-        x2,
-        args=(roi2, (5, 5)),
-        kwargs={"spatial_scale": 0.5, "sampling_ratio": 3, "aligned": True},
-    )
+    # rois is [K, 5] = [batch_idx, x1, y1, x2, y2]
+    roi_a = torch.tensor([[0, 1.5, 1.5, 3.0, 3.0]], dtype=dtype, device=device)
+    roi_b = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
+    roi_int = torch.tensor([[0, 0.0, 0.0, 4.0, 4.0]], dtype=dtype, device=device)
+    roi_malformed = torch.tensor(
+        [[0, 2.0, 0.3, 1.5, 1.5]], dtype=dtype, device=device
+    )  # x1 > x2-ish
 
-    # Test 3: spatial_scale=1.8, sampling_ratio=2
-    x3 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
-    roi3 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
-    yield opinfo_core.SampleInput(
-        x3,
-        args=(roi3, (5, 5)),
-        kwargs={"spatial_scale": 1.8, "sampling_ratio": 2, "aligned": True},
-    )
+    # (rois, spatial_scale, pooled_h, pooled_w, sampling_ratio, aligned)
+    cases = [
+        (roi_a, 1.0, 5, 5, 2, True),
+        (roi_b, 0.5, 5, 5, 3, True),
+        (roi_b, 1.8, 5, 5, 2, True),
+        (roi_b, 2.5, 2, 2, 0, True),
+        (roi_b, 2.5, 2, 2, -1, True),
+        (roi_malformed, 1.0, 5, 5, 1, True),
+        (roi_int, 1.0, 5, 5, 2, False),
+        (roi_int, 1.0, 5, 5, -1, False),
+    ]
 
-    # Test 4: spatial_scale=2.5, sampling_ratio=0, output_size=(2,2)
-    x4 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
-    roi4 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
-    yield opinfo_core.SampleInput(
-        x4,
-        args=(roi4, (2, 2)),
-        kwargs={"spatial_scale": 2.5, "sampling_ratio": 0, "aligned": True},
-    )
-
-    # Test 5: spatial_scale=2.5, sampling_ratio=-1, output_size=(2,2)
-    x5 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
-    roi5 = torch.tensor([[0, 0.2, 0.3, 4.5, 3.5]], dtype=dtype, device=device)
-    yield opinfo_core.SampleInput(
-        x5,
-        args=(roi5, (2, 2)),
-        kwargs={"spatial_scale": 2.5, "sampling_ratio": -1, "aligned": True},
-    )
-
-    # Test 6: malformed boxes (test_roi_align_malformed_boxes)
-    x6 = torch.randn(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
-    roi6 = torch.tensor([[0, 2, 0.3, 1.5, 1.5]], dtype=dtype, device=device)
-    yield opinfo_core.SampleInput(
-        x6,
-        args=(roi6, (5, 5)),
-        kwargs={"spatial_scale": 1.0, "sampling_ratio": 1, "aligned": True},
-    )
-
-    # Test 7: aligned=False, spatial_scale=1, sampling_ratio=2
-    x7 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
-    roi7 = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
-    yield opinfo_core.SampleInput(
-        x7,
-        args=(roi7, (5, 5)),
-        kwargs={"spatial_scale": 1.0, "sampling_ratio": 2, "aligned": False},
-    )
-
-    # Test 8: aligned=False, spatial_scale=1, sampling_ratio=-1
-    x8 = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=requires_grad)
-    roi8 = torch.tensor([[0, 0, 0, 4, 4]], dtype=dtype, device=device)
-    yield opinfo_core.SampleInput(
-        x8,
-        args=(roi8, (5, 5)),
-        kwargs={"spatial_scale": 1.0, "sampling_ratio": -1, "aligned": False},
-    )
+    for rois, spatial_scale, ph, pw, sr, aligned in cases:
+        yield opinfo_core.SampleInput(
+            make_x(),
+            args=(rois, float(spatial_scale), int(ph), int(pw), int(sr), bool(aligned)),
+        )
 
 
 def sample_inputs_roi_pool(op_info, device, dtype, requires_grad, **kwargs):
@@ -1583,6 +1625,13 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         ((L, L, L), (L, L // 2, L), (1, L // 2, L * 2, 1)),  # end > L
         ((L, L, L), (L, L, L), (-2, 0, L, 1)),  # negative dim
         ((L, L, L), (L, L, L // 4), (-1, L // 2, L * 2, 2)),  # end > L and negative dim
+        # start/end = None (regression for #2372)
+        ((L, L, L), (L, L, L), (0, None, None, 1)),  # full replace, dim 0
+        ((L, L, L), (L // 2, L, L), (0, None, L // 2, 1)),  # None start
+        ((L, L, L), (L // 2, L, L), (0, L // 2, None, 1)),  # None end
+        ((L, L, L), (L, L, L), (1, None, None, 1)),  # None start & end, dim 1
+        ((L, L, L), (L // 2, L, L), (0, None, None, 2)),  # None start & end, step 2
+        ((L, L, L), (L, L, L // 2), (-1, None, L // 2, 1)),  # None start, negative dim
     )
 
     for input_shape, src_shape, args in cases:
@@ -1931,6 +1980,9 @@ def sample_inputs_upsample_2d(op_info, device, dtype, requires_grad, **kwargs):
 
     for align_corners in align_corners_options:
         yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(1, rank, False), align_corners
+        )
+        yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)), shape(S, rank, False), align_corners
         )
         yield opinfo_core.SampleInput(
@@ -1977,6 +2029,9 @@ def sample_inputs_upsample_2d_vec(op_info, device, dtype, requires_grad, **kwarg
     yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True, None)
 
     for align_corners in align_corners_options:
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(1, rank, False), align_corners, None
+        )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)), shape(S, rank, False), align_corners, None
         )
@@ -2508,12 +2563,47 @@ class _TestParamsMaxPool3dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
 #    in ops_test_data.py and opinfo_core.OpInfo("unique_name", ...)
 #    To avoid name duplication, it is possible to rename the OpInfo and specify
 #    the `op` field explicitly.
+def sample_inputs_masked_scatter(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    # (self_shape, mask_shape) with mask broadcastable to self. The same-rank
+    # broadcasting cases (e.g. (1, 5, 4) / (1, 5, 1)) are the regression target for
+    # pytorch/pytorch#186146 — the dynamo exporter previously left mask un-expanded.
+    cases = (
+        ((1, 5, 4), (1, 5, 4)),  # no broadcast
+        ((1, 5, 4), (1, 5, 1)),  # same-rank broadcast over last dim
+        ((1, 5, 4), (5, 4)),  # lower-rank mask
+        ((2, 3), (2, 1)),  # same-rank broadcast
+        ((3, 1), (3, 4)),  # self broadcast up to mask
+    )
+    for self_shape, mask_shape in cases:
+        self_tensor = make_arg(self_shape)
+        mask = torch.zeros(mask_shape, dtype=torch.bool, device=device)
+        mask.view(-1)[::2] = True
+        broadcast_shape = torch.broadcast_shapes(self_shape, mask_shape)
+        num_selected = int(mask.expand(broadcast_shape).sum())
+        source = make_arg((max(num_selected, 1),))
+        yield opinfo_core.SampleInput(self_tensor, args=(mask, source))
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "bilinear",
         op=torch.nn.functional.bilinear,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_bilinear,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.linear.1d_weight",
+        op=torch.nn.functional.linear,
+        aten_name="linear",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_linear_1d_weight,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -2714,6 +2804,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="max_pool3d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool_empty_strides,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.mean.dtype",
+        op=torch.ops.aten.mean,
+        aten_name="mean",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_mean_dtype,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -3132,7 +3230,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
     ),
     opinfo_core.OpInfo(
         "torchvision.ops.roi_align",
-        op=torchvision.ops.roi_align,
+        op=torch.ops.torchvision.roi_align.default,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_roi_align,
         supports_out=False,
@@ -3142,6 +3240,22 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torchvision.ops.roi_pool,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_roi_pool,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.masked_scatter",
+        aten_name="masked_scatter",
+        op=torch.ops.aten.masked_scatter.default,
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_masked_scatter,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._grouped_mm",
+        aten_name="_grouped_mm",
+        op=getattr(torch.ops.aten, "_grouped_mm", lambda *args, **kwargs: None),
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_grouped_mm,
         supports_out=False,
     ),
 ]

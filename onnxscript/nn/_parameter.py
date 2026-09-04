@@ -60,6 +60,12 @@ class Parameter(ir.Value):
     def _realize(self, builder: _builder.GraphBuilder) -> Parameter:
         """Qualify the name and register as a graph initializer.
 
+        Uses the builder's *root* graph builder to qualify the name and
+        register the initializer.  When the builder is a sub-builder (e.g.
+        for a Scan body), this ensures the parameter is stored in the
+        main graph — making it visible as an implicit input to the
+        subgraph rather than incorrectly placed inside it.
+
         Uses direct assignment to ``graph.initializers[...]`` to skip the
         const_value check. Idempotent: subsequent calls are no-ops.
         """
@@ -73,8 +79,9 @@ class Parameter(ir.Value):
                 "Ensure the Parameter is attached to a Module attribute or otherwise "
                 "initialized with a name before realization."
             )
-        self_name = self.name = builder._qualify_initializer_name(self_name)  # pylint: disable=protected-access
-        builder.graph.initializers[self_name] = self
+        root = builder.root
+        self_name = self.name = root._qualify_initializer_name(self_name)  # pylint: disable=protected-access
+        root.graph.initializers[self_name] = self
         self._realized = True
         return self
 

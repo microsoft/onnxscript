@@ -324,6 +324,9 @@ class Opset6(Opset5):
         Attribute `broadcast=1` needs to be passed to enable broadcasting.
 
 
+        For integer inputs, the result is computed using truncating division (rounding toward zero).
+
+
         Args:
             A: First operand, should share the type with the second operand.
 

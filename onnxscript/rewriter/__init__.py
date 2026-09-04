@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import logging
 from typing import Sequence, TypeVar, Union
 
 __all__ = [
@@ -42,11 +43,14 @@ from onnxscript.rewriter.rules.common import (
     _fuse_batchnorm,
     _fuse_pad_into_conv,
     _fuse_relus_clips,
+    _materialize_reshape_shape,
     _min_max_to_clip,
     _no_op,
     _redundant_scatter_nd,
     _remove_optional_bias,
 )
+
+logger = logging.getLogger(__name__)
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
@@ -54,6 +58,7 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *_broadcast_to_matmul.rules,
     *_cast_constant_of_shape.rules,
     *_collapse_slices.rules,
+    *_materialize_reshape_shape.rules,
     *_min_max_to_clip.rules,
     *_fuse_relus_clips.rules,
     *_basic_rules.basic_optimization_rules(),
@@ -82,7 +87,8 @@ class RewritePass(ir.passes.InPlacePass):
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = self.rules.apply_to_model(model)
         if count:
-            print(f"Applied {count} of general pattern rewrite rules.")
+            logger.info("Applied %s of general pattern rewrite rules.", count)
+
         return ir.passes.PassResult(model, bool(count))
 
 

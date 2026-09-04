@@ -822,11 +822,17 @@ def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) ->
         # Use Gemm for the rank 2 input
         return op.Gemm(input, weight, bias, transB=True)
     if len(weight.shape) == 1:
-        # In rare cases the weight can be 1d
+        # In rare cases the weight can be 1d. aten::linear does not support a
+        # bias with a 1d weight (mat2 must be a matrix). eager linear contracts
+        # the last dim away in this case, so squeeze the dim added for MatMul
+        # back off.
+        if bias is not None:
+            raise NotImplementedError("aten::linear with 1d weight and bias is not supported")
+
         weight_transposed = op.Unsqueeze(weight, [1])
-    else:
-        assert len(weight.shape) == 2
-        weight_transposed = op.Transpose(weight, perm=[1, 0])
+        return op.Squeeze(op.MatMul(input, weight_transposed), [-1])
+    assert len(weight.shape) == 2
+    weight_transposed = op.Transpose(weight, perm=[1, 0])
     mul = op.MatMul(input, weight_transposed)
     if bias is None:
         return mul
@@ -1595,8 +1601,9 @@ def aten_relu(self: TReal) -> TReal:
 def aten_relu6(self: TReal) -> TReal:
     """relu6(Tensor self) -> Tensor"""
 
+    zero = op.CastLike(op.Constant(value_int=0), self)
     six = op.CastLike(op.Constant(value_int=6), self)
-    return op.Min(op.Relu(self), six)
+    return op.Clip(self, zero, six)
 
 
 @torch_op("aten::replication_pad1d", trace_only=True)
@@ -1706,13 +1713,17 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     attn_mask = op.Expand(op.Constant(value_float=1.0), size)
     # }
     attn_mask = op.Trilu(attn_mask, upper=0)
-    # The causal mask has 0s in the lower triangle and -inf in the upper triangle.
+    # The causal mask has 0s in the lower triangle and the lowest representable value
+    # of the query dtype in the upper triangle. The lowest finite value is used instead
+    # of -inf to stay consistent with the boolean mask path and to avoid producing NaN
+    # in the subsequent Softmax when a row is fully masked.
+    # The constants are built in the query dtype directly rather than in float32 and
+    # cast down, because casting float32's lowest value to float16 overflows to -inf.
     attn_mask = op.Where(
         op.Equal(attn_mask, op.Constant(value_float=0.0)),
-        op.Constant(value_float=-float("inf")),
-        op.Constant(value_float=0.0),
+        op.Constant(value=ir.tensor(query.dtype.min, dtype=query.dtype)),
+        op.Constant(value=ir.tensor(0.0, dtype=query.dtype)),
     )
-    attn_mask = op.CastLike(attn_mask, query)
     return attn_mask
 
 
@@ -1835,7 +1846,7 @@ def aten_scaled_dot_product_attention(
     if is_causal:
         attn_mask = _causal_attention_mask(query, key)
 
-    if enable_gqa:
+    if enable_gqa and query.shape[1] != key.shape[1]:
         key, value = _attention_repeat_kv_for_group_query(query, key, value)
 
     if attn_mask is None:
@@ -2320,7 +2331,7 @@ def aten_unflatten_dense_tensors(
 
 
 def _get_upsample_align_corners_mode(align_corners: bool) -> str:
-    return "align_corners" if align_corners else "pytorch_half_pixel"
+    return "align_corners" if align_corners else "half_pixel"
 
 
 def _aten_upsample_output_size(
@@ -2329,6 +2340,8 @@ def _aten_upsample_output_size(
     mode: str,
     coordinate_transformation_mode: str,
     antialias: int = 0,
+    cubic_coeff_a: float = -0.75,
+    exclude_outside: int = 0,
 ) -> TReal:
     batch_and_channel = op.Shape(self, end=2, start=0)
     # When output_size is passed in as a list of integers, the torch.onnx
@@ -2344,8 +2357,10 @@ def _aten_upsample_output_size(
         output_size,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
+        cubic_coeff_a=cubic_coeff_a,
         nearest_mode="floor",
         antialias=antialias,
+        exclude_outside=exclude_outside,
     )
 
 
@@ -2355,6 +2370,8 @@ def _aten_upsample_scales(
     mode: str,
     coordinate_transformation_mode: str,
     antialias: int = 0,
+    cubic_coeff_a: float = -0.75,
+    exclude_outside: int = 0,
 ) -> TReal:
     return op.Resize(
         self,
@@ -2365,8 +2382,10 @@ def _aten_upsample_scales(
         None,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
+        cubic_coeff_a=cubic_coeff_a,
         nearest_mode="floor",
         antialias=antialias,
+        exclude_outside=exclude_outside,
     )
 
 
@@ -2404,12 +2423,20 @@ def aten__upsample_bicubic2d_aa(
     # NOTE: Based on experimentation, scales_h and scales_w are always ignored in PyTorch,
     # unless when align_corners is True, in which case we do not know what is going on.
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    # PyTorch uses cubic_coeff_a=-0.5 (Keys interpolation, PIL-compatible) when
+    # antialias=True, as opposed to -0.75 (OpenCV-compatible) for the non-antialias case.
+    # exclude_outside=1 matches PyTorch's antialias kernel, which drops out-of-bounds
+    # samples from the filter window and renormalizes the remaining weights so they
+    # sum to 1. Without it the ONNX Resize keeps phantom out-of-bounds weight in the
+    # denominator and produces values that differ from eager near the boundary.
     return _aten_upsample_output_size(
         self,
         output_size,
         mode="cubic",
         coordinate_transformation_mode=coordinate_transformation_mode,
         antialias=1,
+        cubic_coeff_a=-0.5,
+        exclude_outside=1,
     )
 
 
@@ -2488,12 +2515,17 @@ def aten__upsample_bilinear2d_aa(
     # NOTE: Based on experimentation, scales_h and scales_w are always ignored in PyTorch,
     # unless when align_corners is True, in which case we do not know what is going on.
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    # exclude_outside=1 matches PyTorch's antialias kernel, which drops out-of-bounds
+    # samples from the filter window and renormalizes the remaining weights so they
+    # sum to 1. Without it the ONNX Resize keeps phantom out-of-bounds weight in the
+    # denominator and produces values that differ from eager near the boundary.
     return _aten_upsample_output_size(
         self,
         output_size,
         coordinate_transformation_mode=coordinate_transformation_mode,
         mode="linear",
         antialias=1,
+        exclude_outside=1,
     )
 
 

@@ -193,6 +193,14 @@ class FuseConvPadTest(FuseConvPadBaseTest):
                 "VALID",
                 "auto_pad must be 'NOTSET'.",
             ),
+            (
+                "constant",
+                ir.tensor([0, 0, -1, -1, -1, 0, 0, 0, 0, 0], name="pads"),
+                None,
+                None,
+                "NOTSET",
+                "must not contain negative values",
+            ),
         ]
     )
     def test_unsupported_fuse_pad_into_conv(

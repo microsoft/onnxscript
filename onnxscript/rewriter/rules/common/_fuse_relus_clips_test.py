@@ -9,12 +9,7 @@ import onnxruntime as ort
 import parameterized
 from onnx_ir.passes.common import onnx_checker, shape_inference
 
-from onnxscript.rewriter import (
-    MatchingTracer,
-    MatchStatus,
-    RewriteRule,
-    testing,
-)
+from onnxscript.rewriter import MatchingTracer, MatchStatus, RewriteRule, testing
 from onnxscript.rewriter.rules.common import _fuse_relus_clips
 from onnxscript.rewriter.rules.common._fuse_relus_clips import (
     successive_clip_relu_rule,
@@ -200,6 +195,35 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
             <float max = {{6.0}}>
+            {{
+                {nodes}
+            }}
+        """)
+        self.run_test(model, expected_op_types=["Clip"])
+
+    @parameterized.parameterized.expand(
+        [
+            (
+                "relu_then_clip",
+                """
+                    x1 = Relu(X)
+                    Y = Clip(x1,min,"")
+                """,
+            ),
+            (
+                "clip_then_relu",
+                """
+                    x1 = Clip(X,min,"")
+                    Y = Relu(x1)
+                """,
+            ),
+        ]
+    )
+    def test_successful_fuse_successive_relu_clip_no_max(self, _, nodes):
+        model = ir.from_onnx_text(f"""
+            < ir_version: 10, opset_import: ["" : 20] >
+            test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
+            <float min = {{1.0}}>
             {{
                 {nodes}
             }}

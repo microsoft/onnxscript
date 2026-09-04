@@ -94,7 +94,6 @@ class Opset:
         instance = super().__new__(cls)
         instance.domain = domain  # type: ignore[attr-defined]
         instance.version = version  # type: ignore[attr-defined]
-        instance.function_defs = {}  # type: ignore[attr-defined]
         cls.cache[key] = instance
         return instance
 
@@ -129,9 +128,6 @@ class Opset:
             return Op(self, attr, schema)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             raise AttributeError(f"Attribute {attr} not found.") from exc
-
-    def add_function_def(self, fun):
-        self.function_defs[fun.name] = fun
 
     def _prepare_inputs(self, _: onnx.defs.OpSchema, *inputs):
         """Trims 'None' values from the end of the inputs list. This is used to support
@@ -221,6 +217,10 @@ class Op(OpLike):
     @property
     def name(self) -> str:
         return self._name
+
+    @property
+    def domain(self) -> str:
+        return self._opset.domain
 
     @property
     def opset(self) -> Opset:
@@ -332,6 +332,15 @@ class OnnxFunction(Op, Generic[_P, _R]):
     def to_function_proto(self) -> onnx.FunctionProto:
         """Converts the function into :class:`onnx.FunctionProto`."""
         return self.function_ir.to_function_proto()
+
+    def graph(self) -> ir.Graph:
+        """Returns the IR graph representation of this function.
+
+        Returns:
+            The :class:`ir.Graph` representing the computation graph of this function.
+            NOTE: This is not a copy, and should not be modified by the caller.
+        """
+        return self.function_ir.graph
 
     def to_model_proto(self, **kwargs):
         """Converts the function into :class:`onnx.ModelProto`."""

@@ -2118,6 +2118,9 @@ class Opset1(Opset):
 
 
         Given a matrix, apply Lp-normalization along the provided axis.
+        The output is computed as: `output = input / Lp_norm(input, axis)`.
+        When the Lp norm is zero (i.e., all elements along the axis are zero),
+        the output is defined to be zero to avoid division by zero.
 
 
         Args:
@@ -4036,9 +4039,16 @@ class Opset1(Opset):
         r"""[🌐 Transpose(1)](https://onnx.ai/onnx/operators/onnx__Transpose.html#transpose-1 "Online Documentation")
 
 
-        Transpose the input tensor similar to numpy.transpose. For example, when
-        perm=(1, 0, 2), given an input tensor of shape (1, 2, 3), the output shape
-        will be (2, 1, 3).
+        Returns a transpose of the input tensor. (Similar to `numpy.transpose`).
+        The optional attribute `perm` must be a permutation of the dimensions of
+        the input tensor. Axis `i` of the output tensor corresponds to the axis
+        `perm[i]` of the input tensor.
+        For example, when perm=(1, 0, 2), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 1, 3).
+        When perm=(1, 2, 0), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 3, 1).
+        If the attribute `perm` is omitted, its default value is `(n-1, ..., 0)`,
+        where `n` is the rank of the input tensor.
 
 
         Args:

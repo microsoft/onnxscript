@@ -51,12 +51,12 @@ class HardSwishFusion(_HardSigmoidFusionBase):
     def pattern(
         self,
         op,
-        x: ir.Value,
-        clip_min: ir.Value,
-        clip_max: ir.Value,
-        bias: ir.Value,
-        divisor: ir.Value,
-    ) -> ir.Value:
+        x,
+        clip_min,
+        clip_max,
+        bias,
+        divisor,
+    ):
         out = op.Clip(x + bias, clip_min, clip_max) * x
         out = out / divisor
         return out
@@ -76,7 +76,7 @@ class HardSwishFusion(_HardSigmoidFusionBase):
 class HardSwishFusionFromHardSigmoid(pattern.RewriteRuleClassBase):
     """Fuse HardSigmoid<alpha=1/6, beta=0.5> + Mul into HardSwish"""
 
-    def pattern(self, op, x: ir.Value) -> ir.Value:
+    def pattern(self, op, x):
         # Floating point matching for 1/6 is not exact, so we use isclose below
         out = op.HardSigmoid(x, _allow_other_attributes=True, _outputs=["hardsigmoid_out"])
         out = out * x
@@ -108,12 +108,12 @@ class HardSigmoidFusion(_HardSigmoidFusionBase):
     def pattern(
         self,
         op,
-        x: ir.Value,
-        clip_min: ir.Value,
-        clip_max: ir.Value,
-        bias: ir.Value,
-        divisor: ir.Value,
-    ) -> ir.Value:
+        x,
+        clip_min,
+        clip_max,
+        bias,
+        divisor,
+    ):
         out = op.Clip(x + bias, clip_min, clip_max)
         out = out / divisor
         return out

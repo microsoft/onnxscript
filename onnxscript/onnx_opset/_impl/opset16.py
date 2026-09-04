@@ -566,7 +566,7 @@ class Opset16(Opset15):
         1) Values from the enclosing scope (i.e. variable "a" here) are in scope and can
            be referenced in the inputs of the loop.
         2) Any values computed in the loop body that needs to be used in a subsequent
-           iteration or after the loop are modelled using a pair of variables in the loop-body,
+           iteration or after the loop are modeled using a pair of variables in the loop-body,
            consisting of an input variable (eg., b_in) and an output variable (eg., b_out).
            These are referred to as loop-carried dependences. The loop operation node
            supplies the input value of the input variable for the first iteration, and
@@ -1117,7 +1117,7 @@ class Opset16(Opset15):
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
-                output[indices[idx]] = updates[idx]
+                output[tuple(indices[idx])] = updates[idx]
         The order of iteration in the above loop is not specified.
         In particular, indices should not have duplicate entries: that is, if idx1 != idx2, then indices[idx1] != indices[idx2].
         This ensures that the output value does not depend on the iteration order.
@@ -1130,12 +1130,12 @@ class Opset16(Opset15):
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
-                output[indices[idx]] += updates[idx]
+                output[tuple(indices[idx])] += updates[idx]
         When `reduction` is set to "mul", `output` is calculated as follows:
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
-                output[indices[idx]] *= updates[idx]
+                output[tuple(indices[idx])] *= updates[idx]
         This operator is the inverse of GatherND.
         Example 1:
         ::
