@@ -846,7 +846,7 @@ class Opset11(Opset10):
         ::
 
             intermediate_zero_point = qmin - min(x)/y_scale
-            y_zero_point = cast(round(saturate(itermediate_zero_point)))
+            y_zero_point = cast(round(saturate(intermediate_zero_point)))
 
 
 
@@ -1586,7 +1586,7 @@ class Opset11(Opset10):
         1) Values from the enclosing scope (i.e. variable "a" here) are in scope and can
            be referenced in the inputs of the loop.
         2) Any values computed in the loop body that needs to be used in a subsequent
-           iteration or after the loop are modelled using a pair of variables in the loop-body,
+           iteration or after the loop are modeled using a pair of variables in the loop-body,
            consisting of an input variable (eg., b_in) and an output variable (eg., b_out).
            These are referred to as loop-carried dependences. The loop operation node
            supplies the input value of the input variable for the first iteration, and
@@ -1901,6 +1901,7 @@ class Opset11(Opset10):
 
         Filter out boxes that have high intersection-over-union (IOU) overlap with previously selected boxes.
         Bounding boxes with score less than score_threshold are removed. Bounding box format is indicated by attribute center_point_box.
+        Boxes are suppressed if their IOU with a previously selected box is strictly greater than iou_threshold (i.e., boxes with IOU exactly equal to the threshold are kept).
         Note that this algorithm is agnostic to where the origin is in the coordinate system and more generally is invariant to
         orthogonal transformations and translations of the coordinate system; thus translating or reflections of the coordinate system
         result in the same boxes being selected by the algorithm.
@@ -1920,7 +1921,8 @@ class Opset11(Opset10):
                 Default to 0, which means no output.
 
             iou_threshold: (optional) Float representing the threshold for deciding
-                whether boxes overlap too much with respect to IOU. It is scalar. Value
+                whether boxes overlap too much with respect to IOU. Boxes with IoU
+                strictly greater than this threshold are suppressed. It is scalar. Value
                 range [0, 1]. Default to 0.
 
             score_threshold: (optional) Float representing the threshold for deciding
@@ -2190,15 +2192,12 @@ class Opset11(Opset10):
         up to `limit` (exclusive).
 
         The number of elements in the output of range is computed as below:
-
         ::
 
             number_of_elements = max( ceil( (limit - start) / delta ) , 0 )
 
 
-
         The pseudocode determining the contents of the output is shown below:
-
         ::
 
             for(int i=0; i<number_of_elements; ++i) {
@@ -2206,18 +2205,14 @@ class Opset11(Opset10):
             }
 
 
-
-        Example 1
-
+        Example 1:
         ::
 
             Inputs: start = 3, limit = 9, delta = 3
             Output: [3, 6]
 
 
-
-        Example 2
-
+        Example 2:
         ::
 
             Inputs: start = 10, limit = 4, delta = -2
@@ -3130,7 +3125,7 @@ class Opset11(Opset10):
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
-                output[indices[idx]] = updates[idx]
+                output[tuple(indices[idx])] = updates[idx]
 
         The order of iteration in the above loop is not specified.
         In particular, indices should not have duplicate entries: that is, if idx1 != idx2, then indices[idx1] != indices[idx2].

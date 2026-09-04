@@ -590,6 +590,8 @@ class Opset13(Opset12):
 
         This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
 
+        For integer inputs, the result is computed using truncating division (rounding toward zero).
+
 
         Args:
             A: (differentiable) First operand.
@@ -700,21 +702,7 @@ class Opset13(Opset12):
         op = Op(self, "Equal", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    T_Erf = TypeVar(
-        "T_Erf",
-        BFLOAT16,
-        DOUBLE,
-        FLOAT,
-        FLOAT16,
-        INT16,
-        INT32,
-        INT64,
-        INT8,
-        UINT16,
-        UINT32,
-        UINT64,
-        UINT8,
-    )
+    T_Erf = TypeVar("T_Erf", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
     def Erf(self, input: T_Erf) -> T_Erf:
         r"""[🌐 Erf(13)](https://onnx.ai/onnx/operators/onnx__Erf.html#erf-13 "Online Documentation")
@@ -1741,7 +1729,7 @@ class Opset13(Opset12):
         1) Values from the enclosing scope (i.e. variable "a" here) are in scope and can
            be referenced in the inputs of the loop.
         2) Any values computed in the loop body that needs to be used in a subsequent
-           iteration or after the loop are modelled using a pair of variables in the loop-body,
+           iteration or after the loop are modeled using a pair of variables in the loop-body,
            consisting of an input variable (eg., b_in) and an output variable (eg., b_out).
            These are referred to as loop-carried dependences. The loop operation node
            supplies the input value of the input variable for the first iteration, and
@@ -2810,17 +2798,22 @@ class Opset13(Opset12):
                 which to reduce. The default is to reduce over empty axes. When axes is
                 empty (either not provided or explicitly empty), behavior depends on
                 'noop_with_empty_axes': reduction over all axes if
-                'noop_with_empty_axes' is false, or no reduction is applied if
-                'noop_with_empty_axes' is true (but other operations will be performed).
-                Accepted range is [-r, r-1] where r = rank(data).
+                'noop_with_empty_axes' is false, and reduction over the empty set of
+                axes when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
+                where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
             noop_with_empty_axes: Defines behavior when axes is not provided or is
-                empty. If false (default), reduction happens over all axes. If true, no
-                reduction is applied, but other operations will be performed. For
-                example, ReduceSumSquare acts as a vanilla Square.
+                empty. If false (default), reduction happens over all axes (similar to
+                the case when `axis=None` in numpy). If true, reduction happens over an
+                empty set of axes (similar to the case when `axis=()` in numpy). Note
+                that reduction over an empty set of axes means that the reduction step
+                behaves like a no-op (identity function), but composite-reduction
+                operators will still perform the non-reduction steps as needed. Thus,
+                ReduceLogSum returns the Log of input tensor, and ReduceSumSquare
+                returns the Square of the input tensor, in this case.
         """
 
         schema = get_schema("ReduceSum", 13, "")
@@ -3246,7 +3239,7 @@ class Opset13(Opset12):
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
-                output[indices[idx]] = updates[idx]
+                output[tuple(indices[idx])] = updates[idx]
 
         The order of iteration in the above loop is not specified.
         In particular, indices should not have duplicate entries: that is, if idx1 != idx2, then indices[idx1] != indices[idx2].
@@ -3943,9 +3936,16 @@ class Opset13(Opset12):
         r"""[🌐 Transpose(13)](https://onnx.ai/onnx/operators/onnx__Transpose.html#transpose-13 "Online Documentation")
 
 
-        Transpose the input tensor similar to numpy.transpose. For example, when
-        perm=(1, 0, 2), given an input tensor of shape (1, 2, 3), the output shape
-        will be (2, 1, 3).
+        Returns a transpose of the input tensor. (Similar to `numpy.transpose`).
+        The optional attribute `perm` must be a permutation of the dimensions of
+        the input tensor. Axis `i` of the output tensor corresponds to the axis
+        `perm[i]` of the input tensor.
+        For example, when perm=(1, 0, 2), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 1, 3).
+        When perm=(1, 2, 0), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 3, 1).
+        If the attribute `perm` is omitted, its default value is `(n-1, ..., 0)`,
+        where `n` is the rank of the input tensor.
 
 
         Args:

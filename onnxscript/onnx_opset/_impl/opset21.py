@@ -955,7 +955,7 @@ class Opset21(Opset20):
         1) Values from the enclosing scope (i.e. variable "a" here) are in scope and can
            be referenced in the inputs of the loop.
         2) Any values computed in the loop body that needs to be used in a subsequent
-           iteration or after the loop are modelled using a pair of variables in the loop-body,
+           iteration or after the loop are modeled using a pair of variables in the loop-body,
            consisting of an input variable (eg., b_in) and an output variable (eg., b_out).
            These are referred to as loop-carried dependences. The loop operation node
            supplies the input value of the input variable for the first iteration, and
@@ -1045,7 +1045,7 @@ class Opset21(Opset20):
         Given a tensor containing the data to be padded (`data`), a tensor containing the number of start and end pad values for axis (`pads`), (optionally) a `mode`, and (optionally) `constant_value`,
         a padded tensor (`output`) is generated.
 
-        The three supported `modes` are (similar to corresponding modes supported by `numpy.pad`):
+        The four supported `modes` are (similar to corresponding modes supported by `numpy.pad`):
 
         1) `constant`(default) - pads with a given constant value as specified by `constant_value` (which defaults to 0, empty string, or False)
 
@@ -1868,9 +1868,16 @@ class Opset21(Opset20):
         r"""[🌐 Transpose(21)](https://onnx.ai/onnx/operators/onnx__Transpose.html#transpose-21 "Online Documentation")
 
 
-        Transpose the input tensor similar to numpy.transpose. For example, when
-        perm=(1, 0, 2), given an input tensor of shape (1, 2, 3), the output shape
-        will be (2, 1, 3).
+        Returns a transpose of the input tensor. (Similar to `numpy.transpose`).
+        The optional attribute `perm` must be a permutation of the dimensions of
+        the input tensor. Axis `i` of the output tensor corresponds to the axis
+        `perm[i]` of the input tensor.
+        For example, when perm=(1, 0, 2), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 1, 3).
+        When perm=(1, 2, 0), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 3, 1).
+        If the attribute `perm` is omitted, its default value is `(n-1, ..., 0)`,
+        where `n` is the rank of the input tensor.
 
 
         Args:

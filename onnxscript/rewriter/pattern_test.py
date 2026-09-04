@@ -989,5 +989,70 @@ class PatternBuilderTest(unittest.TestCase):
         self.assertEqual(ops, ["Op1", "Op2", "Add", "Op3", "Mul"])
 
 
+def _all_value_names_unique(model: ir.Model) -> bool:
+    """Return True if all named values in the top-level graph have unique names."""
+    names = []
+    for v in model.graph.inputs:
+        if v.name:
+            names.append(v.name)
+    for v in model.graph.initializers.values():
+        if v.name:
+            names.append(v.name)
+    for node in model.graph:
+        for output in node.outputs:
+            if output.name:
+                names.append(output.name)
+    return len(names) == len(set(names))
+
+
+class NameClashAfterRewriteTest(unittest.TestCase):
+    """Tests that apply_to_model calls NameFixPass to deduplicate value names.
+
+    TapeBuilder may assign names that collide with existing graph values when
+    new nodes are inserted via replace_nodes_and_values.  NameFixPass, invoked
+    by apply_to_model when at least one rewrite fires, resolves the duplicates.
+    """
+
+    def test_apply_to_model_deduplicates_names(self):
+        """Duplicate value names introduced alongside a rewrite are fixed."""
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] y, float[N] p) => (float[N] z)
+            {
+                c1 = Constant<value_float = 1.0>()
+                t1 = Div(c1, x)
+                z1 = Mul(t1, y)
+                extra = Add(z1, p)
+                z = Identity(extra)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+
+        # Simulate the name clash that TapeBuilder can introduce: two values that
+        # survive the rewrite (not part of the matched pattern) end up sharing a
+        # name because NameAuthority does not check for conflicts when registering
+        # pre-named values from TapeBuilder.
+        extra_node = next(n for n in model.graph if n.op_type == "Add")
+        identity_node = next(n for n in model.graph if n.op_type == "Identity")
+        identity_node.outputs[0].name = extra_node.outputs[0].name  # inject clash
+
+        def reciprocal_mul_pattern(op, x, y):
+            return (1 / x) * y
+
+        def div_replacement(op, x, y):
+            return op.Div(y, x)
+
+        rule = pattern.RewriteRule(reciprocal_mul_pattern, div_replacement)
+        count = rule.apply_to_model(model)
+
+        self.assertGreater(count, 0, "Rewrite rule must have fired to exercise the fix")
+        self.assertTrue(
+            _all_value_names_unique(model),
+            "All value names must be unique after apply_to_model",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

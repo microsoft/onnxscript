@@ -676,16 +676,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("true_divide", core_ops.aten_div),
     TorchLibOpInfo("true_divide", core_ops.aten_div_complex, complex=True),
-    TorchLibOpInfo("div_mode", core_ops.aten_div_mode)
-    .skip(
+    TorchLibOpInfo("div_mode", core_ops.aten_div_mode).skip(
         variant_name="no_rounding_mode",
         reason="this variation requires the rounding_mode argument",
-    )
-    .skip(
-        variant_name="trunc_rounding",
-        dtypes=(torch.float16,),
-        # Numbers match sometimes but not other times
-        reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
     ),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
@@ -750,6 +743,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT does not support empty tensors as input",
     ),
     TorchLibOpInfo("ge", core_ops.aten_ge),
+    TorchLibOpInfo("ops.aten._grouped_mm", core_ops.aten_grouped_mm).skip(
+        enabled_if=not hasattr(torch.ops.aten, "_grouped_mm"),
+        reason="torch.ops.aten._grouped_mm is not available in this version of PyTorch",
+    ),
     TorchLibOpInfo("gt", core_ops.aten_gt),
     TorchLibOpInfo("histc", core_ops.aten_histc)
     .skip(
@@ -872,6 +869,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("dim") is not None,
         reason="this Aten overload only accept 1 inputs: self",
     ),
+    TorchLibOpInfo("ops.aten.mean.dtype", core_ops.aten_mean),
     TorchLibOpInfo(
         "mean_dim", core_ops.aten_mean_dim, input_wrangler=_mean_input_wrangler
     ).skip(
@@ -1142,10 +1140,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(dtypes=(torch.bool,), reason="bool not supported")
     .skip(
-        matcher=lambda sample: sample.kwargs.get("dim") is None,
-        reason="fixme: conversion not implemented if dim is None",
-    )
-    .skip(
         matcher=lambda sample: sample.input.numel() == 0,
         reason="fixme: conversion not implemented when input tensor is empty",
     ),
@@ -1155,10 +1149,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason=("ignore cases when repeasts is an int"),
     )
     .skip(dtypes=(torch.bool,), reason="bool not supported")
-    .skip(
-        matcher=lambda sample: sample.kwargs.get("dim") is None,
-        reason="fixme: conversion not implemented if dim is None",
-    )
     .skip(
         matcher=lambda sample: sample.input.numel() == 0,
         reason="fixme: conversion not implemented when input tensor is empty",
@@ -1659,6 +1649,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("nn.functional.glu", nn_ops.aten_glu),
     TorchLibOpInfo(
         "nn.functional.linear", nn_ops.aten_linear, tolerance={torch.float16: (1e-2, 1e-3)}
+    ),
+    TorchLibOpInfo(
+        "ops.aten.linear.1d_weight",
+        nn_ops.aten_linear,
+        tolerance={torch.float16: (1e-2, 1e-3)},
     ),
     TorchLibOpInfo(
         "nn.functional.unfold",

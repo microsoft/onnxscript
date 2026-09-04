@@ -124,9 +124,9 @@ class Opset23(Opset22):
                   |          |          |
                   ---MatMul---          |
                         |               |
-             at_mask---Add              |
-                        |               |
               softcap (if provided)     |
+                        |               |
+             at_mask---Add              |
                         |               |
                      Softmax            |
                         |               |
@@ -179,11 +179,11 @@ class Opset23(Opset22):
                 and V.
 
             qk_matmul_output_mode: If set to `0`, qk_matmul_output is the output of qk
-                matmul. If set to `1`, qk_matmul_output includes the addition of the
-                attention mask to the output of qk matmul. If set to `2`,
-                qk_matmul_output is the output after the softcap operation. If set to
-                `3`, qk_matmul_output is the output after the softmax operation. Default
-                value is 0.
+                matmul. If set to `1`, qk_matmul_output is the output after the softcap
+                operation (before mask addition). If set to `2`, qk_matmul_output
+                includes the attention mask and softcap (if provided) applied to the
+                output of qk matmul. If set to `3`, qk_matmul_output is the output after
+                the softmax operation. Default value is 0.
 
             scale: Scaling factor applied to $Q*K^T$. Default value is
                 `1/sqrt(head_size)`. To prevent [numerical
@@ -1067,7 +1067,7 @@ class Opset23(Opset22):
         1) Values from the enclosing scope (i.e. variable "a" here) are in scope and can
            be referenced in the inputs of the loop.
         2) Any values computed in the loop body that needs to be used in a subsequent
-           iteration or after the loop are modelled using a pair of variables in the loop-body,
+           iteration or after the loop are modeled using a pair of variables in the loop-body,
            consisting of an input variable (eg., b_in) and an output variable (eg., b_out).
            These are referred to as loop-carried dependences. The loop operation node
            supplies the input value of the input variable for the first iteration, and
@@ -1158,7 +1158,7 @@ class Opset23(Opset22):
         Given a tensor containing the data to be padded (`data`), a tensor containing the number of start and end pad values for axis (`pads`), (optionally) a `mode`, and (optionally) `constant_value`,
         a padded tensor (`output`) is generated.
 
-        The three supported `modes` are (similar to corresponding modes supported by `numpy.pad`):
+        The four supported `modes` are (similar to corresponding modes supported by `numpy.pad`):
 
         1) `constant`(default) - pads with a given constant value as specified by `constant_value` (which defaults to 0, empty string, or False)
 
@@ -1579,15 +1579,16 @@ class Opset23(Opset22):
 
         ::
 
-            def compute_rotary_embedding(
-                input,
-                position_ids,
-                sin_cache,
-                cos_cache,
-                interleaved=0,
-                rotary_embedding_dim=0,
-                num_heads=0,
-            ):
+            def rotary_embedding(
+                input: np.ndarray,
+                cos_cache: np.ndarray,
+                sin_cache: np.ndarray,
+                position_ids: np.ndarray | None = None,
+                interleaved=None,
+                rotary_embedding_dim=None,
+                num_heads=None,
+            ) -> np.ndarray:
+                original_input_shape = input.shape
                 # First ensure input to be processed has shape [batch_size, seq_len, num_heads, head_size]
                 if len(input.shape) == 4:
                     input = np.transpose(input, (0, 2, 1, 3))
@@ -1603,7 +1604,7 @@ class Opset23(Opset22):
                 head_size = input.shape[3]
 
                 # Fully or partially perform rotation on input based on rotary_embedding_dim attribute
-                if rotary_embedding_dim == 0:
+                if rotary_embedding_dim is None or rotary_embedding_dim == 0:
                     # If rotary_embedding_dim not provided, perform full rotation by using head_size
                     rotary_embedding_dim = head_size
                 x_rotate = input[:, :, :, :rotary_embedding_dim]
@@ -1612,15 +1613,29 @@ class Opset23(Opset22):
 
                 # Retrieve sin and cos caches using position ids
                 if position_ids is not None:
-                    cos = cos_cache[position_ids]  # Shape: [batch_size, sequence_length, head_size/2]
-                    sin = sin_cache[position_ids]  # Shape: [batch_size, sequence_length, head_size/2]
-                else:
-                    cos = cos_cache
-                    sin = sin_cache
-                cos = cos[:, :, :rotary_embedding_dim_half]  # Shape: [batch_size, sequence_length, rotary_embedding_dim/2]
-                sin = sin[:, :, :rotary_embedding_dim_half]  # Shape: [batch_size, sequence_length, rotary_embedding_dim/2]
-                cos = np.expand_dims(cos, axis=2)  # Shape: [batch_size, sequence_length, 1, rotary_embedding_dim/2]
-                sin = np.expand_dims(sin, axis=2)  # Shape: [batch_size, sequence_length, 1, rotary_embedding_dim/2]
+                    cos_cache = cos_cache[
+                        position_ids
+                    ]  # Shape: [batch_size, sequence_length, rotary_embedding_dim/2]
+                    sin_cache = sin_cache[
+                        position_ids
+                    ]  # Shape: [batch_size, sequence_length, rotary_embedding_dim/2]
+
+                # Shape: [batch_size, sequence_length, rotary_embedding_dim/2]
+                if cos_cache.shape[-1] != rotary_embedding_dim_half:
+                    raise ValueError(
+                        f"Last dimension of cos cache ({cos_cache.shape[-1]}) does not match rotary_embedding_dim/2 ({rotary_embedding_dim_half})."
+                    )
+                if sin_cache.shape[-1] != rotary_embedding_dim_half:
+                    raise ValueError(
+                        f"Last dimension of sin cache ({sin_cache.shape[-1]}) does not match rotary_embedding_dim/2 ({rotary_embedding_dim_half})."
+                    )
+
+                cos_cache = np.expand_dims(
+                    cos_cache, axis=2
+                )  # Shape: [batch_size, sequence_length, 1, rotary_embedding_dim/2]
+                sin_cache = np.expand_dims(
+                    sin_cache, axis=2
+                )  # Shape: [batch_size, sequence_length, 1, rotary_embedding_dim/2]
 
                 # Either divide the input in halves or interleave (based on interleaved attribute)
                 if interleaved:
@@ -1630,8 +1645,8 @@ class Opset23(Opset22):
                     x1, x2 = np.split(x_rotate, 2, axis=-1)
 
                 # Calculate real and imaginary values
-                real = cos * x1 - sin * x2
-                imag = sin * x1 + cos * x2
+                real = (cos_cache * x1) - (sin_cache * x2)
+                imag = (sin_cache * x1) + (cos_cache * x2)
 
                 # Inserted rotated embeddings back to the original input
                 if interleaved:
@@ -1645,7 +1660,7 @@ class Opset23(Opset22):
                     x_rotate = np.concatenate((real, imag), axis=-1)
                 output = np.concatenate((x_rotate, x_not_rotate), axis=-1)
                 if len(original_input_shape) == 3:
-                    output = np.reshape(output, input.shape)
+                    output = np.reshape(output, original_input_shape)
                 else:
                     output = np.transpose(output, (0, 2, 1, 3))
                 return output
@@ -2137,9 +2152,16 @@ class Opset23(Opset22):
         r"""[🌐 Transpose(23)](https://onnx.ai/onnx/operators/onnx__Transpose.html#transpose-23 "Online Documentation")
 
 
-        Transpose the input tensor similar to numpy.transpose. For example, when
-        perm=(1, 0, 2), given an input tensor of shape (1, 2, 3), the output shape
-        will be (2, 1, 3).
+        Returns a transpose of the input tensor. (Similar to `numpy.transpose`).
+        The optional attribute `perm` must be a permutation of the dimensions of
+        the input tensor. Axis `i` of the output tensor corresponds to the axis
+        `perm[i]` of the input tensor.
+        For example, when perm=(1, 0, 2), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 1, 3).
+        When perm=(1, 2, 0), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 3, 1).
+        If the attribute `perm` is omitted, its default value is `(n-1, ..., 0)`,
+        where `n` is the rank of the input tensor.
 
 
         Args:
