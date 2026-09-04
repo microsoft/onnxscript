@@ -9,11 +9,11 @@ import functools
 import logging
 from typing import Callable, Sequence, Union
 
+import onnx_ir as ir
 import onnx_ir.convenience as ir_convenience
 import onnx_ir.passes.common as ir_passes_common
 
 import onnxscript.utils.metadata_merger as metadata_merger
-from onnxscript import ir
 from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
 
 logger = logging.getLogger(__name__)

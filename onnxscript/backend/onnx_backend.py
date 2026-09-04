@@ -9,9 +9,9 @@ from typing import Iterator
 import numpy as np
 import onnx
 import onnx.numpy_helper
+import onnx_ir as ir
 from onnx.backend.test import __file__ as backend_folder
 
-from onnxscript import ir
 from onnxscript.backend import onnx_export
 
 

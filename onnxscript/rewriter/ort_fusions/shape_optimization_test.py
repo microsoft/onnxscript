@@ -4,9 +4,10 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 import parameterized
 
-from onnxscript import FLOAT, INT64, ir, opset18, script
+from onnxscript import FLOAT, INT64, opset18, script
 from onnxscript.rewriter.ort_fusions import shape_optimization
 
 

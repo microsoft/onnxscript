@@ -5,9 +5,9 @@
 import collections
 import unittest
 
+import onnx_ir as ir
 import parameterized
 
-from onnxscript import ir
 from onnxscript._internal import param_manipulation
 
 TEST_INPUT = "TEST_INPUT"

@@ -5,9 +5,10 @@ from __future__ import annotations
 import unittest
 
 import onnx.defs
+import onnx_ir as ir
 import pytest
 
-from onnxscript import ir, version_converter
+from onnxscript import version_converter
 
 
 class AdapterCoverageTest(unittest.TestCase):

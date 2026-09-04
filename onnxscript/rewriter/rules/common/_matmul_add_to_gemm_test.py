@@ -5,10 +5,10 @@ from typing import Sequence
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 from onnx_ir.passes.common import onnx_checker, shape_inference
 from parameterized import parameterized
 
-from onnxscript import ir
 from onnxscript.rewriter import MatchingTracer, MatchStatus, testing
 from onnxscript.rewriter.rules.common import _matmul_add_to_gemm
 

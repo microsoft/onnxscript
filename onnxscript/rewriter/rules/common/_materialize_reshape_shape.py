@@ -14,7 +14,8 @@ be removed by unused-node elimination.
 
 from __future__ import annotations
 
-from onnxscript import ir
+import onnx_ir as ir
+
 from onnxscript.rewriter import _ir_utils as ir_utils
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet

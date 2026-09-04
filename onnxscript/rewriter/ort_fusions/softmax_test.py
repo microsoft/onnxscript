@@ -3,9 +3,9 @@
 import unittest
 
 import onnx.parser
+import onnx_ir as ir
 import parameterized
 
-from onnxscript import ir
 from onnxscript.rewriter.ort_fusions import softmax
 
 

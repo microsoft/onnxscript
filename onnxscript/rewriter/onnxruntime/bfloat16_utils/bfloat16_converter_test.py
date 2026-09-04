@@ -5,9 +5,9 @@ import unittest
 import numpy as np
 import onnx.checker
 import onnx.shape_inference
+import onnx_ir as ir
 import onnxruntime
 
-from onnxscript import ir
 from onnxscript.rewriter.onnxruntime.bfloat16_utils import bfloat16_converter
 
 

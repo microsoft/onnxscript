@@ -20,8 +20,9 @@ from typing import (
     Union,
 )
 
+import onnx_ir as ir
+
 import onnxscript.rewriter._basics as _basics
-from onnxscript import ir
 
 T = TypeVar("T")
 
