@@ -1108,7 +1108,12 @@ class Converter:
                 if val.value.is_graph_input():
                     # In ONNX, a graph-input cannot be an output of the graph.
                     # We need to insert a copy.
-                    return_var = self._emit_copy(return_var, preferred_name)
+                    copy_name = (
+                        exp.id
+                        if isinstance(exp, ast.Name) and exp.id != return_var.name
+                        else preferred_name
+                    )
+                    return_var = self._emit_copy(return_var, copy_name)
             for prev_output in self._current_fn.outputs:
                 if prev_output.name == return_var.name:
                     # ONNX does not allow duplicate output names.
