@@ -912,6 +912,90 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("negative_dim", 1, -1),
+            ("shift_larger_than_dim", 7, 1),
+            ("negative_shift_larger_than_dim", -4, 1),
+            ("no_dim_shift_larger_than_numel", 14, ()),
+            ("no_dim_negative_shift_larger_than_numel", -8, ()),
+        ]
+    )
+    def test_roll_wraps_shifts_and_normalizes_negative_dims(
+        self, _: str, shifts: int, dims: int | tuple[int, ...]
+    ):
+        # roll is circular, so a shift that exceeds the length of the dimension has
+        # to wrap instead of relying on Slice to clamp it.
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=shifts, dims=dims)
+
+        onnx_program = torch.onnx.export(
+            RollModel(), (torch.randn(2, 3),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
+            ("negative_dim", 1, -1),
+            ("shift_larger_than_dim", 7, 1),
+        ]
+    )
+    def test_roll_complex_wraps_shifts_and_normalizes_negative_dims(
+        self, _: str, shifts: int, dims: int
+    ):
+        # The complex variant carries a trailing axis for the real and imaginary
+        # parts, so a negative dim resolves against a rank one larger than torch's.
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=shifts, dims=dims)
+
+        onnx_program = torch.onnx.export(
+            RollModel(),
+            (torch.randn(2, 3, dtype=torch.complex64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
+            ("trailing_dim", (2, 0), 1, 1),
+            ("trailing_dim_no_dim", (2, 0), 3, ()),
+            ("leading_dim", (0, 3), 1, 1),
+            ("leading_dim_no_dim", (0, 3), 2, ()),
+        ]
+    )
+    def test_roll_empty_tensor_is_an_identity(
+        self, _: str, shape: tuple[int, ...], shifts: int, dims: int | tuple[int, ...]
+    ):
+        # A tensor with no elements rolls to itself. It must not reach the modulo in the
+        # helpers, because the length it would divide by is zero and ONNX leaves Mod by
+        # zero undefined.
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=shifts, dims=dims)
+
+        onnx_program = torch.onnx.export(
+            RollModel(), (torch.zeros(shape),), dynamo=True, optimize=False
+        )
+        self.assertNotIn("Mod", [node.op_type for node in onnx_program.model.graph])
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_roll_complex_empty_tensor_is_an_identity(self):
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=3, dims=1)
+
+        onnx_program = torch.onnx.export(
+            RollModel(),
+            (torch.zeros(2, 0, dtype=torch.complex64),),
+            dynamo=True,
+            optimize=False,
+        )
+        self.assertNotIn("Mod", [node.op_type for node in onnx_program.model.graph])
+        _testing.assert_onnx_program(onnx_program)
+
     def test_quantize_per_channel_int8(self):
         class Model(torch.nn.Module):
             def forward(self, x):

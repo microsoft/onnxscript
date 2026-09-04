@@ -8772,7 +8772,9 @@ def aten_roll(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) ->
     self_rank = len(self.shape)
     if self_rank == 0:
         return op.Identity(self)
-    elif self.shape[0] == 0:  # empty tensor
+    elif 0 in self.shape:
+        # A tensor with no elements rolls to itself, which is what torch returns. It is
+        # also what keeps a zero length out of the modulo in the helpers below.
         return op.Identity(self)
 
     # NOTE: In pytorch, default value of dims is an empty list.
@@ -8784,6 +8786,9 @@ def aten_roll(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) ->
         result = self
         for i, shift in enumerate(shifts):
             dim = dims[i]
+            # PyTorch accepts negative dim as reversed counting
+            if dim < 0:
+                dim = self_rank + dim
             result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
         return result
 
@@ -8804,7 +8809,10 @@ def aten_roll_complex(
     if self_rank == 1:
         return op.Identity(self)
 
-    if self.shape[0] == 0:  # empty tensor
+    if 0 in self.shape:
+        # Same as aten_roll: a tensor with no elements rolls to itself. The trailing
+        # dimension that carries the real and imaginary parts is never zero, so this
+        # only ever sees a dimension torch can see.
         return op.Identity(self)
 
     self_real = op.Slice(self, [0], [1], axes=[-1])
@@ -8819,6 +8827,9 @@ def aten_roll_complex(
     else:
         assert len(shifts) == len(dims)
         for i, dim in enumerate(dims):
+            if dim < 0:
+                # Account for the complex dimension in ONNX
+                dim = self_rank + dim - 1
             self_real = _aten_roll_shift_and_dim_onnx(self_real, shifts[i], dim)
             self_imag = _aten_roll_shift_and_dim_onnx(self_imag, shifts[i], dim)
 
@@ -8827,36 +8838,48 @@ def aten_roll_complex(
 
 
 def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: int) -> TTensor:
+    # The element count is the divisor of the Mod below, and Mod by zero is undefined in
+    # ONNX. Both callers return a tensor with no elements unchanged before reaching here.
+    assert self.shape is None or 0 not in self.shape, (
+        "the element count must not be zero because Mod by zero is undefined"
+    )
+
     neg_1 = op.Constant(value_ints=[-1])
     # flatten the self tensor: from [[A,B],[C,D]] to [A,B,C,D]
     self_flatten = op.Reshape(self, neg_1)
-    # Compute slice length
-    if shift < 0:
-        # For [A,B,C,D], if shift is -1, slice_length = -(-1) = 1, means move [A] to the end
-        slice_length = op.Constant(value_ints=[-shift])
-    else:
-        # For [A,B,C,D], if shift is 1, slice_length = 4 - 1 = 3, means move [A,B,C] to the end
-        # The effect equals to move [D] to the beginning
-        slice_length = op.Size(self_flatten) - op.Constant(value_ints=[shift])
+    total_length = op.Shape(self_flatten)
+    # Compute slice length. roll is circular, so the shift is taken modulo the number
+    # of elements. For [A,B,C,D], if shift is 1, slice_length = 3, means move [A,B,C]
+    # to the end. The effect equals to move [D] to the beginning.
+    slice_length = op.Mod(op.Constant(value_ints=[-shift]), total_length)
     # Get second part of the tensor, e.g. [A,B,C]
     suffix = op.Slice(self_flatten, op.Constant(value_ints=[0]), slice_length)
     # Get first part of the tensor, e.g. [D]
-    prefix = op.Slice(self_flatten, slice_length, op.Reshape(op.Size(self_flatten), neg_1))
+    prefix = op.Slice(self_flatten, slice_length, total_length)
     # Concat first+second together, e.g. [D,A,B,C]
     result = op.Concat(prefix, suffix, axis=0)
-    return op.Reshape(result, op.Shape(self))
+    # allowzero so a dimension that is only zero at run time stays zero here, rather than
+    # being read as "copy the input dimension" against a flattened tensor.
+    return op.Reshape(result, op.Shape(self), allowzero=True)
 
 
 def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTensor:
-    neg_1 = op.Constant(value_ints=[-1])
+    # dim must already be normalized to a nonnegative axis, because Shape below
+    # reads an empty range when start is negative and end is zero.
+    # The length of that dimension is the divisor of the Mod below, and Mod by zero is
+    # undefined in ONNX. Both callers return a tensor with no elements unchanged before
+    # reaching here.
+    assert self.shape is None or self.shape[dim] != 0, (
+        "the dimension length must not be zero because Mod by zero is undefined"
+    )
+
     dim_tensor = op.Constant(value_ints=[dim])
-    if shift < 0:
-        slice_length = op.Constant(value_ints=[-shift])
-    else:
-        slice_length = op.Shape(self, start=dim, end=dim + 1) - op.Constant(value_ints=[shift])
+    dim_length = op.Shape(self, start=dim, end=dim + 1)
+    # roll is circular, so the shift is taken modulo the length of the dimension
+    slice_length = op.Mod(op.Constant(value_ints=[-shift]), dim_length)
     # from [A,B,C,D] -> [D,A,B,C], [D] is prefix, [A,B,C] is suffix
     suffix = op.Slice(self, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
-    prefix = op.Slice(self, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
+    prefix = op.Slice(self, slice_length, dim_length, axes=dim_tensor)
     result = op.Concat(prefix, suffix, axis=dim)
     return result
 
