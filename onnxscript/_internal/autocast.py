@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 
-from onnxscript import ir, tensor
+from onnxscript import tensor
 
 if TYPE_CHECKING:
     from onnxscript._internal import converter

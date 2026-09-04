@@ -17,7 +17,9 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence, Tuple, TypeVar, Union
 
-from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64, ir
+import onnx_ir as ir
+
+from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,

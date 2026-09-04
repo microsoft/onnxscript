@@ -3,9 +3,10 @@
 import unittest
 
 import onnx
+import onnx_ir as ir
 
 import onnxscript.testing
-from onnxscript import ir, optimizer
+from onnxscript import optimizer
 
 
 def _create_model(model_text: str) -> ir.Model:

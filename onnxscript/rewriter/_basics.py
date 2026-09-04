@@ -9,7 +9,7 @@ import enum
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, MutableSequence, Sequence, Union
 
-from onnxscript import ir
+import onnx_ir as ir
 
 if TYPE_CHECKING:
     import onnxscript.rewriter._pattern_ir as _pattern_ir

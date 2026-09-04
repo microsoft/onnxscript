@@ -15,7 +15,9 @@ __all__ = [
 import logging
 from typing import TYPE_CHECKING
 
-from onnxscript import ir, optimizer, version_converter
+import onnx_ir as ir
+
+from onnxscript import optimizer, version_converter
 from onnxscript._framework_apis.torch_2_5 import (
     check_model,
     get_torchlib_ops,

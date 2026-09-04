@@ -8,10 +8,11 @@ import unittest
 import numpy as np
 import onnx.checker
 import onnx.parser
+import onnx_ir as ir
 
 import onnxscript.optimizer
 import onnxscript.rewriter
-from onnxscript import FLOAT, ir, script
+from onnxscript import FLOAT, script
 from onnxscript import opset17 as op
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter.rules.common import _cast_constant_of_shape

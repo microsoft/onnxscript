@@ -3,8 +3,8 @@
 import unittest
 
 import numpy as np
+import onnx_ir as ir
 
-from onnxscript import ir
 from onnxscript.rewriter import rewrite, testing
 from onnxscript.rewriter.rules.common import (
     affine_conv_fusion_rule,
