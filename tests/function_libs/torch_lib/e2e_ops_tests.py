@@ -6,6 +6,7 @@ import math
 import unittest
 
 import numpy as np
+import onnx
 import parameterized
 
 # TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
@@ -96,6 +97,54 @@ class TorchLibe2eTest(unittest.TestCase):
             optimize=False,
         )
         _testing.assert_onnx_program(onnx_program)
+
+    @unittest.skipUnless(
+        hasattr(torch.ops.aten, "_grouped_mm"), "requires torch with aten::_grouped_mm"
+    )
+    def test_grouped_mm(self):
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.nn.functional.grouped_mm(
+                    a.to(torch.bfloat16), b.transpose(-2, -1).to(torch.bfloat16)
+                ).to(torch.float32)
+
+        groups, rows, columns, contraction = 4, 16, 32, 64
+        a = torch.randn(groups, rows, contraction)
+        b = torch.randn(groups, columns, contraction)
+        onnx_program = torch.onnx.export(
+            Model().eval(),
+            (a, b),
+            dynamo=True,
+            dynamic_shapes=(
+                {0: "groups", 1: "rows", 2: "contraction"},
+                {0: "groups", 1: "columns", 2: "contraction"},
+            ),
+            optimize=False,
+        )
+
+        onnx.checker.check_model(onnx_program.model_proto, full_check=True)
+        self.assertIn("MatMul", [node.op_type for node in onnx_program.model_proto.graph.node])
+
+    @unittest.skipUnless(
+        hasattr(torch.ops.aten, "_grouped_mm"), "requires torch with aten::_grouped_mm"
+    )
+    def test_grouped_mm_with_offsets(self):
+        class Model(torch.nn.Module):
+            def forward(self, a, b, offsets):
+                return torch.ops.aten._grouped_mm.default(a, b, offsets)
+
+        offsets = torch.tensor([2, 5, 9], dtype=torch.int32)
+        a = torch.randn(9, 8, dtype=torch.bfloat16)
+        b = torch.randn(3, 8, 8, dtype=torch.bfloat16)
+        onnx_program = torch.onnx.export(
+            Model().eval(), (a, b, offsets), dynamo=True, optimize=False
+        )
+
+        onnx.checker.check_model(onnx_program.model_proto, full_check=True)
+        self.assertEqual(
+            [node.op_type for node in onnx_program.model_proto.graph.node].count("MatMul"),
+            3,
+        )
 
     def test_rand_like_memory_format(self):
         # These random *_like ops are non-deterministic, so assert the export
