@@ -9100,9 +9100,7 @@ def aten_scatter_reduce(
         if include_self:
             # Include self in both sum and count
             total_sum = op.Add(self, scatter_sum)
-            total_count = op.Add(
-                op.ConstantOfShape(op.Shape(self), value=one_val), scatter_count
-            )
+            total_count = op.Add(one_val, scatter_count)
             result = op.Div(total_sum, total_count)
         else:
             # For positions with scattered values: mean = sum / count

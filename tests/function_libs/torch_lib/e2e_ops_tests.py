@@ -91,7 +91,14 @@ class TorchLibe2eTest(unittest.TestCase):
             dtype=torch.float32,
         )
         onnx_program = torch.onnx.export(
-            ScatterMeanIncludeSelfModel(), (x, index, src), dynamo=True
+            ScatterMeanIncludeSelfModel(),
+            (x, index, src),
+            dynamo=True,
+            optimize=False,
+        )
+        self.assertEqual(
+            sum(node.op_type == "ConstantOfShape" for node in onnx_program.model.graph),
+            3,
         )
         _testing.assert_onnx_program(onnx_program)
 
