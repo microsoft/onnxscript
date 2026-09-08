@@ -34,6 +34,9 @@ dependencies = [
   "typing_extensions>=4.10",
 ]
 
+[tool.setuptools]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
 
