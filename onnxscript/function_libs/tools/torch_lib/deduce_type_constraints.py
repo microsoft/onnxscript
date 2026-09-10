@@ -9,9 +9,9 @@ from typing import Dict, Mapping, Optional, Sequence, Set
 
 import onnx
 import onnx.defs
+import onnx_ir as ir
 
 import onnxscript
-from onnxscript import ir
 
 logger = logging.getLogger(__name__)
 

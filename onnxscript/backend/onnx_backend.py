@@ -9,6 +9,7 @@ from typing import Iterator
 import numpy as np
 import onnx
 import onnx.numpy_helper
+import onnx_ir as ir
 from onnx.backend.test import __file__ as backend_folder
 
 from onnxscript.backend import onnx_export
@@ -99,9 +100,34 @@ class OnnxBackendTest:
             res.append(t)
         return res
 
+    @staticmethod
+    def _normalize_tensor(value):
+        if isinstance(value, onnx.TensorProto):
+            return ir.tensor(value).numpy()
+        return value
+
     def __repr__(self):
         """Usual"""
         return f"{self.__class__.__name__}({self.folder!r})"
+
+    @classmethod
+    def from_test_case(cls, test_case):
+        if test_case.model is None:
+            raise ValueError(f"Test case {test_case.name!r} does not define a model.")
+        if test_case.data_sets is None:
+            raise ValueError(f"Test case {test_case.name!r} does not define test data.")
+        obj = cls.__new__(cls)
+        obj.folder = test_case.name
+        obj.onnx_path = None
+        obj.onnx_model = test_case.model
+        obj.tests = [
+            dict(
+                inputs=[cls._normalize_tensor(value) for value in inputs],
+                outputs=[cls._normalize_tensor(value) for value in outputs],
+            )
+            for inputs, outputs in test_case.data_sets
+        ]
+        return obj
 
     def __init__(self, folder):
         if not os.path.exists(folder):
@@ -288,6 +314,14 @@ def enumerate_onnx_tests(series, fct_filter=None) -> Iterator[OnnxBackendTest]:
     root = os.path.dirname(backend_folder)
     sub = os.path.join(root, "data", series)
     if not os.path.exists(sub):
+        if series == "node":
+            from onnx.backend.test.loader import load_model_tests
+
+            for test_case in load_model_tests(kind=series):
+                if fct_filter is not None and not fct_filter(test_case.name):
+                    continue
+                yield OnnxBackendTest.from_test_case(test_case)
+            return
         raise FileNotFoundError(
             f"Unable to find series of tests in {root!r}, subfolders:\n"
             + "\n".join(os.listdir(root))

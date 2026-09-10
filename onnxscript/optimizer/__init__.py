@@ -16,10 +16,10 @@ __all__ = [
 ]
 
 import onnx
+import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
 
 import onnxscript.optimizer._constant_folding as constant_folding
-from onnxscript import ir
 from onnxscript.optimizer._constant_folding import FOLDED_FROM_KEY, basic_constant_propagation
 from onnxscript.optimizer._constant_folding import fold_constants as fold_constants_ir
 from onnxscript.optimizer._optimizer import optimize_ir

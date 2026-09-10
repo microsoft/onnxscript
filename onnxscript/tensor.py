@@ -6,8 +6,9 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import numpy as np
+import onnx_ir as ir
 
-from onnxscript import ir, onnx_opset
+from onnxscript import onnx_opset
 from onnxscript._internal import autocast
 
 
