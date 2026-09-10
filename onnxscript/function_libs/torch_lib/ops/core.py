@@ -57,6 +57,7 @@ _INT32_MAX = 2147483647
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
+_AS_STRIDED_STATIC_INDEX_SIZE_LIMIT = 512 * 512
 
 
 @functools.lru_cache(maxsize=None)
@@ -900,76 +901,92 @@ def aten_argwhere(self: TensorType) -> TensorType:
 
 @torch_op("aten::as_strided", trace_only=True)
 def aten_as_strided(
-    self: TTensor, size: INT64, stride: Sequence[int], storage_offset: int = 0
+    self: TTensor,
+    size: Sequence[INT64],
+    stride: Sequence[INT64],
+    storage_offset: Optional[INT64] = None,
 ) -> TTensor:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
 
-    rank = len(stride)
-    return _aten_as_strided_onnx(self, size, stride, storage_offset, rank)
-
-
-@torch_op("aten::as_strided", private=True)
-def _aten_as_strided_onnx(
-    self: TTensor, size: INT64, stride: INT64, storage_offset: int = 0, rank: int = 0
-) -> TTensor:
-    # e.g. when size=[2,3,4], stride=[2,1,3], indices=[0]
-    # i = 0
-    # indices=[0], add_value=[0,3,6,9]
-    # expand(shape=[4]) to [0,0,0,0]
-    # then + add_value = [0,3,6,9]
-    # i = 1
-    # indices=[0,3,6,9], add_value=[0,1,2]
-    # expand(shape=[3,4] to [[0,3,6,9],[0,3,6,9],[0,3,6,9]]
-    # indices + add_value = [[0,3,6,9],[1,3,7,10],[2,5,8,11]]
-    # i = 2
-    # indices = [[0,3,6,9],[1,3,7,10],[2,5,8,11]], add_value=[0,2]
-    # expand(shape=[2,3,4]) to [[[0,3,6,9],[1,3,7,10],[2,5,8,11]]],[[0,3,6,9],[1,3,7,10],[2,5,8,11]]]
-    # indices + add_value = [[[0,3,6,9],[1,3,7,10],[2,5,8,11]]],[[2,5,8,11],[3,5,9,12],[4,7,10,13]]]
-    neg_1 = op.Constant(value_ints=[-1])
-    rank_tensor = op.Reshape(rank, neg_1)  # should be 3
-    # The final indices for op.Gather(data, indices), will be continually changed during the loop
-    indices = op.Constant(value_int=0)
-    one_seq = op.SequenceEmpty()
-    for i in range(rank):
-        # Get the index from back to front, should be 2,1,0 when to i=0,1,2
-        j = rank - i - 1
-        j_tensor = op.Reshape(j, neg_1)
-        # Get size according to index_j, should be 4,3,2 when i=0,1,2
-        size_dim_j = op.Gather(size, j_tensor, axis=0)
-        # Get right size according to index_j, should be [4],[3,4],[2,3,4] when i=0,1,2
-        size_after_j = op.Slice(size, j_tensor, rank_tensor)
-        # Get stride according to index_j, should be 3,1,2 when i=0,1,2
-        stride_dim_j = op.Gather(stride, j_tensor, axis=0)
-        indices = op.Expand(indices, size_after_j)
-        # When size[j]=4, stride[j]=3, then add_value = [0,1,2,3] * 3 = [0,3,6,9]
-        # When size[j]=3, stride[j]=1, then add_value = [0,1,2] * 1 = [0,1,2]
-        # When size[j]=2, stride[j]=2, then add_value = [0,1] * 2 = [0,2]
-        add_value = op.Range(0, size_dim_j, 1) * stride_dim_j
-        # Compute the shape for add_value for correct broadcasting
-        if i == 0:
-            # shape = [dim_size]
-            shape = size_dim_j
-        else:
-            # shape = [dim_size, 1, 1, ...], the count of 1 euqal to i
-            ones = op.ConcatFromSequence(one_seq, axis=0)
-            shape = op.Concat(op.Cast(size_dim_j, to=FLOAT.dtype), ones, axis=0)
-            shape = op.Cast(shape, to=INT64.dtype)
-
-        add_value = op.Reshape(add_value, shape)
-        # Broadcasting add value to indices according to size and stride value
-        indices = indices + add_value
-        # Dims after dim_size to reshape(add_value), should be [1],[1,1],[1,1,1] when i=0,1,2
-        one_seq = op.SequenceInsert(one_seq, op.Constant(value_floats=[1.0]))
-
+    # torch.as_strided produces a view of `self`'s underlying linear storage
+    # with the requested `size` (the output shape) and `stride` (the step, in
+    # elements of storage, taken along each output dimension), starting at
+    # `storage_offset` elements into the storage. For an output element at
+    # position (i_0, ..., i_{n-1}) the element read from storage lives at the flat
+    # index storage_offset + sum_d i_d * stride[d]. So if we flatten `self` to 1-D
+    # and gather it with a tensor of those flat indices shaped like the output, we
+    # reproduce the view as a single Gather. This avoids the hard-to-fold loop of
+    # the previous implementation.
+    rank = len(size)
+    # ONNX exposes logical values, not backing storage. Flattening is correct only
+    # when logical row-major order matches storage order; non-contiguous views remain
+    # unsupported, as they were in the previous lowering.
     self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
-    indices = op.Add(indices, storage_offset)
-    result = op.Gather(self_flatten, indices)
 
-    return result
+    # A missing storage_offset means "start at the beginning of the storage".
+    if storage_offset is None:
+        storage_offset = 0
+
+    static_inputs = (
+        all(isinstance(s, int) for s in size)
+        and all(isinstance(s, int) for s in stride)
+        and isinstance(storage_offset, int)
+    )
+    static_index_count = math.prod(size) if static_inputs else None
+    if (
+        static_index_count is not None
+        and static_index_count <= _AS_STRIDED_STATIC_INDEX_SIZE_LIMIT
+    ):
+        # Static fast path: every size/stride/offset is known at trace time, so we
+        # compute the full index tensor with NumPy and emit it as a single
+        # constant that downstream passes can fold trivially.
+        # Start from the storage_offset; the per-dimension contributions are added in.
+        indices = np.array(storage_offset, dtype=np.int64)
+        for dim, (dim_size, dim_stride) in enumerate(zip(size, stride)):
+            # Contribution of dimension `dim`: index i_dim contributes i_dim * stride[dim].
+            add_value = np.arange(dim_size, dtype=np.int64) * dim_stride
+            # Reshape that 1-D contribution so it broadcasts along `dim` only
+            # (length dim_size at position `dim`, length 1 everywhere else), which
+            # lets the running sum build the full n-D index grid.
+            broadcast_shape = [1] * rank
+            broadcast_shape[dim] = dim_size
+            indices = indices + add_value.reshape(broadcast_shape)
+        indices = op.Constant(value=ir.tensor(indices))
+    else:
+        # Build runtime indices when a SymInt is dynamic or a static index tensor
+        # would exceed the optimizer's default folded-output size limit. The loop
+        # is unrolled at trace time because rank is static, so no Loop/Scan is emitted.
+        zero = op.Constant(value_int=0)
+        one = op.Constant(value_int=1)
+        # `scalar_shape` reshapes a value to a 0-D scalar (shape []).
+        scalar_shape = op.Constant(value=ir.tensor(np.array([], dtype=np.int64)))
+        # Start the running index from storage_offset as an INT64 scalar; SymInt
+        # runtime values are assumed to be INT64.
+        indices = op.Reshape(storage_offset, scalar_shape)
+        for dim in range(rank):
+            # Reshape this dimension's size and stride to INT64 scalars.
+            dim_size = op.Reshape(size[dim], scalar_shape)
+            dim_stride = op.Reshape(stride[dim], scalar_shape)
+            # add_value = arange(dim_size) * dim_stride, a 1-D tensor of length dim_size
+            # holding the storage offsets contributed by index 0..dim_size-1 along `dim`.
+            add_value = op.Mul(op.Range(zero, dim_size, one), dim_stride)
+            # Insert singleton axes everywhere except `dim` so this 1-D contribution
+            # broadcasts along dimension `dim` only when added to the running index,
+            # matching the NumPy `reshape(broadcast_shape)` in the static path.
+            unsqueeze_axes = [axis for axis in range(rank) if axis != dim]
+            if unsqueeze_axes:
+                add_value = op.Unsqueeze(add_value, op.Constant(value_ints=unsqueeze_axes))
+            indices = op.Add(indices, add_value)
+
+    # `indices` now has shape `size`; gathering yields the strided view.
+    return op.Gather(self_flatten, indices)
 
 
 def aten_as_strided_copy(
-    self: TensorType, size: INT64, stride: INT64, storage_offset: Optional[INT64] = None
+    self: TensorType,
+    size: Sequence[INT64],
+    stride: Sequence[INT64],
+    storage_offset: Optional[INT64] = None,
 ) -> TensorType:
     """as_strided_copy(Tensor self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor"""
 
@@ -979,8 +996,8 @@ def aten_as_strided_copy(
 def aten_as_strided_scatter(
     self: TensorType,
     src: TensorType,
-    size: INT64,
-    stride: INT64,
+    size: Sequence[INT64],
+    stride: Sequence[INT64],
     storage_offset: Optional[INT64] = None,
 ) -> TensorType:
     """as_strided_scatter(Tensor self, Tensor src, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor"""
@@ -3724,7 +3741,7 @@ def aten_empty_quantized(
 @torch_op("aten::empty_strided", trace_only=True)
 def aten_empty_strided(
     size: Sequence[INT64],
-    stride: INT64,
+    stride: Sequence[INT64],
     layout: str = "",
     dtype: int = FLOAT.dtype,
     device: str = "",
@@ -7581,8 +7598,8 @@ def aten_new_empty(
 @torch_op("aten::new_empty_strided", trace_only=True)
 def aten_new_empty_strided(
     self: TTensor,
-    size: INT64,
-    stride: INT64,
+    size: Sequence[INT64],
+    stride: Sequence[INT64],
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -7591,6 +7608,7 @@ def aten_new_empty_strided(
     """new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # using zero to simulate empty array
+    size = common_ops.merge_dims(size)
     zero = op.ConstantOfShape(size)
     if dtype == -1:
         return op.CastLike(zero, self)
@@ -8011,6 +8029,16 @@ def aten_pow_tensor_scalar(self: TReal, exponent: float) -> TReal:
 @torch_op("aten::pow.Scalar", trace_only=True)
 def aten_pow_scalar(self: float, exponent: TTensor) -> TTensor:
     """pow.Scalar(Scalar self, Tensor exponent) -> Tensor"""
+    if not isinstance(self, int) and not exponent.dtype.is_floating_point():
+        # A float scalar outranks an integral exponent, so torch promotes the result to
+        # the default float type instead of narrowing the scalar down to the exponent
+        return op.Pow(op.Cast(self, to=FLOAT.dtype), op.Cast(exponent, to=FLOAT.dtype))
+    if exponent.dtype == ir.DataType.BOOL:
+        # Pow has no boolean inputs, and an int scalar over a boolean exponent
+        # promotes to the default int type in torch
+        return op.Pow(op.Cast(self, to=INT64.dtype), op.Cast(exponent, to=INT64.dtype))
+    # The exponent is in the same or a higher type category than the scalar, so it
+    # decides the result type. e.g. 2.0 ** float16 tensor is float16
     return op.Pow(op.Cast(self, to=exponent.dtype), exponent)
 
 
@@ -8772,7 +8800,9 @@ def aten_roll(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) ->
     self_rank = len(self.shape)
     if self_rank == 0:
         return op.Identity(self)
-    elif self.shape[0] == 0:  # empty tensor
+    elif 0 in self.shape:
+        # A tensor with no elements rolls to itself, which is what torch returns. It is
+        # also what keeps a zero length out of the modulo in the helpers below.
         return op.Identity(self)
 
     # NOTE: In pytorch, default value of dims is an empty list.
@@ -8784,6 +8814,9 @@ def aten_roll(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) ->
         result = self
         for i, shift in enumerate(shifts):
             dim = dims[i]
+            # PyTorch accepts negative dim as reversed counting
+            if dim < 0:
+                dim = self_rank + dim
             result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
         return result
 
@@ -8804,7 +8837,10 @@ def aten_roll_complex(
     if self_rank == 1:
         return op.Identity(self)
 
-    if self.shape[0] == 0:  # empty tensor
+    if 0 in self.shape:
+        # Same as aten_roll: a tensor with no elements rolls to itself. The trailing
+        # dimension that carries the real and imaginary parts is never zero, so this
+        # only ever sees a dimension torch can see.
         return op.Identity(self)
 
     self_real = op.Slice(self, [0], [1], axes=[-1])
@@ -8819,6 +8855,9 @@ def aten_roll_complex(
     else:
         assert len(shifts) == len(dims)
         for i, dim in enumerate(dims):
+            if dim < 0:
+                # Account for the complex dimension in ONNX
+                dim = self_rank + dim - 1
             self_real = _aten_roll_shift_and_dim_onnx(self_real, shifts[i], dim)
             self_imag = _aten_roll_shift_and_dim_onnx(self_imag, shifts[i], dim)
 
@@ -8827,36 +8866,48 @@ def aten_roll_complex(
 
 
 def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: int) -> TTensor:
+    # The element count is the divisor of the Mod below, and Mod by zero is undefined in
+    # ONNX. Both callers return a tensor with no elements unchanged before reaching here.
+    assert self.shape is None or 0 not in self.shape, (
+        "the element count must not be zero because Mod by zero is undefined"
+    )
+
     neg_1 = op.Constant(value_ints=[-1])
     # flatten the self tensor: from [[A,B],[C,D]] to [A,B,C,D]
     self_flatten = op.Reshape(self, neg_1)
-    # Compute slice length
-    if shift < 0:
-        # For [A,B,C,D], if shift is -1, slice_length = -(-1) = 1, means move [A] to the end
-        slice_length = op.Constant(value_ints=[-shift])
-    else:
-        # For [A,B,C,D], if shift is 1, slice_length = 4 - 1 = 3, means move [A,B,C] to the end
-        # The effect equals to move [D] to the beginning
-        slice_length = op.Size(self_flatten) - op.Constant(value_ints=[shift])
+    total_length = op.Shape(self_flatten)
+    # Compute slice length. roll is circular, so the shift is taken modulo the number
+    # of elements. For [A,B,C,D], if shift is 1, slice_length = 3, means move [A,B,C]
+    # to the end. The effect equals to move [D] to the beginning.
+    slice_length = op.Mod(op.Constant(value_ints=[-shift]), total_length)
     # Get second part of the tensor, e.g. [A,B,C]
     suffix = op.Slice(self_flatten, op.Constant(value_ints=[0]), slice_length)
     # Get first part of the tensor, e.g. [D]
-    prefix = op.Slice(self_flatten, slice_length, op.Reshape(op.Size(self_flatten), neg_1))
+    prefix = op.Slice(self_flatten, slice_length, total_length)
     # Concat first+second together, e.g. [D,A,B,C]
     result = op.Concat(prefix, suffix, axis=0)
-    return op.Reshape(result, op.Shape(self))
+    # allowzero so a dimension that is only zero at run time stays zero here, rather than
+    # being read as "copy the input dimension" against a flattened tensor.
+    return op.Reshape(result, op.Shape(self), allowzero=True)
 
 
 def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTensor:
-    neg_1 = op.Constant(value_ints=[-1])
+    # dim must already be normalized to a nonnegative axis, because Shape below
+    # reads an empty range when start is negative and end is zero.
+    # The length of that dimension is the divisor of the Mod below, and Mod by zero is
+    # undefined in ONNX. Both callers return a tensor with no elements unchanged before
+    # reaching here.
+    assert self.shape is None or self.shape[dim] != 0, (
+        "the dimension length must not be zero because Mod by zero is undefined"
+    )
+
     dim_tensor = op.Constant(value_ints=[dim])
-    if shift < 0:
-        slice_length = op.Constant(value_ints=[-shift])
-    else:
-        slice_length = op.Shape(self, start=dim, end=dim + 1) - op.Constant(value_ints=[shift])
+    dim_length = op.Shape(self, start=dim, end=dim + 1)
+    # roll is circular, so the shift is taken modulo the length of the dimension
+    slice_length = op.Mod(op.Constant(value_ints=[-shift]), dim_length)
     # from [A,B,C,D] -> [D,A,B,C], [D] is prefix, [A,B,C] is suffix
     suffix = op.Slice(self, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
-    prefix = op.Slice(self, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
+    prefix = op.Slice(self, slice_length, dim_length, axes=dim_tensor)
     result = op.Concat(prefix, suffix, axis=dim)
     return result
 

@@ -84,6 +84,65 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_pow_scalar_float_int(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return 2.0**x
+
+        onnx_program = torch.onnx.export(
+            PowModel(),
+            (torch.tensor([1, 2, 3], dtype=torch.int64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_scalar_float_bool(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return 2.0**x
+
+        onnx_program = torch.onnx.export(
+            PowModel(), (torch.tensor([True, False]),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_scalar_float_float16(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return 2.0**x
+
+        onnx_program = torch.onnx.export(
+            PowModel(),
+            (torch.tensor([1.0, 2.0], dtype=torch.float16),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_scalar_int_int(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return 2**x
+
+        onnx_program = torch.onnx.export(
+            PowModel(),
+            (torch.tensor([1, 2, 3], dtype=torch.int64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_scalar_int_bool(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return 2**x
+
+        onnx_program = torch.onnx.export(
+            PowModel(), (torch.tensor([True, False]),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_mul_tensor_scalar_float(self):
         class Model(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -912,6 +971,90 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("negative_dim", 1, -1),
+            ("shift_larger_than_dim", 7, 1),
+            ("negative_shift_larger_than_dim", -4, 1),
+            ("no_dim_shift_larger_than_numel", 14, ()),
+            ("no_dim_negative_shift_larger_than_numel", -8, ()),
+        ]
+    )
+    def test_roll_wraps_shifts_and_normalizes_negative_dims(
+        self, _: str, shifts: int, dims: int | tuple[int, ...]
+    ):
+        # roll is circular, so a shift that exceeds the length of the dimension has
+        # to wrap instead of relying on Slice to clamp it.
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=shifts, dims=dims)
+
+        onnx_program = torch.onnx.export(
+            RollModel(), (torch.randn(2, 3),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
+            ("negative_dim", 1, -1),
+            ("shift_larger_than_dim", 7, 1),
+        ]
+    )
+    def test_roll_complex_wraps_shifts_and_normalizes_negative_dims(
+        self, _: str, shifts: int, dims: int
+    ):
+        # The complex variant carries a trailing axis for the real and imaginary
+        # parts, so a negative dim resolves against a rank one larger than torch's.
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=shifts, dims=dims)
+
+        onnx_program = torch.onnx.export(
+            RollModel(),
+            (torch.randn(2, 3, dtype=torch.complex64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
+            ("trailing_dim", (2, 0), 1, 1),
+            ("trailing_dim_no_dim", (2, 0), 3, ()),
+            ("leading_dim", (0, 3), 1, 1),
+            ("leading_dim_no_dim", (0, 3), 2, ()),
+        ]
+    )
+    def test_roll_empty_tensor_is_an_identity(
+        self, _: str, shape: tuple[int, ...], shifts: int, dims: int | tuple[int, ...]
+    ):
+        # A tensor with no elements rolls to itself. It must not reach the modulo in the
+        # helpers, because the length it would divide by is zero and ONNX leaves Mod by
+        # zero undefined.
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=shifts, dims=dims)
+
+        onnx_program = torch.onnx.export(
+            RollModel(), (torch.zeros(shape),), dynamo=True, optimize=False
+        )
+        self.assertNotIn("Mod", [node.op_type for node in onnx_program.model.graph])
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_roll_complex_empty_tensor_is_an_identity(self):
+        class RollModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.roll(x, shifts=3, dims=1)
+
+        onnx_program = torch.onnx.export(
+            RollModel(),
+            (torch.zeros(2, 0, dtype=torch.complex64),),
+            dynamo=True,
+            optimize=False,
+        )
+        self.assertNotIn("Mod", [node.op_type for node in onnx_program.model.graph])
+        _testing.assert_onnx_program(onnx_program)
+
     def test_quantize_per_channel_int8(self):
         class Model(torch.nn.Module):
             def forward(self, x):
@@ -1495,6 +1638,124 @@ class TorchLibe2eTest(unittest.TestCase):
                 expected = model(*inputs)
                 got = onnx_program.call_reference({"x": inputs[0]})
                 torch.testing.assert_close(expected, got[0])
+
+    def test_aten_as_strided_static_multi_dim(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.as_strided(x, (2, 3), (4, 1), 2)
+
+        model = Model()
+        x = torch.arange(24, dtype=torch.float32).reshape(4, 6)
+        onnx_program = torch.onnx.export(
+            model, (x,), dynamo=True, optimize=False, verbose=False
+        )
+        op_types = [node.op_type for node in onnx_program.model.graph]
+        self.assertNotIn("Range", op_types)
+        index_constants = [
+            node.attributes["value"].as_tensor()
+            for node in onnx_program.model.graph
+            if node.op_type == "Constant"
+            and "value" in node.attributes
+            and node.attributes["value"].as_tensor().shape == [2, 3]
+        ]
+        self.assertEqual(len(index_constants), 1)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_as_strided_large_static_shape_avoids_large_constant(self):
+        output_shape = (512, 513)
+
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.as_strided(x, output_shape, (0, 0))
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([3.0]),),
+            dynamo=True,
+            optimize=True,
+            verbose=False,
+        )
+        self.assertIn("Add", [node.op_type for node in onnx_program.model.graph])
+
+        constant_sizes = [
+            node.attributes["value"].as_tensor().size
+            for node in onnx_program.model.graph
+            if node.op_type == "Constant" and "value" in node.attributes
+        ]
+        initializer_sizes = [
+            initializer.const_value.size
+            for initializer in onnx_program.model.graph.initializers.values()
+            if initializer.const_value is not None
+        ]
+        self.assertLess(
+            max([*constant_sizes, *initializer_sizes], default=0),
+            math.prod(output_shape),
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_as_strided_static_single_dim(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.as_strided(x, (4,), (2,))
+
+        model = Model()
+        x = torch.arange(12, dtype=torch.float32)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_as_strided_static_overlapping(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.as_strided(x, (3, 3), (1, 1))
+
+        model = Model()
+        x = torch.arange(10, dtype=torch.float32)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_as_strided_static_scalar(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.as_strided(x, (), (), 3)
+
+        model = Model()
+        x = torch.arange(12, dtype=torch.float32)
+        onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_as_strided_dynamic_size(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                n = x.shape[0] - 1
+                return torch.as_strided(x, (n, 2), (1, 1))
+
+        model = Model()
+        x = torch.arange(12, dtype=torch.float32)
+        onnx_program = torch.onnx.export(
+            model,
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_aten_as_strided_dynamic_size_with_offset(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                n = x.shape[0] - 2
+                return torch.as_strided(x, (n,), (1,), 1)
+
+        model = Model()
+        x = torch.arange(12, dtype=torch.float32)
+        onnx_program = torch.onnx.export(
+            model,
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
 
     @parameterized.parameterized.expand(
         [
