@@ -879,6 +879,37 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         self.assertIn("y", output_names)
         self.assertIn("z", output_names)
 
+    def test_register_constant_folder(self):
+        @optimizer.register_constant_folder("CustomAdd", domain="test.custom")
+        def fold_custom_add(node: ir.Node, op, state: _constant_folding.OptimizerState):
+            return op.Constant(value_int=42)
+
+        try:
+            model = ir.from_onnx_text(
+                """
+                <ir_version: 7, opset_import: [ "" : 17, "test.custom" : 1 ]>
+                agraph (float[N] x) => (int64 z) {
+                    z = test.custom.CustomAdd(x)
+                }
+                """
+            )
+
+            optimized = self._fold(model)
+            custom_add_nodes = [n for n in optimized.graph if n.op_type == "CustomAdd"]
+            self.assertEqual(len(custom_add_nodes), 0)
+            z_value = optimized.graph.outputs[0]
+            self.assertIsNotNone(z_value.const_value)
+            np.testing.assert_equal(z_value.const_value.numpy(), np.array(42, dtype=np.int64))
+        finally:
+            key = ("test.custom", "CustomAdd")
+            evaluators = _constant_folding.registry.op_evaluators.get(key)
+            if evaluators is not None:
+                _constant_folding.registry.op_evaluators[key] = [
+                    e for e in evaluators if e.function is not fold_custom_add
+                ]
+                if not _constant_folding.registry.op_evaluators[key]:
+                    del _constant_folding.registry.op_evaluators[key]
+
 
 def _all_value_names_unique(model: ir.Model) -> bool:
     """Return True if all named values in the top-level graph have unique names."""
