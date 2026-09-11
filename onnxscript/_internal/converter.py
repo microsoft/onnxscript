@@ -1234,9 +1234,12 @@ class Converter:
         vars_def_in_loop = self.analyzer.assigned_vars(loop_stmt.body)
         live_out = self.analyzer.live_out(loop_stmt)
         assert live_out is not None, "live_out cannot be None here."
-        loop_state_vars = vars_def_in_loop.intersection(exposed_uses | live_out)
-        scan_outputs = set()  # TODO
-        outputs = list(loop_state_vars | scan_outputs)
+        # A list, not a set: this order is used to build both the Loop node's
+        # loop-carried inputs (below) and its output names (via `outputs`), and ONNX
+        # matches Loop inputs to outputs positionally, not by name.
+        loop_state_vars = list(vars_def_in_loop.intersection(exposed_uses | live_out))
+        scan_outputs = []  # TODO
+        outputs = loop_state_vars + scan_outputs
 
         # loop-condition:
         # o_loop_condition = self._emit_const(True, "true", self._source_of(loop_stmt))
