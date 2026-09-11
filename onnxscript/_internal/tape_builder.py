@@ -380,6 +380,43 @@ class BuilderBase(abc.ABC):
         # 6. Determine outputs
         output_values = self._adapt_outputs(outputs, op_type)
 
+        # 6.5 Validate positional inputs.
+        # A non-Value positional argument (e.g. a constant passed where an
+        # attribute/keyword was expected, as in ``op.LeakyRelu(x, 1.0)``) would
+        # otherwise surface as a cryptic ``AttributeError`` raised deep inside
+        # onnx_ir when it tries to use the argument as a graph value. Raise a
+        # clear, actionable ``TypeError`` instead.
+        # Lists/tuples of values are allowed (variadic inputs may be grouped).
+        for index, arg in enumerate(args):
+            if arg is None or isinstance(arg, ir.Value):
+                continue
+            if isinstance(arg, (list, tuple)) and all(
+                a is None or isinstance(a, ir.Value) for a in arg
+            ):
+                continue
+            if schema is not None:
+                # Suggest the most likely attribute name from the schema so the
+                # user knows how to pass the value correctly.
+                attributes = getattr(schema, "attributes", None) or ()
+                attr_hint = ""
+                if index < len(attributes):
+                    attr_hint = (
+                        f" It looks like this should be the "
+                        f"'{attributes[index].name}' attribute; pass it as a "
+                        f"keyword (e.g. op.{op_type}(x, "
+                        f"{attributes[index].name}={arg!r}))."
+                    )
+                raise TypeError(
+                    f"{op_type}() got a non-Value positional argument "
+                    f"{arg!r} at position {index + 1}.{attr_hint}"
+                )
+            raise TypeError(
+                f"{op_type}() got a non-Value positional argument {arg!r} at "
+                f"position {index + 1}. If this was meant to be an attribute, "
+                f"pass it as a keyword argument (e.g. op.{op_type}(x, "
+                f"alpha={arg!r}))."
+            )
+
         # 7. Build the node
         if name is None:
             name = self._generate_node_name(op_type)
