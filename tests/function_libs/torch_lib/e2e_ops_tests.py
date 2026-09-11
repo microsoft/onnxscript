@@ -84,6 +84,65 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_pow_scalar_float_int(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return 2.0**x
+
+        onnx_program = torch.onnx.export(
+            PowModel(),
+            (torch.tensor([1, 2, 3], dtype=torch.int64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_scalar_float_bool(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return 2.0**x
+
+        onnx_program = torch.onnx.export(
+            PowModel(), (torch.tensor([True, False]),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_scalar_float_float16(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return 2.0**x
+
+        onnx_program = torch.onnx.export(
+            PowModel(),
+            (torch.tensor([1.0, 2.0], dtype=torch.float16),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_scalar_int_int(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return 2**x
+
+        onnx_program = torch.onnx.export(
+            PowModel(),
+            (torch.tensor([1, 2, 3], dtype=torch.int64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_scalar_int_bool(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return 2**x
+
+        onnx_program = torch.onnx.export(
+            PowModel(), (torch.tensor([True, False]),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_mul_tensor_scalar_float(self):
         class Model(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:

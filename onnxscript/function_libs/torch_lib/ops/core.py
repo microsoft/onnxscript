@@ -8029,6 +8029,16 @@ def aten_pow_tensor_scalar(self: TReal, exponent: float) -> TReal:
 @torch_op("aten::pow.Scalar", trace_only=True)
 def aten_pow_scalar(self: float, exponent: TTensor) -> TTensor:
     """pow.Scalar(Scalar self, Tensor exponent) -> Tensor"""
+    if not isinstance(self, int) and not exponent.dtype.is_floating_point():
+        # A float scalar outranks an integral exponent, so torch promotes the result to
+        # the default float type instead of narrowing the scalar down to the exponent
+        return op.Pow(op.Cast(self, to=FLOAT.dtype), op.Cast(exponent, to=FLOAT.dtype))
+    if exponent.dtype == ir.DataType.BOOL:
+        # Pow has no boolean inputs, and an int scalar over a boolean exponent
+        # promotes to the default int type in torch
+        return op.Pow(op.Cast(self, to=INT64.dtype), op.Cast(exponent, to=INT64.dtype))
+    # The exponent is in the same or a higher type category than the scalar, so it
+    # decides the result type. e.g. 2.0 ** float16 tensor is float16
     return op.Pow(op.Cast(self, to=exponent.dtype), exponent)
 
 

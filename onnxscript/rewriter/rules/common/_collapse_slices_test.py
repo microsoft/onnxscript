@@ -6,8 +6,8 @@ import unittest
 
 import numpy as np
 import onnx.parser
+import onnx_ir as ir
 
-from onnxscript import ir
 from onnxscript.rewriter import testing
 from onnxscript.rewriter.rules.common import _collapse_slices
 

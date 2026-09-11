@@ -4,9 +4,9 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 import parameterized
 
-from onnxscript import ir
 from onnxscript.rewriter import testing
 from onnxscript.rewriter.rules.common import _fuse_batchnorm
 

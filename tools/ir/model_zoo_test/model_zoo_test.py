@@ -18,12 +18,12 @@ import time
 import traceback
 
 import onnx
+import onnx_ir as ir
 import onnxruntime as ort
 import tqdm
 from onnx import hub
 
 import onnxscript.testing
-from onnxscript import ir
 
 
 def test_model(model_info: hub.ModelInfo) -> float:
