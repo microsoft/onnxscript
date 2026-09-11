@@ -709,9 +709,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "expm1", special_ops.aten_special_expm1, tolerance={torch.float16: (1e-2, 2e-4)}
     ),
-    TorchLibOpInfo("special.erfcx", special_ops.aten_special_erfcx).xfail(
-        reason="fixme: The implementation is numerically unstable: https://github.com/microsoft/onnxscript/issues/1223"
-    ),
+    TorchLibOpInfo("special.erfcx", special_ops.aten_special_erfcx),
     TorchLibOpInfo(
         "ops.aten.fake_quantize_per_channel_affine",
         core_ops.aten_fake_quantize_per_channel_affine,
