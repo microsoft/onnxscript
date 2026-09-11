@@ -13,7 +13,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from onnxscript import ir
+import onnx_ir as ir
+
 from onnxscript.function_libs.torch_lib.ops import common
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.onnx_opset import opset18 as op

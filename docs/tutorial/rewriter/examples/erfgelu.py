@@ -11,9 +11,10 @@ First a dummy model with a GELU activation
 import math
 
 import onnx
+import onnx_ir as ir
 
 import onnxscript
-from onnxscript import FLOAT, ir, opset18, script
+from onnxscript import FLOAT, opset18, script
 from onnxscript.rewriter import pattern
 
 

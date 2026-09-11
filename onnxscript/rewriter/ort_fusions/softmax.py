@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 
 import onnx
+import onnx_ir as ir
 
-from onnxscript import ir
 from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 logger = logging.getLogger(__name__)

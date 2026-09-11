@@ -6,10 +6,10 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 import parameterized
 
 import onnxscript.optimizer as optimizer
-from onnxscript import ir
 from onnxscript.optimizer import _constant_folding
 
 

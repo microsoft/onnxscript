@@ -6,9 +6,9 @@ import unittest
 
 import onnx.parser
 import onnx.shape_inference
+import onnx_ir as ir
 import parameterized
 
-from onnxscript import ir
 from onnxscript.rewriter.rules.common import _broadcast_to_matmul
 
 

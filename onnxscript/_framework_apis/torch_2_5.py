@@ -18,7 +18,9 @@ import os
 import pathlib
 from typing import Callable
 
-from onnxscript import ir, optimizer, version_converter
+import onnx_ir as ir
+
+from onnxscript import optimizer, version_converter
 from onnxscript.function_libs.torch_lib import registration
 
 
