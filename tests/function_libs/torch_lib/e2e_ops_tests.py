@@ -1847,6 +1847,37 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(IsCloseModel(), (a, b), dynamo=True, optimize=False)
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("amax", "amax", False),
+            ("amax_keepdim", "amax", True),
+            ("amin", "amin", False),
+            ("amin_keepdim", "amin", True),
+        ]
+    )
+    def test_amax_amin_reduce_every_dimension_when_dim_is_omitted(
+        self, _: str, reduction: str, keepdim: bool
+    ):
+        # dim defaults to the empty list in the aten schema, so leaving it out means
+        # reduce every dimension. torch.export drops the argument entirely unless a
+        # later one is set, in which case it passes an empty list instead, and both
+        # spellings have to come out the same. ReduceMax and ReduceMin only reduce
+        # everything while noop_with_empty_axes is 0. A 1 there would quietly hand
+        # back the input untouched.
+        reduce_op = getattr(torch, reduction)
+
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return reduce_op(x, keepdim=keepdim)
+
+        onnx_program = torch.onnx.export(
+            Model(), (torch.randn(2, 3),), dynamo=True, optimize=False
+        )
+        for node in onnx_program.model.graph:
+            if node.op_type in ("ReduceMax", "ReduceMin"):
+                self.assertEqual(node.attributes.get_int("noop_with_empty_axes", 0), 0)
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
