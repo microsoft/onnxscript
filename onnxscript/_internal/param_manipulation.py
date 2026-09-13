@@ -52,6 +52,14 @@ def separate_input_attributes_from_arguments(
     onnx_inputs = []
     onnx_attributes = collections.OrderedDict()
     has_variadic = False
+    omitted_optional_inputs = 0
+
+    def append_input(value: Any) -> None:
+        nonlocal omitted_optional_inputs
+        # Omitted inputs need placeholders only when a later input is present.
+        onnx_inputs.extend([None] * omitted_optional_inputs)
+        omitted_optional_inputs = 0
+        onnx_inputs.append(value)
 
     for i, param in enumerate(op_signature.params):
         is_input = param.is_param()
@@ -60,17 +68,21 @@ def separate_input_attributes_from_arguments(
         if is_variadic:
             has_variadic = True
             # Exhaust all remaining args
-            onnx_inputs.extend(args[i:])
+            variadic_args = args[i:]
+            if variadic_args:
+                onnx_inputs.extend([None] * omitted_optional_inputs)
+                omitted_optional_inputs = 0
+                onnx_inputs.extend(variadic_args)
             args = []
             continue
         if i < len(args):
             if is_input:
-                onnx_inputs.append(args[i])
+                append_input(args[i])
             else:
                 onnx_attributes[param.name] = args[i]
         elif param.name in kwargs:
             if is_input:
-                onnx_inputs.append(kwargs[param.name])
+                append_input(kwargs[param.name])
             else:
                 onnx_attributes[param.name] = kwargs[param.name]
         elif isinstance(param, ir.schemas.AttributeParameter) and param.has_default():
@@ -80,6 +92,8 @@ def separate_input_attributes_from_arguments(
                 onnx_attributes[param.name] = param.default.value
         elif param.required:
             raise TypeError(f"Required input '{param}' was not provided")
+        elif is_input:
+            omitted_optional_inputs += 1
 
     if not allow_extra_args and not has_variadic and len(args) > len(op_signature.params):
         raise TypeError(
