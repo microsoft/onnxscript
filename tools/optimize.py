@@ -11,30 +11,34 @@ Usage:
 import argparse
 import os
 
-import onnx
-import onnx.inliner
+import onnx_ir
 
 import onnxscript
+
+
+def _has_external_data(model: onnx_ir.Model) -> bool:
+    """Return True if any initializer in the model is stored as external data."""
+    return any(
+        isinstance(value.const_value, onnx_ir.ExternalTensor)
+        for graph in model.graphs()
+        for value in graph.initializers.values()
+    )
 
 
 def main(args) -> None:
     path = args.path
     output_path = args.output_path
 
-    model = onnx.load(path, load_external_data=False)
-    # Hack: Change the working directory to the model directory so the optimizer
-    # can load external data files with relative paths.
-    # TODO: Remove this hack by fixing the optimizer to handle external data files properly.
-    pwd = os.getcwd()
-    model_dir = os.path.dirname(path)
-    os.chdir(model_dir)
+    model = onnx_ir.load(path)
+    # optimize() inlines local functions before it runs the optimization passes,
+    # so no separate inliner call is needed.
     model = onnxscript.optimizer.optimize(model)
-    model = onnx.inliner.inline_local_functions(model)
-    # Optimize again in case inlining created new opportunities.
-    model = onnxscript.optimizer.optimize(model)
-
-    os.chdir(pwd)
-    onnx.save(model, output_path)
+    # Only externalize if the input already used external data, and name the
+    # external data file after the output model so it doesn't collide with input.
+    external_data = (
+        f"{os.path.basename(output_path)}.data" if _has_external_data(model) else None
+    )
+    onnx_ir.save(model, output_path, external_data=external_data)
 
 
 if __name__ == "__main__":
