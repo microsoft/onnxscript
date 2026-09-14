@@ -12,9 +12,10 @@ First we write a dummy model with a several Reshape nodes and a Matmul node
 import logging
 
 import onnx
+import onnx_ir as ir
 
 import onnxscript
-from onnxscript import FLOAT, ir, opset18, script
+from onnxscript import FLOAT, opset18, script
 from onnxscript.rewriter import pattern
 
 logger = logging.getLogger(__name__)

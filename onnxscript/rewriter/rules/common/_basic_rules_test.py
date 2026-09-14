@@ -8,11 +8,12 @@ from typing import Any
 import numpy as np
 import onnx
 import onnx.reference
+import onnx_ir as ir
 import parameterized
 
 import onnxscript
 import onnxscript.onnx_types as ot
-from onnxscript import ir, rewriter
+from onnxscript import rewriter
 from onnxscript.onnx_opset import opset18
 from onnxscript.optimizer import _constant_folding, common_passes
 from onnxscript.rewriter import MatchingTracer, testing

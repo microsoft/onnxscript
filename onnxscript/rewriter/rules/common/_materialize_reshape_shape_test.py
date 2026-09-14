@@ -5,8 +5,8 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
+import onnx_ir as ir
 
-from onnxscript import ir
 from onnxscript.rewriter import testing
 from onnxscript.rewriter.rules.common import _materialize_reshape_shape
 

@@ -9,10 +9,11 @@ from collections.abc import Sequence
 
 import numpy.typing as npt
 import onnx
+import onnx_ir as ir
 
 import onnxscript
 import onnxscript.values
-from onnxscript import BOOL, INT64, ir
+from onnxscript import BOOL, INT64
 from onnxscript import opset18 as op
 from onnxscript.function_libs.torch_lib import _constants, tensor_typing
 from onnxscript.function_libs.torch_lib.tensor_typing import RealType

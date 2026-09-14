@@ -419,19 +419,33 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::amax")
-def aten_amax(self: TRealOrUInt8, dim: INT64, keepdim: bool = False) -> TRealOrUInt8:
+@torch_op("aten::amax", trace_only=True)
+def aten_amax(
+    self: TRealOrUInt8, dim: Optional[INT64] = None, keepdim: bool = False
+) -> TRealOrUInt8:
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    # ReduceMax reduces all dimensions when dim is empty
+    if dim is None:
+        # dim defaults to the empty list in the aten schema, which means reduce every
+        # dimension. noop_with_empty_axes keeps its default of 0, so ReduceMax without
+        # an axes input reduces all of them.
+        return op.ReduceMax(self, keepdims=keepdim)
+    # An explicitly empty dim arrives here and reduces every dimension for the same reason
     return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
-@torch_op("aten::amin")
-def aten_amin(self: TRealOrUInt8, dim: INT64, keepdim: bool = False) -> TRealOrUInt8:
+@torch_op("aten::amin", trace_only=True)
+def aten_amin(
+    self: TRealOrUInt8, dim: Optional[INT64] = None, keepdim: bool = False
+) -> TRealOrUInt8:
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    # ReduceMin reduces all dimensions when dim is empty
+    if dim is None:
+        # dim defaults to the empty list in the aten schema, which means reduce every
+        # dimension. noop_with_empty_axes keeps its default of 0, so ReduceMin without
+        # an axes input reduces all of them.
+        return op.ReduceMin(self, keepdims=keepdim)
+    # An explicitly empty dim arrives here and reduces every dimension for the same reason
     return op.ReduceMin(self, dim, keepdims=keepdim)
 
 

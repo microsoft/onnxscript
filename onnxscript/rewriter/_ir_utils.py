@@ -6,8 +6,9 @@ import math
 from typing import Callable, Sequence
 
 import numpy as np
+import onnx_ir as ir
 
-from onnxscript import ir, optimizer
+from onnxscript import optimizer
 
 
 def display_nodes(nodes: Sequence[ir.Node]) -> None:
