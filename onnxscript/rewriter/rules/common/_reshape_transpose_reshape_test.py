@@ -5,14 +5,12 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
-import onnx
-import onnx.checker
-import onnx.helper as oh
-import onnxruntime as ort
+import onnx_ir as ir
+from onnx_ir.passes.common import onnx_checker
 
-from onnxscript import ir, optimizer
+from onnxscript import optimizer
 from onnxscript.rewriter import testing
-from onnxscript.rewriter.rules.common import _reshape_transpose_reshape as rtr
+from onnxscript.rewriter.rules.common import _reshape_transpose_reshape
 
 
 def _dims_to_str(dims: list[int]) -> str:
@@ -76,7 +74,7 @@ class ReshapeTransposeReshapeFiresTest(unittest.TestCase):
         permutation: [2,0,1].
         """
         model = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
-        count = rtr.rules.apply_to_model(model)
+        count = _reshape_transpose_reshape.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(_op_types(model), ["Transpose"])
         transpose = next(n for n in model.graph if n.op_type == "Transpose")
@@ -88,7 +86,7 @@ class ReshapeTransposeReshapeFiresTest(unittest.TestCase):
         Derived permutation: [2,1,0].
         """
         model = _build_chain([6, 4, 10], [2, 3, 4, 2, 5], [3, 4, 2, 0, 1], [10, 4, 6])
-        count = rtr.rules.apply_to_model(model)
+        count = _reshape_transpose_reshape.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(_op_types(model), ["Transpose"])
         transpose = next(n for n in model.graph if n.op_type == "Transpose")
@@ -99,7 +97,7 @@ class ReshapeTransposeReshapeFiresTest(unittest.TestCase):
         the rule must still recognize the plain Transpose hiding inside.
         """
         model = _build_chain([2, 3, 4], [2, 3, 4], [1, 0, 2], [3, 2, 4])
-        count = rtr.rules.apply_to_model(model)
+        count = _reshape_transpose_reshape.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(_op_types(model), ["Transpose"])
         transpose = next(n for n in model.graph if n.op_type == "Transpose")
@@ -110,7 +108,7 @@ class ReshapeTransposeReshapeFiresTest(unittest.TestCase):
         instead of a no-op Transpose, matching TransposeIdentity's convention.
         """
         model = _build_chain([2, 15, 7], [2, 3, 5, 7], [0, 1, 2, 3], [2, 15, 7])
-        count = rtr.rules.apply_to_model(model)
+        count = _reshape_transpose_reshape.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(_op_types(model), ["Identity"])
 
@@ -120,7 +118,7 @@ class ReshapeTransposeReshapeFiresTest(unittest.TestCase):
         permutation: [1,0].
         """
         model = _build_chain([6, 6], [2, 3, 2, 3], [2, 3, 0, 1], [6, 6])
-        count = rtr.rules.apply_to_model(model)
+        count = _reshape_transpose_reshape.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(_op_types(model), ["Transpose"])
         transpose = next(n for n in model.graph if n.op_type == "Transpose")
@@ -132,7 +130,7 @@ class ReshapeTransposeReshapeFiresTest(unittest.TestCase):
         """
         original = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
         rewritten = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
-        rtr.rules.apply_to_model(rewritten)
+        _reshape_transpose_reshape.rules.apply_to_model(rewritten)
         data = np.arange(2 * 15 * 7, dtype=np.float32).reshape(2, 15, 7)
         shape1 = np.array([2, 3, 5, 7], dtype=np.int64)
         shape2 = np.array([7, 2, 15], dtype=np.int64)
@@ -142,7 +140,7 @@ class ReshapeTransposeReshapeFiresTest(unittest.TestCase):
         """Verify numerical equivalence for the multi-axis-split case."""
         original = _build_chain([6, 4, 10], [2, 3, 4, 2, 5], [3, 4, 2, 0, 1], [10, 4, 6])
         rewritten = _build_chain([6, 4, 10], [2, 3, 4, 2, 5], [3, 4, 2, 0, 1], [10, 4, 6])
-        rtr.rules.apply_to_model(rewritten)
+        _reshape_transpose_reshape.rules.apply_to_model(rewritten)
         data = np.arange(6 * 4 * 10, dtype=np.float32).reshape(6, 4, 10)
         shape1 = np.array([2, 3, 4, 2, 5], dtype=np.int64)
         shape2 = np.array([10, 4, 6], dtype=np.int64)
@@ -156,7 +154,7 @@ class ReshapeTransposeReshapeDoesNotFireTest(unittest.TestCase):
 
     def _assert_does_not_fire(self, model: ir.Model) -> None:
         before = _op_types(model)
-        count = rtr.rules.apply_to_model(model)
+        count = _reshape_transpose_reshape.rules.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(_op_types(model), before)
 
@@ -295,7 +293,7 @@ class ReshapeTransposeReshapeDoesNotFireTest(unittest.TestCase):
         for node in model.graph:
             if node.op_type == "Transpose":
                 node.attributes["perm"] = ir.AttrInt64s("perm", [3, 0, 1])  # too short
-        count = rtr.rules.apply_to_model(model)  # must not raise
+        count = _reshape_transpose_reshape.rules.apply_to_model(model)  # must not raise
         self.assertEqual(count, 0)
 
 
@@ -322,7 +320,9 @@ class ReshapeTransposeReshapeInvariantTest(unittest.TestCase):
         """
         original_dims = [2, 1, 7]
         split_dims = [2, 1, 7]  # identity reshape; axis1=1 is never "split"
-        groups = rtr._split_into_original_axis_groups(original_dims, split_dims)
+        groups = _reshape_transpose_reshape._split_into_original_axis_groups(
+            original_dims, split_dims
+        )
         self.assertEqual(groups, [[0], [], [1, 2]])  # group for axis1 is empty
 
     def test_empty_group_yields_a_permutation_shorter_than_original_rank(self):
@@ -335,7 +335,7 @@ class ReshapeTransposeReshapeInvariantTest(unittest.TestCase):
         by a later shape-length mismatch.
         """
         groups = [[0], [], [1, 2]]
-        pi = rtr._derive_block_permutation(groups, [0, 1, 2])
+        pi = _reshape_transpose_reshape._derive_block_permutation(groups, [0, 1, 2])
         self.assertIsNotNone(pi)
         self.assertNotEqual(len(pi), len(groups))  # 2 != 3: the invariant must reject this
         self.assertEqual(pi, [0, 2])
@@ -354,57 +354,63 @@ class ReshapeTransposeReshapeIntegrationTest(unittest.TestCase):
     def test_materialize_reshape_shape_then_collapse(self):
         """R1's shape input (`shape1`) is a genuine, non-constant graph
         input -- nothing folds it away. R1's output shape is only known
-        because the model carries a real ONNX `value_info` entry for it
-        (exactly what a prior shape-inference pass or exporter would
-        attach), not anything manually poked via IR APIs. Run through the
-        public `optimizer.optimize()`, exactly as a real caller would.
+        because its output value declares that shape directly (exactly
+        what a prior shape-inference pass or exporter would attach), not
+        anything manually poked onto an already-built graph. Run through
+        the public `optimizer.optimize()`, exactly as a real caller would.
         """
-        data = oh.make_tensor_value_info("data", onnx.TensorProto.FLOAT, [2, 15, 7])
-        shape1 = oh.make_tensor_value_info("shape1", onnx.TensorProto.INT64, [4])
-        output = oh.make_tensor_value_info("output", onnx.TensorProto.FLOAT, [7, 2, 15])
-        r1_value_info = oh.make_tensor_value_info("r1", onnx.TensorProto.FLOAT, [2, 3, 5, 7])
-
-        r1 = oh.make_node("Reshape", ["data", "shape1"], ["r1"])
-        t = oh.make_node("Transpose", ["r1"], ["t"], perm=[3, 0, 1, 2])
-        shape2_const = oh.make_node(
+        tape = ir.tape.Tape()
+        data = ir.val(
+            "data", shape=ir.Shape([2, 15, 7]), type=ir.TensorType(ir.DataType.FLOAT)
+        )
+        shape1 = ir.val("shape1", shape=ir.Shape([4]), type=ir.TensorType(ir.DataType.INT64))
+        r1 = tape.op(
+            "Reshape",
+            inputs=[data, shape1],
+            output=ir.val(
+                "r1", shape=ir.Shape([2, 3, 5, 7]), type=ir.TensorType(ir.DataType.FLOAT)
+            ),
+        )
+        t = tape.op("Transpose", inputs=[r1], attributes={"perm": [3, 0, 1, 2]})
+        shape2 = tape.op(
             "Constant",
-            [],
-            ["shape2"],
-            value=oh.make_tensor("shape2_val", onnx.TensorProto.INT64, [3], [7, 2, 15]),
+            inputs=[],
+            attributes={
+                "value": ir.tensor([7, 2, 15], dtype=ir.DataType.INT64, name="shape2_val")
+            },
         )
-        r2 = oh.make_node("Reshape", ["t", "shape2"], ["output"])
+        output = tape.op(
+            "Reshape",
+            inputs=[t, shape2],
+            output=ir.val(
+                "output", shape=ir.Shape([7, 2, 15]), type=ir.TensorType(ir.DataType.FLOAT)
+            ),
+        )
 
-        graph = oh.make_graph(
-            [r1, t, shape2_const, r2],
-            "g",
-            [data, shape1],
-            [output],
-            value_info=[r1_value_info],
+        model = ir.Model(
+            ir.Graph(
+                inputs=[data, shape1],
+                outputs=[output],
+                nodes=tape.nodes,
+                initializers=tape.initializers,
+                opset_imports={"": 18},
+                name="test_model",
+            ),
+            ir_version=9,
         )
-        model = oh.make_model(graph, opset_imports=[oh.make_opsetid("", 18)])
-        model.ir_version = 9
-        onnx.checker.check_model(model)
-        self.assertEqual(
-            [n.op_type for n in model.graph.node],
-            ["Reshape", "Transpose", "Constant", "Reshape"],
-        )
+        onnx_checker.CheckerPass(True)(model)
+        self.assertEqual(_op_types(model), ["Reshape", "Transpose", "Constant", "Reshape"])
 
         optimized = optimizer.optimize(model, num_iterations=2)
 
-        self.assertEqual([n.op_type for n in optimized.graph.node], ["Transpose"])
-        onnx.checker.check_model(optimized)
+        self.assertEqual(_op_types(optimized), ["Transpose"])
+        onnx_checker.CheckerPass(True)(optimized)
 
         data_np = np.arange(2 * 15 * 7, dtype=np.float32).reshape(2, 15, 7)
         shape1_np = np.array([2, 3, 5, 7], dtype=np.int64)
-        sess_original = ort.InferenceSession(
-            model.SerializeToString(), providers=["CPUExecutionProvider"]
+        testing.assert_numerically_equal(
+            model, optimized, (data_np, shape1_np), rtol=0, atol=0
         )
-        out_original = sess_original.run(None, {"data": data_np, "shape1": shape1_np})[0]
-        sess_optimized = ort.InferenceSession(
-            optimized.SerializeToString(), providers=["CPUExecutionProvider"]
-        )
-        out_optimized = sess_optimized.run(None, {"data": data_np, "shape1": shape1_np})[0]
-        np.testing.assert_allclose(out_original, out_optimized, rtol=0, atol=0)
 
 
 if __name__ == "__main__":
