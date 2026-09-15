@@ -1103,12 +1103,14 @@ class Converter:
         def ret(exp, i, suffix):
             preferred_name = f"return_val{suffix}"
             return_var = self._translate_expr(exp, preferred_name)
-            val = self._lookup(return_var.name, self._source_of(exp), raise_exception=False)
-            if isinstance(val, values.SymbolValue) and isinstance(val.value, ir.Value):
-                if val.value.is_graph_input():
-                    # In ONNX, a graph-input cannot be an output of the graph.
-                    # We need to insert a copy.
-                    return_var = self._emit_copy(return_var, preferred_name)
+            if return_var.is_graph_input():
+                # Use the resolved ONNX value: the Python input name may have been rebound.
+                copy_name = (
+                    exp.id
+                    if isinstance(exp, ast.Name) and exp.id != return_var.name
+                    else preferred_name
+                )
+                return_var = self._emit_copy(return_var, copy_name)
             for prev_output in self._current_fn.outputs:
                 if prev_output.name == return_var.name:
                     # ONNX does not allow duplicate output names.
