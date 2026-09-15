@@ -48,6 +48,7 @@ from onnxscript.rewriter.rules.common import (
     _no_op,
     _redundant_scatter_nd,
     _remove_optional_bias,
+    _reshape_transpose_reshape,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *_cast_constant_of_shape.rules,
     *_collapse_slices.rules,
     *_materialize_reshape_shape.rules,
+    *_reshape_transpose_reshape.rules,
     *_min_max_to_clip.rules,
     *_fuse_relus_clips.rules,
     *_basic_rules.basic_optimization_rules(),
