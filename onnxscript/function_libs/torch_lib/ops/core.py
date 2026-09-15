@@ -4715,7 +4715,70 @@ def aten_grouped_mm(
     """_grouped_mm(Tensor self, Tensor mat2, *, Tensor? offs=None, Tensor? bias=None, int? out_dtype=None) -> Tensor"""
 
     if offs is not None:
-        raise NotImplementedError("Grouped matmul with offsets (ragged/MoE) is not supported.")
+        if self.shape is None or mat2.shape is None:
+            raise NotImplementedError("Grouped matmul requires known operand ranks.")
+        a_rank, b_rank = len(self.shape), len(mat2.shape)
+        if a_rank not in (2, 3) or b_rank not in (2, 3) or (a_rank == b_rank == 3):
+            raise ValueError("Grouped matmul with offsets requires at least one 2D operand.")
+        if offs.shape is None or len(offs.shape) != 1:
+            raise ValueError("Grouped matmul offsets must be 1D.")
+        groups = offs.shape[0]
+        if not isinstance(groups, int):
+            raise NotImplementedError(
+                "Grouped matmul requires a statically known number of groups."
+            )
+        for shape in (self.shape, mat2.shape):
+            if len(shape) == 3 and isinstance(shape[0], int) and shape[0] != groups:
+                raise ValueError("Grouped matmul offsets and operand group counts must match.")
+        if bias is not None:
+            raise NotImplementedError("Grouped matmul with offsets does not support bias.")
+        if out_dtype is not None and out_dtype != -1 and out_dtype != self.dtype:
+            raise NotImplementedError(
+                "Grouped matmul with offsets requires the output dtype to match the input."
+            )
+
+        a_is_2d, b_is_2d = a_rank == 2, b_rank == 2
+        if groups == 0:
+            output_shape = op.Concat(
+                op.Shape(self, start=a_rank - 2, end=a_rank - 1),
+                op.Shape(mat2, start=b_rank - 1, end=b_rank),
+                axis=0,
+            )
+            if a_is_2d and b_is_2d:
+                output_shape = op.Concat(op.Constant(value_ints=[0]), output_shape, axis=0)
+            return op.Expand(op.CastLike(0, self), output_shape)
+
+        # Only the group count is static. Boundaries remain values in the graph.
+        ends = op.Cast(offs, to=INT64.dtype)
+        start = op.Constant(value_ints=[0])
+        outputs = []
+        for i in range(groups):
+            end = op.Gather(ends, [i], axis=0)
+            a = (
+                op.Slice(self, start, end, [1 if b_is_2d else 0])
+                if a_is_2d
+                else op.Gather(self, i, axis=0)
+            )
+            b = (
+                op.Slice(mat2, start, end, [0 if a_is_2d else 1])
+                if b_is_2d
+                else op.Gather(mat2, i, axis=0)
+            )
+            result = op.MatMul(a, b)
+            if a_is_2d and b_is_2d:
+                result = op.Unsqueeze(result, [0])
+            outputs.append(result)
+            start = end
+
+        if a_is_2d and b_is_2d:
+            return op.Concat(*outputs, axis=0)
+        axis = 0 if a_is_2d else 1
+        result = op.Concat(*outputs, axis=axis)
+        # PyTorch allocates the full output shape even if the last offset is short.
+        # Its unwritten tail is unspecified; fill it with zeros rather than shrink it.
+        length = op.Shape(self, start=0, end=1) if a_is_2d else op.Shape(mat2, start=1, end=2)
+        pads = op.Concat(op.Constant(value_ints=[0]), op.Sub(length, end), axis=0)
+        return op.Pad(result, pads, axes=[axis])
 
     res = op.MatMul(self, mat2)
     if bias is not None:
