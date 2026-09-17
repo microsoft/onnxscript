@@ -80,9 +80,15 @@ class ScatterAllStatic(RewriteRuleClassBase):
 
     def check(self, context, data, indices, updates, **_):
         """Check if the ScatterND is redundant due to static indices covering entire tensor."""
-        # To validate data can be replaced directly by updates, we need to check the following:
-        # 1. they have the same shape
         result = onnxscript.rewriter.MatchResult()
+        # To validate data can be replaced directly by updates, we need to check the following:
+        # 1. the scatter-update is an assignment, not a reduction combining data and updates
+        reduction = context.root.attributes.get_string("reduction", "none")
+        if reduction != "none":
+            return result.fail(
+                f"The 'reduction' is {reduction!r}, so 'data' still contributes to the result."
+            )
+        # 2. they have the same shape
         if data.shape is None:
             return result.fail("The value 'data' shape is not statically known.", data)
         if updates.shape is None:
@@ -92,7 +98,7 @@ class ScatterAllStatic(RewriteRuleClassBase):
                 "The shape of 'data' and 'updates' are different.", [data, updates]
             )
 
-        # 2. the indices is referring to the whole data, which is from 0 to data.shape[0]
+        # 3. the indices is referring to the whole data, which is from 0 to data.shape[0]
         if indices.const_value is None:
             return result.fail("The value 'indices' is not statically known.", indices)
         expected_indices = [[i] for i in range(data.shape[0])]
