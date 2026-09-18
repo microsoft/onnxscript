@@ -1226,6 +1226,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: Tensor-likes are not close. Tests pass for float32.",
     ),
+    TorchLibOpInfo("argsort", core_ops.aten_argsort).xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: index order among equal values differs; float16 inputs have many ties and TopK is not stable. Tests pass for float32.",
+    ),
     TorchLibOpInfo("split_with_sizes", core_ops.aten_split_with_sizes),
     TorchLibOpInfo("split", core_ops.aten_split),
     TorchLibOpInfo("sqrt", core_ops.aten_sqrt),
