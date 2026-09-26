@@ -261,16 +261,79 @@ def aten_linalg_solve_ex(
     raise NotImplementedError()
 
 
+def _solve_triangular_left(
+    A: TFloat, B: TFloat, upper: bool, unitriangular: bool, n: int
+) -> TFloat:
+    """Solve A @ X = B for triangular A by substitution, one row at a time.
+
+    Requires statically-known matrix sizes since the substitution loop is
+    unrolled at trace time.
+    """
+    solved_rows = []
+    solved = None
+    for step in range(n):
+        # Lower-triangular solves top to bottom (forward substitution),
+        # upper-triangular solves bottom to top (back substitution).
+        row = n - 1 - step if upper else step
+        rhs = op.Slice(B, [row], [row + 1], axes=[-2])  # [..., 1, k]
+        if step > 0:
+            a_row = op.Slice(A, [row], [row + 1], axes=[-2])  # [..., 1, n]
+            if upper:
+                coeffs = op.Slice(a_row, [row + 1], [n], axes=[-1])  # [..., 1, step]
+            else:
+                coeffs = op.Slice(a_row, [0], [row], axes=[-1])  # [..., 1, step]
+            rhs = op.Sub(rhs, op.MatMul(coeffs, solved))  # solved: [..., step, k]
+        if not unitriangular:
+            diag = op.Slice(
+                op.Slice(A, [row], [row + 1], axes=[-2]),
+                [row],
+                [row + 1],
+                axes=[-1],
+            )  # [..., 1, 1]
+            rhs = op.Div(rhs, diag)
+        if upper:
+            solved_rows.insert(0, rhs)
+        else:
+            solved_rows.append(rhs)
+        solved = solved_rows[0] if len(solved_rows) == 1 else op.Concat(*solved_rows, axis=-2)
+    return solved
+
+
+@torch_op("aten::linalg_solve_triangular", trace_only=True)
 def aten_linalg_solve_triangular(
-    self: TensorType,
-    B: TensorType,
+    self: TFloat,
+    B: TFloat,
     upper: bool,
     left: bool = True,
     unitriangular: bool = False,
-) -> TensorType:
+) -> TFloat:
     """linalg_solve_triangular(Tensor self, Tensor B, *, bool upper, bool left=True, bool unitriangular=False) -> Tensor"""
 
-    raise NotImplementedError()
+    # Shapes must be read from the original inputs: intermediate values do not
+    # carry static shape metadata in trace mode.
+    n = None if self.shape is None else self.shape[-1]
+    if not isinstance(n, int):
+        n = getattr(n, "value", None)
+    if not isinstance(n, int) or n == 0:
+        raise ValueError(
+            f"linalg_solve_triangular requires statically-known, nonzero matrix"
+            f" dimensions, got self.shape={self.shape}"
+        )
+
+    if left:
+        return _solve_triangular_left(self, B, upper, unitriangular, n)
+
+    # X @ A = B is equivalent to A^T @ X^T = B^T, where A^T has the opposite triangle.
+    # Einsum transposes the last two dims rank-agnostically (same as aten::mH), which
+    # keeps working even when A and B broadcast to different ranks.
+    solved_t = _solve_triangular_left(
+        op.Einsum(self, equation="...ij->...ji"),
+        op.Einsum(B, equation="...ij->...ji"),
+        not upper,
+        unitriangular,
+        n,
+    )
+    return op.Einsum(solved_t, equation="...ij->...ji")
 
 
 def aten_linalg_svd(
