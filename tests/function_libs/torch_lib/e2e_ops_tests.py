@@ -6,7 +6,7 @@ import math
 import unittest
 
 import numpy as np
-import onnx
+import onnx_ir.passes.common as common_passes
 import parameterized
 
 # TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
@@ -1895,15 +1895,12 @@ class TorchLibe2eTest(unittest.TestCase):
 
         # The bias synthesized for a bias-less conv must be 1D ([out_channels]) to
         # match the ONNX Conv spec. See https://github.com/microsoft/onnxscript/issues/2931.
-        inferred = onnx.shape_inference.infer_shapes(onnx_program.model_proto, data_prop=True)
-        shape_ranks = {
-            value_info.name: len(value_info.type.tensor_type.shape.dim)
-            for value_info in inferred.graph.value_info
-            if value_info.type.tensor_type.HasField("shape")
-        }
-        conv_nodes = [node for node in inferred.graph.node if node.op_type == "Conv"]
+        model = common_passes.ShapeInferencePass()(onnx_program.model).model
+        conv_nodes = [n for n in model.graph if n.op_type == "Conv"]
         self.assertEqual(len(conv_nodes), 1)
-        self.assertEqual(shape_ranks[conv_nodes[0].input[2]], 1)
+        bias_shape = conv_nodes[0].inputs[2].shape
+        self.assertIsNotNone(bias_shape)
+        self.assertEqual(bias_shape.rank(), 1)
 
 
 if __name__ == "__main__":
