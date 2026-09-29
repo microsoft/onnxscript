@@ -12,13 +12,13 @@
 
 from __future__ import annotations
 
-from typing import Optional, Sequence, Tuple, TypeVar, Union
+from typing import Optional, Sequence, TypeVar, Union
 
 from onnx import GraphProto, SparseTensorProto, TensorProto
 from onnx.defs import get_schema
 from typing_extensions import TypeAlias
 
-from onnxscript.onnx_opset._impl.opset23 import Opset23
+from onnxscript.onnx_opset._impl.opset24 import Opset24
 from onnxscript.onnx_types import (
     BFLOAT16,
     BOOL,
@@ -33,12 +33,14 @@ from onnxscript.onnx_types import (
     FLOAT8E5M2FNUZ,
     FLOAT8E8M0,
     FLOAT16,
+    INT2,
     INT4,
     INT8,
     INT16,
     INT32,
     INT64,
     STRING,
+    UINT2,
     UINT4,
     UINT8,
     UINT16,
@@ -48,194 +50,9 @@ from onnxscript.onnx_types import (
 from onnxscript.values import Op, Opset
 
 
-class Opset24(Opset23):
+class Opset25(Opset24):
     def __new__(cls):
-        return Opset.__new__(cls, "", 24)
-
-    T1_Attention = TypeVar("T1_Attention", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
-
-    T2_Attention = TypeVar("T2_Attention", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
-
-    U_Attention = TypeVar(
-        "U_Attention",
-        BFLOAT16,
-        BOOL,
-        DOUBLE,
-        FLOAT,
-        FLOAT16,
-        INT16,
-        INT32,
-        INT64,
-        INT8,
-        UINT16,
-        UINT32,
-        UINT64,
-        UINT8,
-    )
-
-    def Attention(
-        self,
-        Q: T1_Attention,
-        K: T1_Attention,
-        V: T2_Attention,
-        attn_mask: Optional[U_Attention] = None,
-        past_key: Optional[T1_Attention] = None,
-        past_value: Optional[T2_Attention] = None,
-        nonpad_kv_seqlen: Optional[INT64] = None,
-        *,
-        is_causal: int = 0,
-        kv_num_heads: Optional[int] = None,
-        q_num_heads: Optional[int] = None,
-        qk_matmul_output_mode: int = 0,
-        scale: Optional[float] = None,
-        softcap: float = 0.0,
-        softmax_precision: Optional[int] = None,
-    ) -> Tuple[T1_Attention, T1_Attention, T2_Attention, T1_Attention]:
-        r"""[🌐 Attention(24)](https://onnx.ai/onnx/operators/onnx__Attention.html#attention-24 "Online Documentation")
-
-
-
-        Computes scaled dot product attention on query, key and value tensors, using an optional attention mask if passed.
-
-        This operator covers self and cross variants of the attention operation based on sequence lengths of K, Q and V.
-
-        For self attention, `kv_sequence_length` equals to `q_sequence_length`.
-
-        For cross attention, query and key might have different lengths.
-
-        This operator also covers the 3 following variants based on the number of heads:
-        1) Multi-headed Attention (MHA): Described in the paper https://arxiv.org/pdf/1706.03762, `q_num_heads = kv_num_heads`.
-        2) Group-query Attention (GQA): Described in the paper https://arxiv.org/pdf/2305.13245, `q_num_heads > kv_num_heads`, `q_num_heads % kv_num_heads == 0`.
-        3) Multi-query Attention (MQA): Described in the paper https://arxiv.org/pdf/1911.02150, `q_num_heads > kv_num_heads`, `kv_num_heads=1`.
-
-        Attention bias to be added is calculated based on `attn_mask` input and `is_causal` attribute:
-        1) `attn_mask`: A boolean mask where a value of `True` indicates that the element should take part in attention or a float mask of the same type as query, key, value that is added to the attention score.
-        2) If `is_causal` is set to `1`, attention scores above the diagonal are masked out, regardless of the `attn_mask` input.
-
-        With respect to KV cache update, this operator allows the following two use cases:
-
-        1) Cache update happens inside the Attention operator. In this case, the `K` and `V` inputs contain only the incoming
-        tokens for the current autoregressive step, and the four optional inputs/outputs past and present key and value are
-        all needed. The Attention op performs a Concat operation on the past and incoming key and value to form the present
-        key and value, respectively. Note that this only works correctly for the special case where the past key and value
-        do not contain padded tokens.
-        2) Cache update happens outside the Attention operator (for example, through the `TensorScatter` operator). In this
-        case, the `K` and `V` inputs correspond to the entire cache tensor, so the four optional inputs/outputs past and
-        present key and value should not be used. An additional input `nonpad_kv_seqlen` of shape (batch_size,) may be
-        provided to indicate the number of non-padding tokens in each sample of the batch to save unnecessary computation.
-        Here, the kv_sequence dimension of `attn_mask` can be shorter than `K` and `V`, but still needs to be at least as long
-        as the maximum value of `nonpad_kv_seqlen`.
-
-        Both past and present state key/values are optional. They shall be used together, and not allowed to use only one of them.
-        The following pattern is applied to the Q, K and V inputs after appropriate reshaping of K and V inputs based on sequence lengths and num heads provided:
-
-        ::
-
-              The following pattern is applied by this operator:
-                  Q          K          V
-                  |          |          |
-            Q*sqrt(scale) K*sqrt(scale) |
-                  |          |          |
-                  |       Transpose     |
-                  |          |          |
-                  ---MatMul---          |
-                        |               |
-              softcap (if provided)     |
-                        |               |
-             at_mask---Add              |
-                        |               |
-                     Softmax            |
-                        |               |
-                        -----MatMul------
-                               |
-                               Y
-
-
-
-
-
-        Args:
-            Q: Query tensor. 4D tensor with shape `(batch_size, q_num_heads,
-                q_sequence_length, head_size)` or 3D tensor with shape `(batch_size,
-                q_sequence_length, q_hidden_size)`. For cases with a 3D input tensor,
-                `q_hidden_size = q_num_heads * head_size`
-
-            K: Key tensor. 4D tensor with shape `(batch_size, kv_num_heads,
-                kv_sequence_length, head_size)` or 3D tensor with shape `(batch_size,
-                kv_sequence_length, k_hidden_size)`. For cases with a 3D input tensor,
-                `k_hidden_size = kv_num_heads * head_size`
-
-            V: Value tensor. 4D tensor with shape `(batch_size, kv_num_heads,
-                kv_sequence_length, v_head_size)` or 3D tensor with shape `(batch_size,
-                kv_sequence_length, v_hidden_size)`. For cases with a 3D input tensor,
-                `v_hidden_size = kv_num_heads * v_head_size`
-
-            attn_mask: (optional) Attention mask. Shape must be broadcastable to
-                `(batch_size, q_num_heads, q_sequence_length, total_sequence_length)`
-                where `total_sequence_length = past_sequence_length +
-                kv_sequence_length.` The last dimension can also be shorter than
-                `total_sequence_length` and will be padded to `total_sequence_length`
-                with negative infinity. Two types of masks are supported: a boolean mask
-                where a value of `True` indicates that the element should take part in
-                attention, or a float mask of the same type as query, key, value that is
-                added to the attention score.
-
-            past_key: (optional) past state cache for key with shape `(batch_size,
-                kv_num_heads, past_sequence_length, head_size)`
-
-            past_value: (optional) past state cache for value with shape `(batch_size,
-                kv_num_heads, past_sequence_length, v_head_size)`
-
-            nonpad_kv_seqlen: (optional) A vector of integers of shape `(batch_size,)`
-                that indicates the number of valid (ie, non-padding) tokens in each
-                sample. A padding mask can be derived from this. This should not be used
-                together with `past_key` and `past_value` inputs or `present_key` and
-                `present_value` outputs (See the KV cache use cases in the operator
-                description).
-
-            is_causal: If set to `1`, the attention masking is a lower triangular matrix
-                when the mask is a square matrix. The attention masking has the form of
-                the upper left causal bias due to the alignment.
-
-            kv_num_heads: Number of heads of key and value. Must be used with 3D inputs
-                of Q, K and V.
-
-            q_num_heads: Number of heads of query. Must be used with 3D inputs of Q, K
-                and V.
-
-            qk_matmul_output_mode: If set to `0`, qk_matmul_output is the output of qk
-                matmul. If set to `1`, qk_matmul_output is the output after the softcap
-                operation (before mask addition). If set to `2`, qk_matmul_output
-                includes the attention mask and softcap (if provided) applied to the
-                output of qk matmul. If set to `3`, qk_matmul_output is the output after
-                the softmax operation. Default value is 0.
-
-            scale: Scaling factor applied to $Q*K^T$. Default value is
-                `1/sqrt(head_size)`. To prevent [numerical
-                overflow](https://tinyurl.com/sudb9s96), scale `Q`, `K` by `sqrt(scale)`
-                before matmul.
-
-            softcap: Softcap value for attention weights. Default value is 0.
-
-            softmax_precision: The floating-point precision used in softmax computation.
-                If softmax precision is not provided, the same precision as the input of
-                softmax (Q and K) is used.
-        """
-
-        schema = get_schema("Attention", 24, "")
-        op = Op(self, "Attention", schema)
-        return op(
-            *self._prepare_inputs(
-                schema, Q, K, V, attn_mask, past_key, past_value, nonpad_kv_seqlen
-            ),
-            is_causal=is_causal,
-            kv_num_heads=kv_num_heads,
-            q_num_heads=q_num_heads,
-            qk_matmul_output_mode=qk_matmul_output_mode,
-            scale=scale,
-            softcap=softcap,
-            softmax_precision=softmax_precision,
-        )
+        return Opset.__new__(cls, "", 25)
 
     T1_Cast = TypeVar(
         "T1_Cast",
@@ -251,12 +68,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -276,12 +95,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -291,7 +112,7 @@ class Opset24(Opset23):
     def Cast(
         self, input: T1_Cast, *, round_mode: str = "up", saturate: int = 1, to: int
     ) -> T2_Cast:
-        r"""[🌐 Cast(24)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-24 "Online Documentation")
+        r"""[🌐 Cast(25)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-25 "Online Documentation")
 
 
         The operator casts the elements of a given input tensor to a data type
@@ -396,7 +217,7 @@ class Opset24(Opset23):
                 Strictly must be one of the types from DataType enum in TensorProto
         """
 
-        schema = get_schema("Cast", 24, "")
+        schema = get_schema("Cast", 25, "")
         op = Op(self, "Cast", schema)
         return op(
             *self._prepare_inputs(schema, input),
@@ -419,12 +240,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -445,12 +268,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -465,7 +290,7 @@ class Opset24(Opset23):
         round_mode: str = "up",
         saturate: int = 1,
     ) -> T2_CastLike:
-        r"""[🌐 CastLike(24)](https://onnx.ai/onnx/operators/onnx__CastLike.html#castlike-24 "Online Documentation")
+        r"""[🌐 CastLike(25)](https://onnx.ai/onnx/operators/onnx__CastLike.html#castlike-25 "Online Documentation")
 
 
         The operator casts the elements of a given input tensor (the first input) to
@@ -492,7 +317,7 @@ class Opset24(Opset23):
                 description for further details.
         """
 
-        schema = get_schema("CastLike", 24, "")
+        schema = get_schema("CastLike", 25, "")
         op = Op(self, "CastLike", schema)
         return op(
             *self._prepare_inputs(schema, input, target_type),
@@ -515,12 +340,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -539,7 +366,7 @@ class Opset24(Opset23):
         value_string: Optional[str] = None,
         value_strings: Optional[Sequence[str]] = None,
     ) -> T_Constant:
-        r"""[🌐 Constant(24)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-24 "Online Documentation")
+        r"""[🌐 Constant(25)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-25 "Online Documentation")
 
 
         This operator produces a constant tensor. Exactly one of the provided attributes, either value, sparse_value,
@@ -570,7 +397,7 @@ class Opset24(Opset23):
                 tensor.
         """
 
-        schema = get_schema("Constant", 24, "")
+        schema = get_schema("Constant", 25, "")
         op = Op(self, "Constant", schema)
         return op(
             sparse_value=sparse_value,
@@ -598,11 +425,13 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -612,7 +441,7 @@ class Opset24(Opset23):
     def ConstantOfShape(
         self, input: T1_ConstantOfShape, *, value: Optional[TensorProto] = None
     ) -> T2_ConstantOfShape:
-        r"""[🌐 ConstantOfShape(24)](https://onnx.ai/onnx/operators/onnx__ConstantOfShape.html#constantofshape-24 "Online Documentation")
+        r"""[🌐 ConstantOfShape(25)](https://onnx.ai/onnx/operators/onnx__ConstantOfShape.html#constantofshape-25 "Online Documentation")
 
 
         Generate a tensor with given value and shape.
@@ -627,7 +456,7 @@ class Opset24(Opset23):
                 datatype float32
         """
 
-        schema = get_schema("ConstantOfShape", 24, "")
+        schema = get_schema("ConstantOfShape", 25, "")
         op = Op(self, "ConstantOfShape", schema)
         return op(*self._prepare_inputs(schema, input), value=value)
 
@@ -639,10 +468,12 @@ class Opset24(Opset23):
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT8,
         UINT16,
+        UINT2,
         UINT4,
         UINT8,
     )
@@ -661,7 +492,7 @@ class Opset24(Opset23):
         block_size: int = 0,
         output_dtype: int = 0,
     ) -> T3_DequantizeLinear:
-        r"""[🌐 DequantizeLinear(24)](https://onnx.ai/onnx/operators/onnx__DequantizeLinear.html#dequantizelinear-24 "Online Documentation")
+        r"""[🌐 DequantizeLinear(25)](https://onnx.ai/onnx/operators/onnx__DequantizeLinear.html#dequantizelinear-25 "Online Documentation")
 
 
         The linear dequantization operator. It consumes a quantized tensor, a scale, and a zero point to compute the
@@ -704,7 +535,7 @@ class Opset24(Opset23):
                 data type is inferred from `x_scale` data type (`T2`)
         """
 
-        schema = get_schema("DequantizeLinear", 24, "")
+        schema = get_schema("DequantizeLinear", 25, "")
         op = Op(self, "DequantizeLinear", schema)
         return op(
             *self._prepare_inputs(schema, x, x_scale, x_zero_point),
@@ -729,12 +560,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -742,7 +575,7 @@ class Opset24(Opset23):
     )
 
     def Flatten(self, input: T_Flatten, *, axis: int = 1) -> T_Flatten:
-        r"""[🌐 Flatten(24)](https://onnx.ai/onnx/operators/onnx__Flatten.html#flatten-24 "Online Documentation")
+        r"""[🌐 Flatten(25)](https://onnx.ai/onnx/operators/onnx__Flatten.html#flatten-25 "Online Documentation")
 
 
         Flattens the input tensor into a 2D matrix. If input tensor has shape
@@ -761,7 +594,7 @@ class Opset24(Opset23):
                 tensor is (d_0, d_1, ... d_n).
         """
 
-        schema = get_schema("Flatten", 24, "")
+        schema = get_schema("Flatten", 25, "")
         op = Op(self, "Flatten", schema)
         return op(*self._prepare_inputs(schema, input), axis=axis)
 
@@ -826,12 +659,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -839,7 +674,7 @@ class Opset24(Opset23):
     )
 
     def Identity(self, input: V_Identity) -> V_Identity:
-        r"""[🌐 Identity(24)](https://onnx.ai/onnx/operators/onnx__Identity.html#identity-24 "Online Documentation")
+        r"""[🌐 Identity(25)](https://onnx.ai/onnx/operators/onnx__Identity.html#identity-25 "Online Documentation")
 
         Identity operator
 
@@ -847,7 +682,7 @@ class Opset24(Opset23):
             input: (differentiable) Input tensor
         """
 
-        schema = get_schema("Identity", 24, "")
+        schema = get_schema("Identity", 25, "")
         op = Op(self, "Identity", schema)
         return op(*self._prepare_inputs(schema, input))
 
@@ -885,12 +720,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -901,12 +738,14 @@ class Opset24(Opset23):
         Sequence[FLOAT8E5M2],
         Sequence[FLOAT8E5M2FNUZ],
         Sequence[FLOAT8E8M0],
+        Sequence[INT2],
         Sequence[INT4],
+        Sequence[UINT2],
         Sequence[UINT4],
     ]
 
     def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
-        r"""[🌐 If(24)](https://onnx.ai/onnx/operators/onnx__If.html#if-24 "Online Documentation")
+        r"""[🌐 If(25)](https://onnx.ai/onnx/operators/onnx__If.html#if-25 "Online Documentation")
 
         If conditional
 
@@ -922,7 +761,7 @@ class Opset24(Opset23):
                 match the number of outputs in the else_branch.
         """
 
-        schema = get_schema("If", 24, "")
+        schema = get_schema("If", 25, "")
         op = Op(self, "If", schema)
         return op(
             *self._prepare_inputs(schema, cond),
@@ -966,12 +805,14 @@ class Opset24(Opset23):
         Optional[FLOAT8E5M2FNUZ],
         Optional[FLOAT8E8M0],
         Optional[INT16],
+        Optional[INT2],
         Optional[INT32],
         Optional[INT4],
         Optional[INT64],
         Optional[INT8],
         Optional[STRING],
         Optional[UINT16],
+        Optional[UINT2],
         Optional[UINT32],
         Optional[UINT4],
         Optional[UINT64],
@@ -990,12 +831,14 @@ class Opset24(Opset23):
         Sequence[FLOAT8E5M2FNUZ],
         Sequence[FLOAT8E8M0],
         Sequence[INT16],
+        Sequence[INT2],
         Sequence[INT32],
         Sequence[INT4],
         Sequence[INT64],
         Sequence[INT8],
         Sequence[STRING],
         Sequence[UINT16],
+        Sequence[UINT2],
         Sequence[UINT32],
         Sequence[UINT4],
         Sequence[UINT64],
@@ -1014,12 +857,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -1033,7 +878,7 @@ class Opset24(Opset23):
         *v_initial: V_Loop,
         body: GraphProto,
     ) -> V_Loop:
-        r"""[🌐 Loop(24)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-24 "Online Documentation")
+        r"""[🌐 Loop(25)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-25 "Online Documentation")
 
 
         Generic Looping construct. This loop has multiple termination conditions:
@@ -1192,7 +1037,7 @@ class Opset24(Opset23):
                 iterations.
         """
 
-        schema = get_schema("Loop", 24, "")
+        schema = get_schema("Loop", 25, "")
         op = Op(self, "Loop", schema)
         return op(*self._prepare_inputs(schema, M, cond, *v_initial), body=body)
 
@@ -1212,12 +1057,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -1235,7 +1082,7 @@ class Opset24(Opset23):
         *,
         mode: str = "constant",
     ) -> T_Pad:
-        r"""[🌐 Pad(24)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-24 "Online Documentation")
+        r"""[🌐 Pad(25)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-25 "Online Documentation")
 
 
         Given a tensor containing the data to be padded (`data`), a tensor containing the number of start and end pad values for axis (`pads`), (optionally) a `mode`, and (optionally) `constant_value`,
@@ -1374,7 +1221,7 @@ class Opset24(Opset23):
             mode: Supported modes: `constant`(default), `reflect`, `edge`, `wrap`
         """
 
-        schema = get_schema("Pad", 24, "")
+        schema = get_schema("Pad", 25, "")
         op = Op(self, "Pad", schema)
         return op(*self._prepare_inputs(schema, data, pads, constant_value, axes), mode=mode)
 
@@ -1392,9 +1239,11 @@ class Opset24(Opset23):
         FLOAT8E5M2,
         FLOAT8E5M2FNUZ,
         INT16,
+        INT2,
         INT4,
         INT8,
         UINT16,
+        UINT2,
         UINT4,
         UINT8,
     )
@@ -1411,7 +1260,7 @@ class Opset24(Opset23):
         precision: int = 0,
         saturate: int = 1,
     ) -> T3_QuantizeLinear:
-        r"""[🌐 QuantizeLinear(24)](https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html#quantizelinear-24 "Online Documentation")
+        r"""[🌐 QuantizeLinear(25)](https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html#quantizelinear-25 "Online Documentation")
 
 
         The linear quantization operator consumes a high-precision tensor, a scale, and a zero point to compute the
@@ -1425,6 +1274,8 @@ class Opset24(Opset23):
         - int8: [-128, 127]
         - uint4: [0, 15]
         - int4: [-8, 7]
+        - uint2: [0, 3]
+        - int2: [-2, 1]
 
         For `(x / y_scale)`, it rounds to the nearest even. Refer to https://en.wikipedia.org/wiki/Rounding for details.
 
@@ -1485,7 +1336,7 @@ class Opset24(Opset23):
                 inserted in the operator description.
         """
 
-        schema = get_schema("QuantizeLinear", 24, "")
+        schema = get_schema("QuantizeLinear", 25, "")
         op = Op(self, "QuantizeLinear", schema)
         return op(
             *self._prepare_inputs(schema, x, y_scale, y_zero_point),
@@ -1512,12 +1363,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -1525,7 +1378,7 @@ class Opset24(Opset23):
     )
 
     def Reshape(self, data: T_Reshape, shape: INT64, *, allowzero: int = 0) -> T_Reshape:
-        r"""[🌐 Reshape(24)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-24 "Online Documentation")
+        r"""[🌐 Reshape(25)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-25 "Online Documentation")
 
 
         Reshape the input tensor similar to numpy.reshape.
@@ -1555,7 +1408,7 @@ class Opset24(Opset23):
                 NumPy.
         """
 
-        schema = get_schema("Reshape", 24, "")
+        schema = get_schema("Reshape", 25, "")
         op = Op(self, "Reshape", schema)
         return op(*self._prepare_inputs(schema, data, shape), allowzero=allowzero)
 
@@ -1575,12 +1428,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -1597,7 +1452,7 @@ class Opset24(Opset23):
         scan_output_axes: Optional[Sequence[int]] = None,
         scan_output_directions: Optional[Sequence[int]] = None,
     ) -> V_Scan:
-        r"""[🌐 Scan(24)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-24 "Online Documentation")
+        r"""[🌐 Scan(25)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-25 "Online Documentation")
 
 
         Scan can be used to iterate over one or more scan_input tensors,
@@ -1762,7 +1617,7 @@ class Opset24(Opset23):
                 in each iteration.
         """
 
-        schema = get_schema("Scan", 24, "")
+        schema = get_schema("Scan", 25, "")
         op = Op(self, "Scan", schema)
         return op(
             *self._prepare_inputs(schema, *initial_state_and_scan_inputs),
@@ -1790,12 +1645,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -1805,7 +1662,7 @@ class Opset24(Opset23):
     T1_Shape: TypeAlias = INT64
 
     def Shape(self, data: T_Shape, *, end: Optional[int] = None, start: int = 0) -> T1_Shape:
-        r"""[🌐 Shape(24)](https://onnx.ai/onnx/operators/onnx__Shape.html#shape-24 "Online Documentation")
+        r"""[🌐 Shape(25)](https://onnx.ai/onnx/operators/onnx__Shape.html#shape-25 "Online Documentation")
 
 
         Takes a tensor as input and outputs an 1D int64 tensor containing the shape of the input tensor.
@@ -1867,7 +1724,7 @@ class Opset24(Opset23):
                 0.Negative value means counting dimensions from the back.
         """
 
-        schema = get_schema("Shape", 24, "")
+        schema = get_schema("Shape", 25, "")
         op = Op(self, "Shape", schema)
         return op(*self._prepare_inputs(schema, data), end=end, start=start)
 
@@ -1887,12 +1744,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -1902,7 +1761,7 @@ class Opset24(Opset23):
     T1_Size: TypeAlias = INT64
 
     def Size(self, data: T_Size) -> T1_Size:
-        r"""[🌐 Size(24)](https://onnx.ai/onnx/operators/onnx__Size.html#size-24 "Online Documentation")
+        r"""[🌐 Size(25)](https://onnx.ai/onnx/operators/onnx__Size.html#size-25 "Online Documentation")
 
 
         Takes a tensor as input and outputs a int64 scalar that equals to the total number of elements of the input tensor.
@@ -1912,93 +1771,9 @@ class Opset24(Opset23):
             data: (non-differentiable) An input tensor.
         """
 
-        schema = get_schema("Size", 24, "")
+        schema = get_schema("Size", 25, "")
         op = Op(self, "Size", schema)
         return op(*self._prepare_inputs(schema, data))
-
-    T_SplitToSequence = TypeVar(
-        "T_SplitToSequence",
-        BFLOAT16,
-        BOOL,
-        COMPLEX128,
-        COMPLEX64,
-        DOUBLE,
-        FLOAT,
-        FLOAT16,
-        INT16,
-        INT32,
-        INT64,
-        INT8,
-        STRING,
-        UINT16,
-        UINT32,
-        UINT64,
-        UINT8,
-    )
-
-    I_SplitToSequence = TypeVar("I_SplitToSequence", INT32, INT64)
-
-    S_SplitToSequence: TypeAlias = Union[
-        Sequence[BFLOAT16],
-        Sequence[BOOL],
-        Sequence[COMPLEX128],
-        Sequence[COMPLEX64],
-        Sequence[DOUBLE],
-        Sequence[FLOAT],
-        Sequence[FLOAT16],
-        Sequence[INT16],
-        Sequence[INT32],
-        Sequence[INT64],
-        Sequence[INT8],
-        Sequence[STRING],
-        Sequence[UINT16],
-        Sequence[UINT32],
-        Sequence[UINT64],
-        Sequence[UINT8],
-    ]
-
-    def SplitToSequence(
-        self,
-        input: T_SplitToSequence,
-        split: Optional[I_SplitToSequence] = None,
-        *,
-        axis: int = 0,
-        keepdims: int = 1,
-    ) -> S_SplitToSequence:
-        r"""[🌐 SplitToSequence(24)](https://onnx.ai/onnx/operators/onnx__SplitToSequence.html#splittosequence-24 "Online Documentation")
-
-
-        Split a tensor into a sequence of tensors, along the specified 'axis'.
-        Lengths of the parts can be specified using the optional argument 'split'.
-        If the argument `split' is not specified, a default scalar value of 1
-        is used as the value of `split'.
-        'split' must contain only positive numbers.
-        'split' is either a scalar (tensor of empty shape), or a 1-D tensor.
-        If 'split' is a scalar, then 'input' will be split into chunks all of size 'split'
-        if possible. The last chunk alone may be smaller than 'split' if the 'input' size
-        along the given axis 'axis' is not divisible by 'split'.
-        If 'split' is a 1-dimensional tensor, the input tensor is split into 'size(split)' chunks,
-        with lengths of the parts on 'axis' specified in 'split'. In this scenario, the sum of entries
-        in 'split' must be equal to the dimension size of input tensor on 'axis'.
-
-
-        Args:
-            input: The tensor to split
-
-            split: (optional) Length of each output. It can be either a scalar(tensor of
-                empty shape), or a 1-D tensor. All values must be >= 0.
-
-            axis: Which axis to split on. A negative value means counting dimensions
-                from the back. Accepted range is [-rank, rank-1].
-
-            keepdims: Keep the split dimension or not. Default 1, which means we keep
-                split dimension. If input 'split' is specified, this attribute is
-                ignored.
-        """
-
-        schema = get_schema("SplitToSequence", 24, "")
-        op = Op(self, "SplitToSequence", schema)
-        return op(*self._prepare_inputs(schema, input, split), axis=axis, keepdims=keepdims)
 
     T_Squeeze = TypeVar(
         "T_Squeeze",
@@ -2016,12 +1791,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -2029,7 +1806,7 @@ class Opset24(Opset23):
     )
 
     def Squeeze(self, data: T_Squeeze, axes: Optional[INT64] = None) -> T_Squeeze:
-        r"""[🌐 Squeeze(24)](https://onnx.ai/onnx/operators/onnx__Squeeze.html#squeeze-24 "Online Documentation")
+        r"""[🌐 Squeeze(25)](https://onnx.ai/onnx/operators/onnx__Squeeze.html#squeeze-25 "Online Documentation")
 
 
         Remove single-dimensional entries from the shape of a tensor.
@@ -2046,193 +1823,9 @@ class Opset24(Opset23):
                 back. Accepted range is [-r, r-1] where r = rank(data).
         """
 
-        schema = get_schema("Squeeze", 24, "")
+        schema = get_schema("Squeeze", 25, "")
         op = Op(self, "Squeeze", schema)
         return op(*self._prepare_inputs(schema, data, axes))
-
-    T_Swish = TypeVar("T_Swish", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
-
-    def Swish(self, X: T_Swish, *, alpha: float = 1.0) -> T_Swish:
-        r"""[🌐 Swish(24)](https://onnx.ai/onnx/operators/onnx__Swish.html#swish-24 "Online Documentation")
-
-
-        Swish function takes one input data (Tensor<T>) and produces one output data (Tensor<T>) of the same shape,
-        where $Swish(x) = x * sigmoid(alpha * x)$.
-
-
-        Args:
-            X: (differentiable) Input tensor
-
-            alpha: Coefficient to multiply with input before sigmoid.
-        """
-
-        schema = get_schema("Swish", 24, "")
-        op = Op(self, "Swish", schema)
-        return op(*self._prepare_inputs(schema, X), alpha=alpha)
-
-    T_TensorScatter = TypeVar(
-        "T_TensorScatter",
-        BFLOAT16,
-        BOOL,
-        COMPLEX128,
-        COMPLEX64,
-        DOUBLE,
-        FLOAT,
-        FLOAT16,
-        FLOAT4E2M1,
-        FLOAT8E4M3FN,
-        FLOAT8E4M3FNUZ,
-        FLOAT8E5M2,
-        FLOAT8E5M2FNUZ,
-        FLOAT8E8M0,
-        INT16,
-        INT32,
-        INT4,
-        INT64,
-        INT8,
-        STRING,
-        UINT16,
-        UINT32,
-        UINT4,
-        UINT64,
-        UINT8,
-    )
-
-    def TensorScatter(
-        self,
-        past_cache: T_TensorScatter,
-        update: T_TensorScatter,
-        write_indices: Optional[INT64] = None,
-        *,
-        axis: int = -2,
-        mode: str = "linear",
-    ) -> T_TensorScatter:
-        r"""[🌐 TensorScatter(24)](https://onnx.ai/onnx/operators/onnx__TensorScatter.html#tensorscatter-24 "Online Documentation")
-
-
-        TensorScatter is a generic tensor update operation, motivated by the requirements for KV cache updates for Attention
-        ops commonly found in LLMs. It is a functional operation that models an in-place update to a KV cache buffer.
-
-        The past and present cache tensors have the same shape (batch_size, D1, D2, ..., max_sequence_length, ..., Dn), with
-        the sequence dimension (indicated by the `axis` attribute) being max_sequence_length, so the sizes of these tensors do
-        not need to grow between iterations. The `update` tensor's shape only differs from the cache tensors in the sequence
-        dimension: (batch_size, D1, D2, ..., sequence_length, ..., Dn), where sequence_length <= max_sequence_length.
-
-        The optional `write_indices` input indicates the write index for each sample in the batch, assumed to be zero
-        if not provided. When the `mode` attribute is set to "circular", the write index is modulo max_sequence_length.
-        The operation can be described using the following pseudocode:
-
-        ::
-
-            for prefix_idx in np.ndindex(past_cache.shape[:axis]):
-                batch_idx = prefix_idx[0]
-                for sequence_idx in range(sequence_length):
-                    cache_idx = (*prefix_idx, write_indices[batch_idx] + sequence_idx)
-                    if mode == "circular":
-                        cache_idx = tuple(np.mod(np.asarray(cache_idx), max_sequence_length))
-                    update_idx = (*prefix_idx, sequence_idx)
-                    present_cache[cache_idx] = update[update_idx]
-
-
-
-        During the prefill phase of attention, only the first two inputs are needed. During the decode phase, `write_indices`
-        is also needed so that the incoming key or value update can be appended after the last valid token for each sample
-        in the batch.
-
-
-        Args:
-            past_cache: (differentiable) Past state cache for key or value with shape
-                `(batch_size, D1, D2, ..., max_sequence_length, ..., Dn)`.
-
-            update: (differentiable) New update tensor with shape `(batch_size, D1, D2,
-                ..., sequence_length, ..., Dn)`.
-
-            write_indices: (optional, non-differentiable) Write indices for the incoming
-                update tensor in the cache. Shape is `(batch_size,)`. Assumed to be all
-                zeros if not provided.
-
-            axis: Sequence dimension of the `past_cache` and `update` tensors. It cannot
-                be 0 (the batch dimension). Default is -2.
-
-            mode: Write mode of cache update. Supported modes include `linear` and
-                `circular`. `linear` mode requires
-                write_indices+sequence_length<=max_sequence_length. For `circular` mode,
-                the updates happen in wrap-around fashion, ie, the update index is
-                modulo `max_sequence_length`
-        """
-
-        schema = get_schema("TensorScatter", 24, "")
-        op = Op(self, "TensorScatter", schema)
-        return op(
-            *self._prepare_inputs(schema, past_cache, update, write_indices),
-            axis=axis,
-            mode=mode,
-        )
-
-    T_TopK = TypeVar(
-        "T_TopK",
-        BFLOAT16,
-        DOUBLE,
-        FLOAT,
-        FLOAT16,
-        INT16,
-        INT32,
-        INT64,
-        INT8,
-        UINT16,
-        UINT32,
-        UINT64,
-        UINT8,
-    )
-
-    I_TopK: TypeAlias = INT64
-
-    def TopK(
-        self, X: T_TopK, K: INT64, *, axis: int = -1, largest: int = 1, sorted: int = 1
-    ) -> Tuple[T_TopK, I_TopK]:
-        r"""[🌐 TopK(24)](https://onnx.ai/onnx/operators/onnx__TopK.html#topk-24 "Online Documentation")
-
-
-        Retrieve the top-K largest or smallest elements along a specified axis. Given an input tensor of
-        shape [a_0, a_1, ..., a_{n-1}] and integer argument k, return two outputs:
-
-        * Value tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}]
-          which contains the values of the top k elements along the specified axis
-        * Index tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}] which
-          contains the indices of the top k elements (original indices from the input
-          tensor).
-
-        * If "largest" is 1 (the default value) then the k largest elements are returned.
-        * If "sorted" is 1 (the default value) then the resulting k elements will be sorted.
-        * If "sorted" is 0, order of returned 'Values' and 'Indices' are undefined.
-
-        Given two equivalent values, this operator uses the indices along the axis as
-        a tiebreaker. That is, the element with the lower index will appear first.
-
-
-        Args:
-            X: (differentiable) Tensor of shape [a_0, a_1, ..., a_{n-1}]
-
-            K: (non-differentiable) A 1-D tensor containing a single positive value
-                corresponding to the number of top elements to retrieve
-
-            axis: Dimension on which to do the sort. Negative value means counting
-                dimensions from the back. Accepted range is [-r, r-1] where r =
-                rank(input).
-
-            largest: Whether to return the top-K largest or smallest elements.
-
-            sorted: Whether to return the elements in sorted order.
-        """
-
-        schema = get_schema("TopK", 24, "")
-        op = Op(self, "TopK", schema)
-        return op(
-            *self._prepare_inputs(schema, X, K),
-            axis=axis,
-            largest=largest,
-            sorted=sorted,
-        )
 
     T_Transpose = TypeVar(
         "T_Transpose",
@@ -2250,12 +1843,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -2265,7 +1860,7 @@ class Opset24(Opset23):
     def Transpose(
         self, data: T_Transpose, *, perm: Optional[Sequence[int]] = None
     ) -> T_Transpose:
-        r"""[🌐 Transpose(24)](https://onnx.ai/onnx/operators/onnx__Transpose.html#transpose-24 "Online Documentation")
+        r"""[🌐 Transpose(25)](https://onnx.ai/onnx/operators/onnx__Transpose.html#transpose-25 "Online Documentation")
 
 
         Returns a transpose of the input tensor. (Similar to `numpy.transpose`).
@@ -2288,7 +1883,7 @@ class Opset24(Opset23):
                 to the rank of the input.
         """
 
-        schema = get_schema("Transpose", 24, "")
+        schema = get_schema("Transpose", 25, "")
         op = Op(self, "Transpose", schema)
         return op(*self._prepare_inputs(schema, data), perm=perm)
 
@@ -2308,12 +1903,14 @@ class Opset24(Opset23):
         FLOAT8E5M2FNUZ,
         FLOAT8E8M0,
         INT16,
+        INT2,
         INT32,
         INT4,
         INT64,
         INT8,
         STRING,
         UINT16,
+        UINT2,
         UINT32,
         UINT4,
         UINT64,
@@ -2321,7 +1918,7 @@ class Opset24(Opset23):
     )
 
     def Unsqueeze(self, data: T_Unsqueeze, axes: INT64) -> T_Unsqueeze:
-        r"""[🌐 Unsqueeze(24)](https://onnx.ai/onnx/operators/onnx__Unsqueeze.html#unsqueeze-24 "Online Documentation")
+        r"""[🌐 Unsqueeze(25)](https://onnx.ai/onnx/operators/onnx__Unsqueeze.html#unsqueeze-25 "Online Documentation")
 
 
         Insert single-dimensional entries to the shape of an input tensor (`data`).
@@ -2344,6 +1941,6 @@ class Opset24(Opset23):
                 Accepted range is [-r, r-1] where r = rank(expanded).
         """
 
-        schema = get_schema("Unsqueeze", 24, "")
+        schema = get_schema("Unsqueeze", 25, "")
         op = Op(self, "Unsqueeze", schema)
         return op(*self._prepare_inputs(schema, data, axes))

@@ -5,8 +5,8 @@
 import unittest
 
 import onnx.parser
+import onnx_ir as ir
 
-from onnxscript import ir
 from onnxscript.rewriter import pattern
 
 

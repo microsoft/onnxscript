@@ -2,9 +2,9 @@
 # Licensed under the MIT License.
 import unittest
 
+import onnx_ir as ir
 import parameterized
 
-from onnxscript import ir
 from onnxscript.rewriter.rules.common import _no_op
 
 

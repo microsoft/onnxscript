@@ -323,6 +323,8 @@ class Opset7(Opset6):
 
         This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
 
+        For integer inputs, the result is computed using truncating division (rounding toward zero).
+
 
         Args:
             A: First operand.
@@ -932,9 +934,11 @@ class Opset7(Opset6):
         r"""[🌐 PRelu(7)](https://onnx.ai/onnx/operators/onnx__PRelu.html#prelu-7 "Online Documentation")
 
 
+
         PRelu takes input data (Tensor<T>) and slope tensor as input, and produces one
         output data (Tensor<T>) where the function `f(x) = slope * x for x < 0`,
         `f(x) = x for x >= 0`., is applied to the data tensor elementwise.
+
         This operator supports **unidirectional broadcasting** (tensor slope should be unidirectional broadcastable to input tensor X); for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
 
         Args:

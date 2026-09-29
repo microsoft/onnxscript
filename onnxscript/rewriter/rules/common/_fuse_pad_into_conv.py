@@ -50,6 +50,9 @@ def read_conv_attributes(ir_conv: ir.Node) -> dict[str, Sequence[int] | str]:
     attributes["strides"] = ir_attributes.get_ints(
         "strides", [1] * len(ir_conv.inputs[0].shape[2:])
     )
+    attributes["dilations"] = ir_attributes.get_ints(
+        "dilations", [1] * len(attributes["kernel_shape"])
+    )
     attributes["auto_pad"] = ir_attributes.get_string("auto_pad", "NOTSET")
     if "pads" in ir_attributes:
         attributes["pads"] = ir_attributes.get_ints("pads")
@@ -302,8 +305,12 @@ class NormalizePadFormatConv(_NormalizePadFormatBase):
 
         bottom_pads, top_pads = [], []
         kernel_shape, strides = attributes["kernel_shape"], attributes["strides"]
-        assert len(kernel_shape) == len(strides) == len(input_shape) == len(output_shape)
-        for x, y, k, s in zip(input_shape, output_shape, kernel_shape, strides):
+        # A kernel dilated by d spans (k - 1) * d + 1 elements along a spatial axis
+        dilated_kernel = [
+            (k - 1) * d + 1 for k, d in zip(kernel_shape, attributes["dilations"])
+        ]
+        assert len(dilated_kernel) == len(strides) == len(input_shape) == len(output_shape)
+        for x, y, k, s in zip(input_shape, output_shape, dilated_kernel, strides):
             # Compute the output shape and the total padding to apply
             total_pads = max(0, (y - 1) * s + k - x)
 

@@ -365,6 +365,47 @@ class NormalizePadFormatTest(FuseConvPadBaseTest):
 
     @parameterized.parameterized.expand(
         [
+            ((3, 3), (2, 2), "SAME_UPPER", (2, 2, 2, 2)),
+            ((3, 3), (2, 2), "SAME_LOWER", (2, 2, 2, 2)),
+            ((3, 3), (3, 1), "SAME_UPPER", (3, 1, 3, 1)),
+            ((2, 2), (3, 3), "SAME_UPPER", (1, 1, 2, 2)),
+            ((2, 2), (3, 3), "SAME_LOWER", (2, 2, 1, 1)),
+        ]
+    )
+    def test_normalize_pad_format_with_dilations(
+        self, kernel_shape, dilations, auto_pad, expected_pads
+    ):
+        base_model = self.build_model(
+            input_shape=ir.Shape(("N", 32, 22, 27)),
+            conv_inputs=[ir.tensor(self.get_conv_weights((32, 32, *kernel_shape)), name="W")],
+            conv_attributes={
+                "strides": (1, 1),
+                "dilations": dilations,
+                "auto_pad": auto_pad,
+                "kernel_shape": kernel_shape,
+            },
+        )
+        updated_model = _clone_model(base_model)
+
+        # Apply rule
+        count = _fuse_pad_into_conv.rules.apply_to_model(updated_model)
+        onnx_checker.CheckerPass(True)(updated_model)
+
+        # Check conv has changed
+        self.assertEqual(count, 1)
+        self.assertEqual(updated_model.graph[0].attributes.get_string("auto_pad"), "NOTSET")
+        self.assertEqual(updated_model.graph[0].attributes.get_ints("pads"), expected_pads)
+
+        # Check inference. The reference implementation is used here because
+        # onnxruntime rejects Conv with both auto_pad=SAME_* and dilations, so the
+        # base model is not runnable there.
+        inputs = self.rng.random((1, 32, 22, 27), dtype="float32")
+        testing.assert_numerically_equal(
+            base_model, updated_model, (inputs,), atol=1e-5, rtol=1e-5, use_reference=True
+        )
+
+    @parameterized.parameterized.expand(
+        [
             (ir.Shape([]), False, "Input shapes are not defined"),
             (ir.Shape(("N", "C", "A")), False, "Expected static spatial input shapes"),
             (ir.Shape(("N", "C", 32)), False, "Expected static spatial output shapes"),

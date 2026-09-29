@@ -8,10 +8,10 @@ import unittest
 
 import onnx
 import onnx.backend.test
+import onnx_ir as ir
 import parameterized
 
 import onnxscript.testing
-from onnxscript import ir
 
 model_folder_path = pathlib.Path(__file__).resolve().parent.parent.parent / "testdata"
 onnx_backend_test_path = pathlib.Path(onnx.backend.test.__file__).parent / "data"

@@ -10,9 +10,9 @@ __all__ = [
 import logging
 
 import onnx
+import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
 
-from onnxscript import ir
 from onnxscript.version_converter import _c_api_utils, _version_converter
 
 logger = logging.getLogger(__name__)

@@ -564,6 +564,21 @@ def size(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return op.Constant(value_int=size)
 
 
+def _move_initializers_to_graph(src: ir.Graph, dst: ir.Graph) -> None:
+    """Move all initializers from src graph to dst graph, ensuring name uniqueness."""
+    counter: dict[str, int] = {}
+    for name in list(src.initializers):
+        initializer = src.initializers.pop(name)
+        # Ensure name uniqueness in the destination graph
+        new_name = name
+        while new_name in dst.initializers:
+            counter[name] = counter.get(name, 0) + 1
+            new_name = f"{name}_{counter[name]}"
+        if new_name != name:
+            initializer.name = new_name
+        dst.register_initializer(initializer)
+
+
 @register("If")
 def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     cond_input = _get_input(node, 0)
@@ -601,7 +616,11 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
             # Avoid name collision.
             sub_node.name = f"{node.name}_{sub_node.name}"
 
-        # TODO: we should handle initializers as well!
+        # Move initializers from the subgraph to the main graph to avoid losing them.
+        main_graph = node.graph
+        if main_graph is not None:
+            _move_initializers_to_graph(graph, main_graph)
+
         return Replacement(formal_outs, graph_nodes)
     return None
 
@@ -863,11 +882,34 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         split_dimension_size = shape[axis]
         if not isinstance(split_dimension_size, int):
             return None
-        num_outputs = math.ceil(split_dimension_size / split_value.item())
+        split_size = int(split_value.item())
+        if split_size <= 0:
+            # Invalid split size; bail out instead of raising.
+            return None
+        num_outputs = math.ceil(split_dimension_size / split_size)
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
-        split_values = op.Split(
-            input, axis=axis, num_outputs=num_outputs, _outputs=split_outputs
-        )
+        if split_dimension_size % split_size != 0:
+            # Uneven split: the last chunk is smaller. We must pass explicit split
+            # sizes to Split, because Split with only num_outputs would do an
+            # equal (or near-equal) split ignoring the original chunk size.
+            # NOTE: Split accepts either the `split` input or the `num_outputs`
+            # attribute, but not both, so num_outputs is omitted here.
+            remainder = split_dimension_size - (num_outputs - 1) * split_size
+            explicit_split_sizes = [split_size] * (num_outputs - 1) + [remainder]
+            explicit_split = op.Constant(
+                value_ints=explicit_split_sizes,
+                _outputs=[f"{output.name}_split_sizes"],
+            )
+            split_values = op.Split(
+                input,
+                explicit_split,
+                axis=axis,
+                _outputs=split_outputs,
+            )
+        else:
+            split_values = op.Split(
+                input, axis=axis, num_outputs=num_outputs, _outputs=split_outputs
+            )
     else:
         return None
 

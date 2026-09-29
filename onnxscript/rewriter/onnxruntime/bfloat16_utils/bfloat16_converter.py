@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 import logging
 
-from onnxscript import ir
+import onnx_ir as ir
 
 logger = logging.getLogger(__name__)
 

@@ -16,10 +16,10 @@ from typing import Any, Collection, Sequence
 import google.protobuf.message
 import numpy as np
 import onnx
+import onnx_ir as ir
 from onnx import parser
 
 import onnxscript
-from onnxscript import ir
 
 
 def assert_isomorphic(graph_or_function_1, graph_or_function_2):

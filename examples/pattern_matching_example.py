@@ -3,8 +3,8 @@
 """Example demonstrating the new pattern matching functionality."""
 
 import onnx.parser
+import onnx_ir as ir
 
-from onnxscript import ir
 from onnxscript.rewriter import pattern
 
 

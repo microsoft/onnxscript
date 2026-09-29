@@ -41,10 +41,10 @@ ONNX models and functions:
   ONNX Script ↔ ONNX graph.
 
 * A runtime shim that allows such functions to be evaluated
-  (in an "eager mode"). This functionality currently relies on
-  [ONNX Runtime][onnx-runtime] for executing every [ONNX Operator][onnx-ops],
-  and there is a Python-only reference runtime for ONNX underway that
-  will also be supported.
+  (in an "eager mode"). This functionality relies on
+  [ONNX Runtime][onnx-runtime] for executing every [ONNX Operator][onnx-ops]
+  by default; a Python-only reference runtime is also available as
+  `onnxscript.evaluator.OnnxReferenceRuntimeEvaluator`.
 
   Note that the runtime is intended to help understand and debug function definitions. Performance is not a goal here.
 

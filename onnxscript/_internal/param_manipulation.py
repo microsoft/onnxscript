@@ -7,7 +7,7 @@ from __future__ import annotations
 import collections
 from typing import Any, OrderedDict
 
-from onnxscript import ir
+import onnx_ir as ir
 
 
 def separate_input_attributes_from_arguments(
