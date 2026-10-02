@@ -8869,12 +8869,10 @@ def aten_roll_complex(
 def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: int) -> TTensor:
     # The element count is the divisor of the Mod below, and Mod by zero is undefined in
     # ONNX. Both callers return a tensor with no elements unchanged before reaching here.
-    # Known limitation: that early return and this assert only cover a length known to be
+    # Known limitation: those early returns and this assert only cover a length known to be
     # zero at export time. A dynamic dimension that is zero at run time still reaches Mod
-    # with a zero divisor, which ONNX leaves undefined. Runtimes differ: the onnxruntime CPU
-    # kernel rejects an integer divisor of zero, its CUDA kernel has no such check, and
-    # onnxruntime before 1.25 returned the dividend, which the Slice calls below clamp back
-    # into range so the result still looks correct.
+    # with a zero divisor. Depending on the runtime, its version and the platform, that can
+    # raise an error, crash the process, or quietly return a value.
     assert self.shape is None or 0 not in self.shape, (
         "the element count must not be zero because Mod by zero is undefined"
     )
@@ -8904,12 +8902,8 @@ def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTenso
     # The length of that dimension is the divisor of the Mod below, and Mod by zero is
     # undefined in ONNX. Both callers return a tensor with no elements unchanged before
     # reaching here.
-    # Known limitation: that early return and this assert only cover a length known to be
-    # zero at export time. A dynamic dimension that is zero at run time still reaches Mod
-    # with a zero divisor, which ONNX leaves undefined. Runtimes differ: the onnxruntime CPU
-    # kernel rejects an integer divisor of zero, its CUDA kernel has no such check, and
-    # onnxruntime before 1.25 returned the dividend, which the Slice calls below clamp back
-    # into range so the result still looks correct.
+    # Known limitation: as in _aten_roll_shift_no_dim_onnx, if that dimension is dynamic and
+    # is zero at run time, Mod still gets a zero divisor.
     assert self.shape is None or self.shape[dim] != 0, (
         "the dimension length must not be zero because Mod by zero is undefined"
     )
