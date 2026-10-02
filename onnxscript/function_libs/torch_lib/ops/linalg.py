@@ -276,19 +276,14 @@ def _solve_triangular_left(
         # upper-triangular solves bottom to top (back substitution).
         row = n - 1 - step if upper else step
         rhs = op.Slice(B, [row], [row + 1], axes=[-2])  # [..., 1, k]
+        a_row = op.Slice(A, [row], [row + 1], axes=[-2])  # [..., 1, n]
         if step > 0:
-            a_row = op.Slice(A, [row], [row + 1], axes=[-2])  # [..., 1, n]
             if upper:
                 coeffs = op.Slice(a_row, [row + 1], [n], axes=[-1])  # [..., 1, step]
             else:
                 coeffs = op.Slice(a_row, [0], [row], axes=[-1])  # [..., 1, step]
             rhs = op.Sub(rhs, op.MatMul(coeffs, solved))  # solved: [..., step, k]
-        diag = op.Slice(
-            op.Slice(A, [row], [row + 1], axes=[-2]),
-            [row],
-            [row + 1],
-            axes=[-1],
-        )  # [..., 1, 1]
+        diag = op.Slice(a_row, [row], [row + 1], axes=[-1])  # [..., 1, 1]
         if unitriangular:
             # No diagonal division happens for unitriangular, so the row would
             # carry only B's batch shape. A zero tensor built from diag's shape
@@ -317,7 +312,7 @@ def aten_linalg_solve_triangular(
 
     # Shapes must be read from the original inputs: intermediate values do not
     # carry static shape metadata in trace mode.
-    n = None if self.shape is None else self.shape[-1]
+    n = None if self.shape is None or len(self.shape) < 2 else self.shape[-1]
     if not isinstance(n, int):
         n = getattr(n, "value", None)
     if not isinstance(n, int) or n == 0:

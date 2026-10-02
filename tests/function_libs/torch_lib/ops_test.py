@@ -139,6 +139,20 @@ class TestConverterGuards(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "statically-known, nonzero matrix"):
             linalg_ops.aten_linalg_solve_triangular(a, b, upper=True)
 
+    def test_linalg_solve_triangular_rejects_vector_input(self):
+        a = ir.Value(
+            name="a",
+            shape=ir.Shape([3]),
+            type=ir.TensorType(ir.DataType.FLOAT),
+        )
+        b = ir.Value(
+            name="b",
+            shape=ir.Shape([3, 1]),
+            type=ir.TensorType(ir.DataType.FLOAT),
+        )
+        with self.assertRaisesRegex(ValueError, "statically-known, nonzero matrix"):
+            linalg_ops.aten_linalg_solve_triangular(a, b, upper=True)
+
     def test_linalg_solve_triangular_rejects_zero_matrix_dim(self):
         a = ir.Value(
             name="a",

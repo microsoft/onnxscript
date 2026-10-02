@@ -2608,6 +2608,7 @@ def sample_inputs_linalg_solve_triangular_broadcast(
     cases = (
         ((4, 5, 5), (5, 3), (6, 5)),  # B has no batch dims
         ((4, 5, 5), (1, 5, 3), (1, 6, 5)),  # same rank, broadcastable batch dims
+        ((5, 5), (4, 5, 3), (4, 6, 5)),  # A has no batch dims: B broadcasts instead
         ((3, 1, 1), (1, 2), (2, 1)),  # n == 1: the result must still gain A's batch
     )
     for a_shape, b_left_shape, b_right_shape in cases:
@@ -2636,7 +2637,7 @@ def sample_inputs_linalg_solve_triangular_broadcast(
     # entries are legal inputs and must not leak into the result.
     for upper, fill in ((False, float("nan")), (True, float("inf"))):
         a = make_arg((4, 5, 5))
-        n = 5
+        n = a.shape[-1]
         with torch.no_grad():
             a.mul_(
                 torch.ones(n, n, dtype=dtype, device=device).triu()
