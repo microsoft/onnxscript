@@ -290,10 +290,11 @@ def _solve_triangular_left(
             axes=[-1],
         )  # [..., 1, 1]
         if unitriangular:
-            # Without the diagonal division the row keeps only B's batch shape;
-            # adding a zero-valued diagonal pulls A's batch dims in via broadcasting
-            # so every solved row shares the common batch shape.
-            rhs = op.Add(rhs, op.Sub(diag, diag))
+            # No diagonal division happens for unitriangular, so the row would
+            # carry only B's batch shape. A zero tensor built from diag's shape
+            # (never its values -- the diagonal is ignored and may be non-finite)
+            # pulls A's batch dims in through broadcasting.
+            rhs = op.Add(rhs, op.CastLike(op.ConstantOfShape(op.Shape(diag)), diag))
         else:
             rhs = op.Div(rhs, diag)
         if upper:

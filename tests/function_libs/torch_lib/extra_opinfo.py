@@ -2632,6 +2632,24 @@ def sample_inputs_linalg_solve_triangular_broadcast(
                 kwargs={"upper": upper, "left": left, "unitriangular": unitriangular},
             )
 
+    # unitriangular must ignore A's stored diagonal entirely: non-finite diagonal
+    # entries are legal inputs and must not leak into the result.
+    for upper, fill in ((False, float("nan")), (True, float("inf"))):
+        a = make_arg((4, 5, 5))
+        n = 5
+        with torch.no_grad():
+            a.mul_(
+                torch.ones(n, n, dtype=dtype, device=device).triu()
+                if upper
+                else torch.ones(n, n, dtype=dtype, device=device).tril()
+            )
+            a.diagonal(dim1=-2, dim2=-1).fill_(fill)
+        yield opinfo_core.SampleInput(
+            a,
+            args=(make_arg((5, 3)),),
+            kwargs={"upper": upper, "left": True, "unitriangular": True},
+        )
+
 
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
