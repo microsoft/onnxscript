@@ -2590,6 +2590,49 @@ def sample_inputs_masked_scatter(op_info, device, dtype, requires_grad, **kwargs
         yield opinfo_core.SampleInput(self_tensor, args=(mask, source))
 
 
+def sample_inputs_linalg_solve_triangular_broadcast(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    # A and B carry different but broadcastable batch shapes. For unitriangular
+    # solves no diagonal division pulls A's batch dims into each solved row, so the
+    # first row used to keep only B's shape and Concat over rows of mismatched rank
+    # produced an invalid graph; for n == 1 the result never gained A's batch at all.
+    # (a_shape, b_shape for left=True, b_shape for left=False)
+    cases = (
+        ((4, 5, 5), (5, 3), (6, 5)),  # B has no batch dims
+        ((4, 5, 5), (1, 5, 3), (1, 6, 5)),  # same rank, broadcastable batch dims
+        ((3, 1, 1), (1, 2), (2, 1)),  # n == 1: the result must still gain A's batch
+    )
+    for a_shape, b_left_shape, b_right_shape in cases:
+        for upper, left, unitriangular in itertools.product(
+            (True, False), (True, False), (True, False)
+        ):
+            a = make_arg(a_shape)
+            n = a_shape[-1]
+            with torch.no_grad():
+                # Keep only the triangle the solver reads and pin the diagonal to a
+                # well-conditioned value for the non-unitriangular division.
+                a.mul_(
+                    torch.ones(n, n, dtype=dtype, device=device).triu()
+                    if upper
+                    else torch.ones(n, n, dtype=dtype, device=device).tril()
+                )
+                a.diagonal(dim1=-2, dim2=-1).fill_(3.0)
+            b = make_arg(b_left_shape if left else b_right_shape)
+            yield opinfo_core.SampleInput(
+                a,
+                args=(b,),
+                kwargs={"upper": upper, "left": left, "unitriangular": unitriangular},
+            )
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "bilinear",
@@ -3256,6 +3299,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=getattr(torch.ops.aten, "_grouped_mm", lambda *args, **kwargs: None),
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_grouped_mm,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "linalg.solve_triangular_broadcast",
+        op=torch.linalg.solve_triangular,
+        aten_name="linalg_solve_triangular",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_linalg_solve_triangular_broadcast,
         supports_out=False,
     ),
 ]

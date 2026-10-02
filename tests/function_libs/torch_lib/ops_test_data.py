@@ -787,6 +787,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="Size 0 inputs are not handled by design",
     ),
     TorchLibOpInfo(
+        "linalg.solve_triangular_broadcast", linalg_ops.aten_linalg_solve_triangular
+    ),
+    TorchLibOpInfo(
         "linalg.vector_norm",
         linalg_ops.aten_linalg_vector_norm,
         tolerance={torch.float16: (2e-3, 2e-3)},

@@ -283,13 +283,18 @@ def _solve_triangular_left(
             else:
                 coeffs = op.Slice(a_row, [0], [row], axes=[-1])  # [..., 1, step]
             rhs = op.Sub(rhs, op.MatMul(coeffs, solved))  # solved: [..., step, k]
-        if not unitriangular:
-            diag = op.Slice(
-                op.Slice(A, [row], [row + 1], axes=[-2]),
-                [row],
-                [row + 1],
-                axes=[-1],
-            )  # [..., 1, 1]
+        diag = op.Slice(
+            op.Slice(A, [row], [row + 1], axes=[-2]),
+            [row],
+            [row + 1],
+            axes=[-1],
+        )  # [..., 1, 1]
+        if unitriangular:
+            # Without the diagonal division the row keeps only B's batch shape;
+            # adding a zero-valued diagonal pulls A's batch dims in via broadcasting
+            # so every solved row shares the common batch shape.
+            rhs = op.Add(rhs, op.Sub(diag, diag))
+        else:
             rhs = op.Div(rhs, diag)
         if upper:
             solved_rows.insert(0, rhs)
