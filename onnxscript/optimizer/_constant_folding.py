@@ -828,10 +828,13 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     This allows downstream `SequenceAt` users to be replaced by `split_x` accordingly.
     """
     input = node.inputs[0]
-    if len(node.inputs) == 1:
-        # split is not provided
-        return None
-    split = node.inputs[1]
+    split = node.inputs[1] if len(node.inputs) > 1 else None
+    if split is None:
+        # The omitted input defaults to scalar 1. The scalar lowering below
+        # uses Split's num_outputs attribute, which requires opset 18.
+        if node.graph is None or node.graph.opset_imports.get(node.domain, 0) < 18:
+            return None
+        split = ir.Value(const_value=ir.Tensor(np.array(1, dtype=np.int64)))
     output = node.outputs[0]
 
     if input is None or split is None or output is None:
@@ -881,6 +884,9 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         # split into chunks all of size 'split' if possible.
         split_dimension_size = shape[axis]
         if not isinstance(split_dimension_size, int):
+            return None
+        if split_dimension_size == 0:
+            # Split cannot represent a sequence with no outputs.
             return None
         split_size = int(split_value.item())
         if split_size <= 0:
