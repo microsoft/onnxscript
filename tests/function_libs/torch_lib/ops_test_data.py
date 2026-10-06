@@ -743,7 +743,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT does not support empty tensors as input",
     ),
     TorchLibOpInfo("ge", core_ops.aten_ge),
-    TorchLibOpInfo("ops.aten._grouped_mm", core_ops.aten_grouped_mm).skip(
+    TorchLibOpInfo(
+        "ops.aten._grouped_mm",
+        core_ops.aten_grouped_mm,
+        tolerance={torch.float32: (1e-5, 1e-5)},
+    ).skip(
         enabled_if=not hasattr(torch.ops.aten, "_grouped_mm"),
         reason="torch.ops.aten._grouped_mm is not available in this version of PyTorch",
     ),

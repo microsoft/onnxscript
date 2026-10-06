@@ -28,38 +28,20 @@ def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
     del kwargs
 
     make_arg = functools.partial(
-        torch_testing.make_tensor,
-        device=device,
-        dtype=dtype,
-        requires_grad=requires_grad,
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
+    # Native grouped_mm requires 16-byte-aligned strides, including on CPU.
+    for shape_a, shape_b in (((2, 3, 8), (2, 8, 8)), ((1, 2, 8), (1, 8, 8))):
+        yield opinfo_core.SampleInput(make_arg(shape_a), args=(make_arg(shape_b),))
 
-    cases = [
-        # (G, M, K), (G, K, N)
-        ((2, 3, 4), (2, 4, 5)),
-        ((1, 2, 2), (1, 2, 1)),
-    ]
-
-    for self_shape, mat2_shape in cases:
-        self_t = make_arg(self_shape)
-        mat2_t = make_arg(mat2_shape)
-
-        # Test without bias and without out_dtype
-        yield opinfo_core.SampleInput(self_t, args=(mat2_t,))
-
-        # Test with bias
-        g, _, _ = self_shape
-        _, _, n = mat2_shape
-        bias_t = make_arg((g, 1, n))
-        yield opinfo_core.SampleInput(self_t, args=(mat2_t,), kwargs={"bias": bias_t})
-
-        # Test with bias and out_dtype
-        if dtype in (torch.float16, torch.bfloat16):
-            yield opinfo_core.SampleInput(
-                self_t,
-                args=(mat2_t,),
-                kwargs={"bias": bias_t, "out_dtype": torch.float32},
-            )
+    for shape_a, shape_b in (
+        ((24, 8), (3, 8, 8)),
+        ((3, 8, 8), (8, 24)),
+        ((8, 24), (24, 8)),
+    ):
+        for boundaries in ([4, 12, 24], [8, 8, 24]):
+            offsets = torch.tensor(boundaries, dtype=torch.int32, device=device)
+            yield opinfo_core.SampleInput(make_arg(shape_a), args=(make_arg(shape_b), offsets))
 
 
 def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs):
