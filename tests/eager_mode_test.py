@@ -4,6 +4,7 @@
 import unittest
 
 import numpy as np
+import onnx
 import parameterized
 
 import onnxscript.evaluator
@@ -50,6 +51,49 @@ class EagerModeTest(unittest.TestCase):
         os_tensor = onnxscript.tensor.Tensor(np_array)
         output2 = Concat([os_tensor, os_tensor])
         self.assertIsInstance(output2, onnxscript.tensor.Tensor)
+
+    def test_sequence_empty_preserves_dtype(self):
+        """Regression test for SequenceEmpty dtype parameter.
+
+        Verify that SequenceEmpty correctly preserves the dtype attribute
+        so that SequenceInsert doesn't fail with type mismatch errors.
+        """
+
+        @script()
+        def test_float16(img_in):
+            seq = op.SequenceEmpty(dtype=onnx.TensorProto.FLOAT16)
+            seq = op.SequenceInsert(seq, img_in)
+            return seq
+
+        @script()
+        def test_double(img_in):
+            seq = op.SequenceEmpty(dtype=onnx.TensorProto.DOUBLE)
+            seq = op.SequenceInsert(seq, img_in)
+            return seq
+
+        @script()
+        def test_int64(img_in):
+            seq = op.SequenceEmpty(dtype=onnx.TensorProto.INT64)
+            seq = op.SequenceInsert(seq, img_in)
+            return seq
+
+        # Test FLOAT16
+        img_float16 = np.random.randn(2, 3).astype(np.float16)
+        res = test_float16(img_float16)
+        self.assertEqual(len(res), 1)
+        np.testing.assert_array_equal(res[0], img_float16)
+
+        # Test DOUBLE
+        img_double = np.random.randn(2, 3).astype(np.float64)
+        res = test_double(img_double)
+        self.assertEqual(len(res), 1)
+        np.testing.assert_array_equal(res[0], img_double)
+
+        # Test INT64
+        img_int64 = np.array([[1, 2], [3, 4]], dtype=np.int64)
+        res = test_int64(img_int64)
+        self.assertEqual(len(res), 1)
+        np.testing.assert_array_equal(res[0], img_int64)
 
 
 @script()
