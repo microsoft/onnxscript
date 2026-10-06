@@ -9455,9 +9455,9 @@ def aten_sort(
     sort.stable(Tensor self, *, bool? stable, int dim=-1, bool descending=False) -> (Tensor values, Tensor indices)
     """
 
-    # `stable` only requests a deterministic order among equal elements. TopK is the only
-    # ONNX op that sorts, and it gives no stability guarantee either way, so both overloads
-    # lower to the same graph.
+    # TopK puts the lower index first among equal elements, which is the stable order,
+    # and the non-stable overload accepts any order there, so both overloads lower to
+    # the same graph.
     del stable
     self_is_scalar = len(self.shape) == 0
     if self_is_scalar:

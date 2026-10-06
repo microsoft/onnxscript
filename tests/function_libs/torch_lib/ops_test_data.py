@@ -1228,7 +1228,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("argsort", core_ops.aten_argsort).xfail(
         dtypes=(torch.float16,),
-        reason="fixme: index order among equal values differs; float16 inputs have many ties and TopK is not stable. Tests pass for float32.",
+        reason="fixme: float16 inputs have many ties; TopK puts the lower index first, while torch's default (non-stable) argsort may order them differently. Tests pass for float32.",
     ),
     TorchLibOpInfo("split_with_sizes", core_ops.aten_split_with_sizes),
     TorchLibOpInfo("split", core_ops.aten_split),
