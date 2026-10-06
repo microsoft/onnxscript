@@ -83,11 +83,18 @@ class ScatterAllStatic(RewriteRuleClassBase):
         result = onnxscript.rewriter.MatchResult()
         # To validate data can be replaced directly by updates, we need to check the following:
         # 1. the scatter-update is an assignment, not a reduction combining data and updates
-        reduction = context.root.attributes.get_string("reduction", "none")
-        if reduction != "none":
-            return result.fail(
-                f"The 'reduction' is {reduction!r}, so 'data' still contributes to the result."
-            )
+        reduction = context.root.attributes.get("reduction")
+        if reduction is not None:
+            if reduction.is_ref():
+                return result.fail(
+                    f"The 'reduction' refers to attribute {reduction.ref_attr_name!r}, "
+                    "so it is not known to be 'none'."
+                )
+            if reduction.as_string() != "none":
+                return result.fail(
+                    f"The 'reduction' is {reduction.as_string()!r}, "
+                    "so 'data' still contributes to the result."
+                )
         # 2. they have the same shape
         if data.shape is None:
             return result.fail("The value 'data' shape is not statically known.", data)
