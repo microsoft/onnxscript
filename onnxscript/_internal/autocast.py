@@ -143,7 +143,7 @@ def cast_inputs(
     for i, x in enumerate(args):
         if i < len(expected_inputs):
             expected = expected_inputs[i]
-        elif expected_inputs[-1].variadic:
+        elif expected_inputs and expected_inputs[-1].variadic:
             expected = expected_inputs[-1]
             if not expected.homogeneous:
                 args_typevars.append((x, None))
