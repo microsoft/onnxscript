@@ -41,6 +41,8 @@ def script_check(
 def script(
     opset: Optional[values.Opset] = None,
     default_opset: Optional[values.Opset] = None,
+    *,
+    op_type: str | None = None,
     **kwargs: Any,
 ) -> Callable[[Callable[_P, _R]], onnxscript.OnnxFunction[_P, _R]]:
     """Main decorator. Declares a function as an onnx function.
@@ -48,6 +50,8 @@ def script(
     Args:
         opset: Opset the function belongs to (see :ref:`l-api-opsets`).
         default_opset: Opset to use for operators not in the function's opset.
+        op_type: Optional custom ONNX operator name. It must be a non-empty
+            string. When omitted or ``None``, the Python function name is used.
         kwargs: Additional keyword arguments.
 
     Returns:
@@ -77,6 +81,10 @@ def script(
         raise TypeError(
             "Script parameter must be an opset. Did you use @script instead of @script()?"
         )
+    if op_type is not None and not isinstance(op_type, str):
+        raise TypeError(f"op_type must be a string or None, got {type(op_type).__name__}")
+    if isinstance(op_type, str) and not op_type.strip():
+        raise ValueError("op_type must be a non-empty string")
 
     def transform(f: Callable[_P, _R]) -> onnxscript.OnnxFunction[_P, _R]:
         if not inspect.isfunction(f):
@@ -92,6 +100,9 @@ def script(
         env = module.__dict__.copy()
         env.update(closure.nonlocals)
         result = script_check(f_ast, opset, env, src, default_opset=default_opset)
+        if isinstance(op_type, str):
+            result.name = op_type
+            result.graph.name = op_type
         # TODO: add transformations.
         return onnxscript.OnnxFunction(opset, f, result, src, kwargs)
 
