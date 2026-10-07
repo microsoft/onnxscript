@@ -22,7 +22,6 @@ import onnx_ir as ir
 from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
-    IntType,
     TFloat,
     TFloatOrUInt8,
     TInt,
@@ -354,16 +353,58 @@ def aten_conv_depthwise3d(
     raise NotImplementedError()
 
 
+def _aten_cross_entropy_loss_prob_target(
+    self: TFloat,
+    target: TFloat,
+    weight: Optional[TFloat],
+    reduction: int,
+    label_smoothing: float,
+) -> TFloat:
+    """Cross entropy with class probabilities as target.
+
+    Same as PyTorch's cross_entropy_loss_prob_target.
+    """
+    rank = len(self.shape)
+    class_dim = 0 if rank == 1 else 1
+    log_prob = op.LogSoftmax(self, axis=class_dim)
+    if label_smoothing > 0.0:
+        n_classes = op.CastLike(op.Shape(self, start=class_dim, end=class_dim + 1), target)
+        target = op.Add(
+            op.Mul(target, op.CastLike(1.0 - label_smoothing, target)),
+            op.Div(op.CastLike(label_smoothing, target), n_classes),
+        )
+    loss = op.Mul(log_prob, target)
+    if weight is not None:
+        if rank > 1:
+            weight = op.Reshape(weight, op.Constant(value_ints=[-1] + [1] * (rank - 2)))
+        loss = op.Mul(loss, weight)
+    loss = op.Neg(op.ReduceSum(loss, op.Constant(value_ints=[class_dim]), keepdims=False))
+
+    if reduction == 0:  # "none"
+        return loss
+    total = op.ReduceSum(loss, keepdims=False)
+    if reduction == 2:  # "sum"
+        return total
+    # "mean": average over all elements except the class dim
+    return op.Div(total, op.CastLike(op.Size(loss), total))
+
+
 @torch_op("aten::cross_entropy_loss", trace_only=True)
 def aten_cross_entropy_loss(
     self: TFloat,
-    target: IntType,
+    target: TensorType,
     weight: Optional[TFloat] = None,
     reduction: int = 1,  # default is 'mean'
     ignore_index: int = -100,
     label_smoothing: float = 0.0,  # this was ignored due to ONNX not support
 ) -> TFloat:
     """cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor"""
+
+    if target.dtype.is_floating_point():
+        # Class probabilities as target. SoftmaxCrossEntropyLoss only accepts class indices.
+        return _aten_cross_entropy_loss_prob_target(
+            self, target, weight, reduction, label_smoothing
+        )
 
     if reduction == 0:  # "none"
         result, _ = op.SoftmaxCrossEntropyLoss(
