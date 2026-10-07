@@ -1878,6 +1878,22 @@ class TorchLibe2eTest(unittest.TestCase):
                 self.assertEqual(node.attributes.get_int("noop_with_empty_axes", 0), 0)
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand([("ascending", False), ("descending", True)])
+    def test_sort_and_argsort_stable(self, _: str, descending: bool):
+        # The ties make the stable order visible: equal values keep their input order.
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                values, indices = torch.sort(x, dim=-1, descending=descending, stable=True)
+                return (
+                    values,
+                    indices,
+                    torch.argsort(x, dim=-1, descending=descending, stable=True),
+                )
+
+        x = torch.tensor([[3.0, 1.0, 3.0, 2.0, 1.0], [0.5, 0.5, -1.0, 0.5, 2.0]])
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True)
+        _testing.assert_onnx_program(onnx_program)
+
 
 if __name__ == "__main__":
     unittest.main()
