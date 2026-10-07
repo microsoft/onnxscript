@@ -1579,27 +1579,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.avg_pool2d",
         nn_ops.aten_avg_pool2d,
         input_wrangler=_avg_pool_input_wrangler,
-    ).xfail(
-        matcher=lambda sample: (
-            (len(sample.args) > 5 and sample.args[5] is not None)
-            or (sample.kwargs.get("divisor_override") is not None)
-        ),
-        reason="ONNX doesn't support divisor_override argument",
     ),
     TorchLibOpInfo(
         "nn.functional.avg_pool3d",
         nn_ops.aten_avg_pool3d,
         input_wrangler=_avg_pool_input_wrangler,
-    )
-    .xfail(
+    ).xfail(
         matcher=lambda sample: (
-            (len(sample.args) > 5 and sample.args[5] is not None)
-            or (sample.kwargs.get("divisor_override") is not None)
+            sample.kwargs.get("ceil_mode") is True
+            and sample.kwargs.get("divisor_override") is None
         ),
-        reason="ONNX doesn't support divisor_override argument",
-    )
-    .xfail(
-        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True,
         reason="fixme(after opset19): ORT doesn't match PyTorch when ceil_mode=True until opset 19",
     ),
     TorchLibOpInfo(

@@ -123,19 +123,39 @@ def _aten_avg_pool_onnx(
     pads: Sequence[int],
     ceil_mode: bool,
     count_include_pad: bool,
+    divisor_override: Optional[int] = None,
 ) -> TFloat:
     self_rank_is_unbatched_rank = len(self.shape) == len(kernel_shape) + 1
     if self_rank_is_unbatched_rank:  # C,H,W -> N,C,H,W and N=1
         self = op.Unsqueeze(self, [0])
 
-    result = op.AveragePool(
-        self,
-        ceil_mode=ceil_mode,
-        count_include_pad=count_include_pad,
-        kernel_shape=kernel_shape,
-        pads=pads,
-        strides=strides,
-    )
+    if divisor_override is not None:
+        # AveragePool has no way to set the divisor, so compute the sum over each
+        # window and divide it by divisor_override. LpPool with p=1 sums |x| over the
+        # window (padding adds zeros), so sum the positive and negative parts separately.
+        def window_sum(x):
+            return op.LpPool(
+                x,
+                ceil_mode=ceil_mode,
+                kernel_shape=kernel_shape,
+                p=1,
+                pads=pads,
+                strides=strides,
+            )
+
+        result = op.Div(
+            op.Sub(window_sum(op.Relu(self)), window_sum(op.Relu(op.Neg(self)))),
+            op.CastLike(divisor_override, self),
+        )
+    else:
+        result = op.AveragePool(
+            self,
+            ceil_mode=ceil_mode,
+            count_include_pad=count_include_pad,
+            kernel_shape=kernel_shape,
+            pads=pads,
+            strides=strides,
+        )
 
     if self_rank_is_unbatched_rank:
         result = op.Squeeze(result, [0])
@@ -187,20 +207,9 @@ def aten_avg_pool2d(
         expand_size, kernel_size, stride, padding
     )
 
-    # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
-    # mask = [
-    #    1, 2, 3, S,..3, 2, 1
-    #    2, 4, 6, 2S, 6, 4, 2
-    #    3, 6, 9, 3S, 9, 6, 3
-    #    S, 2S,3S,SS,3S,2S, S
-    #    3, 6, 9, 3S, 9, 6, 3
-    #    2, 4, 6, 2S, 6, 4, 2
-    #    1, 2, 3, S,..3, 2, 1
-    # ]
-    # S is stride size, in this case S=4,
-    # S may dup lot of times according to the image size
-
-    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
+    return _aten_avg_pool_onnx(
+        self, kernel_shape, strides, pads, ceil_mode, count_include_pad, divisor_override
+    )
 
 
 def aten_avg_pool2d_backward(
@@ -239,20 +248,9 @@ def aten_avg_pool3d(
         expand_size, kernel_size, stride, padding
     )
 
-    # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
-    # mask = [
-    #    1, 2, 3, S,..3, 2, 1
-    #    2, 4, 6, 2S, 6, 4, 2
-    #    3, 6, 9, 3S, 9, 6, 3
-    #    S, 2S,3S,SS,3S,2S, S
-    #    3, 6, 9, 3S, 9, 6, 3
-    #    2, 4, 6, 2S, 6, 4, 2
-    #    1, 2, 3, S,..3, 2, 1
-    # ]
-    # S is stride size, in this case S=4,
-    # S may dup lot of times according to the image size
-
-    return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
+    return _aten_avg_pool_onnx(
+        self, kernel_shape, strides, pads, ceil_mode, count_include_pad, divisor_override
+    )
 
 
 def aten_avg_pool3d_backward(
