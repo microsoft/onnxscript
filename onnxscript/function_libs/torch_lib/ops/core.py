@@ -10274,27 +10274,25 @@ def _get_einsum_symbol(dim: int) -> str:
     return _EINSUM_SYMBOLS[dim]
 
 
-def _validate_trilinear_dims(
-    total_dim: int, dims: Sequence[int], dims_name: str
-) -> None:
+def _normalize_trilinear_dims(total_dim: int, dims: Sequence[int], dims_name: str) -> set[int]:
     seen_dims = set()
     for dim in dims:
-        if dim < 0 or dim >= total_dim:
+        if dim < -total_dim or dim >= total_dim:
             raise ValueError(
-                f"aten::_trilinear {dims_name} values must be in [0, {total_dim})"
+                f"aten::_trilinear {dims_name} values must be in [-{total_dim}, {total_dim})"
             )
+        if dim < 0:
+            dim += total_dim
         if dim in seen_dims:
-            raise ValueError(
-                f"aten::_trilinear {dims_name} values must be unique"
-            )
+            raise ValueError(f"aten::_trilinear {dims_name} values must be unique")
         seen_dims.add(dim)
+    return seen_dims
 
 
 def _build_trilinear_subscript(
     total_dim: int, expanded_dims: Sequence[int], dims_name: str
 ) -> str:
-    _validate_trilinear_dims(total_dim, expanded_dims, dims_name)
-    expanded_dims_set = set(expanded_dims)
+    expanded_dims_set = _normalize_trilinear_dims(total_dim, expanded_dims, dims_name)
     return "".join(
         _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in expanded_dims_set
     )
@@ -10307,8 +10305,7 @@ def _build_trilinear_equation(
     expand3: Sequence[int],
     sumdim: Sequence[int],
 ) -> str:
-    _validate_trilinear_dims(total_dim, sumdim, "sumdim")
-    sumdim_set = set(sumdim)
+    sumdim_set = _normalize_trilinear_dims(total_dim, sumdim, "sumdim")
     output_subscript = "".join(
         _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in sumdim_set
     )
@@ -10327,9 +10324,7 @@ def _trilinear_input_rank(input_value: TensorType) -> int:
     return len(input_value.shape)
 
 
-def _trilinear_operand_total_dim(
-    input_value: TensorType, expanded_dims: Sequence[int]
-) -> int:
+def _trilinear_operand_total_dim(input_value: TensorType, expanded_dims: Sequence[int]) -> int:
     return _trilinear_input_rank(input_value) + len(expanded_dims)
 
 
@@ -10372,9 +10367,7 @@ def aten__trilinear(
 
     del unroll_dim
 
-    total_dim = _resolve_trilinear_total_dim(
-        i1, i2, i3, expand1, expand2, expand3
-    )
+    total_dim = _resolve_trilinear_total_dim(i1, i2, i3, expand1, expand2, expand3)
     equation = _build_trilinear_equation(total_dim, expand1, expand2, expand3, sumdim)
     return op.Einsum(i1, i2, i3, equation=equation)
 

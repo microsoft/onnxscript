@@ -39,6 +39,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 from torch.utils import _pytree as pytree
 
 import onnxscript
+from onnxscript import ir
 from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from tests.function_libs.torch_lib import (
@@ -111,18 +112,11 @@ class TestFunctionValidity(unittest.TestCase):
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
 
-class _FakeTensor:
-    __slots__ = ("shape",)
-
-    def __init__(self, shape: Sequence[int]):
-        self.shape = shape
-
-
 class TestTrilinearHelpers(unittest.TestCase):
     def test_resolve_trilinear_total_dim_validates_operand_dims(self):
-        i1 = _FakeTensor((2, 3))
-        i2 = _FakeTensor((4, 5, 6))
-        i3 = _FakeTensor((7,))
+        i1 = ir.Value(shape=ir.Shape((2, 3)))
+        i2 = ir.Value(shape=ir.Shape((4, 5, 6)))
+        i3 = ir.Value(shape=ir.Shape((7,)))
 
         with self.assertRaisesRegex(
             ValueError,
@@ -136,6 +130,70 @@ class TestTrilinearHelpers(unittest.TestCase):
                 (),
                 (1, 2),
             )
+
+    @parameterized.parameterized.expand(
+        (dims_name, dims, message)
+        for dims_name in ("expand1", "expand2", "expand3", "sumdim")
+        for dims, message in (
+            ((-5,), r"values must be in \[-4, 4\)"),
+            ((4,), r"values must be in \[-4, 4\)"),
+            ((1, 1), "values must be unique"),
+            ((-3, -3), "values must be unique"),
+            ((1, -3), "values must be unique"),
+        )
+    )
+    def test_build_trilinear_equation_rejects_invalid_dims(self, dims_name, dims, message):
+        kwargs = dict(expand1=(1, 3), expand2=(0,), expand3=(1, 2), sumdim=(2, 3))
+        kwargs[dims_name] = dims
+        with self.assertRaisesRegex(ValueError, f"{dims_name} {message}"):
+            core_ops._build_trilinear_equation(4, **kwargs)
+
+
+class TestTrilinearExport(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        [
+            ("positive", (1, 3), (0,), (1, 2), (2, 3)),
+            ("negative_expand1", (-3, -1), (0,), (1, 2), (2, 3)),
+            ("negative_expand2", (1, 3), (-4,), (1, 2), (2, 3)),
+            ("negative_expand3", (1, 3), (0,), (-3, -2), (2, 3)),
+            ("negative_sumdim", (1, 3), (0,), (1, 2), (-2, -1)),
+            ("all_negative", (-3, -1), (-4,), (-3, -2), (-2, -1)),
+            ("mixed", (1, -1), (-4,), (-3, 2), (2, -1)),
+        ]
+    )
+    def test_trilinear_dim_indices(self, _, expand1, expand2, expand3, sumdim):
+        class Model(torch.nn.Module):
+            def forward(self, a, w, b):
+                return torch.ops.aten._trilinear.default(
+                    a, w, b, expand1, expand2, expand3, sumdim, 1
+                )
+
+        inputs = (
+            torch.arange(6, dtype=torch.float32).reshape(2, 3),
+            torch.arange(60, dtype=torch.float32).reshape(5, 3, 4),
+            torch.arange(8, dtype=torch.float32).reshape(2, 4),
+        )
+        expected = torch.ops.aten._trilinear.default(*inputs, (1, 3), (0,), (1, 2), (2, 3), 1)
+        torch.testing.assert_close(Model()(*inputs), expected)
+        exported = torch.export.export(Model(), inputs)
+        node = next(
+            node
+            for node in exported.graph.nodes
+            if node.target == torch.ops.aten._trilinear.default
+        )
+        self.assertEqual(
+            tuple(tuple(dims) for dims in node.args[3:7]),
+            (expand1, expand2, expand3, sumdim),
+        )
+        onnx_program = torch.onnx.export(
+            exported,
+            dynamo=True,
+            custom_translation_table={
+                torch.ops.aten._trilinear.default: core_ops.aten__trilinear
+            },
+            optimize=False,
+        )
+        torch.testing.assert_close(onnx_program(*inputs)[0], expected)
 
 
 def run_test_output_match(
