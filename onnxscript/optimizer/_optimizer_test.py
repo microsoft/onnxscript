@@ -1,15 +1,48 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+from __future__ import annotations
 
 import unittest
 
+import numpy as np
 import onnx
+import onnx.reference
 import onnx_ir as ir
 
 import onnxscript.optimizer as optimizer
 
 
 class OptimizerTest(unittest.TestCase):
+    def test_preserves_magnitude_stabilizer(self):
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 8, opset_import: ["" : 18]>
+            magnitude (float[3] real, float[3] imag) => (float[3] output)
+            {
+                exponent = Constant<value = float {2.0}>()
+                epsilon = Constant<value = float {1e-12}>()
+                real_squared = Pow(real, exponent)
+                imag_squared = Pow(imag, exponent)
+                sum_squared = Add(real_squared, imag_squared)
+                stabilized = Add(sum_squared, epsilon)
+                output = Sqrt(stabilized)
+            }
+            """
+        )
+        inputs = {
+            "real": np.array([0.0, 1e-8, 1.0], dtype=np.float32),
+            "imag": np.array([0.0, 1e-8, 1.0], dtype=np.float32),
+        }
+        original = ir.serde.serialize_model(model)
+        expected = onnx.reference.ReferenceEvaluator(original).run(None, inputs)[0]
+
+        optimizer.optimize_ir(model)
+        optimized = ir.serde.serialize_model(model)
+        actual = onnx.reference.ReferenceEvaluator(optimized).run(None, inputs)[0]
+
+        self.assertGreater(expected[0], 0)
+        np.testing.assert_array_equal(actual, expected)
+
     def test_folded_from_key_is_accessible(self):
         """Test that FOLDED_FROM_KEY is accessible from the public API."""
         self.assertTrue(hasattr(optimizer, "FOLDED_FROM_KEY"))
