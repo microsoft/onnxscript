@@ -1248,6 +1248,28 @@ def sample_inputs_mean_dtype(op_info, device, dtype, requires_grad, **kwargs):
     )
 
 
+def sample_inputs_mean_dim_dtype(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    for shape, dim in (((S, S), [1]), ((S, S, S), [0, 2]), ((S,), [0])):
+        yield opinfo_core.SampleInput(
+            make_arg(shape), kwargs={"dim": dim, "dtype": torch.float64}
+        )
+
+    # Precision sensitive values, as in sample_inputs_mean_dtype: the mean must be
+    # computed in float64, casting only the reduced result is not enough.
+    yield opinfo_core.SampleInput(
+        torch.tensor(
+            [[1e8, 1.0, -1e8]], dtype=dtype, device=device, requires_grad=requires_grad
+        ),
+        kwargs={"dim": [1], "dtype": torch.float64},
+    )
+
+
 def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
@@ -2794,6 +2816,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="mean",
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_mean_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.mean.dim_dtype",
+        op=torch.ops.aten.mean.dim,
+        aten_name="mean.dim",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_mean_dim_dtype,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
