@@ -775,7 +775,6 @@ class Converter:
             squeezed_axes = []
             for axis, expr in scalar_indices:
                 # Treat a scalar index i as slice "i:i+1:1", but squeeze the axis finally.
-                # TODO: handle negative i
                 index = self._eval_constant_expr(expr)
                 squeezed_axes.append(axis)
                 kwargs = dict(
@@ -784,7 +783,8 @@ class Converter:
                 )
                 element = ast.Slice(
                     ast.Constant(index, **kwargs),
-                    ast.Constant(index + 1, **kwargs),
+                    # -1 selects the last element, so its stop must reach the axis end.
+                    ast.Constant(maxint if index == -1 else index + 1, **kwargs),
                     ast.Constant(1, **kwargs),
                 )
                 sliced_indices.append((axis, element))
