@@ -60,6 +60,8 @@ pip install --upgrade onnxscript
 git clone https://github.com/microsoft/onnxscript
 cd onnxscript
 pip install -r requirements-dev.txt
+# --no-deps keeps onnx_ir from replacing onnx-weekly with the stable onnx release
+pip install "onnx_ir>=0.1.16,<2" --no-deps
 pip install -e . --no-deps
 ```
 
