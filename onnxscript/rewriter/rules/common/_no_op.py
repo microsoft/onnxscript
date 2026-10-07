@@ -10,7 +10,8 @@ from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 
 # Pattern to match against
-# Identity constants must match exactly to preserve numerical stabilizers and scaling.
+# Numeric literals use dtype-agnostic Constant patterns with approximate matching.
+# Identity rewrites require exact values to preserve numerical stabilizers and scaling.
 def mul_by_1(op, x):
     return x * Constant(1, rel_tol=0, abs_tol=0)
 
