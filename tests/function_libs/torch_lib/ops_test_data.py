@@ -832,6 +832,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("log2", core_ops.aten_log2),
     TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp, tolerance={torch.float16: (1, 1e-4)}),
+    TorchLibOpInfo("ops.aten.logaddexp.large", core_ops.aten_logaddexp),
+    TorchLibOpInfo("ops.aten.logaddexp2.large", core_ops.aten_logaddexp2),
     TorchLibOpInfo(
         "logaddexp2", core_ops.aten_logaddexp2, tolerance={torch.float16: (2e-2, 6e-4)}
     ),
@@ -980,6 +982,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("nn.functional.hardswish", nn_ops.aten_hardswish),
     TorchLibOpInfo("nn.functional.hardtanh", nn_ops.aten_hardtanh),
     TorchLibOpInfo("nn.functional.leaky_relu", nn_ops.aten_leaky_relu),
+    TorchLibOpInfo("ops.aten.log_sigmoid.large", nn_ops.aten_log_sigmoid),
     TorchLibOpInfo(
         "nn.functional.logsigmoid",
         nn_ops.aten_log_sigmoid,
