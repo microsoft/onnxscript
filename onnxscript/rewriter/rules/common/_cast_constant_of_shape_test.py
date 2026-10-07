@@ -4,8 +4,8 @@ import unittest
 
 import onnx.checker
 import onnx.parser
+import onnx_ir as ir
 
-from onnxscript import ir
 from onnxscript.rewriter.rules.common import _cast_constant_of_shape
 
 

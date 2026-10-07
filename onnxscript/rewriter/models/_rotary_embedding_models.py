@@ -168,3 +168,42 @@ class _PartialRotaryTestCase:
 
 def partial_rotary_test_case():
     return _PartialRotaryTestCase()
+
+
+def _make_partial_rotary_script(mismatched: bool = False):
+    """Generate a partial rotary embedding script with matching or mismatched slice boundaries.
+
+    Args:
+        mismatched: If True, the second slice starts at 33 instead of 32,
+            creating a gap that should prevent PartialRotaryEmbedding fusion.
+    """
+
+    @script()
+    def partial_rotary(position_ids, query):
+        inv_freqs = op.Constant(value=inv_freqs_value)  # [1, rd/2, 1]
+        position_ids_3d = op.Unsqueeze(position_ids, 1)  # [B, 1, S]
+        position_ids_3d_float = op.Cast(position_ids_3d, to=1)
+        matmul = op.MatMul(inv_freqs, position_ids_3d_float)  # [B, rd/2, S]
+        transpose = op.Transpose(matmul, perm=[0, 2, 1])  # [B, S, rd/2]
+        cat = op.Concat(transpose, transpose, axis=-1)  # [B, S, rd]
+        cos_3d = op.Cos(cat)  # [B, S, rd]
+        sin_3d = op.Sin(cat)  # [B, S, rd]
+        # Split the query for partial embedding
+        to_embed = op.Slice(query, [0], [32], [3], [1])
+        if mismatched:
+            unembedded = op.Slice(query, [33], [9223372036854775807], [3], [1])
+        else:
+            unembedded = op.Slice(query, [32], [9223372036854775807], [3], [1])
+        cos_4d = op.Unsqueeze(cos_3d, [1])  # [B, 1, S, rd]
+        sin_4d = op.Unsqueeze(sin_3d, [1])  # [B, 1, S, rd]
+        to_embed_times_cos = op.Mul(to_embed, cos_4d)
+        to_embed_x = op.Slice(to_embed, [0], [16], [3], [1])
+        to_embed_y = op.Slice(to_embed, [16], [9223372036854775807], [3], [1])
+        minus_to_embed_y = op.Neg(to_embed_y)
+        to_embed_rotated_90 = op.Concat(minus_to_embed_y, to_embed_x, axis=-1)
+        to_embed_rotated_90_times_sin = op.Mul(to_embed_rotated_90, sin_4d)
+        embedded = op.Add(to_embed_times_cos, to_embed_rotated_90_times_sin)
+        final = op.Concat(embedded, unembedded, axis=-1)
+        return final
+
+    return partial_rotary

@@ -2,8 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from onnxscript.ir import _tape
 from onnxscript.rewriter._basics import MatchingTracer, MatchResult, MatchStatus
+from onnxscript.rewriter._context import RewriterContext
 from onnxscript.rewriter._matcher import PatternMatcher, SimplePatternMatcher
 from onnxscript.rewriter._pattern_ir import (
     ANY_VALUE,
@@ -22,8 +22,6 @@ from onnxscript.rewriter._rewrite_rule import (
     RewriteRuleClassBase,
     RewriteRuleSet,
 )
-
-RewriterContext = _tape.Builder
 
 __all__ = [
     "ANY_VALUE",

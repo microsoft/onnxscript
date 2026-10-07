@@ -179,9 +179,16 @@ This means you should be careful when designing patterns with multiple alternati
 
 ## Error Handling
 
-Checkers can return either:
-- `True`: Check passed, continue matching
-- `False`: Check failed, pattern does not match
-- `MatchResult`: More detailed result with potential failure reasons
+Both check functions (including condition functions and node/value-level checkers) and
+rewrite functions support the same conventions for indicating failure:
 
-If a checker raises an exception, it will be caught and treated as a match failure, allowing patterns to fail gracefully when encountering unexpected conditions.
+- **`MatchResult` with `.fail()`** *(recommended)*: Return `MatchResult().fail("reason", source)` to indicate failure with a descriptive reason and optional source node/value. This provides the most useful diagnostic information for debugging.
+- **Raise `MatchFailureError`** *(recommended)*: Import it as `from onnxscript.rewriter.rewriter import MatchFailureError` and raise `MatchFailureError("reason", source1, source2, ...)` to indicate failure associated with one or more `ir.Node` or `ir.Value` objects. Each source should be passed as a separate positional argument (do not pass a list as a single argument). This is especially convenient in utility functions called from a check or rewrite, since it avoids having to explicitly propagate failure status through the call chain.
+- **Return `None` or `False`**: These indicate failure without providing a reason. They are supported but not recommended, since a failure reason is valuable for debugging why a rule did not apply.
+
+Including a descriptive failure reason is strongly encouraged. The rewriter's tracing infrastructure
+uses these reasons to report why rules failed to match, which is essential for diagnosing
+issues when developing or debugging rewrite rules.
+
+For **check functions**, success is indicated by returning `True` or a truthy `MatchResult`.
+For **rewrite functions**, success is indicated by returning one or more `ir.Value` results.

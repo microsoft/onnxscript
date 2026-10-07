@@ -50,6 +50,9 @@ def read_conv_attributes(ir_conv: ir.Node) -> dict[str, Sequence[int] | str]:
     attributes["strides"] = ir_attributes.get_ints(
         "strides", [1] * len(ir_conv.inputs[0].shape[2:])
     )
+    attributes["dilations"] = ir_attributes.get_ints(
+        "dilations", [1] * len(attributes["kernel_shape"])
+    )
     attributes["auto_pad"] = ir_attributes.get_string("auto_pad", "NOTSET")
     if "pads" in ir_attributes:
         attributes["pads"] = ir_attributes.get_ints("pads")
@@ -65,9 +68,7 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
         # With remove_nodes=False these nodes are removed if these nodes are no longer needed.
         super().__init__(remove_nodes=False, as_function=as_function)
 
-    def rewrite(
-        self, op: ir.tape.Tape, x: ir.Value, pad: ir.Value, conv: ir.Value
-    ) -> ir.Value:
+    def rewrite(self, op, x: ir.Value, pad: ir.Value, conv: ir.Value) -> ir.Value:
         conv_node = conv.producer()
 
         # Retrieve the padding and axes
@@ -87,10 +88,11 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
 
         return op.op(
             conv_node.op_type,
-            inputs=(x, *conv_node.inputs[1:]),
-            attributes=conv_attr,
-            domain=conv_node.domain,
-            name=conv_node.name,
+            x,
+            *conv_node.inputs[1:],
+            _domain=conv_node.domain,
+            _name=conv_node.name,
+            **conv_attr,
         )
 
     def check(self, context, x: ir.Value, pad: ir.Value, conv: ir.Value) -> orp.MatchResult:
@@ -147,6 +149,9 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
         if np.any(self._pads_list[:2] + self._pads_list[x_rank : x_rank + 2]):
             self._pads_list = None
             return check_result.fail(f"{pads.name} must be zero in non-spatial dimensions.")
+        if any(p < 0 for p in self._pads_list):
+            self._pads_list = None
+            return check_result.fail(f"{pads.name} must not contain negative values.")
 
         return check_result
 
@@ -154,7 +159,7 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
 class FuseConvPad(_FuseConvPadBase):
     """Replaces ``Conv(Pad(x))`` with ``Conv(x)``."""
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+    def pattern(self, op, x):
         return op.Conv(
             op.Pad(x, _allow_other_inputs=True, _outputs=["pad"]),
             _allow_other_inputs=True,
@@ -178,7 +183,7 @@ class FuseConvPad(_FuseConvPadBase):
 class FuseConvIntegerPad(FuseConvPad):
     """Replaces ``ConvInteger(Pad(x))`` with ``ConvInteger(x)``."""
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+    def pattern(self, op, x):
         return op.ConvInteger(
             op.Pad(x, _allow_other_inputs=True, _outputs=["pad"]),
             _allow_other_inputs=True,
@@ -197,7 +202,7 @@ class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
     ) -> Sequence[int]:
         raise NotImplementedError("Child have to implement this function")
 
-    def rewrite(self, op: ir.tape.Tape, conv: ir.Value, **__) -> ir.Value:
+    def rewrite(self, op, conv: ir.Value, **__) -> ir.Value:
         conv_node = conv.producer()
 
         # Read spatial dimensions and attributes
@@ -216,10 +221,10 @@ class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
 
         return op.op(
             conv_node.op_type,
-            inputs=conv_node.inputs,
-            attributes=conv_attr,
-            domain=conv_node.domain,
-            name=conv_node.name,
+            *conv_node.inputs,
+            _domain=conv_node.domain,
+            _name=conv_node.name,
+            **conv_attr,
         )
 
     def check(self, context, conv: ir.Value, **__) -> orp.MatchResult:
@@ -300,8 +305,12 @@ class NormalizePadFormatConv(_NormalizePadFormatBase):
 
         bottom_pads, top_pads = [], []
         kernel_shape, strides = attributes["kernel_shape"], attributes["strides"]
-        assert len(kernel_shape) == len(strides) == len(input_shape) == len(output_shape)
-        for x, y, k, s in zip(input_shape, output_shape, kernel_shape, strides):
+        # A kernel dilated by d spans (k - 1) * d + 1 elements along a spatial axis
+        dilated_kernel = [
+            (k - 1) * d + 1 for k, d in zip(kernel_shape, attributes["dilations"])
+        ]
+        assert len(dilated_kernel) == len(strides) == len(input_shape) == len(output_shape)
+        for x, y, k, s in zip(input_shape, output_shape, dilated_kernel, strides):
             # Compute the output shape and the total padding to apply
             total_pads = max(0, (y - 1) * s + k - x)
 
@@ -316,14 +325,14 @@ class NormalizePadFormatConv(_NormalizePadFormatBase):
                 bottom_pads.append(pad2)
         return bottom_pads + top_pads
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+    def pattern(self, op, x):
         return op.Conv(x, _allow_other_inputs=True, _outputs=["conv"])
 
 
 class NormalizePadFormatConvInteger(NormalizePadFormatConv):
     """Convert auto_pad attribute into 'NOTSET' in ConvInteger nodes ."""
 
-    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+    def pattern(self, op, x):
         return op.ConvInteger(x, _allow_other_inputs=True, _outputs=["conv"])
 
 

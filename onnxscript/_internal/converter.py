@@ -619,10 +619,13 @@ class Converter:
         result = self._generate_unique_name(target)
         return self._emit1([result], callee, args, attrs)
 
-    def _translate_opt_expr(self, node: ast.expr) -> ir.Value | None:
+    def _translate_opt_expr(self, node: ast.expr | None) -> ir.Value | None:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
-        None is represented as a Constant in Python 3.9+.
+        Parsed None is represented as a Constant in Python 3.9+, while argument
+        normalization may insert None directly for an omitted input.
         """
+        if node is None:
+            return None
         if isinstance(node, ast.Constant) and (node.value is None):
             return None
         return self._translate_expr(node)
@@ -775,7 +778,6 @@ class Converter:
             squeezed_axes = []
             for axis, expr in scalar_indices:
                 # Treat a scalar index i as slice "i:i+1:1", but squeeze the axis finally.
-                # TODO: handle negative i
                 index = self._eval_constant_expr(expr)
                 squeezed_axes.append(axis)
                 kwargs = dict(
@@ -784,7 +786,8 @@ class Converter:
                 )
                 element = ast.Slice(
                     ast.Constant(index, **kwargs),
-                    ast.Constant(index + 1, **kwargs),
+                    # -1 selects the last element, so its stop must reach the axis end.
+                    ast.Constant(maxint if index == -1 else index + 1, **kwargs),
                     ast.Constant(1, **kwargs),
                 )
                 sliced_indices.append((axis, element))
@@ -1478,7 +1481,6 @@ class Converter:
             self._current_fn = irbuilder.IRFunction(stmt.name, domain)
             self._analyzer = analysis.AstAnalyzer(stmt, self._message, self.globals)
             fn_ir = self._translate_function_def_common(stmt)
-            self.this_module.add_function_def(fn_ir)
             self._analyzer = None
             return fn_ir
         raise ValueError(f"Unsupported top-level statement type {type(stmt)!r}.")

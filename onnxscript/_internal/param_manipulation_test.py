@@ -5,9 +5,9 @@
 import collections
 import unittest
 
+import onnx_ir as ir
 import parameterized
 
-from onnxscript import ir
 from onnxscript._internal import param_manipulation
 
 TEST_INPUT = "TEST_INPUT"
@@ -222,6 +222,87 @@ class TestSeparateInputAttributesFromArguments(unittest.TestCase):
 
         self.assertEqual(inputs, [TEST_INPUT])
         self.assertEqual(attributes, collections.OrderedDict([("b", 42)]))
+
+    @parameterized.parameterized.expand(
+        [
+            (
+                "later_optional_input",
+                (TEST_INPUT,),
+                {"d": "LAST_INPUT"},
+                [TEST_INPUT, None, None, "LAST_INPUT"],
+            ),
+            (
+                "middle_optional_input",
+                (TEST_INPUT,),
+                {"c": "MIDDLE_INPUT"},
+                [TEST_INPUT, None, "MIDDLE_INPUT"],
+            ),
+            (
+                "trailing_optional_inputs_omitted",
+                (TEST_INPUT,),
+                {},
+                [TEST_INPUT],
+            ),
+            (
+                "explicit_none_is_preserved",
+                (TEST_INPUT, None),
+                {},
+                [TEST_INPUT, None],
+            ),
+        ]
+    )
+    def test_optional_input_positions_are_preserved(self, _, args, kwargs, expected_inputs):
+        type_constraint = ir.schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = ir.schemas.OpSignature(
+            domain="",
+            name="TestOp",
+            overload="",
+            params=[
+                ir.schemas.Parameter(
+                    name="a", type_constraint=type_constraint, required=True, variadic=False
+                ),
+                ir.schemas.Parameter(
+                    name="b", type_constraint=type_constraint, required=False, variadic=False
+                ),
+                ir.schemas.Parameter(
+                    name="c", type_constraint=type_constraint, required=False, variadic=False
+                ),
+                ir.schemas.Parameter(
+                    name="d", type_constraint=type_constraint, required=False, variadic=False
+                ),
+            ],
+            outputs=[],
+        )
+
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+            op_signature, args, kwargs
+        )
+
+        self.assertEqual(inputs, expected_inputs)
+        self.assertEqual(attributes, collections.OrderedDict())
+
+    def test_empty_variadic_inputs(self):
+        type_constraint = ir.schemas.TypeConstraintParam.any_tensor("T")
+        op_signature = ir.schemas.OpSignature(
+            domain="",
+            name="TestOp",
+            overload="",
+            params=[
+                ir.schemas.Parameter(
+                    name="a", type_constraint=type_constraint, required=False, variadic=False
+                ),
+                ir.schemas.Parameter(
+                    name="args", type_constraint=type_constraint, required=False, variadic=True
+                ),
+            ],
+            outputs=[],
+        )
+
+        inputs, _ = param_manipulation.separate_input_attributes_from_arguments(
+            op_signature, (), {}
+        )
+
+        self.assertEqual(inputs, [])
 
     @parameterized.parameterized.expand(
         [

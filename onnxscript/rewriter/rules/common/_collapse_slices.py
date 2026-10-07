@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from onnxscript import ir
+import onnx_ir as ir
+
 from onnxscript.rewriter import _ir_utils
 from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
@@ -82,7 +83,12 @@ def _same_shape(op, data: ir.Value, slice_output: ir.Value, steps: ir.Value, **_
     if data.shape is None or slice_output.shape is None:
         return False
 
-    if not _ir_utils.is_singleton_value(steps, 1):
+    # All steps must be 1
+    steps_np = _ir_utils.get_numpy_value(steps)
+    if steps_np is not None:
+        if not all(s == 1 for s in steps_np.flat):
+            return False
+    elif not _ir_utils.is_singleton_value(steps, 1):
         return False
 
     return _ir_utils.same_shape(data.shape, slice_output.shape)

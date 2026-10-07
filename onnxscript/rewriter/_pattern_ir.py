@@ -20,8 +20,9 @@ from typing import (
     Union,
 )
 
+import onnx_ir as ir
+
 import onnxscript.rewriter._basics as _basics
-from onnxscript import ir
 
 T = TypeVar("T")
 
@@ -836,7 +837,11 @@ class GraphPattern:
 
         # Determine the output nodes of the pattern. These are a minimal set of nodes
         # whose backward-slices cover the entire pattern.
-        output_nodes: set[NodePattern] = set()
+        # Use a dict as an ordered set to preserve deterministic insertion order
+        # from the outputs sequence. Using a plain set would cause non-deterministic
+        # ordering due to Python's hash randomization, leading to non-deterministic
+        # pattern matching behavior.
+        output_nodes: dict[NodePattern, None] = {}
         covered: set[NodePattern] = set()
         choice_values_returned: set[ValuePattern] = set()
         covered_choice_values: set[ValuePattern] = set()
@@ -848,7 +853,7 @@ class GraphPattern:
             if isinstance(value_pattern, NodeOutputPattern):
                 candidate = value_pattern.producer()
                 if candidate not in covered:
-                    output_nodes.add(candidate)
+                    output_nodes[candidate] = None
                     _add_backward_slice(candidate, covered, covered_choice_values)
             elif isinstance(value_pattern, (OpIdDispatchOr, BacktrackingOr)):
                 choice_values_returned.add(value_pattern)

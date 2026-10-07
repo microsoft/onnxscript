@@ -71,6 +71,31 @@ class PatternIRTest(unittest.TestCase):
         self.assertTrue(hasattr(producer, "_check"))
         self.assertIs(producer._check, node_checker)
 
+    def test_graph_pattern_output_nodes_have_deterministic_order(self):
+        """Test that GraphPattern.output_nodes preserves insertion order from outputs.
+
+        Regression test for https://github.com/microsoft/onnxscript/issues/2234.
+        When output_nodes was built from a set, Python's hash randomization could
+        cause non-deterministic ordering, leading to non-deterministic pattern
+        matching behavior for multi-output patterns.
+        """
+        opset_builder = _pattern_ir.OpsetPatternBuilder("")
+        x = _pattern_ir.ValuePattern("x")
+        # Create two distinct node patterns via two separate ops
+        out_a = opset_builder.Relu(x, _outputs=["a"])
+        out_b = opset_builder.Sigmoid(x, _outputs=["b"])
+        outputs = [out_a, out_b]
+
+        # Build the graph pattern multiple times and check the order is always the same
+        for _ in range(50):
+            graph_pattern = _pattern_ir.GraphPattern(inputs=[x], outputs=outputs, nodes=[])
+            node_op_ids = [n._op_identifier for n in graph_pattern.output_nodes]
+            self.assertEqual(
+                node_op_ids,
+                [("", "Relu", ""), ("", "Sigmoid", "")],
+                "output_nodes order must match the order of outputs",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

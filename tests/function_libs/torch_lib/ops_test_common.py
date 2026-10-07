@@ -26,6 +26,7 @@ from typing import (
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 import onnxruntime as ort
 import onnxruntime.capi.onnxruntime_pybind11_state
 import pytest
@@ -35,7 +36,6 @@ from torch.testing._internal.opinfo import core as opinfo_core
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript import ir
 from tests.function_libs.torch_lib import error_reproduction
 
 T = TypeVar("T")

@@ -65,7 +65,8 @@ class _FuseMinMaxBase(RewriteRuleClassBase, abc.ABC):
 
         return op.op(
             self.op_type,
-            inputs=[x, *initializers],
+            x,
+            *initializers,
         )
 
     def _is_scalar(self, v: np.ndarray) -> bool:

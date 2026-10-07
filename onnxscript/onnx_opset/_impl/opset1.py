@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: D214, D402, D405, D411, D416, D417
+# ruff: noqa: D402, D411, D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -2026,7 +2026,7 @@ class Opset1(Opset):
               %keepgoing = Constant[value = <Scalar Tensor [1]>]()
               %max_trip_count = Constant[value = <Scalar Tensor [10]>]()
               %keepgoing_out, %b_out, %user_defined_vals = Loop[body = <graph body-net>](%max_trip_count, %keepgoing, %b)
-              return
+              return  // end of graph
             }
 
             graph body-net (
@@ -2118,6 +2118,9 @@ class Opset1(Opset):
 
 
         Given a matrix, apply Lp-normalization along the provided axis.
+        The output is computed as: `output = input / Lp_norm(input, axis)`.
+        When the Lp norm is zero (i.e., all elements along the axis are zero),
+        the output is defined to be zero to avoid division by zero.
 
 
         Args:
@@ -4036,9 +4039,16 @@ class Opset1(Opset):
         r"""[🌐 Transpose(1)](https://onnx.ai/onnx/operators/onnx__Transpose.html#transpose-1 "Online Documentation")
 
 
-        Transpose the input tensor similar to numpy.transpose. For example, when
-        perm=(1, 0, 2), given an input tensor of shape (1, 2, 3), the output shape
-        will be (2, 1, 3).
+        Returns a transpose of the input tensor. (Similar to `numpy.transpose`).
+        The optional attribute `perm` must be a permutation of the dimensions of
+        the input tensor. Axis `i` of the output tensor corresponds to the axis
+        `perm[i]` of the input tensor.
+        For example, when perm=(1, 0, 2), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 1, 3).
+        When perm=(1, 2, 0), given an input tensor of shape (1, 2, 3),
+        the output shape will be (2, 3, 1).
+        If the attribute `perm` is omitted, its default value is `(n-1, ..., 0)`,
+        where `n` is the rank of the input tensor.
 
 
         Args:

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+import onnx_ir as ir
+
 import onnxscript.rewriter.pattern as orp
-from onnxscript import ir
 from onnxscript.rewriter import _ir_utils
 
 

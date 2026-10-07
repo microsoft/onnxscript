@@ -8,12 +8,14 @@ from typing import Any
 import numpy as np
 import onnx
 import onnx.reference
+import onnx_ir as ir
 import parameterized
 
 import onnxscript
 import onnxscript.onnx_types as ot
-from onnxscript import ir
+from onnxscript import rewriter
 from onnxscript.onnx_opset import opset18
+from onnxscript.optimizer import _constant_folding, common_passes
 from onnxscript.rewriter import MatchingTracer, testing
 from onnxscript.rewriter import pattern as orp
 from onnxscript.rewriter.rules.common import _basic_rules
@@ -138,6 +140,69 @@ class BasicRulesTest(unittest.TestCase):
         rewritten_model = ir.serde.serialize_model(model)
         self.assertEqual(["Transpose"], [n.op_type for n in model.graph])
         self._check_model(model_proto, rewritten_model)
+
+    @parameterized.parameterized.expand(
+        [
+            (operation, shared_output)
+            for operation in ("reshape", "transpose", "inverse_transpose")
+            for shared_output in (False, True)
+        ]
+    )
+    def test_layout_chain_with_shared_intermediate(self, operation: str, shared_output: bool):
+        initializers = []
+        if operation == "reshape":
+            nodes = [
+                onnx.helper.make_node("Reshape", ["X", "shape1"], ["intermediate"]),
+                onnx.helper.make_node("Reshape", ["intermediate", "shape2"], ["Y"]),
+            ]
+            initializers = [
+                onnx.numpy_helper.from_array(np.array([3, 8], dtype=np.int64), "shape1"),
+                onnx.numpy_helper.from_array(np.array([6, 4], dtype=np.int64), "shape2"),
+            ]
+            intermediate_shape, output_shape = [3, 8], [6, 4]
+            rule = _basic_rules.reshape_reshape_rule
+        else:
+            inverse = operation == "inverse_transpose"
+            nodes = [
+                onnx.helper.make_node("Transpose", ["X"], ["intermediate"], perm=[1, 2, 0]),
+                onnx.helper.make_node(
+                    "Transpose",
+                    ["intermediate"],
+                    ["Y"],
+                    perm=[2, 0, 1] if inverse else [1, 2, 0],
+                ),
+            ]
+            intermediate_shape = [3, 4, 2]
+            output_shape = [2, 3, 4] if inverse else [4, 2, 3]
+            rule = _basic_rules.transpose_transpose_rule
+        side_output = "intermediate" if shared_output else "side"
+        if not shared_output:
+            nodes.append(onnx.helper.make_node("Neg", ["intermediate"], [side_output]))
+        model_proto = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                nodes,
+                "shared_layout",
+                [onnx.helper.make_tensor_value_info("X", FLOAT, [2, 3, 4])],
+                [
+                    onnx.helper.make_tensor_value_info("Y", FLOAT, output_shape),
+                    onnx.helper.make_tensor_value_info(side_output, FLOAT, intermediate_shape),
+                ],
+                initializers,
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 18)],
+            ir_version=10,
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        original_first = model.graph[0]
+        rule_set = orp.RewriteRuleSet([rule])
+        self.assertEqual(rule_set.apply_to_model(model), 1)
+        self.assertIs(model.graph.outputs[0].producer().inputs[0], model.graph.inputs[0])
+        self.assertIn(original_first, list(model.graph))
+        self.assertEqual(len(model.graph), 2 if shared_output else 3)
+        self.assertEqual(rule_set.apply_to_model(model), 0)
+        rewritten = ir.serde.serialize_model(model)
+        onnx.checker.check_model(rewritten, full_check=True)
+        self._check_model(model_proto, rewritten)
 
     def _double_cast_model(self, ostype1, ostype2, ostype3):
         dtype2 = ostype2.dtype
@@ -506,6 +571,57 @@ class ReshapeReshapeTest(unittest.TestCase):
         }
         testing.assert_numerically_equal(model, updated_model, feeds, atol=0, rtol=0)
 
+    def test_reshape_reshape_rule_with_shared_negative_one_shape(self):
+        input1 = ir.val("input1", ir.DataType.FLOAT, ir.Shape((2, 3)))
+        input2 = ir.val("input2", ir.DataType.FLOAT, ir.Shape((2, 6)))
+        output1 = ir.val("out1", ir.DataType.FLOAT, ir.Shape((2, 3)))
+        output2 = ir.val("out2", ir.DataType.FLOAT, ir.Shape((2, 6)))
+        tape = ir.tape.Tape(
+            ir.Graph(
+                [input1, input2],
+                [output1, output2],
+                nodes=[],
+                opset_imports={"": 21},
+                name="test_reshape_reshape_rule_with_shared_negative_one_shape",
+            )
+        )
+
+        shape_mid_a = tape.initializer(
+            ir.Tensor(np.array([6], dtype=np.int64), name="shape_mid_a")
+        )
+        shape_mid_b = tape.initializer(
+            ir.Tensor(np.array([12], dtype=np.int64), name="shape_mid_b")
+        )
+        shared_shape = tape.initializer(
+            ir.Tensor(np.array([2, -1], dtype=np.int64), name="shared_shape")
+        )
+
+        mid1 = tape.op("Reshape", inputs=[input1, shape_mid_a])
+        mid2 = tape.op("Reshape", inputs=[input2, shape_mid_b])
+        tape.op("Reshape", inputs=[mid1, shared_shape], output=output1)
+        tape.op("Reshape", inputs=[mid2, shared_shape], output=output2)
+        model = ir.Model(tape.graph_like, ir_version=10)
+
+        _constant_folding.FoldConstantsPass(
+            shape_inference=True, input_size_limit=1024, output_size_limit=1024
+        )(model)
+        rewriter.RewritePass(rewriter._DEFAULT_REWRITE_RULES)(model)
+        common_passes.RemoveUnusedNodesPass()(model)
+        common_passes.LiftConstantsToInitializersPass(lift_all_constants=True, size_limit=0)(
+            model
+        )
+        common_passes.DeduplicateInitializersPass()(model)
+
+        reshape_shape_inputs = [
+            node.inputs[1] for node in model.graph if node.op_type == "Reshape"
+        ]
+        self.assertEqual(len(reshape_shape_inputs), 2)
+        self.assertEqual(len({shape.name for shape in reshape_shape_inputs}), 2)
+        for shape in reshape_shape_inputs:
+            self.assertIn(shape.name, model.graph.initializers)
+
+        onnx.checker.check_model(ir.to_proto(model), full_check=True)
+
     @parameterized.parameterized.expand(
         [((3, 6, 9), [0, 3, 2, -1]), ((0, 6, 2), [0, 0, 3], 1)]
     )
@@ -528,7 +644,11 @@ class ReshapeReshapeTest(unittest.TestCase):
 
         # Check inference.
         inputs = np.random.default_rng(7).random(input_shape, dtype="float32")
-        testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
+        # Use the reference implementation to avoid ORT incorrectly folding/rewriting
+        # the original two-reshape model (e.g. ignoring allowzero=1).
+        testing.assert_numerically_equal(
+            model, updated_model, (inputs,), atol=0, rtol=0, use_reference=True
+        )
 
     @parameterized.parameterized.expand(
         [

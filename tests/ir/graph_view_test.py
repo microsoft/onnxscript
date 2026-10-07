@@ -4,8 +4,7 @@ import pathlib
 import unittest
 
 import onnx
-
-from onnxscript import ir
+import onnx_ir as ir
 
 
 class GraphViewTest(unittest.TestCase):

@@ -6,8 +6,9 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import numpy as np
+import onnx_ir as ir
 
-from onnxscript import ir, onnx_opset
+from onnxscript import onnx_opset
 from onnxscript._internal import autocast
 
 
@@ -117,7 +118,9 @@ class Tensor:
                     )
             elif isinstance(s, Tensor):
                 if s.is_scalar:
-                    scalar_indices.append([s, s + 1, axis_, 1])
+                    # A stop of zero would make the last-element slice empty.
+                    stop = shape[axis_] if int(s) == -1 else s + 1
+                    scalar_indices.append([s, stop, axis_, 1])
                     to_squeeze.append(axis_)
                 else:
                     non_scalar_indices.append((axis_, s))
