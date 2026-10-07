@@ -5982,16 +5982,29 @@ def aten_log2(self: TFloat) -> TFloat:
 def aten_logaddexp(self: TFloat, other: TFloat) -> TFloat:
     """logaddexp(Tensor self, Tensor other) -> Tensor"""
 
-    return op.Log(op.Add(op.Exp(self), op.Exp(other)))
+    # max(a, b) + log(1 + exp(-|a - b|)) avoids the overflow of exp(a) + exp(b)
+    maximum = op.Max(self, other)
+    diff = op.Abs(op.Sub(self, other))
+    one = op.CastLike(1.0, self)
+    result = op.Add(maximum, op.Log(op.Add(one, op.Exp(op.Neg(diff)))))
+    # For a == b == +/-inf, a - b is nan; logaddexp(a, a) is a + log(2)
+    return op.Where(
+        op.Equal(self, other), op.Add(self, op.CastLike(math.log(2), self)), result
+    )
 
 
 @torch_op("aten::logaddexp2", trace_only=True)
 def aten_logaddexp2(self: TFloat, other: TFloat) -> TFloat:
     """logaddexp2(Tensor self, Tensor other) -> Tensor"""
     two = op.CastLike(2.0, self)
-    summation = op.Add(op.Pow(two, self), op.Pow(two, other))
-
-    return op.Div(op.Log(summation), op.Log(two))
+    one = op.CastLike(1.0, self)
+    # max(a, b) + log2(1 + 2**-|a - b|) avoids the overflow of 2**a + 2**b
+    maximum = op.Max(self, other)
+    diff = op.Abs(op.Sub(self, other))
+    log_term = op.Div(op.Log(op.Add(one, op.Pow(two, op.Neg(diff)))), op.Log(two))
+    result = op.Add(maximum, log_term)
+    # For a == b == +/-inf, a - b is nan; logaddexp2(a, a) is a + 1
+    return op.Where(op.Equal(self, other), op.Add(self, one), result)
 
 
 @torch_op("aten::logcumsumexp", trace_only=True)
