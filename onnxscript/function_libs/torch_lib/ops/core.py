@@ -8878,8 +8878,9 @@ def aten_roll(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) ->
     if self_rank == 0:
         return op.Identity(self)
     elif 0 in self.shape:
-        # A tensor with no elements rolls to itself, which is what torch returns. It is
-        # also what keeps a zero length out of the modulo in the helpers below.
+        # A tensor with no elements rolls to itself, which is what torch returns. It also
+        # keeps a zero length out of the modulo in the helpers below, but only when the
+        # length is known to be zero at export time. See the limitation noted there.
         return op.Identity(self)
 
     # NOTE: In pytorch, default value of dims is an empty list.
@@ -8945,6 +8946,10 @@ def aten_roll_complex(
 def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: int) -> TTensor:
     # The element count is the divisor of the Mod below, and Mod by zero is undefined in
     # ONNX. Both callers return a tensor with no elements unchanged before reaching here.
+    # Known limitation: those early returns and this assert only cover a length known to be
+    # zero at export time. A dynamic dimension that is zero at run time still reaches Mod
+    # with a zero divisor. Depending on the runtime, its version and the platform, that can
+    # raise an error, crash the process, or quietly return a value.
     assert self.shape is None or 0 not in self.shape, (
         "the element count must not be zero because Mod by zero is undefined"
     )
@@ -8974,6 +8979,8 @@ def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTenso
     # The length of that dimension is the divisor of the Mod below, and Mod by zero is
     # undefined in ONNX. Both callers return a tensor with no elements unchanged before
     # reaching here.
+    # Known limitation: as in _aten_roll_shift_no_dim_onnx, if that dimension is dynamic and
+    # is zero at run time, Mod still gets a zero divisor.
     assert self.shape is None or self.shape[dim] != 0, (
         "the dimension length must not be zero because Mod by zero is undefined"
     )

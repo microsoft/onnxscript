@@ -141,6 +141,69 @@ class BasicRulesTest(unittest.TestCase):
         self.assertEqual(["Transpose"], [n.op_type for n in model.graph])
         self._check_model(model_proto, rewritten_model)
 
+    @parameterized.parameterized.expand(
+        [
+            (operation, shared_output)
+            for operation in ("reshape", "transpose", "inverse_transpose")
+            for shared_output in (False, True)
+        ]
+    )
+    def test_layout_chain_with_shared_intermediate(self, operation: str, shared_output: bool):
+        initializers = []
+        if operation == "reshape":
+            nodes = [
+                onnx.helper.make_node("Reshape", ["X", "shape1"], ["intermediate"]),
+                onnx.helper.make_node("Reshape", ["intermediate", "shape2"], ["Y"]),
+            ]
+            initializers = [
+                onnx.numpy_helper.from_array(np.array([3, 8], dtype=np.int64), "shape1"),
+                onnx.numpy_helper.from_array(np.array([6, 4], dtype=np.int64), "shape2"),
+            ]
+            intermediate_shape, output_shape = [3, 8], [6, 4]
+            rule = _basic_rules.reshape_reshape_rule
+        else:
+            inverse = operation == "inverse_transpose"
+            nodes = [
+                onnx.helper.make_node("Transpose", ["X"], ["intermediate"], perm=[1, 2, 0]),
+                onnx.helper.make_node(
+                    "Transpose",
+                    ["intermediate"],
+                    ["Y"],
+                    perm=[2, 0, 1] if inverse else [1, 2, 0],
+                ),
+            ]
+            intermediate_shape = [3, 4, 2]
+            output_shape = [2, 3, 4] if inverse else [4, 2, 3]
+            rule = _basic_rules.transpose_transpose_rule
+        side_output = "intermediate" if shared_output else "side"
+        if not shared_output:
+            nodes.append(onnx.helper.make_node("Neg", ["intermediate"], [side_output]))
+        model_proto = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                nodes,
+                "shared_layout",
+                [onnx.helper.make_tensor_value_info("X", FLOAT, [2, 3, 4])],
+                [
+                    onnx.helper.make_tensor_value_info("Y", FLOAT, output_shape),
+                    onnx.helper.make_tensor_value_info(side_output, FLOAT, intermediate_shape),
+                ],
+                initializers,
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 18)],
+            ir_version=10,
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        original_first = model.graph[0]
+        rule_set = orp.RewriteRuleSet([rule])
+        self.assertEqual(rule_set.apply_to_model(model), 1)
+        self.assertIs(model.graph.outputs[0].producer().inputs[0], model.graph.inputs[0])
+        self.assertIn(original_first, list(model.graph))
+        self.assertEqual(len(model.graph), 2 if shared_output else 3)
+        self.assertEqual(rule_set.apply_to_model(model), 0)
+        rewritten = ir.serde.serialize_model(model)
+        onnx.checker.check_model(rewritten, full_check=True)
+        self._check_model(model_proto, rewritten)
+
     def _double_cast_model(self, ostype1, ostype2, ostype3):
         dtype2 = ostype2.dtype
         dtype3 = ostype3.dtype

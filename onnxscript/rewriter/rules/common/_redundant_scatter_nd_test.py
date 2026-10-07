@@ -8,6 +8,7 @@ import numpy as np
 import onnx.parser
 import onnx_ir as ir
 import onnxruntime
+import parameterized
 from onnx_ir.passes.common import CheckerPass, ShapeInferencePass
 
 import onnxscript.optimizer
@@ -119,6 +120,93 @@ class RedundantScatterNdTest(unittest.TestCase):
         # Compare outputs
         for original_output, optimized_output in zip(original_outputs, optimized_outputs):
             np.testing.assert_allclose(original_output, optimized_output, rtol=1e-6, atol=1e-6)
+
+    @parameterized.parameterized.expand(
+        [
+            ("add",),
+            ("mul",),
+            ("max",),
+            ("min",),
+        ]
+    )
+    def test_static_indices_with_reduction_is_not_redundant(self, reduction: str):
+        """A reducing ScatterND combines data with updates, so it is not an Identity."""
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[8, 16] data, float[8, 16] updates) => (float[8, 16] output)
+            {{
+                output = ScatterND <reduction = "{reduction}"> (data, indices, updates)
+            }}
+        """
+        )
+        indices = np.arange(8).reshape(8, 1).astype(np.int64)
+        model = ir.serde.deserialize_model(model_proto)
+        indices_value = model.graph[0].inputs[1]
+        indices_value.const_value = ir.Tensor(name="indices", value=indices)
+        model.graph.initializers["indices"] = indices_value
+        original_model_proto = ir.serde.serialize_model(model)
+
+        _redundant_scatter_nd.rules.apply_to_model(model)
+        optimized_model_proto = ir.serde.serialize_model(model)
+
+        # Test numerical equivalence
+        inputs = {
+            "data": np.random.rand(8, 16).astype(np.float32),
+            "updates": np.random.rand(8, 16).astype(np.float32),
+        }
+        session = onnxruntime.InferenceSession(
+            original_model_proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        original_outputs = session.run(None, inputs)
+        optimized_session = onnxruntime.InferenceSession(
+            optimized_model_proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        optimized_outputs = optimized_session.run(None, inputs)
+
+        for original_output, optimized_output in zip(original_outputs, optimized_outputs):
+            np.testing.assert_allclose(original_output, optimized_output, rtol=1e-6, atol=1e-6)
+        self.assertIn("ScatterND", [node.op_type for node in model.graph])
+
+    @parameterized.parameterized.expand(
+        [
+            ("dynamic_indices", False),
+            ("static_indices", True),
+        ]
+    )
+    def test_reduction_from_reference_attribute_is_not_rewritten(
+        self, _: str, static_indices: bool
+    ):
+        """A reduction forwarded from a function attribute is unknown, so the rule declines."""
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 18, "local" : 1]>
+            agraph (float[2, 3] data, int64[2, 1] indices, float[2, 3] updates)
+                => (float[2, 3] output)
+            {
+                output = local.Scatter <mode = "add"> (data, indices, updates)
+            }
+            <domain: "local", opset_import: [ "" : 18]>
+            Scatter <mode> (data, indices, updates) => (output)
+            {
+                output = ScatterND <reduction: string = @mode> (data, indices, updates)
+            }
+        """
+        )
+        onnx.checker.check_model(model_proto, full_check=True)
+        model = ir.serde.deserialize_model(model_proto)
+        function = next(iter(model.functions.values()))
+        scatter = function[0]
+        if static_indices:
+            data, indices, updates = scatter.inputs
+            data.shape = ir.Shape([2, 3])
+            updates.shape = ir.Shape([2, 3])
+            indices.const_value = ir.Tensor(np.arange(2).reshape(2, 1).astype(np.int64))
+
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+
+        self.assertEqual(count, 0)
+        self.assertEqual([node.op_type for node in function], ["ScatterND"])
 
 
 if __name__ == "__main__":

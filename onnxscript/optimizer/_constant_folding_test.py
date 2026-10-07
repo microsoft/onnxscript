@@ -8,6 +8,7 @@ import numpy as np
 import onnx
 import onnx_ir as ir
 import parameterized
+from onnx.reference import ReferenceEvaluator
 
 import onnxscript.optimizer as optimizer
 from onnxscript.optimizer import _constant_folding
@@ -274,6 +275,72 @@ class FoldConstantsTest(unittest.TestCase):
         optimized = self._fold(model, onnx_shape_inference=True)
         self.assertEqual(len(optimized.graph), 1)
         self.assertIn("C", optimized.graph.initializers)
+
+    @parameterized.parameterized.expand(
+        [
+            (axis, keepdims, optional_none)
+            for axis in (0, 1, -1)
+            for keepdims in (0, 1)
+            for optional_none in (False, True)
+        ]
+    )
+    def test_split_to_sequence_without_split(self, axis, keepdims, optional_none):
+        split_axis = axis % 2
+        output_shape = [2, 3]
+        if keepdims:
+            output_shape[split_axis] = 1
+        else:
+            output_shape.pop(split_axis)
+        shape_text = ",".join(map(str, output_shape))
+        original = ir.from_onnx_text(f"""
+            <ir_version: 8, opset_import: ["" : 18]>
+            func (float[2,3] x) => (float[{shape_text}] y) {{
+                splits = SplitToSequence <axis: int = {axis}, keepdims: int = {keepdims}> (x)
+                index = Constant <value_int: int = 1> ()
+                selected = SequenceAt (splits, index)
+                y = Add (selected, selected)
+            }}
+        """)
+        original_proto = ir.serde.serialize_model(original)
+        if optional_none:
+            original_proto.graph.node[0].input.append("")
+            original = ir.serde.deserialize_model(original_proto)
+        data = np.arange(6, dtype=np.float32).reshape(2, 3)
+        expected = np.take(data, [1] if keepdims else 1, axis=split_axis) * 2
+        np.testing.assert_array_equal(
+            ReferenceEvaluator(original_proto).run(None, {"x": data})[0], expected
+        )
+        optimized = self._fold(original)
+        self.assertEqual(sum(n.op_type == "Split" for n in optimized.graph), 1)
+        self.assertTrue(
+            all(n.op_type not in {"SplitToSequence", "SequenceAt"} for n in optimized.graph)
+        )
+        np.testing.assert_array_equal(
+            ReferenceEvaluator(ir.serde.serialize_model(optimized)).run(None, {"x": data})[0],
+            expected,
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            (size, opset, optional_none)
+            for size, opset in (("N", 18), ("0", 18), ("3", 13))
+            for optional_none in (False, True)
+        ]
+    )
+    def test_split_to_sequence_without_split_not_rewritten(self, size, opset, optional_none):
+        model = ir.from_onnx_text(f"""
+            <ir_version: 8, opset_import: ["" : {opset}]>
+            func (float[2,{size}] x) => (float[2,{size}] y) {{
+                splits = SplitToSequence <axis: int = 1> (x)
+                y = ConcatFromSequence <axis: int = 1> (splits)
+            }}
+        """)
+        if optional_none:
+            proto = ir.serde.serialize_model(model)
+            proto.graph.node[0].input.append("")
+            model = ir.serde.deserialize_model(proto)
+        optimized = self._fold(model)
+        self.assertEqual(optimized.graph[0].op_type, "SplitToSequence")
 
     def test_static_split_to_sequence_with_scalar_split_and_squence_at_is_folded_as_split(
         self,
