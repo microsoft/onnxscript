@@ -1122,6 +1122,25 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_quantize_per_tensor_tensor2_takes_quant_min_max_as_tensors(self):
+        # The .tensor2 overload passes scale, zero_point, quant_min and quant_max as
+        # tensors, so they reach the function as graph values rather than scalars.
+        class Model(torch.nn.Module):
+            def forward(self, x, scale, zero_point, quant_min, quant_max):
+                return torch.ops.quantized_decomposed.quantize_per_tensor.tensor2(
+                    x, scale, zero_point, quant_min, quant_max, torch.int8
+                )
+
+        args = (
+            torch.tensor([-50.0, -1.0, 0.0, 5.0, 20.0, 25.0, 100.0, 3.0]),
+            torch.tensor(1.0),
+            torch.tensor(0, dtype=torch.int64),
+            torch.tensor(0, dtype=torch.int64),
+            torch.tensor(20, dtype=torch.int64),
+        )
+        onnx_program = torch.onnx.export(Model(), args, dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
     def test_dequantize_per_channel_int8(self):
         class Model(torch.nn.Module):
             def forward(self, q):

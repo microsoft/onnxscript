@@ -21,6 +21,17 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
+def _as_tensor(value, dtype: int) -> TensorType:
+    """Return ``value`` as a tensor of ``dtype``.
+
+    The ``.tensor`` and ``.tensor2`` overloads pass these arguments as tensors, so they
+    arrive as graph values, which cannot be materialized into an initializer.
+    """
+    if isinstance(value, (int, float)):
+        return common.constant(value, dtype=dtype)
+    return op.Cast(value, to=dtype)
+
+
 @torch_op(
     (
         "quantized_decomposed::quantize_per_tensor",
@@ -38,13 +49,13 @@ def quantized_decomposed_quantize_per_tensor(
     dtype: int,
 ) -> TensorType:
     # TODO(justinchuby): Use dtype when we use opset 21
-    quantized = op.QuantizeLinear(input, scale, common.constant(zero_point, dtype=dtype))
+    quantized = op.QuantizeLinear(input, scale, _as_tensor(zero_point, dtype))
     # QuantizeLinear saturates to the full range of ``dtype``. PyTorch clamps to the
     # explicit ``quant_min``/``quant_max`` instead, so clamp to match its semantics.
     return op.Clip(
         quantized,
-        common.constant(quant_min, dtype=dtype),
-        common.constant(quant_max, dtype=dtype),
+        _as_tensor(quant_min, dtype),
+        _as_tensor(quant_max, dtype),
     )
 
 
