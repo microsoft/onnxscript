@@ -869,6 +869,21 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         # DequantizeLinear should not be folded even when all inputs are constants
         self.assertEqual(ops, ["DequantizeLinear"])
 
+    def test_bernoulli_is_not_folded(self):
+        model_text = """
+            <ir_version: 10, opset_import: [ "" : 18]>
+            agraph () => (float[4] z)
+            <float[4] p = {0.5, 0.5, 0.5, 0.5}>
+            {
+                z = Bernoulli (p)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        optimized = self._fold(model)
+        ops = [node.op_type for node in optimized.graph]
+        # Bernoulli is random, so folding it would freeze a single sample
+        self.assertEqual(ops, ["Bernoulli"])
+
     def test_multi_graph_identity_output_preserves_output_name(self):
         model = """
             <ir_version: 10, opset_import: ["" : 20]>
