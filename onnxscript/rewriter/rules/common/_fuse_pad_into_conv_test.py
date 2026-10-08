@@ -225,6 +225,30 @@ class FuseConvPadTest(FuseConvPadBaseTest):
         self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
         self.assertRegex(tracer_match.match_result.reason, err_msg)
 
+    def test_unsupported_fuse_pad_into_conv_with_pads_attribute(self):
+        # Pad-2 (opset <= 10) carries 'pads' as an attribute instead of an input.
+        base_model = ir.from_onnx_text("""
+            < ir_version: 5, opset_import: ["" : 10] >
+            test_model (float[N, 32, 14, 16] X, float[10, 32, 3, 3] W)
+                => (float[N, 10, 14, 16] Y)
+            {
+                p = Pad <mode = "constant", pads = [0, 0, 1, 1, 0, 0, 1, 1]> (X)
+                Y = Conv <kernel_shape = [3, 3]> (p, W)
+            }
+        """)
+        onnx_checker.CheckerPass(True)(base_model)
+
+        # Apply rule and check it was not applied
+        tracer = orp.MatchingTracer()
+        count = fuse_pad_into_conv_rule.apply_to_model(base_model, tracer=tracer)
+        self.assertEqual(count, 0)
+        self.assertEqual([n.op_type for n in base_model.graph], ["Pad", "Conv"])
+
+        # Check that the error message is the expected one
+        tracer_match = tracer.best_matches_map[fuse_pad_into_conv_rule][0]
+        self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
+        self.assertRegex(tracer_match.match_result.reason, "has no 'pads' input")
+
 
 class FuseConvIntegerPadTest(FuseConvPadBaseTest):
     def get_conv_weights(self, shape: Sequence[int], tape: ir.tape.Tape = None):
