@@ -156,6 +156,20 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_xlogy_nan_other_takes_precedence_over_zero_self(self):
+        # torch.xlogy returns NaN wherever other is NaN, even where self is 0, so
+        # the NaN case has to win over the zero case.
+        class Model(torch.nn.Module):
+            def forward(self, x, y):
+                return torch.xlogy(x, y)
+
+        nan = math.nan
+        x = torch.tensor([0.0, 0.0, 1.0, 2.0, 0.0])
+        y = torch.tensor([nan, 2.0, nan, 3.0, 0.0])
+
+        onnx_program = torch.onnx.export(Model(), (x, y), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
     def test_rand_like_memory_format(self):
         # These random *_like ops are non-deterministic, so assert the export
         # succeeds rather than comparing values (see issue #3002).
