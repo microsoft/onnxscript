@@ -71,6 +71,14 @@ SKIP_TESTS = (
         "ONNX backend test produces an invalid graph: https://github.com/onnx/onnx/issues/5067",
     ),
     skip(
+        r"^test_optional_get_element_optional_tensor$",
+        "onnxscript cannot express optional_type in a function signature",
+    ),
+    skip(
+        r"^test_optional_has_element_(tensor_input|optional_input|empty_optional_input)$",
+        "onnxscript cannot express optional_type in a function signature",
+    ),
+    skip(
         r"test_loop",
         "Change when the converter supports support something like 'while i < n and cond:'",
     ),
