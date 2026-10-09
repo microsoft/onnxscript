@@ -18,6 +18,27 @@ from torch.onnx._internal.exporter import _testing
 
 
 class TorchLibe2eTest(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        (dtype, mode, scalar)
+        for dtype in (torch.int32, torch.int64)
+        for mode in ("floor", "trunc")
+        for scalar in (False, True)
+    )
+    def test_integer_div_rounding_preserves_precision(self, dtype, mode, scalar):
+        class Model(torch.nn.Module):
+            def forward(self, x, y):
+                return torch.div(x, 3 if scalar else y, rounding_mode=mode)
+
+        # Include both signs, exact multiples, and quotients beyond float32's
+        # consecutive integer range (and float64's for int64 inputs).
+        large = 3 * (2**24 + 1) + 2 if dtype == torch.int32 else 3 * (2**53 + 1) + 2
+        inputs = (
+            torch.tensor([large, -large, 6, -6, 7, -7, 0], dtype=dtype),
+            torch.tensor([[3], [-3]], dtype=dtype),
+        )
+        program = torch.onnx.export(Model().eval(), inputs, dynamo=True, optimize=False)
+        _testing.assert_onnx_program(program, rtol=0, atol=0)
+
     def test_investigate_one_particular_model(self):
         """This test can be used to investigate a particular issue."""
         red, include, stype = "amin", False, "int32"

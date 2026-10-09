@@ -3257,20 +3257,14 @@ def aten_div_mode(self: TReal, other: TReal, rounding_mode: Optional[str] = None
     assert rounding_mode in {"trunc", "floor", None}
 
     if self.dtype.is_integer():
-        quotient = op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
-
         if rounding_mode == "trunc":
-            # Rounds the results of the division towards zero.
-            # Equivalent to C-style integer division
-            result = aten_trunc(quotient)
-            return op.CastLike(result, self)
+            return op.Div(self, other)
         if rounding_mode == "floor":
-            result = op.Floor(quotient)
-            return op.CastLike(result, self)
+            return aten_floor_divide(self, other)
 
         assert rounding_mode is None
         # When rounding_mode is None, the return type is float32
-        return quotient
+        return op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
     # Float inputs
 
