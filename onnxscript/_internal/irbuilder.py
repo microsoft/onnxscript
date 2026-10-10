@@ -77,8 +77,8 @@ class IRFunction(ir.Function):
     def add_nested_function(self, fun: IRFunction) -> None:
         self.nested_functions[fun.name] = fun
 
-    def get_called_functions(self) -> dict[str, values.OnnxFunction]:
-        called_functions: dict[str, values.OnnxFunction] = {}
+    def get_called_functions(self) -> dict[ir.OperatorIdentifier, values.OnnxFunction]:
+        called_functions: dict[ir.OperatorIdentifier, values.OnnxFunction] = {}
 
         def visit(function_ir: IRFunction):
             for node in ir.traversal.RecursiveGraphIterator(function_ir.graph):
@@ -87,9 +87,16 @@ class IRFunction(ir.Function):
                     add(callee)
 
         def add(f: values.OnnxFunction):
-            if f.name in called_functions:
+            identifier = f.function_ir.identifier()
+            existing = called_functions.get(identifier)
+            if existing is f:
                 return
-            called_functions[f.name] = f
+            if existing is not None:
+                raise ValueError(
+                    "Multiple distinct ONNX functions use the same identifier "
+                    f"{identifier!r}. Give each function a unique domain, name, or overload."
+                )
+            called_functions[identifier] = f
             visit(f.function_ir)
 
         visit(self)
