@@ -15,12 +15,86 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence
 
+from onnxscript import ir
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _MATH_PI = math.pi
+
+# Coefficients adapted from SciPy XSF's Cephes ``ndtr.h`` (pinned source revision
+# 5dbdff8de0dab99b475076612ea227d3f29d6cf6). The original Cephes Math Library
+# Release 2.2 is copyright Stephen L. Moshier (1984, 1987, 1988, 1992); SciPy's
+# C++ translation is BSD-3-Clause. See THIRD_PARTY_NOTICES.md for the license.
+_ERFCX_P = (
+    2.46196981473530512524e-10,
+    5.64189564831068821977e-1,
+    7.46321056442269912687,
+    4.86371970985681366614e1,
+    1.96520832956077098242e2,
+    5.26445194995477358631e2,
+    9.34528527171957607540e2,
+    1.02755188689515710272e3,
+    5.57535335369399327526e2,
+)
+_ERFCX_Q = (
+    1.0,
+    1.32281951154744992508e1,
+    8.67072140885989742329e1,
+    3.54937778887819891062e2,
+    9.75708501743205489753e2,
+    1.82390916687909736289e3,
+    2.24633760818710981792e3,
+    1.65666309194161350182e3,
+    5.57535340817727675546e2,
+)
+_ERFCX_R = (
+    5.64189583547755073984e-1,
+    1.27536670759978104416,
+    5.01905042251180477414,
+    6.16021097993053585195,
+    7.40974269950448939160,
+    2.97886665372100240670,
+)
+_ERFCX_S = (
+    1.0,
+    2.26052863220117276590,
+    9.39603524938001434673,
+    1.20489539808096656605e1,
+    1.70814450747565897222e1,
+    9.60896809063285878198,
+    3.36907645100081516050,
+)
+_ERFCX_T = (
+    9.60497373987051638749,
+    9.00260197203842689217e1,
+    2.23200534594684319226e3,
+    7.00332514112805075473e3,
+    5.55923013010394962768e4,
+)
+_ERFCX_U = (
+    1.0,
+    3.35617141647503099647e1,
+    5.21357949780152679795e2,
+    4.59432382970980127987e3,
+    2.26290000613890934246e4,
+    4.92673942608635921086e4,
+)
+
+
+def _erfcx_constant(value: float, like: TFloat) -> TFloat:
+    """Creates a coefficient with float64 source precision and the input dtype."""
+    return op.CastLike(common_ops.constant(value, dtype=ir.DataType.DOUBLE), like)
+
+
+def _erfcx_polynomial(coefficients: Sequence[float], x: TFloat) -> TFloat:
+    """Emits Horner evaluation; the fixed loop is unrolled while tracing."""
+    result = _erfcx_constant(coefficients[0], x)
+    for coefficient in coefficients[1:]:
+        result = result * x + _erfcx_constant(coefficient, x)
+    return result
 
 
 def aten_special_airy_ai(x: TensorType) -> TensorType:
@@ -103,11 +177,57 @@ def aten_special_erfc(self: TFloat) -> TFloat:
     return op.Sub(1, op.Erf(self))
 
 
-@torch_op("aten::special_erfcx")
+def _aten_special_erfcx(self: TFloat) -> TFloat:
+    """special_erfcx(Tensor self) -> Tensor"""
+
+    # erfcx(x) is evaluated as a positive function of |x|, then reflected for
+    # negative x. Bound each rational approximation's input before evaluating it
+    # because ONNX Where evaluates both branches.
+    abs_self = op.Abs(self)
+    zero = _erfcx_constant(0.0, self)
+    one = _erfcx_constant(1.0, self)
+    two = _erfcx_constant(2.0, self)
+    eight = _erfcx_constant(8.0, self)
+
+    central_x = op.Where(op.Less(abs_self, one), abs_self, zero)
+    central_z = central_x * central_x
+    central_p = _erfcx_polynomial(_ERFCX_T, central_z)
+    central_q = _erfcx_polynomial(_ERFCX_U, central_z)
+    central_erf = central_x * central_p / central_q
+    central = op.Exp(central_z) * (one - central_erf)
+
+    middle_mask = op.And(op.GreaterOrEqual(abs_self, one), op.Less(abs_self, eight))
+    middle_x = op.Where(middle_mask, abs_self, one)
+    middle_p = _erfcx_polynomial(_ERFCX_P, middle_x)
+    middle_q = _erfcx_polynomial(_ERFCX_Q, middle_x)
+    middle = middle_p / middle_q
+
+    tail_x = op.Where(op.GreaterOrEqual(abs_self, eight), abs_self, eight)
+    tail_r = op.Div(one, tail_x)
+    # The tail's denominator has one higher degree than its numerator. Reversing
+    # the polynomials in 1 / |x| avoids overflow for large finite inputs.
+    tail_p = _erfcx_polynomial(_ERFCX_R[::-1], tail_r)
+    tail_q = _erfcx_polynomial(_ERFCX_S[::-1], tail_r)
+    tail = tail_r * tail_p / tail_q
+
+    positive = op.Where(
+        op.Less(abs_self, one), central, op.Where(op.Less(abs_self, eight), middle, tail)
+    )
+    reflected = op.Sub(op.Mul(two, op.Exp(op.Mul(self, self))), positive)
+    result = op.Where(op.Less(self, zero), reflected, positive)
+    return op.Where(op.IsNaN(self), self, result)
+
+
+@torch_op("aten::special_erfcx", trace_only=True)
 def aten_special_erfcx(self: TFloat) -> TFloat:
     """special_erfcx(Tensor self) -> Tensor"""
 
-    return op.Mul(op.Exp(op.Pow(self, 2)), op.Sub(1, op.Erf(self)))
+    # The degree-eight middle polynomial overflows float16 even though the
+    # final ratio is finite. Evaluate low-precision inputs in float32, then
+    # restore the requested dtype. Float32 and float64 retain their precision.
+    if self.dtype in (ir.DataType.FLOAT16, ir.DataType.BFLOAT16):
+        return op.CastLike(_aten_special_erfcx(op.Cast(self, to=ir.DataType.FLOAT)), self)
+    return _aten_special_erfcx(self)
 
 
 def aten_special_erfinv(self: TensorType) -> TensorType:
