@@ -362,9 +362,10 @@ class OnnxFunction(Op, Generic[_P, _R]):
             # See https://github.com/microsoft/onnxscript/issues/3044
             warnings.warn(
                 "Exporting local functions under the placeholder domain 'this': no "
-                "explicit opset was provided to @script(). Pass an explicit opset "
-                "(e.g. @script(opset16)) to give the exported functions a non-placeholder "
-                "domain.",
+                "explicit opset was provided to @script(). Give the functions a "
+                "custom domain instead (e.g. @script(Opset('my.domain', 1), "
+                "default_opset=opset17)): a standard opset puts them in the empty "
+                "domain, which produces a model the ONNX checker rejects.",
                 UserWarning,
                 stacklevel=2,
             )

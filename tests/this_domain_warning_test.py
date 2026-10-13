@@ -7,12 +7,16 @@ exporting a model that bundles local functions still carrying the placeholder
 domain "this" warns, while models that bundle no local functions at all, or only
 explicitly-domained ones, do not.
 """
+
 import unittest
 import warnings
 
 from onnxscript import script
 from onnxscript.onnx_opset import opset17 as op
 from onnxscript.onnx_types import FLOAT
+from onnxscript.values import Opset
+
+_custom_domain = Opset("my.domain", 1)
 
 
 @script()
@@ -25,7 +29,7 @@ def _model_with_default_domain_helper(x: FLOAT[4]) -> FLOAT[4]:
     return _default_domain_helper(x)
 
 
-@script(op)
+@script(_custom_domain, default_opset=op)
 def _explicit_domain_helper(x: FLOAT[4]) -> FLOAT[4]:
     return op.Add(x, x)
 
