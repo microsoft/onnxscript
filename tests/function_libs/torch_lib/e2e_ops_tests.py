@@ -6,6 +6,7 @@ import math
 import unittest
 
 import numpy as np
+import onnx_ir.passes.common as common_passes
 import parameterized
 
 # TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
@@ -1877,6 +1878,29 @@ class TorchLibe2eTest(unittest.TestCase):
             if node.op_type in ("ReduceMax", "ReduceMin"):
                 self.assertEqual(node.attributes.get_int("noop_with_empty_axes", 0), 0)
         _testing.assert_onnx_program(onnx_program)
+
+    def test_conv3d_without_bias_produces_1d_bias(self):
+        class Model(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.conv = torch.nn.Conv3d(3, 4, kernel_size=2, bias=False)
+
+            def forward(self, x):
+                return self.conv(x)
+
+        onnx_program = torch.onnx.export(
+            Model().eval(), (torch.randn(1, 3, 8, 8, 8),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+        # The bias synthesized for a bias-less conv must be 1D ([out_channels]) to
+        # match the ONNX Conv spec. See https://github.com/microsoft/onnxscript/issues/2931.
+        model = common_passes.ShapeInferencePass()(onnx_program.model).model
+        conv_nodes = [n for n in model.graph if n.op_type == "Conv"]
+        self.assertEqual(len(conv_nodes), 1)
+        bias_shape = conv_nodes[0].inputs[2].shape
+        self.assertIsNotNone(bias_shape)
+        self.assertEqual(bias_shape.rank(), 1)
 
 
 if __name__ == "__main__":
