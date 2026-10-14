@@ -10603,6 +10603,16 @@ def aten_unsqueeze(self: TTensor, dim: int) -> TTensor:
     return op.Unsqueeze(self, [dim])
 
 
+@torch_op("aten::unsqueeze", complex=True, trace_only=True)
+def aten_unsqueeze_complex(self: TTensor, dim: int) -> TTensor:
+    """unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"""
+
+    if dim < 0:
+        # Account for the complex dimension in ONNX
+        dim = dim - 1
+    return op.Unsqueeze(self, [dim])
+
+
 def aten_unsqueeze_copy(self: TensorType, dim: int) -> TensorType:
     """unsqueeze_copy(Tensor self, int dim) -> Tensor"""
 
