@@ -1055,6 +1055,40 @@ class TorchLibe2eTest(unittest.TestCase):
         self.assertNotIn("Mod", [node.op_type for node in onnx_program.model.graph])
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("first_dim", 0),
+            ("middle_dim", 1),
+            ("last_position", 2),
+            ("negative_last_position", -1),
+            ("negative_middle_dim", -2),
+            ("negative_first_dim", -3),
+        ]
+    )
+    def test_unsqueeze_complex(self, _: str, dim: int):
+        class UnsqueezeModel(torch.nn.Module):
+            def forward(self, x):
+                return torch.unsqueeze(x, dim)
+
+        onnx_program = torch.onnx.export(
+            UnsqueezeModel(),
+            (torch.randn(2, 3, dtype=torch.complex64),),
+            dynamo=True,
+            optimize=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_unsqueeze_complex_from_polar(self):
+        class RotaryModel(torch.nn.Module):
+            def forward(self, angles):
+                freqs_cis = torch.polar(torch.ones_like(angles), angles)
+                return torch.view_as_real(freqs_cis[None, :, None, :])
+
+        onnx_program = torch.onnx.export(
+            RotaryModel(), (torch.rand(16, 4),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_quantize_per_channel_int8(self):
         class Model(torch.nn.Module):
             def forward(self, x):
