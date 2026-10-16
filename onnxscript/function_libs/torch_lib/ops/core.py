@@ -6611,14 +6611,17 @@ def aten_mean_complex(self: TReal, dtype: int = -1) -> TReal:
 def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1) -> TReal:
     """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
-    if len(self.shape) == 0:
+    is_scalar = len(self.shape) == 0
+    if dtype != -1 and dtype is not None:
+        # Cast before reducing so that the mean is computed in the requested
+        # dtype, matching PyTorch (as aten_mean does).
+        self = op.Cast(self, to=dtype)
+
+    if is_scalar:
         result = self
     else:
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result = op.ReduceMean(self, dims, keepdims=keepdim)
-
-    if dtype != -1 and dtype is not None:
-        result = op.Cast(result, to=dtype)
 
     return result
 
