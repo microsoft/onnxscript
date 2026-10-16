@@ -170,6 +170,46 @@ class RedundantScatterNdTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
+            ("static_first_dim", "2", 1),
+            ("symbolic_first_dim", "N", 0),
+        ]
+    )
+    def test_static_indices_with_first_dim(self, _: str, first_dim: str, expected_count: int):
+        """Static indices only prove full coverage against a known first dimension."""
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[{first_dim}, 3] data, float[{first_dim}, 3] updates)
+                => (float[{first_dim}, 3] output)
+            <int64[2, 1] indices = {{0, 1}}>
+            {{
+                output = ScatterND (data, indices, updates)
+            }}
+        """
+        )
+        onnx.checker.check_model(model_proto, full_check=True)
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+
+        self.assertEqual(count, expected_count)
+        inputs = {
+            "data": np.random.rand(2, 3).astype(np.float32),
+            "updates": np.random.rand(2, 3).astype(np.float32),
+        }
+        session = onnxruntime.InferenceSession(
+            model_proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        optimized_session = onnxruntime.InferenceSession(
+            ir.serde.serialize_model(model).SerializeToString(),
+            providers=["CPUExecutionProvider"],
+        )
+        np.testing.assert_allclose(
+            session.run(None, inputs)[0], optimized_session.run(None, inputs)[0]
+        )
+
+    @parameterized.parameterized.expand(
+        [
             ("dynamic_indices", False),
             ("static_indices", True),
         ]
