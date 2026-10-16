@@ -114,6 +114,35 @@ def sample_inputs_bilinear(op_info, device, dtype, requires_grad, **kwargs):
             yield opinfo_core.SampleInput(input1, args=(input2, weight, None))
 
 
+def sample_inputs_cross_entropy_loss_label_smoothing(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    """Sample inputs for aten::cross_entropy_loss with label_smoothing > 0."""
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    num_classes = 5
+    # (input shape, target shape)
+    shapes = [((4, num_classes), (4,)), ((2, num_classes, 3, 2), (2, 3, 2))]
+    for input_shape, target_shape in shapes:
+        for reduction in (0, 1, 2):  # none, mean, sum
+            for use_weight in (False, True):
+                for ignore_index in (-100, 1):
+                    target = torch.randint(0, num_classes, target_shape, device=device)
+                    weight = (
+                        make_arg((num_classes,), low=0.1, high=1.0, requires_grad=False)
+                        if use_weight
+                        else None
+                    )
+                    yield opinfo_core.SampleInput(
+                        make_arg(input_shape),
+                        args=(target, weight, reduction, ignore_index, 0.2),
+                    )
+
+
 def sample_inputs_bernoulli_p(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
 
@@ -2578,6 +2607,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torch.nn.functional.bilinear,
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_bilinear,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.cross_entropy_loss.label_smoothing",
+        op=torch.ops.aten.cross_entropy_loss,
+        aten_name="cross_entropy_loss",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_cross_entropy_loss_label_smoothing,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
