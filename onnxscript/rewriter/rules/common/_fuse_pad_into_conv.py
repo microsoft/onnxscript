@@ -128,6 +128,11 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
             )
 
         # Pad constraints: inputs
+        if len(pad_node.inputs) < 2:
+            # Pad before opset 11 carries the pads as an attribute, not as an input.
+            return check_result.fail(
+                f"{pad_node.name} ({pad_node.op_type}) has no 'pads' input."
+            )
         if (pads := pad_node.inputs[1]).const_value is None:
             return check_result.fail(f"{pads.name} is not a constant/initializer.")
         if len(pad_node.inputs) > 2 and (constant_value := pad_node.inputs[2]) is not None:
