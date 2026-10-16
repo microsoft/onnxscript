@@ -875,6 +875,9 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         num_outputs = split_dimension_size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
         split_values = op.Split(input, split, axis=axis, _outputs=split_outputs)
+    elif split_value is None:
+        # A dynamic scalar split: the number of chunks depends on its value.
+        return None
     elif split_value.ndim == 1:
         # split into 'size(split)' chunks
         num_outputs = split_value.size
