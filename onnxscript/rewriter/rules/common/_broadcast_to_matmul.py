@@ -100,10 +100,14 @@ def check_if_not_need_reshape(
             reversed(input_b_shape_except_last_dim),
         )
     ):
-        if dim_from_a not in {1, dim_from_b}:
-            logger.info("Original shape is not broadcastable.")
-            return False
-        elif idx > 0:
+        if idx == 0:
+            if dim_from_a != dim_from_b:
+                logger.info("Original contracting dimensions do not match.")
+                return False
+        else:
+            if dim_from_a != dim_from_b and dim_from_a != 1 and dim_from_b != 1:
+                logger.info("Original shape is not broadcastable.")
+                return False
             broadcast_matmul_output_shape = [
                 max(dim_from_a, dim_from_b),  # type: ignore[type-var]
                 *broadcast_matmul_output_shape,

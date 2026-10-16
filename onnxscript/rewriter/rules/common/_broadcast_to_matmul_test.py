@@ -370,6 +370,46 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 7)
 
+    def test_reshape_matmul_reshape_replace_when_second_input_batch_dim_is_one(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2, 3, 4] input_x, float[1, 4, 5] input_y) => (float[2, 3, 5] output)
+            {
+                shape_a = Constant<value: tensor = int64[3] {2, 3, 4}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[3] {1, 4, 5}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[3] {2, 3, 5}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 4)
+
+    def test_reshape_matmul_reshape_remain_when_contracting_dimension_mismatches(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[3, 1] input_x, float[4, 5] input_y) => (float[3, 5] output)
+            {
+                shape_a = Constant<value: tensor = int64[2] {3, 4}>()
+                reshape_x = Reshape (input_x, shape_a)
+                matmul = MatMul (reshape_x, input_y)
+                shape_c = Constant<value: tensor = int64[2] {3, 5}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual(len(model.graph), 5)
+
 
 class OneReshapeMatMulReshapeTest(unittest.TestCase):
     def test_reshape_matmul_reshape_replace_when_nd_inputs_are_broadcastable(self):
