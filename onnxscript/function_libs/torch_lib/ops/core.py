@@ -901,10 +901,16 @@ def _aten_argmin_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = Fal
     return result
 
 
-def aten_argsort(self: TensorType, dim: int = -1, descending: bool = False) -> TensorType:
-    """argsort(Tensor self, int dim=-1, bool descending=False) -> Tensor"""
+@torch_op(("aten::argsort", "aten::argsort.stable"), trace_only=True)
+def aten_argsort(
+    self: TReal, dim: int = -1, descending: bool = False, stable: Optional[bool] = None
+) -> INT64:
+    """argsort(Tensor self, int dim=-1, bool descending=False) -> Tensor
+    argsort.stable(Tensor self, *, bool? stable, int dim=-1, bool descending=False) -> Tensor
+    """
 
-    raise NotImplementedError()
+    _, indices = aten_sort(self, dim=dim, descending=descending, stable=stable)
+    return indices
 
 
 def aten_argwhere(self: TensorType) -> TensorType:
@@ -9511,12 +9517,18 @@ def aten_softmax(self: TFloat, dim: int, dtype: int = -1) -> TFloat:
     return result
 
 
-@torch_op("aten::sort", trace_only=True)
+@torch_op(("aten::sort", "aten::sort.stable"), trace_only=True)
 def aten_sort(
-    self: TReal, dim: int = -1, descending: bool = False, stable: bool = False
+    self: TReal, dim: int = -1, descending: bool = False, stable: Optional[bool] = None
 ) -> tuple[TReal, INT64]:
-    """sort(Tensor self, int dim=-1, bool descending=False, bool stable=False) -> (Tensor values, Tensor indices)"""
+    """sort(Tensor self, int dim=-1, bool descending=False, bool stable=False) -> (Tensor values, Tensor indices)
+    sort.stable(Tensor self, *, bool? stable, int dim=-1, bool descending=False) -> (Tensor values, Tensor indices)
+    """
 
+    # TopK puts the lower index first among equal elements, which is the stable order,
+    # and the non-stable overload accepts any order there, so both overloads lower to
+    # the same graph.
+    del stable
     self_is_scalar = len(self.shape) == 0
     if self_is_scalar:
         return op.Identity(self), op.Constant(value_int=0)
