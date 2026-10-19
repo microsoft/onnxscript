@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 def _resolve_target_shape(
     target_shape: Sequence[int], input_shape: Sequence[int]
 ) -> list[int] | None:
+    """Resolve target reshape dimension values using input dimensions.
+
+    Note: assumes default ONNX Reshape attribute allowzero=0,
+    where a 0 in the shape tensor copies the input dimension at the corresponding index.
+    """
     resolved: list[int] = []
     inferred_idx = -1
     for idx, dim in enumerate(target_shape):
@@ -222,8 +227,9 @@ def check_if_not_need_reshape(
             if dim_from_a != dim_from_b and dim_from_a != 1 and dim_from_b != 1:
                 logger.info("Original shape is not broadcastable.")
                 return False
+            broadcast_dim = dim_from_b if dim_from_a == 1 else dim_from_a
             broadcast_matmul_output_shape = [
-                max(dim_from_a, dim_from_b),  # type: ignore[type-var]
+                broadcast_dim,  # type: ignore[list-item]
                 *broadcast_matmul_output_shape,
             ]
 
