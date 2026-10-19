@@ -18,6 +18,16 @@ def matmul_add(op, input_a, input_b, input_c, **_):
     return op.Add(matmul, input_c)
 
 
+def check_if_not_need_reshape_for_gemm(context, *args, **kwargs):
+    """Reject Gemm transposes because the MatMul replacement does not preserve them."""
+    gemm = context.root.inputs[0].producer()
+    if gemm is None:
+        return False
+    if gemm.attributes.get_int("transA", 0) != 0 or gemm.attributes.get_int("transB", 0) != 0:
+        return False
+    return check_if_not_need_reshape(context, *args, **kwargs)
+
+
 gemm_to_matmul_add_rule = RewriteRule(
-    reshape_gemm_reshape_pattern, matmul_add, check_if_not_need_reshape
+    reshape_gemm_reshape_pattern, matmul_add, check_if_not_need_reshape_for_gemm
 )

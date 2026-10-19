@@ -2,13 +2,44 @@
 # Licensed under the MIT License.
 import unittest
 
+import numpy as np
 import onnx.parser
 import onnx_ir as ir
+from onnx.reference import ReferenceEvaluator
 
 from onnxscript.rewriter.rules.common import _gemm_to_matmul_add
 
 
 class ReshapeGemmReshapeTest(unittest.TestCase):
+    def test_reshape_gemm_reshape_remain_when_transpose_and_final_shape_is_inferred(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2, 2] X, float[2, 2] Y, float[2, 2] C) => (float[2, 2] O)
+            {
+                sa = Constant<value: tensor = int64[2] {2, 2}>()
+                A = Reshape(X, sa)
+                M = Gemm<alpha=1.0, beta=1.0, transB=1>(A, Y, C)
+                sc = Constant<value: tensor = int64[2] {2, -1}>()
+                O = Reshape(M, sc)
+            }
+        """
+        )
+        feeds = {
+            "X": np.eye(2, dtype=np.float32),
+            "Y": np.array([[1, 2], [3, 4]], dtype=np.float32),
+            "C": np.zeros((2, 2), dtype=np.float32),
+        }
+        expected = ReferenceEvaluator(model_proto).run(None, feeds)[0]
+
+        model = ir.serde.deserialize_model(model_proto)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
+
+        self.assertEqual(count, 0)
+        actual = ReferenceEvaluator(ir.serde.serialize_model(model)).run(None, feeds)[0]
+        np.testing.assert_array_equal(expected, np.array([[1, 3], [2, 4]], dtype=np.float32))
+        np.testing.assert_array_equal(actual, expected)
+
     def test_reshape_gemm_reshape_replace_when_nd_inputs_are_broadcastable(self):
         model_proto = onnx.parser.parse_model(
             """
