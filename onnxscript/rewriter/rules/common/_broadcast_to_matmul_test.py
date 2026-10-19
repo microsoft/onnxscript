@@ -567,6 +567,34 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 7)
 
+    def test_reshape_matmul_reshape_remain_when_shape_is_shared_with_allowzero_reshape(self):
+        # The matched final Reshape uses default allowzero=0. A second Reshape shares shape_c
+        # but uses allowzero=1; it must not change the matched Reshape's semantics.
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (
+                float[0, 0, 4] input_x,
+                float[1, 4, 5] input_y,
+                float[0, 0, 5] unrelated_input
+            ) => (float[1, 0, 5] output)
+            {
+                shape_a = Constant<value: tensor = int64[3] {0, 0, 4}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[4] {1, 1, 4, 5}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[3] {0, 0, 5}>()
+                output = Reshape (matmul, shape_c)
+                unrelated = Reshape <allowzero = 1> (unrelated_input, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual(len(model.graph), 8)
+
     def test_reshape_matmul_reshape_replace_when_non_identity_input_reshape_allowzero_matches_shape(
         self,
     ):

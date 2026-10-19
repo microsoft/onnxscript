@@ -13,16 +13,10 @@ from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 logger = logging.getLogger(__name__)
 
 
-def _get_allowzero(val: ir.Value | None, default_node: ir.Node | None = None) -> int:
-    """Extract allowzero attribute from the Reshape node consuming this shape value."""
-    if val is not None:
-        for user, idx in val.uses():
-            if user.op_type == "Reshape" and idx == 1:
-                attr = user.attributes.get("allowzero")
-                if attr is not None:
-                    return int(getattr(attr, "value", attr))
-    if default_node is not None and default_node.op_type == "Reshape":
-        attr = default_node.attributes.get("allowzero")
+def _get_allowzero(reshape: ir.Node | None) -> int:
+    """Return the allowzero attribute from an exact matched Reshape node."""
+    if reshape is not None and reshape.op_type == "Reshape":
+        attr = reshape.attributes.get("allowzero")
         if attr is not None:
             return int(getattr(attr, "value", attr))
     return 0
@@ -255,8 +249,15 @@ def check_if_not_need_reshape(
     input_a_shape = input_a_shape.numpy()  # type: ignore[assignment]
     input_b_shape = input_b_shape.numpy()  # type: ignore[assignment]
 
-    # Validate that removed input reshapes preserve matrix computation and batch layout
-    allowzero_a = _get_allowzero(shape_a)
+    final_reshape = context.root if context and hasattr(context, "root") else None
+    matched_node = final_reshape.inputs[0].producer() if final_reshape is not None else None
+    if matched_node is None:
+        return False
+
+    # Read attributes from the matched Reshape nodes, never from other consumers of shape values.
+    matched_reshape_a = matched_node.inputs[0].producer() if shape_a is not None else None
+    matched_reshape_b = matched_node.inputs[1].producer() if shape_b is not None else None
+    allowzero_a = _get_allowzero(matched_reshape_a)
     if shape_a is not None:
         shape_a_tensor = shape_a.const_value
         if shape_a_tensor is None or len(shape_a_tensor.shape) != 1:
@@ -270,7 +271,7 @@ def check_if_not_need_reshape(
         ):
             return False
 
-    allowzero_b = _get_allowzero(shape_b)
+    allowzero_b = _get_allowzero(matched_reshape_b)
     if shape_b is not None:
         shape_b_tensor = shape_b.const_value
         if shape_b_tensor is None or len(shape_b_tensor.shape) != 1:
@@ -308,9 +309,7 @@ def check_if_not_need_reshape(
         return False
 
     # Resolve shape_c against matched MatMul output, honoring final Reshape's allowzero attribute
-    allowzero_c = _get_allowzero(
-        shape_c, default_node=context.root if context and hasattr(context, "root") else None
-    )
+    allowzero_c = _get_allowzero(final_reshape)
     resolved_final_output_shape = _resolve_target_shape(
         shape_c_tensor.numpy().tolist(), matched_matmul_shape, allowzero=allowzero_c
     )
