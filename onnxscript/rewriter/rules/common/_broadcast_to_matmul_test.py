@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import unittest
 
+import numpy as np
 import onnx.parser
 import onnx.shape_inference
 import onnx_ir as ir
+import onnxruntime as ort
 import parameterized
 
 from onnxscript.rewriter.rules.common import _broadcast_to_matmul
@@ -395,12 +397,12 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[3, 1] input_x, float[4, 5] input_y) => (float[3, 5] output)
+            agraph (float[4, 3, 1] input_x, float[4, 4, 5] input_y) => (float[4, 3, 5] output)
             {
-                shape_a = Constant<value: tensor = int64[2] {3, 4}>()
+                shape_a = Constant<value: tensor = int64[3] {1, 3, 4}>()
                 reshape_x = Reshape (input_x, shape_a)
                 matmul = MatMul (reshape_x, input_y)
-                shape_c = Constant<value: tensor = int64[2] {3, 5}>()
+                shape_c = Constant<value: tensor = int64[3] {4, 3, 5}>()
                 output = Reshape (matmul, shape_c)
             }
         """
@@ -409,6 +411,64 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         count = _broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 5)
+
+    def test_reshape_matmul_reshape_remain_when_reshapes_permute_batch_dimensions(self):
+        # A=[2,1,1,1] reshaped to [1,2,1,1] and B=[1,2,1,1] reshaped to [2,1,1,1]
+        # with output [2,2,1,1] alters batch-axis semantics and must not be rewritten.
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2, 1, 1, 1] input_x, float[1, 2, 1, 1] input_y) => (float[2, 2, 1, 1] output)
+            {
+                shape_a = Constant<value: tensor = int64[4] {1, 2, 1, 1}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[4] {2, 1, 1, 1}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[4] {2, 2, 1, 1}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual(len(model.graph), 7)
+
+    def test_reshape_matmul_reshape_numerical_equivalence_when_second_input_batch_dim_is_one(
+        self,
+    ):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2, 3, 4] input_x, float[1, 4, 5] input_y) => (float[2, 3, 5] output)
+            {
+                shape_a = Constant<value: tensor = int64[3] {2, 3, 4}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[3] {1, 4, 5}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[3] {2, 3, 5}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        np.random.seed(0)
+        x = np.random.randn(2, 3, 4).astype(np.float32)
+        y = np.random.randn(1, 4, 5).astype(np.float32)
+
+        sess_orig = ort.InferenceSession(model_proto.SerializeToString())
+        expected_output = sess_orig.run(None, {"input_x": x, "input_y": y})[0]
+
+        model = ir.serde.deserialize_model(model_proto)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+
+        opt_proto = ir.serde.serialize_model(model)
+        sess_opt = ort.InferenceSession(opt_proto.SerializeToString())
+        actual_output = sess_opt.run(None, {"input_x": x, "input_y": y})[0]
+
+        np.testing.assert_allclose(actual_output, expected_output, rtol=1e-5, atol=1e-5)
 
 
 class OneReshapeMatMulReshapeTest(unittest.TestCase):

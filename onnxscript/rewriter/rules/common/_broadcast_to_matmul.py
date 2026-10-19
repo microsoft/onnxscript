@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import math
+from typing import Sequence
 
 import onnx_ir as ir
 
@@ -11,8 +13,99 @@ from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 logger = logging.getLogger(__name__)
 
 
+def _resolve_target_shape(
+    target_shape: Sequence[int], input_shape: Sequence[int]
+) -> list[int] | None:
+    resolved: list[int] = []
+    inferred_idx = -1
+    for idx, dim in enumerate(target_shape):
+        if dim == 0:
+            if idx < len(input_shape):
+                resolved.append(input_shape[idx])
+            else:
+                return None
+        elif dim == -1:
+            if inferred_idx != -1:
+                return None
+            inferred_idx = idx
+            resolved.append(dim)
+        elif dim > 0:
+            resolved.append(dim)
+        else:
+            return None
+
+    if inferred_idx != -1:
+        total = math.prod(input_shape)
+        known = math.prod(d for d in resolved if d != -1)
+        if known == 0 or total % known != 0:
+            return None
+        resolved[inferred_idx] = total // known
+
+    return resolved
+
+
+def _validate_reshape_layout(
+    input_shape: Sequence[int],
+    target_shape: Sequence[int],
+    is_input_b: bool = False,
+) -> bool:
+    """Validate that removing a Reshape preserves matrix computation and batch-axis semantics.
+
+    To safely eliminate a Reshape prior to MatMul:
+    1. Matrix computation dimensions (contracting dimension and row/column dimension)
+       must match between the input and the reshaped tensor (taking into account 1-D expansion).
+    2. Batch-axis layout must be preserved: dimensions cannot be transposed, permuted,
+       or altered beyond insertion or removal of leading size-1 dimensions.
+    """
+    resolved_target = _resolve_target_shape(target_shape, input_shape)
+    if resolved_target is None:
+        return False
+
+    orig = list(input_shape)
+    target = list(resolved_target)
+
+    # Normalize 1-D inputs to 2-D matrix representations per ONNX MatMul semantics
+    if len(orig) < 2:
+        orig = [*orig, 1] if is_input_b else [1, *orig]
+    if len(target) < 2:
+        target = [*target, 1] if is_input_b else [1, *target]
+
+    # 1. Verify matrix computation dimensions match
+    if orig[-2:] != target[-2:]:
+        logger.info(
+            "Matrix computation dimensions do not match: input %s vs reshape %s",
+            orig[-2:],
+            target[-2:],
+        )
+        return False
+
+    # 2. Verify batch-axis semantics: batch dimensions must match when right-aligned
+    # (i.e. only leading size-1 dimensions may differ)
+    batch_orig = orig[:-2]
+    batch_target = target[:-2]
+    max_len = max(len(batch_orig), len(batch_target))
+    padded_orig = [1] * (max_len - len(batch_orig)) + batch_orig
+    padded_target = [1] * (max_len - len(batch_target)) + batch_target
+
+    if padded_orig != padded_target:
+        logger.info(
+            "Batch-axis layout not preserved: input batch %s vs reshape batch %s",
+            batch_orig,
+            batch_target,
+        )
+        return False
+
+    return True
+
+
 def check_if_not_need_reshape(
-    context, input_a: ir.Value, input_b: ir.Value, shape_c: ir.Value, **_
+    context,
+    input_a: ir.Value,
+    input_b: ir.Value,
+    shape_c: ir.Value,
+    shape_a: ir.Value | None = None,
+    shape_b: ir.Value | None = None,
+    **_,
 ) -> bool:
     """Condition to check if we need to replace the pattern.
 
@@ -57,6 +150,27 @@ def check_if_not_need_reshape(
     input_a_shape = input_a_shape.numpy()  # type: ignore[assignment]
     input_b_shape = input_b_shape.numpy()  # type: ignore[assignment]
     shape_c = shape_c_tensor.numpy().tolist()  # type: ignore[assignment]
+
+    # Validate that removed reshapes preserve matrix computation and batch layout
+    if shape_a is not None:
+        shape_a_tensor = shape_a.const_value
+        if shape_a_tensor is None or len(shape_a_tensor.shape) != 1:
+            logger.info("The value 'shape_a' is not statically known or 1-D.")
+            return False
+        if not _validate_reshape_layout(
+            input_a_shape, shape_a_tensor.numpy().tolist(), is_input_b=False
+        ):
+            return False
+
+    if shape_b is not None:
+        shape_b_tensor = shape_b.const_value
+        if shape_b_tensor is None or len(shape_b_tensor.shape) != 1:
+            logger.info("The value 'shape_b' is not statically known or 1-D.")
+            return False
+        if not _validate_reshape_layout(
+            input_b_shape, shape_b_tensor.numpy().tolist(), is_input_b=True
+        ):
+            return False
 
     a_rank = len(input_a_shape)
     b_rank = len(input_b_shape)
