@@ -1,5 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+from __future__ import annotations
+
+from onnxscript.rewriter._pattern_ir import Constant
 from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 # TODO: Support 1-D constant tensors
@@ -7,20 +10,22 @@ from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 
 # Pattern to match against
+# Numeric literals use dtype-agnostic Constant patterns with approximate matching.
+# Identity rewrites require exact values to preserve numerical stabilizers and scaling.
 def mul_by_1(op, x):
-    return x * 1
+    return x * Constant(1, rel_tol=0, abs_tol=0)
 
 
 def add_0(op, x):
-    return x + 0
+    return x + Constant(0, rel_tol=0, abs_tol=0)
 
 
 def sub_0(op, x):
-    return x - 0
+    return x - Constant(0, rel_tol=0, abs_tol=0)
 
 
 def div_by_1(op, x):
-    return x / 1
+    return x / Constant(1, rel_tol=0, abs_tol=0)
 
 
 def dropout_zero(op, x):
