@@ -13,19 +13,39 @@ from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 logger = logging.getLogger(__name__)
 
 
+def _get_allowzero(val: ir.Value | None, default_node: ir.Node | None = None) -> int:
+    """Extract allowzero attribute from the Reshape node consuming this shape value."""
+    if val is not None:
+        for user, idx in val.uses():
+            if user.op_type == "Reshape" and idx == 1:
+                attr = user.attributes.get("allowzero")
+                if attr is not None:
+                    return int(getattr(attr, "value", attr))
+    if default_node is not None and default_node.op_type == "Reshape":
+        attr = default_node.attributes.get("allowzero")
+        if attr is not None:
+            return int(getattr(attr, "value", attr))
+    return 0
+
+
 def _resolve_target_shape(
-    target_shape: Sequence[int], input_shape: Sequence[int]
+    target_shape: Sequence[int],
+    input_shape: Sequence[int],
+    allowzero: int = 0,
 ) -> list[int] | None:
     """Resolve target reshape dimension values using input dimensions.
 
-    Note: assumes default ONNX Reshape attribute allowzero=0,
-    where a 0 in the shape tensor copies the input dimension at the corresponding index.
+    When allowzero=0 (default ONNX Reshape semantics), a 0 in target_shape
+    copies the input dimension at the corresponding index.
+    When allowzero=1, a 0 in target_shape is preserved as literal dimension 0.
     """
     resolved: list[int] = []
     inferred_idx = -1
     for idx, dim in enumerate(target_shape):
         if dim == 0:
-            if idx < len(input_shape):
+            if allowzero == 1:
+                resolved.append(0)
+            elif idx < len(input_shape):
                 resolved.append(input_shape[idx])
             else:
                 return None
@@ -45,6 +65,8 @@ def _resolve_target_shape(
         if known == 0 or total % known != 0:
             return None
         resolved[inferred_idx] = total // known
+    elif math.prod(resolved) != math.prod(input_shape):
+        return None
 
     return resolved
 
@@ -53,6 +75,7 @@ def _validate_reshape_layout(
     input_shape: Sequence[int],
     target_shape: Sequence[int],
     is_input_b: bool = False,
+    allowzero: int = 0,
 ) -> bool:
     """Validate that removing a Reshape preserves matrix computation and batch-axis semantics.
 
@@ -62,7 +85,7 @@ def _validate_reshape_layout(
     2. Batch-axis layout must be preserved: dimensions cannot be transposed, permuted,
        or altered beyond insertion or removal of leading size-1 dimensions.
     """
-    resolved_target = _resolve_target_shape(target_shape, input_shape)
+    resolved_target = _resolve_target_shape(target_shape, input_shape, allowzero=allowzero)
     if resolved_target is None:
         return False
 
@@ -103,6 +126,85 @@ def _validate_reshape_layout(
     return True
 
 
+def _compute_matmul_output_shape(
+    input_a_shape: Sequence[int],
+    input_b_shape: Sequence[int],
+) -> list[int] | None:
+    """Compute the output shape of MatMul(input_a, input_b) following ONNX MatMul semantics.
+
+    Returns None if shapes are not broadcastable or contracting dimensions mismatch.
+    """
+    a_shape = list(input_a_shape)
+    b_shape = list(input_b_shape)
+    a_rank = len(a_shape)
+    b_rank = len(b_shape)
+
+    if a_rank < 1 or b_rank < 1:
+        return None
+
+    mimic_matmul_broadcast_behavior_a = False
+    mimic_matmul_broadcast_behavior_b = False
+
+    # 1.a. If the first input is 1-D, check whether
+    # the dim matches the last second dim of the second input.
+    if a_rank < 2:
+        if b_rank < 2:
+            logger.info("Optimization of dot product is not supported yet.")
+            return None
+        if a_shape[-1] != b_shape[-2]:
+            logger.info("Original shape is not MatMul compatible.")
+            return None
+        a_shape = [1, *a_shape]
+        a_rank = len(a_shape)
+        mimic_matmul_broadcast_behavior_a = True
+
+    # 1.b. If the second input is 1-D, check whether
+    # the dim matches the last dim of the first input.
+    if b_rank < 2:
+        if b_shape[-1] != a_shape[-1]:
+            logger.info("Original shape is not MatMul compatible.")
+            return None
+        b_shape = [*b_shape, 1]
+        b_rank = len(b_shape)
+        mimic_matmul_broadcast_behavior_b = True
+
+    # 1.c. Contracting dimensions check
+    if a_shape[-1] != b_shape[-2]:
+        logger.info("Original contracting dimensions do not match.")
+        return None
+
+    # 1.d. Batch dimensions broadcasting
+    batch_a = a_shape[:-2]
+    batch_b = b_shape[:-2]
+    broadcast_batch: list[int] = []
+
+    for dim_from_a, dim_from_b in zip(reversed(batch_a), reversed(batch_b)):
+        if dim_from_a != dim_from_b and dim_from_a != 1 and dim_from_b != 1:
+            logger.info("Original shape is not broadcastable.")
+            return None
+        broadcast_dim = dim_from_b if dim_from_a == 1 else dim_from_a
+        broadcast_batch.insert(0, broadcast_dim)
+
+    # Prepend remaining leading batch dimensions from longer shape
+    if len(batch_a) > len(batch_b):
+        broadcast_batch = batch_a[: len(batch_a) - len(batch_b)] + broadcast_batch
+    elif len(batch_b) > len(batch_a):
+        broadcast_batch = batch_b[: len(batch_b) - len(batch_a)] + broadcast_batch
+
+    out_shape = [*broadcast_batch, a_shape[-2], b_shape[-1]]
+
+    if mimic_matmul_broadcast_behavior_b and b_rank == 2 and b_shape[-1] == 1:
+        out_shape.pop(-1)
+    if mimic_matmul_broadcast_behavior_a and a_rank == 2 and a_shape[0] == 1:
+        out_shape.pop(
+            -2
+            if not (mimic_matmul_broadcast_behavior_b and b_rank == 2 and b_shape[-1] == 1)
+            else -1
+        )
+
+    return out_shape
+
+
 def check_if_not_need_reshape(
     context,
     input_a: ir.Value,
@@ -125,8 +227,6 @@ def check_if_not_need_reshape(
     Returns:
         True if we need to replace the pattern, False otherwise.
     """
-    del context  # Reserved for future extensions
-
     input_a_shape = input_a.shape
     input_b_shape = input_b.shape
     shape_c_tensor = shape_c.const_value
@@ -154,109 +254,82 @@ def check_if_not_need_reshape(
         return False
     input_a_shape = input_a_shape.numpy()  # type: ignore[assignment]
     input_b_shape = input_b_shape.numpy()  # type: ignore[assignment]
-    shape_c = shape_c_tensor.numpy().tolist()  # type: ignore[assignment]
 
-    # Validate that removed reshapes preserve matrix computation and batch layout
+    # Validate that removed input reshapes preserve matrix computation and batch layout
+    allowzero_a = _get_allowzero(shape_a)
     if shape_a is not None:
         shape_a_tensor = shape_a.const_value
         if shape_a_tensor is None or len(shape_a_tensor.shape) != 1:
             logger.info("The value 'shape_a' is not statically known or 1-D.")
             return False
         if not _validate_reshape_layout(
-            input_a_shape, shape_a_tensor.numpy().tolist(), is_input_b=False
+            input_a_shape,
+            shape_a_tensor.numpy().tolist(),
+            is_input_b=False,
+            allowzero=allowzero_a,
         ):
             return False
 
+    allowzero_b = _get_allowzero(shape_b)
     if shape_b is not None:
         shape_b_tensor = shape_b.const_value
         if shape_b_tensor is None or len(shape_b_tensor.shape) != 1:
             logger.info("The value 'shape_b' is not statically known or 1-D.")
             return False
         if not _validate_reshape_layout(
-            input_b_shape, shape_b_tensor.numpy().tolist(), is_input_b=True
+            input_b_shape,
+            shape_b_tensor.numpy().tolist(),
+            is_input_b=True,
+            allowzero=allowzero_b,
         ):
             return False
 
-    a_rank = len(input_a_shape)
-    b_rank = len(input_b_shape)
-
-    # 1. Check if input shapes are broadcastable
-    # 1.a. If the first input is 1-D, check whether
-    # the dim matches the last second dim of the second input.
-    mimic_matmul_broadcast_behavior_a = False
-    mimic_matmul_broadcast_behavior_b = False
-    if a_rank < 2:
-        if b_rank < 2:
-            logger.info("Optimization of dot product is not supported yet.")
-            return False
-        if input_a_shape[-1] != input_b_shape[-2]:
-            logger.info("Original shape is not MatMul compatible.")
-            return False
-        else:
-            input_a_shape = [1, *input_a_shape]  # type: ignore[assignment]
-            a_rank = len(input_a_shape)
-            mimic_matmul_broadcast_behavior_a = True
-    # 1.b. If the second input is 1-D, check whether
-    # the dim matches the last dim of the first input.
-    if b_rank < 2:
-        if input_b_shape[-1] != input_a_shape[-1]:
-            logger.info("Original shape is not MatMul compatible.")
-            return False
-        else:
-            input_b_shape = [*input_b_shape, 1]  # type: ignore[assignment]
-            b_rank = len(input_b_shape)
-            mimic_matmul_broadcast_behavior_b = True
-    # 1.c. If both inputs are at least 2-D, check whether
-    # the last dimension of the first input matches the second
-    # last dimension of the second input, and shape[:-2] are
-    # broadcastable.
-    input_a_shape_except_second_last_dim = [*input_a_shape[:-2], *[input_a_shape[-1]]]
-    input_b_shape_except_last_dim = input_b_shape[:-1]
-    broadcast_matmul_output_shape = [input_a_shape[-2], input_b_shape[-1]]
-    for idx, (dim_from_a, dim_from_b) in enumerate(
-        zip(
-            reversed(input_a_shape_except_second_last_dim),
-            reversed(input_b_shape_except_last_dim),
+    # Compute matched MatMul output shape in the original graph
+    matched_a_shape = (
+        _resolve_target_shape(
+            shape_a.const_value.numpy().tolist(), input_a_shape, allowzero=allowzero_a
         )
-    ):
-        if idx == 0:
-            if dim_from_a != dim_from_b:
-                logger.info("Original contracting dimensions do not match.")
-                return False
-        else:
-            if dim_from_a != dim_from_b and dim_from_a != 1 and dim_from_b != 1:
-                logger.info("Original shape is not broadcastable.")
-                return False
-            broadcast_dim = dim_from_b if dim_from_a == 1 else dim_from_a
-            broadcast_matmul_output_shape = [
-                broadcast_dim,  # type: ignore[list-item]
-                *broadcast_matmul_output_shape,
-            ]
+        if shape_a is not None
+        else input_a_shape
+    )
+    matched_b_shape = (
+        _resolve_target_shape(
+            shape_b.const_value.numpy().tolist(), input_b_shape, allowzero=allowzero_b
+        )
+        if shape_b is not None
+        else input_b_shape
+    )
+    if matched_a_shape is None or matched_b_shape is None:
+        return False
 
-    # 2. Check if output shape is the same as the output shape from the matmul(input_a, input_b)
-    # Prepend the broadcast_matmul_output_shape with the longer shape of input
-    if a_rank > b_rank:
-        longer_shape = input_a_shape
-        shorter_shape = input_b_shape
-    else:
-        longer_shape = input_b_shape
-        shorter_shape = input_a_shape
-    broadcast_matmul_output_shape = [
-        *longer_shape[: -len(shorter_shape)],
-        *broadcast_matmul_output_shape,
-    ]
-    if mimic_matmul_broadcast_behavior_b and b_rank == 2 and input_b_shape[-1] == 1:
-        # If input_b is expanded to 2-D, then we need to remove the last dimension
-        broadcast_matmul_output_shape = broadcast_matmul_output_shape[:-1]
-    if mimic_matmul_broadcast_behavior_a and a_rank == 2 and input_a_shape[0] == 1:
-        # If input_a is expanded to 2-D, then we need to remove the first dimension
-        # of input_a, which would be the -2nd dimension of the output shape.
-        broadcast_matmul_output_shape.pop(-2)
-    if shape_c != broadcast_matmul_output_shape:
+    matched_matmul_shape = _compute_matmul_output_shape(matched_a_shape, matched_b_shape)
+    if matched_matmul_shape is None:
+        logger.info("Matched MatMul inputs are not valid for matrix multiplication.")
+        return False
+
+    # Resolve shape_c against matched MatMul output, honoring final Reshape's allowzero attribute
+    allowzero_c = _get_allowzero(
+        shape_c, default_node=context.root if context and hasattr(context, "root") else None
+    )
+    resolved_final_output_shape = _resolve_target_shape(
+        shape_c_tensor.numpy().tolist(), matched_matmul_shape, allowzero=allowzero_c
+    )
+    if resolved_final_output_shape is None:
+        logger.info("Target shape_c cannot be resolved against matched MatMul output shape.")
+        return False
+
+    # Compute replacement MatMul output shape
+    replacement_output_shape = _compute_matmul_output_shape(input_a_shape, input_b_shape)
+    if replacement_output_shape is None:
+        logger.info("Input shapes are not MatMul compatible for the replacement.")
+        return False
+
+    # Check if final output shape matches replacement output shape
+    if resolved_final_output_shape != replacement_output_shape:
         logger.info(
             "Final output shape is not the same. Expected %s vs actual %s",
-            shape_c,
-            broadcast_matmul_output_shape,
+            resolved_final_output_shape,
+            replacement_output_shape,
         )
         return False
 

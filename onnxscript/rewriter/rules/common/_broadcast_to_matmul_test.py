@@ -538,6 +538,87 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         res = sess_opt.run(None, {"input_x": x, "input_y": y})[0]
         self.assertEqual(res.shape, (0, 0, 5))
 
+    def test_reshape_matmul_reshape_remain_when_non_identity_input_reshape_changes_output_shape(
+        self,
+    ):
+        # A: [0, 0, 4], shape_a: [0, 0, 4]
+        # B: [1, 4, 5], shape_b: [1, 1, 4, 5] (non-identity reshape adding a leading singleton)
+        # MatMul(reshape_x, reshape_y) produces [1, 0, 0, 5].
+        # Final Reshape with default allowzero=0 copies dims, resolving shape_c [0, 0, 5] to [1, 0, 5].
+        # The replacement MatMul(input_x, input_y) would produce [0, 0, 5].
+        # Since [1, 0, 5] != [0, 0, 5], the rewrite must be declined.
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[0, 0, 4] input_x, float[1, 4, 5] input_y) => (float[1, 0, 5] output)
+            {
+                shape_a = Constant<value: tensor = int64[3] {0, 0, 4}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[4] {1, 1, 4, 5}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[3] {0, 0, 5}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual(len(model.graph), 7)
+
+    def test_reshape_matmul_reshape_replace_when_non_identity_input_reshape_allowzero_matches_shape(
+        self,
+    ):
+        # Same setup as above, but final Reshape has allowzero=1.
+        # Resolving shape_c [0, 0, 5] with allowzero=1 preserves 0s -> [0, 0, 5].
+        # This matches the replacement MatMul(input_x, input_y) output [0, 0, 5].
+        # The rewrite is accepted.
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[0, 0, 4] input_x, float[1, 4, 5] input_y) => (float[0, 0, 5] output)
+            {
+                shape_a = Constant<value: tensor = int64[3] {0, 0, 4}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[4] {1, 1, 4, 5}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[3] {0, 0, 5}>()
+                output = Reshape <allowzero = 1> (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 4)
+
+    def test_reshape_matmul_reshape_replace_when_final_reshape_has_inferred_dimension(
+        self,
+    ):
+        # MatMul output is [2, 3, 5], final shape_c is [2, -1, 5], resolving to [2, 3, 5].
+        # The rewrite should succeed because resolved shape matches replacement.
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2, 3, 4] input_x, float[1, 4, 5] input_y) => (float[2, 3, 5] output)
+            {
+                shape_a = Constant<value: tensor = int64[3] {2, 3, 4}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[3] {1, 4, 5}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[3] {2, -1, 5}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 4)
+
 
 class OneReshapeMatMulReshapeTest(unittest.TestCase):
     def test_reshape_matmul_reshape_replace_when_nd_inputs_are_broadcastable(self):
@@ -622,6 +703,28 @@ class OneReshapeMatMulReshapeTest(unittest.TestCase):
         sess_opt = ort.InferenceSession(opt_proto.SerializeToString())
         res = sess_opt.run(None, {"input_x": x, "input_y": y})[0]
         self.assertEqual(res.shape, (0, 0, 5))
+
+    def test_reshape_matmul_reshape_replace_when_final_reshape_has_inferred_dimension(
+        self,
+    ):
+        # MatMul output is [2, 3, 5], final shape_c is [2, -1, 5], resolving to [2, 3, 5].
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2, 3, 4] input_x, float[1, 4, 5] input_y) => (float[2, 3, 5] output)
+            {
+                shape_a = Constant<value: tensor = int64[3] {2, 3, 4}>()
+                reshape_x = Reshape (input_x, shape_a)
+                matmul = MatMul (reshape_x, input_y)
+                shape_c = Constant<value: tensor = int64[3] {2, -1, 5}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 3)
 
 
 if __name__ == "__main__":
