@@ -8,6 +8,7 @@ from typing import Sequence
 import numpy as np
 import onnx_ir as ir
 
+from onnxscript.rewriter._basics import MatchFailureError
 from onnxscript.rewriter._rewrite_rule import RewriteRule
 from onnxscript.rewriter.rules.common._broadcast_to_matmul import (
     _compute_matmul_output_shape,
@@ -50,6 +51,13 @@ def check_if_not_need_reshape_for_gemm(context, *args, **kwargs) -> bool:
     gemm = final_reshape.inputs[0].producer()
     if gemm is None or gemm.op_type != "Gemm":
         return False
+    for attr_name in ("transA", "transB"):
+        attr = gemm.attributes.get(attr_name)
+        if attr is not None and hasattr(attr, "is_ref") and attr.is_ref():
+            raise MatchFailureError(
+                f"Cannot evaluate reference attribute {attr_name!r} in local function.",
+                gemm,
+            )
     if gemm.attributes.get_int("transA", 0) != 0 or gemm.attributes.get_int("transB", 0) != 0:
         logger.info("Gemm transpose attributes are not preserved by MatMul replacement.")
         return False

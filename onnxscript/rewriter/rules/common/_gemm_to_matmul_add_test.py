@@ -413,6 +413,29 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 5)
 
+    def test_reshape_gemm_reshape_remain_when_local_function_uses_ref_attr_trans(self):
+        model_text = """
+        <ir_version: 7, opset_import: [ "" : 17, "custom" : 1]>
+        agraph (float[2] X, float[2, 3] Y, float[3] C) => (float[3] O) {
+            O = custom.my_gemm_func (X, Y, C)
+        }
+        <domain: "custom", opset_import: [ "" : 17]>
+        my_gemm_func <transB: int = 0> (float[2] A_in, float[2, 3] B_in, float[3] C_in) => (float[3] O_func) {
+            sa = Constant<value: tensor = int64[2] {1, 2}>()
+            A = Reshape(A_in, sa)
+            M = Gemm<alpha=1.0, beta=1.0, transB = @transB>(A, B_in, C_in)
+            sc = Constant<value: tensor = int64[1] {3}>()
+            O_func = Reshape(M, sc)
+        }
+        """
+        model = ir.from_onnx_text(model_text)
+        func = next(iter(model.functions.values()))
+        func.graph.inputs[0].shape = ir.Shape([2])
+        func.graph.inputs[1].shape = ir.Shape([2, 3])
+        func.graph.inputs[2].shape = ir.Shape([3])
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
+        self.assertEqual(count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

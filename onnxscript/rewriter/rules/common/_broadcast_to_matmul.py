@@ -8,6 +8,7 @@ from typing import Sequence
 
 import onnx_ir as ir
 
+from onnxscript.rewriter._basics import MatchFailureError
 from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,18 @@ def _get_allowzero(reshape: ir.Node | None) -> int:
     if reshape is not None and reshape.op_type == "Reshape":
         attr = reshape.attributes.get("allowzero")
         if attr is not None:
-            return int(getattr(attr, "value", attr))
+            if hasattr(attr, "is_ref") and attr.is_ref():
+                raise MatchFailureError(
+                    "Cannot evaluate reference attribute 'allowzero' in local function.",
+                    reshape,
+                )
+            value = getattr(attr, "value", attr)
+            if value is None:
+                raise MatchFailureError(
+                    "Attribute 'allowzero' has no concrete value.",
+                    reshape,
+                )
+            return int(value)
     return 0
 
 

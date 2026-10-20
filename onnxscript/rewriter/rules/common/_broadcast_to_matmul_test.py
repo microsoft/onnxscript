@@ -754,6 +754,54 @@ class OneReshapeMatMulReshapeTest(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 3)
 
+    def test_reshape_matmul_reshape_remain_when_local_function_input_reshape_uses_ref_attr_allowzero(
+        self,
+    ):
+        model_text = """
+        <ir_version: 7, opset_import: [ "" : 18, "custom" : 1]>
+        agraph (float[2, 3] X, float[3, 4] Y) => (float[2, 4] Z) {
+            Z = custom.my_func (X, Y)
+        }
+        <domain: "custom", opset_import: [ "" : 18]>
+        my_func <allowzero: int = 0> (float[2, 3] A, float[3, 4] B) => (float[2, 4] C) {
+            shape_a = Constant<value: tensor = int64[2] {2, 3}>()
+            A_reshaped = Reshape <allowzero = @allowzero> (A, shape_a)
+            M = MatMul(A_reshaped, B)
+            shape_c = Constant<value: tensor = int64[2] {2, 4}>()
+            C = Reshape (M, shape_c)
+        }
+        """
+        model = ir.from_onnx_text(model_text)
+        func = next(iter(model.functions.values()))
+        func.graph.inputs[0].shape = ir.Shape([2, 3])
+        func.graph.inputs[1].shape = ir.Shape([3, 4])
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_reshape_matmul_reshape_remain_when_local_function_final_reshape_uses_ref_attr_allowzero(
+        self,
+    ):
+        model_text = """
+        <ir_version: 7, opset_import: [ "" : 18, "custom" : 1]>
+        agraph (float[2, 3] X, float[3, 4] Y) => (float[2, 4] Z) {
+            Z = custom.my_func (X, Y)
+        }
+        <domain: "custom", opset_import: [ "" : 18]>
+        my_func <allowzero: int = 0> (float[2, 3] A, float[3, 4] B) => (float[2, 4] C) {
+            shape_a = Constant<value: tensor = int64[2] {2, 3}>()
+            A_reshaped = Reshape (A, shape_a)
+            M = MatMul(A_reshaped, B)
+            shape_c = Constant<value: tensor = int64[2] {2, 4}>()
+            C = Reshape <allowzero = @allowzero> (M, shape_c)
+        }
+        """
+        model = ir.from_onnx_text(model_text)
+        func = next(iter(model.functions.values()))
+        func.graph.inputs[0].shape = ir.Shape([2, 3])
+        func.graph.inputs[1].shape = ir.Shape([3, 4])
+        count = _broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
