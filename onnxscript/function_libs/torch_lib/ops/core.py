@@ -1453,6 +1453,7 @@ def aten_bitwise_and_scalar_tensor(self: float, other: TTensor) -> TTensor:
 @torch_op(
     (
         "aten::bitwise_left_shift.Tensor",
+        "aten::__lshift__.Tensor",
         "_operator::__lshift__",
     ),
     trace_only=True,
@@ -1462,6 +1463,9 @@ def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
     assert self.dtype == other.dtype or self.dtype is None or other.dtype is None
     dtype = self.dtype if self.dtype is not None else other.dtype
     assert dtype is not None
+
+    if not dtype.is_signed():
+        return op.BitShift(self, other, direction="LEFT")
 
     # assert other >= 0
     if dtype.bitwidth == 8:
@@ -1552,6 +1556,7 @@ def aten_bitwise_or_scalar_tensor(self: int, other: TTensor) -> TTensor:
 @torch_op(
     (
         "aten::bitwise_right_shift.Tensor",
+        "aten::__rshift__.Tensor",
         "_operator::__rshift__",
     ),
     trace_only=True,
@@ -1561,6 +1566,9 @@ def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     assert self.dtype == other.dtype or self.dtype is None or other.dtype is None
     dtype = self.dtype if self.dtype is not None else other.dtype
     assert dtype is not None
+
+    if not dtype.is_signed():
+        return op.BitShift(self, other, direction="RIGHT")
 
     if dtype.bitwidth == 8:
         unsigned_dtype = ir.DataType.UINT8
