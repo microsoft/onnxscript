@@ -1453,6 +1453,7 @@ def aten_bitwise_and_scalar_tensor(self: float, other: TTensor) -> TTensor:
 @torch_op(
     (
         "aten::bitwise_left_shift.Tensor",
+        "aten::__lshift__.Tensor",
         "_operator::__lshift__",
     ),
     trace_only=True,
@@ -1552,6 +1553,7 @@ def aten_bitwise_or_scalar_tensor(self: int, other: TTensor) -> TTensor:
 @torch_op(
     (
         "aten::bitwise_right_shift.Tensor",
+        "aten::__rshift__.Tensor",
         "_operator::__rshift__",
     ),
     trace_only=True,
