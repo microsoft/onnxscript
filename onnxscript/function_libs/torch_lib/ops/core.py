@@ -3290,7 +3290,7 @@ def aten_div_mode(self: TReal, other: TReal, rounding_mode: Optional[str] = None
             quotient = op.Cast(quotient, to=FLOAT16.dtype)
         return aten_trunc(quotient)
     if rounding_mode == "floor":
-        return op.Floor(op.Div(self, other))
+        return _floor_divide_float(self, other)
 
     return op.Div(self, other)
 
@@ -4203,12 +4203,37 @@ def python_math_floor(self: TFloat) -> TInt:
     return op.Cast(floor, to=INT64.dtype)
 
 
+def _floor_divide_float(self: TFloat, other: TFloat) -> TFloat:
+    """Floor division of floating point inputs, as c10::div_floor_floating in PyTorch.
+
+    ``Floor(Div(self, other))`` takes the floor of the rounded quotient, which can be one too
+    large: ``1.0 // 0.1`` is 9, but ``1.0 / 0.1`` rounds to 10. Instead, divide the exact multiple
+    ``self - fmod(self, other)``, subtract one when the remainder and the divisor have different
+    signs, and round the result, which is a whole number up to rounding error.
+    """
+    zero = op.CastLike(0, self)
+    mod = op.Mod(self, other, fmod=1)
+    div = op.Div(op.Sub(self, mod), other)
+    # fmod has the sign of self, and floor division rounds toward -inf.
+    signs_differ = op.And(
+        op.Not(op.Equal(mod, zero)), op.Xor(op.Less(mod, zero), op.Less(other, zero))
+    )
+    div = op.Where(signs_differ, op.Sub(div, op.CastLike(1, self)), div)
+    quotient = op.Div(self, other)
+    # A zero result has the sign of self / other. It is the second branch of Where on purpose:
+    # ONNX Runtime's CPU Where returns +0.0 when it picks -0.0 from the first branch. (A NaN div
+    # also takes the second branch, where quotient * 0 is NaN as well.)
+    floordiv = op.Where(op.Greater(op.Abs(div), zero), op.Round(div), op.Mul(quotient, zero))
+    # A zero divisor gives self / other: inf, -inf or nan.
+    return op.Where(op.Equal(other, zero), quotient, floordiv)
+
+
 @torch_op("aten::floor_divide", trace_only=True)
 def aten_floor_divide(self: TTensor, other: TTensor) -> TTensor:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
     if self.dtype.is_floating_point():
-        return op.Floor(op.Div(self, other))
+        return _floor_divide_float(self, other)
 
     assert self.dtype.is_integer()
 
