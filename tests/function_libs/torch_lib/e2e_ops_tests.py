@@ -465,6 +465,28 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_bitwise_shift_uint8(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, y):
+                return (
+                    x << 4,
+                    x >> 4,
+                    torch.bitwise_left_shift(x, y),
+                    torch.bitwise_right_shift(x, y),
+                    (x << 4) | y,
+                )
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (
+                torch.tensor([0x0F, 0x21, 0xF0, 0xFF], dtype=torch.uint8),
+                torch.tensor([1, 3, 4, 7], dtype=torch.uint8),
+            ),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_torchvision_deform_conv2d(self):
         class Model(torch.nn.Module):
             def forward(self, x, offset, weight, bias):

@@ -1463,6 +1463,9 @@ def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
     dtype = self.dtype if self.dtype is not None else other.dtype
     assert dtype is not None
 
+    if not dtype.is_signed():
+        return op.BitShift(self, other, direction="LEFT")
+
     # assert other >= 0
     if dtype.bitwidth == 8:
         unsigned_dtype = ir.DataType.UINT8
@@ -1561,6 +1564,9 @@ def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     assert self.dtype == other.dtype or self.dtype is None or other.dtype is None
     dtype = self.dtype if self.dtype is not None else other.dtype
     assert dtype is not None
+
+    if not dtype.is_signed():
+        return op.BitShift(self, other, direction="RIGHT")
 
     if dtype.bitwidth == 8:
         unsigned_dtype = ir.DataType.UINT8
