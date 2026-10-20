@@ -452,6 +452,39 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_shift_operators_with_tensor_shift(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, s):
+                return x << s, x >> s
+
+        # ONNX Runtime has no BitShift kernel for 16-bit types.
+        for dtype in (torch.int8, torch.int32, torch.int64):
+            with self.subTest(dtype=dtype):
+                onnx_program = torch.onnx.export(
+                    Model(),
+                    (
+                        torch.tensor([1, -2, 3, -64, 100, 5], dtype=dtype),
+                        torch.tensor([0, 1, 2, 1, 3, 4], dtype=dtype),
+                    ),
+                    dynamo=True,
+                    verbose=False,
+                )
+                _testing.assert_onnx_program(onnx_program)
+
+    def test_unpack_int4_with_shift_operator(self):
+        class Model(torch.nn.Module):
+            def forward(self, packed):
+                shifts = torch.arange(0, 32, 4, dtype=torch.int32)
+                return (packed[:, :, None] >> shifts[None, None, :]) & 0xF
+
+        onnx_program = torch.onnx.export(
+            Model(),
+            (torch.tensor([[0x76543210, 0x0FEDCBA9, -1]], dtype=torch.int32),),
+            dynamo=True,
+            verbose=False,
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_bitwise_and_scalar(self):
         class Model(torch.nn.Module):
             def forward(self, x):
