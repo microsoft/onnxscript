@@ -578,6 +578,18 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         squeeze_nodes = [n for n in optimized.graph if n.op_type == "Squeeze"]
         self.assertEqual(len(squeeze_nodes), 0)
 
+    def test_dynamic_split_to_sequence_with_scalar_split_not_rewritten(self):
+        # The number of chunks depends on the value of split, which is unknown.
+        model = ir.from_onnx_text("""
+            <ir_version: 8, opset_import: ["" : 18]>
+            func (float[3,6] x, int64 split) => (float[3,6] y) {
+                splits = SplitToSequence <axis: int = 1> (x, split)
+                y = ConcatFromSequence <axis: int = 1> (splits)
+            }
+        """)
+        optimized = self._fold(model)
+        self.assertEqual(optimized.graph[0].op_type, "SplitToSequence")
+
     def test_initializer_input_not_folded(self):
         model_text = """
             <ir_version: 7, opset_import: [ "" : 18]>
