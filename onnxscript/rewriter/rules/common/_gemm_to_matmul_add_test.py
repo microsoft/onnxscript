@@ -10,6 +10,12 @@ from onnx.reference import ReferenceEvaluator
 from onnxscript.rewriter.rules.common import _gemm_to_matmul_add
 
 
+def _run_model(proto: onnx.ModelProto, feeds: dict[str, np.ndarray]) -> list[np.ndarray]:
+    outputs = ReferenceEvaluator(proto).run(None, feeds)
+    assert isinstance(outputs, list)
+    return outputs
+
+
 class ReshapeGemmReshapeTest(unittest.TestCase):
     def test_reshape_gemm_reshape_remain_when_transpose_and_final_shape_is_inferred(self):
         model_proto = onnx.parser.parse_model(
@@ -30,13 +36,13 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             "Y": np.array([[1, 2], [3, 4]], dtype=np.float32),
             "C": np.zeros((2, 2), dtype=np.float32),
         }
-        expected = ReferenceEvaluator(model_proto).run(None, feeds)[0]
+        expected = _run_model(model_proto, feeds)[0]
 
         model = ir.serde.deserialize_model(model_proto)
         count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
 
         self.assertEqual(count, 0)
-        actual = ReferenceEvaluator(ir.serde.serialize_model(model)).run(None, feeds)[0]
+        actual = _run_model(ir.serde.serialize_model(model), feeds)[0]
         np.testing.assert_array_equal(expected, np.array([[1, 3], [2, 4]], dtype=np.float32))
         np.testing.assert_array_equal(actual, expected)
 
@@ -316,6 +322,89 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
                 gemm = Gemm<alpha=1.0, beta=1.0> (reshape_x, input_y, input_z)
                 shape_d = Constant<value: tensor = int64[3] {2, 4, 6}>()
                 output = Reshape (gemm, shape_d)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual(len(model.graph), 5)
+
+    def test_reshape_gemm_reshape_remain_when_bias_broadcasting_expands_output_rank(self):
+        # input_x: [2], input_y: [2, 3], bias C: [1, 3] with final reshape to [3].
+        # MatMul(input_x, input_y) produces [3], but adding C broadcasts to [1, 3].
+        # Removing the final Reshape would expand the output rank from (3,) to (1, 3).
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2] X, float[2, 3] Y, float[1, 3] C) => (float[3] O)
+            {
+                sa = Constant<value: tensor = int64[2] {1, 2}>()
+                A = Reshape(X, sa)
+                M = Gemm<alpha=1.0, beta=1.0>(A, Y, C)
+                sc = Constant<value: tensor = int64[1] {-1}>()
+                O = Reshape(M, sc)
+            }
+        """
+        )
+        feeds = {
+            "X": np.array([1, 2], dtype=np.float32),
+            "Y": np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32),
+            "C": np.array([[10, 20, 30]], dtype=np.float32),
+        }
+        expected = _run_model(model_proto, feeds)[0]
+        self.assertEqual(expected.shape, (3,))
+
+        model = ir.serde.deserialize_model(model_proto)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual(len(model.graph), 5)
+
+        actual = _run_model(ir.serde.serialize_model(model), feeds)[0]
+        np.testing.assert_array_equal(expected, actual)
+
+    def test_reshape_gemm_reshape_replace_when_bias_vector_matches_final_shape(self):
+        # Control case: vector bias C has shape [3], matching expected final output shape [3].
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2] X, float[2, 3] Y, float[3] C) => (float[3] O)
+            {
+                sa = Constant<value: tensor = int64[2] {1, 2}>()
+                A = Reshape(X, sa)
+                M = Gemm<alpha=1.0, beta=1.0>(A, Y, C)
+                sc = Constant<value: tensor = int64[1] {-1}>()
+                O = Reshape(M, sc)
+            }
+        """
+        )
+        feeds = {
+            "X": np.array([1, 2], dtype=np.float32),
+            "Y": np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32),
+            "C": np.array([10, 20, 30], dtype=np.float32),
+        }
+        expected = _run_model(model_proto, feeds)[0]
+        self.assertEqual(expected.shape, (3,))
+
+        model = ir.serde.deserialize_model(model_proto)
+        count = _gemm_to_matmul_add.gemm_to_matmul_add_rule.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 4)
+
+        actual = _run_model(ir.serde.serialize_model(model), feeds)[0]
+        np.testing.assert_allclose(expected, actual)
+
+    def test_reshape_gemm_reshape_remain_when_bias_shape_has_symbolic_dim(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2] X, float[2, 3] Y, float[N] C) => (float[3] O)
+            {
+                sa = Constant<value: tensor = int64[2] {1, 2}>()
+                A = Reshape(X, sa)
+                M = Gemm<alpha=1.0, beta=1.0>(A, Y, C)
+                sc = Constant<value: tensor = int64[1] {3}>()
+                O = Reshape(M, sc)
             }
         """
         )
