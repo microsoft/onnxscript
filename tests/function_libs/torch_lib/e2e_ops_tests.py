@@ -485,6 +485,29 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    def test_floor_divide_float_matches_torch(self):
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return a // b, torch.div(a, b, rounding_mode="floor")
+
+        # 1.0 / 0.1 and 4.2 / 1.4 round up to whole numbers; the special values follow
+        # c10::div_floor_floating, including the sign of a zero result.
+        a = [1.0, 4.2, -4.2, 0.3, math.inf, -math.inf, 5.0, -5.0, 3.0, 0.0, -0.0, -3.0]
+        b = [0.1, 1.4, 1.4, 0.1, 3.0, 3.0, math.inf, math.inf, 0.0, -5.0, 5.0, -5.0]
+        for dtype in (torch.float32, torch.float64):
+            with self.subTest(dtype=dtype):
+                args = (torch.tensor(a, dtype=dtype), torch.tensor(b, dtype=dtype))
+                onnx_program = torch.onnx.export(Model(), args, dynamo=True, verbose=False)
+                _testing.assert_onnx_program(onnx_program)
+                # assert_onnx_program does not compare the sign of zero.
+                for actual, expected in zip(onnx_program(*args), Model()(*args)):
+                    not_nan = ~torch.isnan(expected)
+                    self.assertTrue(
+                        torch.equal(
+                            torch.signbit(actual)[not_nan], torch.signbit(expected)[not_nan]
+                        )
+                    )
+
     def test_bitwise_and_scalar(self):
         class Model(torch.nn.Module):
             def forward(self, x):
