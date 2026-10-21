@@ -9086,8 +9086,6 @@ def aten_scalar_tensor(
         dtype = FLOAT.dtype
 
     if isinstance(s, float) and dtype in (DOUBLE.dtype, COMPLEX128.dtype):
-        # Cast would make a float32 constant from the Python float and round 0.1 to
-        # 0.10000000149011612.
         s = op.Constant(value=ir.tensor(s, dtype=ir.DataType.DOUBLE))
     return common_ops.cast_to(s, dtype=dtype)
 
