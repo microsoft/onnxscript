@@ -1582,10 +1582,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_avg_pool_input_wrangler,
     ).xfail(
         matcher=lambda sample: (
-            (len(sample.args) > 5 and sample.args[5] is not None)
-            or (sample.kwargs.get("divisor_override") is not None)
+            (
+                (len(sample.args) > 5 and sample.args[5] is not None)
+                or (sample.kwargs.get("divisor_override") is not None)
+            )
+            and (
+                (len(sample.args) > 3 and sample.args[3] is True)
+                or (sample.kwargs.get("ceil_mode") is True)
+            )
         ),
-        reason="ONNX doesn't support divisor_override argument",
+        reason="divisor_override with ceil_mode=True is not supported",
     ),
     TorchLibOpInfo(
         "nn.functional.avg_pool3d",
@@ -1594,10 +1600,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         matcher=lambda sample: (
-            (len(sample.args) > 5 and sample.args[5] is not None)
-            or (sample.kwargs.get("divisor_override") is not None)
+            (
+                (len(sample.args) > 5 and sample.args[5] is not None)
+                or (sample.kwargs.get("divisor_override") is not None)
+            )
+            and (
+                (len(sample.args) > 3 and sample.args[3] is True)
+                or (sample.kwargs.get("ceil_mode") is True)
+            )
         ),
-        reason="ONNX doesn't support divisor_override argument",
+        reason="divisor_override with ceil_mode=True is not supported",
     )
     .xfail(
         matcher=lambda sample: sample.kwargs.get("ceil_mode") is True,
