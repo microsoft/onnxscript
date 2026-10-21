@@ -750,6 +750,82 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(model, (x,), dynamo=True, verbose=False)
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            (rnn_type, bidirectional, batch_first, seq_length)
+            for rnn_type in ("LSTM", "GRU")
+            for bidirectional in (False, True)
+            for batch_first in (False, True)
+            for seq_length in (1, 3)
+        ]
+    )
+    def test_rnn_multilayer_dynamic_batch(
+        self, rnn_type, bidirectional, batch_first, seq_length
+    ):
+        num_layers, hidden_size = 3, 7
+        num_directions = 2 if bidirectional else 1
+
+        class Model(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.rnn = getattr(torch.nn, rnn_type)(
+                    5,
+                    hidden_size,
+                    num_layers,
+                    bidirectional=bidirectional,
+                    batch_first=batch_first,
+                )
+
+            def forward(self, x, h, c):
+                return self.rnn(x, (h, c) if rnn_type == "LSTM" else h)
+
+        def inputs(batch):
+            shape = (batch, seq_length, 5) if batch_first else (seq_length, batch, 5)
+            state_shape = (num_layers * num_directions, batch, hidden_size)
+            return torch.randn(shape), torch.randn(state_shape), torch.randn(state_shape)
+
+        batch_dim = torch.export.Dim("batch")
+        onnx_program = torch.onnx.export(
+            Model().eval(),
+            inputs(2),
+            dynamo=True,
+            dynamic_shapes=(
+                {0 if batch_first else 1: batch_dim},
+                {1: batch_dim},
+                {1: batch_dim},
+            ),
+            optimize=False,
+        )
+        nodes = list(onnx_program.model.graph)
+        rnn_nodes = [node for node in nodes if node.op_type == rnn_type]
+        self.assertEqual(len(rnn_nodes), num_layers)
+        for rnn_node in rnn_nodes:
+            consumers = list(rnn_node.outputs[0].consumers())
+            self.assertEqual(len(consumers), 1)
+            conversion = consumers[0]
+            if bidirectional:
+                self.assertEqual(conversion.op_type, "Transpose")
+                self.assertEqual(tuple(conversion.attributes["perm"].as_ints()), (0, 2, 1, 3))
+                consumers = list(conversion.outputs[0].consumers())
+                self.assertEqual(len(consumers), 1)
+                reshape = consumers[0]
+                self.assertEqual(reshape.op_type, "Reshape")
+                shape_node = reshape.inputs[1].producer()
+                self.assertEqual(shape_node.op_type, "Constant")
+                self.assertEqual(
+                    tuple(shape_node.attributes["value_ints"].as_ints()),
+                    (0, 0, 2 * hidden_size),
+                )
+            else:
+                self.assertEqual(conversion.op_type, "Squeeze")
+                axes_node = conversion.inputs[1].producer()
+                np.testing.assert_array_equal(
+                    axes_node.attributes["value"].as_tensor().numpy(), [1]
+                )
+        for batch in (1, 2, 5):
+            with self.subTest(batch=batch):
+                _testing.assert_onnx_program(onnx_program, args=inputs(batch))
+
     def test_aten_unique_consecutive(self):
         class Model(torch.nn.Module):
             def forward(self, x):
