@@ -1967,6 +1967,32 @@ class TorchLibe2eTest(unittest.TestCase):
                 self.assertEqual(node.attributes.get_int("noop_with_empty_axes", 0), 0)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_remainder_float_matches_torch(self):
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.remainder(a, b)
+
+        # 1.0 / 0.1 and 4.2 / 1.4 round up to whole numbers, 1e10 / 3 is not exact in
+        # float32, and the special values follow the remainder kernel in PyTorch,
+        # including the sign of a zero result.
+        inf = math.inf
+        a = [1.0, 4.2, -4.2, 0.3, 1e10, 5.0, -5.0, 5.0, -5.0, -0.0, -3.0, 3.0, inf]
+        b = [0.1, 1.4, 1.4, 0.1, 3.0, inf, inf, -inf, -inf, 3.0, 3.0, 0.0, 3.0]
+        for dtype in (torch.float32, torch.float64):
+            with self.subTest(dtype=dtype):
+                args = (torch.tensor(a, dtype=dtype), torch.tensor(b, dtype=dtype))
+                onnx_program = torch.onnx.export(Model(), args, dynamo=True, verbose=False)
+                _testing.assert_onnx_program(onnx_program)
+                # assert_onnx_program does not compare the sign of zero.
+                actual = onnx_program(*args)[0]
+                expected = Model()(*args)
+                not_nan = ~torch.isnan(expected)
+                self.assertTrue(
+                    torch.equal(
+                        torch.signbit(actual)[not_nan], torch.signbit(expected)[not_nan]
+                    )
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
