@@ -8616,13 +8616,19 @@ def _aten_remainder(self: TTensor, other: TTensor, integer: bool) -> TTensor:
     if integer:
         return op.Mod(self, other)
 
-    # TODO(justinchuby): Improve fp16 precision by following the logic in
+    # Follow the remainder kernel in PyTorch: fmod is exact, and adding the divisor when
+    # the remainder and the divisor have different signs gives the sign of the divisor.
+    # self - floor(self / other) * other is off by other when the quotient rounds up to a
+    # whole number (1.0 % 0.1 gives 0, PyTorch 0.1), and is nan for an infinite divisor.
     # https://github.com/pytorch/pytorch/blob/3a823e46170778cc32783f27596c77d0103084a9/aten/src/ATen/native/cpu/BinaryOpsKernel.cpp#L264-L277
-
-    # a - a.div(b, rounding_mode="floor") * b
-    rounded_quotient = op.Floor(op.Div(self, other))
-
-    return op.Sub(self, op.Mul(rounded_quotient, other))
+    zero = op.CastLike(0, self)
+    mod = op.Mod(self, other, fmod=1)
+    signs_differ = op.And(
+        op.Not(op.Equal(mod, zero)), op.Xor(op.Less(mod, zero), op.Less(other, zero))
+    )
+    # mod is the second branch of Where on purpose: ONNX Runtime's CPU Where returns +0.0
+    # when it picks -0.0 from the first branch. mod + other is never zero.
+    return op.Where(signs_differ, op.Add(mod, other), mod)
 
 
 @torch_op(("aten::remainder.Tensor", "prims::remainder"), trace_only=True)
