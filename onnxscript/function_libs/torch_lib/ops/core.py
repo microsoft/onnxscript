@@ -1453,6 +1453,7 @@ def aten_bitwise_and_scalar_tensor(self: float, other: TTensor) -> TTensor:
 @torch_op(
     (
         "aten::bitwise_left_shift.Tensor",
+        "aten::__lshift__.Tensor",
         "_operator::__lshift__",
     ),
     trace_only=True,
@@ -1462,6 +1463,9 @@ def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
     assert self.dtype == other.dtype or self.dtype is None or other.dtype is None
     dtype = self.dtype if self.dtype is not None else other.dtype
     assert dtype is not None
+
+    if not dtype.is_signed():
+        return op.BitShift(self, other, direction="LEFT")
 
     # assert other >= 0
     if dtype.bitwidth == 8:
@@ -1552,6 +1556,7 @@ def aten_bitwise_or_scalar_tensor(self: int, other: TTensor) -> TTensor:
 @torch_op(
     (
         "aten::bitwise_right_shift.Tensor",
+        "aten::__rshift__.Tensor",
         "_operator::__rshift__",
     ),
     trace_only=True,
@@ -1561,6 +1566,9 @@ def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     assert self.dtype == other.dtype or self.dtype is None or other.dtype is None
     dtype = self.dtype if self.dtype is not None else other.dtype
     assert dtype is not None
+
+    if not dtype.is_signed():
+        return op.BitShift(self, other, direction="RIGHT")
 
     if dtype.bitwidth == 8:
         unsigned_dtype = ir.DataType.UINT8
@@ -4715,7 +4723,70 @@ def aten_grouped_mm(
     """_grouped_mm(Tensor self, Tensor mat2, *, Tensor? offs=None, Tensor? bias=None, int? out_dtype=None) -> Tensor"""
 
     if offs is not None:
-        raise NotImplementedError("Grouped matmul with offsets (ragged/MoE) is not supported.")
+        if self.shape is None or mat2.shape is None:
+            raise NotImplementedError("Grouped matmul requires known operand ranks.")
+        a_rank, b_rank = len(self.shape), len(mat2.shape)
+        if a_rank not in (2, 3) or b_rank not in (2, 3) or (a_rank == b_rank == 3):
+            raise ValueError("Grouped matmul with offsets requires at least one 2D operand.")
+        if offs.shape is None or len(offs.shape) != 1:
+            raise ValueError("Grouped matmul offsets must be 1D.")
+        groups = offs.shape[0]
+        if not isinstance(groups, int):
+            raise NotImplementedError(
+                "Grouped matmul requires a statically known number of groups."
+            )
+        for shape in (self.shape, mat2.shape):
+            if len(shape) == 3 and isinstance(shape[0], int) and shape[0] != groups:
+                raise ValueError("Grouped matmul offsets and operand group counts must match.")
+        if bias is not None:
+            raise NotImplementedError("Grouped matmul with offsets does not support bias.")
+        if out_dtype is not None and out_dtype != -1 and out_dtype != self.dtype:
+            raise NotImplementedError(
+                "Grouped matmul with offsets requires the output dtype to match the input."
+            )
+
+        a_is_2d, b_is_2d = a_rank == 2, b_rank == 2
+        if groups == 0:
+            output_shape = op.Concat(
+                op.Shape(self, start=a_rank - 2, end=a_rank - 1),
+                op.Shape(mat2, start=b_rank - 1, end=b_rank),
+                axis=0,
+            )
+            if a_is_2d and b_is_2d:
+                output_shape = op.Concat(op.Constant(value_ints=[0]), output_shape, axis=0)
+            return op.Expand(op.CastLike(0, self), output_shape)
+
+        # Only the group count is static. Boundaries remain values in the graph.
+        ends = op.Cast(offs, to=INT64.dtype)
+        start = op.Constant(value_ints=[0])
+        outputs = []
+        for i in range(groups):
+            end = op.Gather(ends, [i], axis=0)
+            a = (
+                op.Slice(self, start, end, [1 if b_is_2d else 0])
+                if a_is_2d
+                else op.Gather(self, i, axis=0)
+            )
+            b = (
+                op.Slice(mat2, start, end, [0 if a_is_2d else 1])
+                if b_is_2d
+                else op.Gather(mat2, i, axis=0)
+            )
+            result = op.MatMul(a, b)
+            if a_is_2d and b_is_2d:
+                result = op.Unsqueeze(result, [0])
+            outputs.append(result)
+            start = end
+
+        if a_is_2d and b_is_2d:
+            return op.Concat(*outputs, axis=0)
+        axis = 0 if a_is_2d else 1
+        result = op.Concat(*outputs, axis=axis)
+        # PyTorch allocates the full output shape even if the last offset is short.
+        # Its unwritten tail is unspecified; fill it with zeros rather than shrink it.
+        length = op.Shape(self, start=0, end=1) if a_is_2d else op.Shape(mat2, start=1, end=2)
+        pads = op.Concat(op.Constant(value_ints=[0]), op.Sub(length, end), axis=0)
+        return op.Pad(result, pads, axes=[axis])
 
     res = op.MatMul(self, mat2)
     if bias is not None:
@@ -8815,8 +8886,9 @@ def aten_roll(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) ->
     if self_rank == 0:
         return op.Identity(self)
     elif 0 in self.shape:
-        # A tensor with no elements rolls to itself, which is what torch returns. It is
-        # also what keeps a zero length out of the modulo in the helpers below.
+        # A tensor with no elements rolls to itself, which is what torch returns. It also
+        # keeps a zero length out of the modulo in the helpers below, but only when the
+        # length is known to be zero at export time. See the limitation noted there.
         return op.Identity(self)
 
     # NOTE: In pytorch, default value of dims is an empty list.
@@ -8882,6 +8954,10 @@ def aten_roll_complex(
 def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: int) -> TTensor:
     # The element count is the divisor of the Mod below, and Mod by zero is undefined in
     # ONNX. Both callers return a tensor with no elements unchanged before reaching here.
+    # Known limitation: those early returns and this assert only cover a length known to be
+    # zero at export time. A dynamic dimension that is zero at run time still reaches Mod
+    # with a zero divisor. Depending on the runtime, its version and the platform, that can
+    # raise an error, crash the process, or quietly return a value.
     assert self.shape is None or 0 not in self.shape, (
         "the element count must not be zero because Mod by zero is undefined"
     )
@@ -8911,6 +8987,8 @@ def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTenso
     # The length of that dimension is the divisor of the Mod below, and Mod by zero is
     # undefined in ONNX. Both callers return a tensor with no elements unchanged before
     # reaching here.
+    # Known limitation: as in _aten_roll_shift_no_dim_onnx, if that dimension is dynamic and
+    # is zero at run time, Mod still gets a zero divisor.
     assert self.shape is None or self.shape[dim] != 0, (
         "the dimension length must not be zero because Mod by zero is undefined"
     )
@@ -10530,6 +10608,16 @@ def aten_unsafe_split_with_sizes(
 def aten_unsqueeze(self: TTensor, dim: int) -> TTensor:
     """unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"""
 
+    return op.Unsqueeze(self, [dim])
+
+
+@torch_op("aten::unsqueeze", complex=True, trace_only=True)
+def aten_unsqueeze_complex(self: TTensor, dim: int) -> TTensor:
+    """unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"""
+
+    if dim < 0:
+        # Account for the complex dimension in ONNX
+        dim = dim - 1
     return op.Unsqueeze(self, [dim])
 
 
