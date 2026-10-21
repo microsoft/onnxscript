@@ -145,6 +145,7 @@ ignore = [
     "D212",
     "D400",
     "D401", # First line of docstring should be in imperative mood
+    "D420", # Generated opset files do not follow this docstring rule.
     "D415", # D415 Not yet enforced. "First line should end with a period, question mark, or exclamation point"
     "E1", "E2", "E3", # Pycodestyle formatting rules that conflicts with the formatter
     "E501", # Line length. Not enforced because black will handle formatting
