@@ -79,6 +79,24 @@ class MaterializeReshapeShapeTest(unittest.TestCase):
         count = _materialize_reshape_shape.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
+    def test_zero_dim_with_symbolic_dim_not_materialized(self):
+        """[-1, 0, 512] is invalid with allowzero=1, so the rule should not fire."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 8, opset_import: [ "" : 18]>
+            agraph (float[B, 8, 0, 64] data, int64[3] shape) => (float[B, 0, 512] output)
+            {
+                output = Reshape<allowzero=1>(data, shape)
+            }
+        """
+        )
+        for node in model.graph:
+            if node.op_type == "Reshape":
+                node.outputs[0].shape = ir.Shape(["B", 0, 512])
+                break
+        count = _materialize_reshape_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
     def test_constant_shape_input_not_replaced(self):
         """When the shape input is already a constant, the rule should not fire."""
         model = ir.from_onnx_text(
