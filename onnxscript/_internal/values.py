@@ -11,6 +11,7 @@ import inspect
 import logging
 import types
 import typing
+import warnings
 from typing import (
     Any,
     Callable,
@@ -349,6 +350,24 @@ class OnnxFunction(Op, Generic[_P, _R]):
         ):
             raise ValueError(
                 "A function with required attributes cannot be exported as a model."
+            )
+        if any(
+            func.function_ir.domain == "this"
+            for func in self.function_ir.get_called_functions().values()
+        ):
+            # One or more local functions bundled into the model still carry the
+            # internal placeholder domain: they were declared with @script()
+            # without an explicit opset. Warn so users do not silently ship models
+            # whose local functions live in a collision-prone domain.
+            # See https://github.com/microsoft/onnxscript/issues/3044
+            warnings.warn(
+                "Exporting local functions under the placeholder domain 'this': no "
+                "explicit opset was provided to @script(). Give the functions a "
+                "custom domain instead (e.g. @script(Opset('my.domain', 1), "
+                "default_opset=opset17)): a standard opset puts them in the empty "
+                "domain, which produces a model the ONNX checker rejects.",
+                UserWarning,
+                stacklevel=2,
             )
         # Note: The function must also have monomorphic type annotation for inputs/outputs
         # to be converted into a valid model. Otherwise, we can still produce an ONNX
