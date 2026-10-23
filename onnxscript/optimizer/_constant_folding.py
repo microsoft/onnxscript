@@ -113,9 +113,14 @@ def _process_constant_node(node: ir.Node) -> None:
         )
     elif attr_name in {"value_int", "value_ints"}:
         const_value = ir.Tensor(np.array(attr_value.value, dtype=np.int64), name=ir_value.name)
-    elif attr_name in {"value_string", "value_strings"}:
+    elif attr_name == "value_string":
         const_value = ir.StringTensor(
-            np.array(attr_value.value, dtype=np.bytes_), name=ir_value.name
+            [attr_value.as_string().encode("utf-8")], shape=ir.Shape([]), name=ir_value.name
+        )
+    elif attr_name == "value_strings":
+        strings = [value.encode("utf-8") for value in attr_value.as_strings()]
+        const_value = ir.StringTensor(
+            strings, shape=ir.Shape([len(strings)]), name=ir_value.name
         )
     elif attr_name == "value":
         const_value = typing.cast(ir.TensorProtocol, attr_value.value)
