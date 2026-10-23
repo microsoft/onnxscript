@@ -5993,27 +5993,70 @@ def aten_logaddexp2(self: TFloat, other: TFloat) -> TFloat:
     return op.Div(op.Log(summation), op.Log(two))
 
 
+@torch_op("aten::logcumsumexp", private=True)
+def _aten_logcumsumexp_scan(state: TFloat, values: TFloat) -> TFloat:
+    """Prefix logaddexp along axis 0.
+
+    ``state`` is the value carried in before the first element. ``-inf`` makes
+    the first output equal that element. A zero-length axis is returned as-is:
+    ORT's Scan rejects a scan axis of length 0.
+    """
+
+    @graph()
+    def log_add_exp(carry, current):
+        # max + log(1 + exp(min - max)) is logaddexp, and exp's argument is <= 0
+        # so it cannot overflow. inf - inf is NaN; max is the defined result.
+        maximum = op.Max(carry, current)
+        minimum = op.Min(carry, current)
+        one = op.CastLike(1.0, carry)
+        added = op.Add(maximum, op.Log(op.Add(one, op.Exp(op.Sub(minimum, maximum)))))
+        stable = op.Where(op.IsNaN(added), maximum, added)
+        carry_out = op.Identity(stable)
+        scan_out = op.Identity(stable)
+        return carry_out, scan_out
+
+    length = op.Squeeze(op.Shape(values, start=0, end=1))
+    if length == 0:
+        scanned = op.Identity(values)
+    else:
+        _final, scanned = op.Scan(state, values, body=log_add_exp, num_scan_inputs=1)
+    return scanned
+
+
 @torch_op("aten::logcumsumexp", trace_only=True)
 def aten_logcumsumexp(self: TFloat, dim: int) -> TFloat:
     """logcumsumexp(Tensor self, int dim) -> Tensor"""
 
     if len(self.shape) == 0:
+        # A scalar has one prefix, itself.
         result = self
     else:
-        # Make dim 1-d
-        dims = op.Unsqueeze(dim, axes=[0])
-        # This uses the max trick to avoid overflow:
-        # Assuming A = [a_1, a_2, ..., a_n] and the output
-        # out = [out_1, out_2, ..., out_n], then
-        # out_i = log(cumsum(exp(A)))_i
-        #       = log(exp(a_1) + ... + exp(a_i))
-        #       = log(exp(a_1) + ... + exp(a_i)) - max(A) + max(A)
-        #       = log((exp(a_1) + ... + exp(a_i)) / exp(max(A))) + max(A)
-        #       = log(exp(a_1-max(A)) + ... + exp(a_i-max(A))) + max(A)
-        #       = log(sum<j=1...i>(exp(a_j - max(A)))) + max(A)
-        # Vectorizing for all i, we get the expression below.
-        self_max = op.ReduceMax(self, dims)
-        result = op.Log(op.CumSum(op.Exp(self - self_max), dims)) + self_max
+        # Subtracting one ReduceMax of the whole axis underflows every prefix
+        # that sits far below that max (exp becomes 0, and log of that is -inf).
+        # Each prefix needs its own max, which is the logaddexp recurrence.
+        rank = len(self.shape)
+        # Sample inputs pass a Python int. Normalize once so Scan's axis is >= 0.
+        dim = int(dim)
+        if dim < 0:
+            dim += rank
+        if dim != 0:
+            perm = [dim] + [i for i in range(rank) if i != dim]
+            values = op.Transpose(self, perm=perm)
+        else:
+            perm = None
+            values = self
+
+        neg_inf = op.CastLike(ir.tensor(-math.inf, dtype=ir.DataType.FLOAT), self)
+        if rank == 1:
+            state = neg_inf
+        else:
+            state = op.Expand(neg_inf, op.Shape(values, start=1))
+        result = _aten_logcumsumexp_scan(state, values)
+        if perm is not None:
+            inverse = [0] * rank
+            for index, axis in enumerate(perm):
+                inverse[axis] = index
+            result = op.Transpose(result, perm=inverse)
     return result
 
 
