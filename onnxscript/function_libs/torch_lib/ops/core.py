@@ -1857,6 +1857,17 @@ else:
         return op.Split(self, axis=dim, num_outputs=chunks)
 
 
+def _clip(self: TReal, min: Optional[TReal], max: Optional[TReal]) -> TReal:
+    # An omitted Clip bound is the lowest or largest finite value of the type,
+    # which would turn infinities into finite values.
+    if self.dtype.is_floating_point():
+        if min is None:
+            min = ir.tensor(-math.inf, dtype=self.dtype)
+        if max is None:
+            max = ir.tensor(math.inf, dtype=self.dtype)
+    return op.Clip(self, min, max)
+
+
 @torch_op("aten::clamp", trace_only=True)
 def aten_clamp(self: TReal, min: Optional[float] = None, max: Optional[float] = None) -> TReal:
     """clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor"""
@@ -1870,7 +1881,7 @@ def aten_clamp(self: TReal, min: Optional[float] = None, max: Optional[float] = 
     if max is not None:
         max = op.CastLike(max, self)
 
-    return op.Clip(self, min, max)
+    return _clip(self, min, max)
 
 
 @torch_op("aten::clamp.Tensor", trace_only=True)
@@ -1904,7 +1915,7 @@ def aten_clamp_max(self: TReal, max_: float) -> TReal:
 
     # This implementation does not intend to handle when self is an empty tensor
     max_ = op.CastLike(max_, self)
-    return op.Clip(self, None, max_)
+    return _clip(self, None, max_)
 
 
 @torch_op("aten::clamp_max.Tensor", trace_only=True)
@@ -1915,7 +1926,7 @@ def aten_clamp_max_tensor(self: TReal, max_: TReal) -> TReal:
     max_rank = len(max_.shape)
     if max_rank == 0:
         max_ = op.CastLike(max_, self)
-        result = op.Clip(self, None, max_)
+        result = _clip(self, None, max_)
     else:
         result = op.Min(self, max_)
 
@@ -1928,7 +1939,7 @@ def aten_clamp_min(self: TReal, min_: float) -> TReal:
 
     # This implementation does not intend to handle when self is an empty tensor
     min_ = op.CastLike(min_, self)
-    return op.Clip(self, min_, None)
+    return _clip(self, min_, None)
 
 
 @torch_op("aten::clamp_min.Tensor", trace_only=True)
@@ -1939,7 +1950,7 @@ def aten_clamp_min_tensor(self: TReal, min_: TReal) -> TReal:
     min_rank = len(min_.shape)
     if min_rank == 0:
         min_ = op.CastLike(min_, self)
-        result = op.Clip(self, min_, None)
+        result = _clip(self, min_, None)
     else:
         result = op.Max(self, min_)
 

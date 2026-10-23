@@ -1260,6 +1260,24 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_clamp_with_one_bound_keeps_infinities(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, bound):
+                return (
+                    x.clamp(min=0.5),
+                    x.clamp(max=0.5),
+                    torch.clamp_min(x, 0.5),
+                    torch.clamp_max(x, 0.5),
+                    torch.clamp_min(x, bound),
+                    torch.clamp_max(x, bound),
+                )
+
+        x = torch.tensor([math.inf, -math.inf, 2.0, -3.0, math.nan])
+        onnx_program = torch.onnx.export(
+            Model(), (x, torch.tensor(0.5)), dynamo=True, verbose=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_quantize_per_channel_clamps_to_quant_min_max(self):
         # quant_min/quant_max are narrower than the int8 range, so values must be
         # clamped to [-20, 20] to match the PyTorch reference semantics.
