@@ -152,6 +152,60 @@ class TestTrilinearHelpers(unittest.TestCase):
 class TestTrilinearExport(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
+            ("empty_unroll_shared", (), 0, (0,), (3,)),
+            ("empty_unroll_other", (), 1, (0,), (3,)),
+            ("reduced_shared_unroll_shared", (0,), 0, (0,), (3,)),
+            ("reduced_shared_unroll_other", (0,), 1, (0,), (3,)),
+            ("empty_reduced_other", (1,), 0, (0,), (3,)),
+            ("empty_reduced_other_unroll_other", (1,), 1, (0,), (3,)),
+            ("scalar_zero", (0, 1), 0, (0,), (3,)),
+            ("scalar_product_sum", (0, 1), 1, (0,), (3,)),
+            ("negative_shared", (-2,), 0, (-2,), (3,)),
+            ("multiple_shared", (), 1, (0, 2), (2, 3)),
+            ("multiple_shared_reduced", (0, 2), 0, (0, 2), (2, 3)),
+            ("multiple_shared_product", (0, 2), 1, (0, 2), (2, 3)),
+        ]
+    )
+    def test_trilinear_shared_expansion(self, _, sumdim, unroll_dim, expand, shape):
+        class Model(torch.nn.Module):
+            def forward(self, a, b, c):
+                return torch.ops.aten._trilinear.default(
+                    a, b, c, expand, expand, expand, sumdim, unroll_dim
+                )
+
+        inputs = tuple(
+            torch.arange(1, np.prod(shape) + 1, dtype=torch.float32).reshape(shape) + offset
+            for offset in (0, 3, 6)
+        )
+        expected = Model()(*inputs)
+        onnx_program = torch.onnx.export(
+            torch.export.export(Model(), inputs),
+            dynamo=True,
+            custom_translation_table={
+                torch.ops.aten._trilinear.default: core_ops.aten__trilinear
+            },
+            optimize=False,
+        )
+        torch.testing.assert_close(onnx_program(*inputs)[0], expected)
+
+    def test_trilinear_uppercase_einsum_label(self):
+        class Model(torch.nn.Module):
+            def forward(self, a, b, c):
+                return torch.ops.aten._trilinear.default(a, b, c, (), (), (), (), 0)
+
+        inputs = tuple(torch.full((1,) * 27, value) for value in (2.0, 3.0, 4.0))
+        onnx_program = torch.onnx.export(
+            torch.export.export(Model(), inputs),
+            dynamo=True,
+            custom_translation_table={
+                torch.ops.aten._trilinear.default: core_ops.aten__trilinear
+            },
+            optimize=False,
+        )
+        torch.testing.assert_close(onnx_program(*inputs)[0], Model()(*inputs))
+
+    @parameterized.parameterized.expand(
+        [
             ("positive", (1, 3), (0,), (1, 2), (2, 3)),
             ("negative_expand1", (-3, -1), (0,), (1, 2), (2, 3)),
             ("negative_expand2", (1, 3), (-4,), (1, 2), (2, 3)),

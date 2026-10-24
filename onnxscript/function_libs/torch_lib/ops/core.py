@@ -10365,9 +10365,40 @@ def aten__trilinear(
 ) -> TReal:
     """_trilinear(Tensor i1, Tensor i2, Tensor i3, int[] expand1, int[] expand2, int[] expand3, int[] sumdim, int unroll_dim=1) -> Tensor"""
 
-    del unroll_dim
-
     total_dim = _resolve_trilinear_total_dim(i1, i2, i3, expand1, expand2, expand3)
+    if unroll_dim < 0 or unroll_dim >= total_dim:
+        raise ValueError(f"aten::_trilinear unroll_dim must be in [0, {total_dim})")
+    expanded_dims = (
+        _normalize_trilinear_dims(total_dim, expand1, "expand1"),
+        _normalize_trilinear_dims(total_dim, expand2, "expand2"),
+        _normalize_trilinear_dims(total_dim, expand3, "expand3"),
+    )
+    sumdim_set = _normalize_trilinear_dims(total_dim, sumdim, "sumdim")
+    shared_dims = expanded_dims[0] & expanded_dims[1] & expanded_dims[2]
+    if shared_dims - sumdim_set or unroll_dim in shared_dims:
+        # Native _trilinear initializes shared expansion sizes to zero. An
+        # unreduced shared axis makes the output empty; a shared unroll axis
+        # executes no iterations, leaving even a nonempty output filled with zeros.
+        output_dims = []
+        for dim in range(total_dim):
+            if dim in sumdim_set:
+                continue
+            if dim in shared_dims:
+                output_dims.append(op.Constant(value_ints=[0]))
+            else:
+                # Native uses the last operand that does not expand this axis.
+                for input_value, expand in reversed(tuple(zip((i1, i2, i3), expanded_dims))):
+                    if dim not in expand:
+                        input_dim = dim - sum(axis < dim for axis in expand)
+                        output_dims.append(
+                            op.Gather(op.Shape(input_value), [input_dim], axis=0)
+                        )
+                        break
+        output_shape = (
+            op.Concat(*output_dims, axis=0) if output_dims else op.Constant(value_ints=[])
+        )
+        return op.Expand(op.CastLike(0, i1), output_shape)
+
     equation = _build_trilinear_equation(total_dim, expand1, expand2, expand3, sumdim)
     return op.Einsum(i1, i2, i3, equation=equation)
 
