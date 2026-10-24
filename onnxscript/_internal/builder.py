@@ -426,6 +426,7 @@ class GraphBuilder(BuilderBase):
         if parent is None:
             self._constant_cache: dict[tuple[Any, ir.DataType | None], ir.Value] = {}
             self._functions: dict[ir.OperatorIdentifier, ir.Function] = {}
+            self._anonymous_initializers: set[ir.Value] = set()
 
     def opset(self, domain: str, version: int = 1) -> OpBuilder:
         """Create an OpBuilder bound to the given domain and version."""
@@ -459,6 +460,55 @@ class GraphBuilder(BuilderBase):
 
     def _add_node(self, node: ir.Node) -> None:
         """Append a node to the graph."""
+        if not self._root._anonymous_initializers:
+            self.graph.append(node)
+            return
+        # Captures may first become visible in this node, after constants were
+        # promoted. Keep distinct Values with the same name, and reserve every
+        # pending output and nested capture before moving generated initializers.
+        values: list[ir.Value | None] = []
+        pending = [node]
+        seen_graphs: set[ir.Graph] = set()
+        while pending:
+            current = pending.pop()
+            values.extend(current.inputs)
+            values.extend(current.outputs)
+            for attr in current.attributes.values():
+                if attr.is_ref():
+                    continue
+                if attr.type == ir.AttributeType.GRAPH:
+                    graphs = [attr.as_graph()]
+                elif attr.type == ir.AttributeType.GRAPHS:
+                    graphs = attr.as_graphs()
+                else:
+                    continue
+                for graph in graphs:
+                    if graph in seen_graphs:
+                        continue
+                    seen_graphs.add(graph)
+                    values.extend(graph.inputs)
+                    values.extend(graph.outputs)
+                    values.extend(graph.initializers.values())
+                    pending.extend(graph)
+        for value in values:
+            if value is None or value.name is None:
+                continue
+            initializer = self._root.graph.initializers.get(value.name)
+            if (
+                initializer is not None
+                and initializer is not value
+                and initializer in self._root._anonymous_initializers
+            ):
+                name = self._unused_initializer_name(values)
+                self._root.graph.initializers.pop(initializer.name)
+                # Value.name also renames its tensor; keep the caller's tensor intact.
+                tensor = initializer.const_value
+                initializer.const_value = None
+                try:
+                    initializer.name = name
+                finally:
+                    initializer.const_value = tensor
+                self._root.graph.register_initializer(initializer)
         self.graph.append(node)
 
     def _add_initializer(self, value: ir.Value) -> None:
@@ -595,6 +645,26 @@ class GraphBuilder(BuilderBase):
             value.name = name
         self._graph.outputs.append(value)
 
+    def _unused_initializer_name(self, inputs: Sequence[ir.Value | None] = ()) -> str:
+        used_names = {value.name for value in inputs if value is not None}
+        # A captured graph can occur on many Values; scan it only once per allocation.
+        graphs = set()
+        for value in inputs:
+            if value is not None and value.graph is not None:
+                graphs.add(value.graph)
+        current: GraphBuilder | None = self
+        while current is not None:
+            graphs.add(current.graph)
+            current = current.parent
+        for graph in graphs:
+            used_names.update(ir.convenience.create_value_mapping(graph))
+        index = len(self._root.graph.initializers)
+        name = f"const_tensor_{index}"
+        while name in used_names:
+            index += 1
+            name = f"const_tensor_{index}"
+        return name
+
     def _get_or_create_constant(
         self, value: VALUE_LIKE, dtype: ir.DataType | None
     ) -> ir.Value:
@@ -640,7 +710,14 @@ class GraphBuilder(BuilderBase):
         # For other types (TensorProtocol, numpy arrays, torch tensors, etc.),
         # ir.tensor() handles the conversion.
         # TODO(rama): Consider caching for other tensor values.
-        return self.initializer(ir.tensor(value, dtype=dtype))
+        tensor = ir.tensor(value, dtype=dtype)
+        if tensor.name is None:
+            # Array inputs and unnamed tensors still need a unique initializer name.
+            name = self._unused_initializer_name()
+            ir_value = self.initializer(tensor, name=name, qualify=False)
+            root._anonymous_initializers.add(ir_value)
+            return ir_value
+        return self.initializer(tensor)
 
     def add_node(self, node: ir.Node) -> None:
         """Append a node to the graph, run constant propagation and shape inference.
