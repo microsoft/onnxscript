@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import functools
 import math
+import string
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -57,6 +58,7 @@ _INT32_MAX = 2147483647
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
+_EINSUM_SYMBOLS = string.ascii_letters
 _AS_STRIDED_STATIC_INDEX_SIZE_LIMIT = 512 * 512
 
 
@@ -10245,6 +10247,141 @@ def aten_tril_indices(row: int, col: int, offset: int = 0) -> TensorType:
     """tril_indices(int row, int col, int offset=0, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     raise NotImplementedError()
+
+
+def _get_einsum_symbol(dim: int) -> str:
+    if dim >= len(_EINSUM_SYMBOLS):
+        raise ValueError("aten::_trilinear only supports up to 52 dimensions")
+    return _EINSUM_SYMBOLS[dim]
+
+
+def _normalize_trilinear_dims(total_dim: int, dims: Sequence[int], dims_name: str) -> set[int]:
+    seen_dims = set()
+    for dim in dims:
+        if dim < -total_dim or dim >= total_dim:
+            raise ValueError(
+                f"aten::_trilinear {dims_name} values must be in [-{total_dim}, {total_dim})"
+            )
+        if dim < 0:
+            dim += total_dim
+        if dim in seen_dims:
+            raise ValueError(f"aten::_trilinear {dims_name} values must be unique")
+        seen_dims.add(dim)
+    return seen_dims
+
+
+def _build_trilinear_subscript(
+    total_dim: int, expanded_dims: Sequence[int], dims_name: str
+) -> str:
+    expanded_dims_set = _normalize_trilinear_dims(total_dim, expanded_dims, dims_name)
+    return "".join(
+        _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in expanded_dims_set
+    )
+
+
+def _build_trilinear_equation(
+    total_dim: int,
+    expand1: Sequence[int],
+    expand2: Sequence[int],
+    expand3: Sequence[int],
+    sumdim: Sequence[int],
+) -> str:
+    sumdim_set = _normalize_trilinear_dims(total_dim, sumdim, "sumdim")
+    output_subscript = "".join(
+        _get_einsum_symbol(dim) for dim in range(total_dim) if dim not in sumdim_set
+    )
+    return (
+        f"{_build_trilinear_subscript(total_dim, expand1, 'expand1')},"
+        f"{_build_trilinear_subscript(total_dim, expand2, 'expand2')},"
+        f"{_build_trilinear_subscript(total_dim, expand3, 'expand3')}"
+        f"->{output_subscript}"
+    )
+
+
+def _trilinear_input_rank(input_value: TensorType) -> int:
+    input_rank = getattr(input_value, "rank", None)
+    if input_rank is not None:
+        return input_rank
+    return len(input_value.shape)
+
+
+def _trilinear_operand_total_dim(input_value: TensorType, expanded_dims: Sequence[int]) -> int:
+    return _trilinear_input_rank(input_value) + len(expanded_dims)
+
+
+def _resolve_trilinear_total_dim(
+    i1: TensorType,
+    i2: TensorType,
+    i3: TensorType,
+    expand1: Sequence[int],
+    expand2: Sequence[int],
+    expand3: Sequence[int],
+) -> int:
+    total_dim = _trilinear_operand_total_dim(i1, expand1)
+    candidate_total_dims = (
+        ("i2", "expand2", _trilinear_operand_total_dim(i2, expand2)),
+        ("i3", "expand3", _trilinear_operand_total_dim(i3, expand3)),
+    )
+    for input_name, expand_name, candidate_total_dim in candidate_total_dims:
+        if candidate_total_dim != total_dim:
+            raise ValueError(
+                "aten::_trilinear input ranks and expand dims must resolve "
+                "to the same total dimension; "
+                f"i1+expand1 resolved {total_dim}, but "
+                f"{input_name}+{expand_name} resolved {candidate_total_dim}"
+            )
+    return total_dim
+
+
+@torch_op("aten::_trilinear", trace_only=True)
+def aten__trilinear(
+    i1: TReal,
+    i2: TReal,
+    i3: TReal,
+    expand1: Sequence[int],
+    expand2: Sequence[int],
+    expand3: Sequence[int],
+    sumdim: Sequence[int],
+    unroll_dim: int = 1,
+) -> TReal:
+    """_trilinear(Tensor i1, Tensor i2, Tensor i3, int[] expand1, int[] expand2, int[] expand3, int[] sumdim, int unroll_dim=1) -> Tensor"""
+
+    total_dim = _resolve_trilinear_total_dim(i1, i2, i3, expand1, expand2, expand3)
+    if unroll_dim < 0 or unroll_dim >= total_dim:
+        raise ValueError(f"aten::_trilinear unroll_dim must be in [0, {total_dim})")
+    expanded_dims = (
+        _normalize_trilinear_dims(total_dim, expand1, "expand1"),
+        _normalize_trilinear_dims(total_dim, expand2, "expand2"),
+        _normalize_trilinear_dims(total_dim, expand3, "expand3"),
+    )
+    sumdim_set = _normalize_trilinear_dims(total_dim, sumdim, "sumdim")
+    shared_dims = expanded_dims[0] & expanded_dims[1] & expanded_dims[2]
+    if shared_dims - sumdim_set or unroll_dim in shared_dims:
+        # Native _trilinear initializes shared expansion sizes to zero. An
+        # unreduced shared axis makes the output empty; a shared unroll axis
+        # executes no iterations, leaving even a nonempty output filled with zeros.
+        output_dims = []
+        for dim in range(total_dim):
+            if dim in sumdim_set:
+                continue
+            if dim in shared_dims:
+                output_dims.append(op.Constant(value_ints=[0]))
+            else:
+                # Native uses the last operand that does not expand this axis.
+                for input_value, expand in reversed(tuple(zip((i1, i2, i3), expanded_dims))):
+                    if dim not in expand:
+                        input_dim = dim - sum(axis < dim for axis in expand)
+                        output_dims.append(
+                            op.Gather(op.Shape(input_value), [input_dim], axis=0)
+                        )
+                        break
+        output_shape = (
+            op.Concat(*output_dims, axis=0) if output_dims else op.Constant(value_ints=[])
+        )
+        return op.Expand(op.CastLike(0, i1), output_shape)
+
+    equation = _build_trilinear_equation(total_dim, expand1, expand2, expand3, sumdim)
+    return op.Einsum(i1, i2, i3, equation=equation)
 
 
 def aten_triplet_margin_loss(
