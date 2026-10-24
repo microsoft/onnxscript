@@ -2067,7 +2067,6 @@ class TorchLibe2eTest(unittest.TestCase):
         self.assertIsNotNone(bias_shape)
         self.assertEqual(bias_shape.rank(), 1)
 
-
     @parameterized.parameterized.expand([("ascending", False), ("descending", True)])
     def test_sort_and_argsort_stable(self, _: str, descending: bool):
         # The ties make the stable order visible: equal values keep their input order.
