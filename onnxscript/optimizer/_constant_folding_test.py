@@ -728,6 +728,19 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         ops = [node.op_type for node in nodes]
         self.assertEqual(ops, ["Identity", "Shape", "ConstantOfShape"])
 
+    def test_dropout_in_training_mode_on_constant_input_is_not_folded(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4] input) => (float[4] output)
+            <float[4] weight = {1.0, 1.0, 1.0, 1.0}, float half = {0.5}, bool true = {1}>
+            {
+                dropped = Dropout(weight, half, true)
+                output = Add(input, dropped)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual([node.op_type for node in optimized.graph], ["Dropout", "Add"])
+
     def test_concat_identity(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>
