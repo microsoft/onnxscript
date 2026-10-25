@@ -3258,6 +3258,28 @@ def aten_div_complex(self: TFloat, other: TFloat) -> TFloat:
     return op.Concat(real, imag, axis=-1)
 
 
+def _aten_float_floor_divide(self: TFloat, other: TFloat) -> TFloat:
+    """Implements c10::div_floor_floating without rounding the quotient first."""
+
+    zero = op.CastLike(0.0, self)
+    one = op.CastLike(1.0, self)
+    half = op.CastLike(0.5, self)
+    basic_div = op.Div(self, other)
+    mod = op.Mod(self, other, fmod=1)
+    div = op.Div(op.Sub(self, mod), other)
+    needs_adjustment = op.And(
+        op.Not(op.Equal(mod, zero)),
+        op.Not(op.Equal(op.Less(other, zero), op.Less(mod, zero))),
+    )
+    div = op.Where(needs_adjustment, op.Sub(div, one), div)
+    floordiv = op.Floor(div)
+    floordiv = op.Where(
+        op.Greater(op.Sub(div, floordiv), half), op.Add(floordiv, one), floordiv
+    )
+    floordiv = op.Where(op.Equal(div, zero), op.Mul(zero, basic_div), floordiv)
+    return op.Where(op.Equal(other, zero), basic_div, floordiv)
+
+
 @torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
 def aten_div_mode(self: TReal, other: TReal, rounding_mode: Optional[str] = None) -> TReal:
     """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor"""
@@ -3290,7 +3312,7 @@ def aten_div_mode(self: TReal, other: TReal, rounding_mode: Optional[str] = None
             quotient = op.Cast(quotient, to=FLOAT16.dtype)
         return aten_trunc(quotient)
     if rounding_mode == "floor":
-        return op.Floor(op.Div(self, other))
+        return _aten_float_floor_divide(self, other)
 
     return op.Div(self, other)
 
@@ -4208,7 +4230,7 @@ def aten_floor_divide(self: TTensor, other: TTensor) -> TTensor:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
     if self.dtype.is_floating_point():
-        return op.Floor(op.Div(self, other))
+        return _aten_float_floor_divide(self, other)
 
     assert self.dtype.is_integer()
 

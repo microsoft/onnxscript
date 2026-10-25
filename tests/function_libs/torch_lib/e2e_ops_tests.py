@@ -1972,6 +1972,28 @@ class TorchLibe2eTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
+            ("float32", torch.float32),
+            ("float64", torch.float64),
+        ]
+    )
+    def test_float_floor_divide_uses_fmod(self, _: str, dtype: torch.dtype):
+        # Regression test for https://github.com/microsoft/onnxscript/issues/3115.
+        # The first two values have quotients that round up, and the remaining
+        # values cover the infinite-input cases from c10::div_floor_floating.
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return a // b, torch.div(a, b, rounding_mode="floor")
+
+        inf = math.inf
+        a = torch.tensor([1.0, 4.2, inf, -5.0, -1.0, -inf, 5.0, -5.0, 5.0], dtype=dtype)
+        b = torch.tensor([0.1, 1.4, 3.0, inf, 0.1, 3.0, inf, -inf, -inf], dtype=dtype)
+        onnx_program = torch.onnx.export(
+            Model(), (a, b), dynamo=True, optimize=False, verbose=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
             ("float32", torch.float32, False),
             ("float32_equal_nan", torch.float32, True),
             ("float16", torch.float16, False),
