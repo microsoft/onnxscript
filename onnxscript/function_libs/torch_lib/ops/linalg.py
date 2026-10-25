@@ -269,7 +269,6 @@ def _solve_triangular_left(
     Requires statically-known matrix sizes since the substitution loop is
     unrolled at trace time.
     """
-    solved_rows = []
     solved = None
     for step in range(n):
         # Lower-triangular solves top to bottom (forward substitution),
@@ -292,11 +291,12 @@ def _solve_triangular_left(
             rhs = op.Add(rhs, op.CastLike(op.ConstantOfShape(op.Shape(diag)), diag))
         else:
             rhs = op.Div(rhs, diag)
-        if upper:
-            solved_rows.insert(0, rhs)
+        if solved is None:
+            solved = rhs
+        elif upper:
+            solved = op.Concat(rhs, solved, axis=-2)
         else:
-            solved_rows.append(rhs)
-        solved = solved_rows[0] if len(solved_rows) == 1 else op.Concat(*solved_rows, axis=-2)
+            solved = op.Concat(solved, rhs, axis=-2)
     return solved
 
 

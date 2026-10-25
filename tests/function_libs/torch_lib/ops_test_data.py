@@ -787,7 +787,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="Size 0 inputs are not handled by design",
     ),
     TorchLibOpInfo(
-        "linalg.solve_triangular_broadcast", linalg_ops.aten_linalg_solve_triangular
+        "linalg.solve_triangular_broadcast",
+        linalg_ops.aten_linalg_solve_triangular,
+        # Unrolled substitution and torch.linalg's native solver accumulate in
+        # different orders; float32 comparisons need a small numerical margin.
+        tolerance={torch.float32: (1e-5, 5e-5)},
     ),
     TorchLibOpInfo(
         "linalg.vector_norm",
