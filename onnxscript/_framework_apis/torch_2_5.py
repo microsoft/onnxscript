@@ -18,6 +18,7 @@ import os
 import pathlib
 from typing import Callable
 
+import onnx
 import onnx_ir as ir
 
 from onnxscript import optimizer, version_converter
@@ -61,13 +62,8 @@ def convert_version(model: ir.Model, target_version: int) -> ir.Model:
 
 
 def check_model(model: ir.Model) -> None:
-    """No-op retained for API compatibility.
-
-    This intentionally performs no validation. Running the ONNX checker here was
-    dropped because it can report false positives and adds overhead to export.
-    """
-
-    del model  # Intentionally unused: this function performs no validation.
+    """Validate the model."""
+    onnx.checker.check_model(ir.serde.serialize_model(model))
 
 
 def save_model_with_external_data(
