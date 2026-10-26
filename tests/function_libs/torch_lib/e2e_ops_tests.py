@@ -1976,19 +1976,74 @@ class TorchLibe2eTest(unittest.TestCase):
             ("float64", torch.float64),
         ]
     )
-    def test_float_floor_divide_uses_fmod(self, _: str, dtype: torch.dtype):
+    def test_float_floor_divide_and_div_mode_use_fmod(self, _: str, dtype: torch.dtype):
         # Regression test for https://github.com/microsoft/onnxscript/issues/3115.
-        # The first two values have quotients that round up, and the remaining
-        # values cover the infinite-input cases from c10::div_floor_floating.
+        # Return both APIs so the same cases independently cover aten_floor_divide
+        # and aten_div_mode(..., rounding_mode="floor").
         class Model(torch.nn.Module):
             def forward(self, a, b):
                 return a // b, torch.div(a, b, rounding_mode="floor")
 
-        inf = math.inf
-        a = torch.tensor([1.0, 4.2, inf, -5.0, -1.0, -inf, 5.0, -5.0, 5.0], dtype=dtype)
-        b = torch.tensor([0.1, 1.4, 3.0, inf, 0.1, 3.0, inf, -inf, -inf], dtype=dtype)
+        one = torch.tensor(1.0, dtype=dtype)
+        zero = torch.zeros_like(one)
+        infinity = torch.full_like(one, math.inf)
+
+        # 1.0 / 0.1 is just below 10 for the represented inputs, even though Div
+        # rounds it up to 10. The neighboring inputs exercise both sides of it.
+        adjacent_to_one = torch.stack(
+            (torch.nextafter(one, zero), one, torch.nextafter(one, infinity))
+        )
+        adjacent_divisors = torch.full_like(adjacent_to_one, 0.1)
+
+        # These are additional quotient-round-up cases. The sign block covers all
+        # combinations of nonzero dividend and divisor signs.
+        round_up_dividends = torch.tensor((4.2, 0.5, 0.9, 1.5, 10.0), dtype=dtype)
+        round_up_divisors = torch.tensor((1.4, 0.1, 0.1, 0.1, 0.2), dtype=dtype)
+        signed_dividends = torch.tensor((5.5, -5.5, 5.5, -5.5), dtype=dtype)
+        signed_divisors = torch.tensor((2.0, 2.0, -2.0, -2.0), dtype=dtype)
+
+        # c10::div_floor_floating has special behavior for infinities. NaNs must
+        # also propagate from either operand, including a NaN/NaN pair.
+        special_dividends = torch.tensor(
+            (
+                math.inf,
+                -math.inf,
+                math.inf,
+                math.inf,
+                5.0,
+                -5.0,
+                5.0,
+                -5.0,
+                math.nan,
+                1.0,
+                math.nan,
+            ),
+            dtype=dtype,
+        )
+        special_divisors = torch.tensor(
+            (
+                3.0,
+                3.0,
+                math.inf,
+                -math.inf,
+                math.inf,
+                math.inf,
+                -math.inf,
+                -math.inf,
+                1.0,
+                math.nan,
+                math.nan,
+            ),
+            dtype=dtype,
+        )
+        a = torch.cat(
+            (adjacent_to_one, round_up_dividends, signed_dividends, special_dividends)
+        )
+        b = torch.cat(
+            (adjacent_divisors, round_up_divisors, signed_divisors, special_divisors)
+        )
         onnx_program = torch.onnx.export(
-            Model(), (a, b), dynamo=True, optimize=False, verbose=False
+            Model().eval(), (a, b), dynamo=True, optimize=False, verbose=False
         )
         _testing.assert_onnx_program(onnx_program)
 
