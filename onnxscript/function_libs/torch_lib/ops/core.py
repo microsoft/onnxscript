@@ -2278,7 +2278,7 @@ def aten_conv3d(
 
     if bias is None:
         weight_dim_0 = op.Shape(weight, start=0, end=1)
-        bias_shape = op.Concat(weight_dim_0, op.Constant(value_ints=[2]), axis=0)
+        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
         zero = op.CastLike(0.0, input)
         bias = op.Expand(zero, bias_shape)
 
@@ -4424,6 +4424,15 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def _rnn_output_to_layer_output(Y: TFloat, bidirectional: bool, hidden_size: int) -> TFloat:
+    """Convert [seq, directions, batch, hidden] to [seq, batch, directions * hidden]."""
+    if not bidirectional:
+        return op.Squeeze(Y, [1])
+    Y = op.Transpose(Y, perm=[0, 2, 1, 3])
+    # Zeros copy the sequence and batch dimensions without runtime shape computation.
+    return op.Reshape(Y, op.Constant(value_ints=[0, 0, 2 * hidden_size]))
+
+
 @torch_op("aten::gru.input", trace_only=True)
 def aten_gru(
     input: TFloat,
@@ -4577,25 +4586,7 @@ def aten_gru(
                 linear_before_reset=1,
             )
 
-        # Y shape: [seq_length, num_directions, batch_size, hidden_size]
-        # Reshape to [seq_length, batch_size, num_directions * hidden_size]
-        Y = op.Transpose(
-            Y, perm=[0, 2, 1, 3]
-        )  # [seq_length, batch_size, num_directions, hidden_size]
-        Y_shape = op.Shape(Y)
-        new_shape = op.Concat(
-            op.Slice(Y_shape, [0], [1]),  # seq_length
-            op.Slice(Y_shape, [1], [2]),  # batch_size
-            op.Reshape(
-                op.Mul(
-                    op.Slice(Y_shape, [2], [3]),  # num_directions
-                    op.Slice(Y_shape, [3], [4]),  # hidden_size
-                ),
-                op.Constant(value_ints=[-1]),
-            ),
-            axis=0,
-        )
-        current_input = op.Reshape(Y, new_shape)
+        current_input = _rnn_output_to_layer_output(Y, bidirectional, hidden_size_attr)
 
         # Apply dropout if not last layer and dropout > 0
         if layer_idx < num_layers - 1 and dropout > 0.0 and train:
@@ -6307,25 +6298,7 @@ def aten_lstm(
                 hidden_size=hidden_size_attr,
             )
 
-        # Y shape: [seq_length, num_directions, batch_size, hidden_size]
-        # Reshape to [seq_length, batch_size, num_directions * hidden_size]
-        Y = op.Transpose(
-            Y, perm=[0, 2, 1, 3]
-        )  # [seq_length, batch_size, num_directions, hidden_size]
-        Y_shape = op.Shape(Y)
-        new_shape = op.Concat(
-            op.Slice(Y_shape, [0], [1]),  # seq_length
-            op.Slice(Y_shape, [1], [2]),  # batch_size
-            op.Reshape(
-                op.Mul(
-                    op.Slice(Y_shape, [2], [3]),  # num_directions
-                    op.Slice(Y_shape, [3], [4]),  # hidden_size
-                ),
-                op.Constant(value_ints=[-1]),
-            ),
-            axis=0,
-        )
-        current_input = op.Reshape(Y, new_shape)
+        current_input = _rnn_output_to_layer_output(Y, bidirectional, hidden_size_attr)
 
         # Apply dropout if not last layer and dropout > 0
         if layer_idx < num_layers - 1 and dropout > 0.0 and train:

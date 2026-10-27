@@ -526,7 +526,8 @@ def cast_like(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return None
     if source_element_type == target_element_type:
         return op.Identity(input0)
-    return op.Cast(input0, to=target_element_type)
+    # Keep saturate, which is what ONNX's CastLike function body passes on to Cast.
+    return op.Cast(input0, to=target_element_type, saturate=node.attributes.get("saturate"))
 
 
 @register("Shape")

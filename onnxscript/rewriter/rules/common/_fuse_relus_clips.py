@@ -66,8 +66,6 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
         pass
 
     def extract_min_max(self, node: ir.Node):
-        # Infer dtype from node first input
-        dtype = node.inputs[0].dtype.numpy()
         min_clip, max_clip = None, None
 
         if len(node.inputs) > 1:
@@ -81,6 +79,13 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
             if max_clip is not None:
                 max_clip = max_clip.const_value.numpy()
 
+        # min and max have the input's type, so they give the dtype when the
+        # input has no type information.
+        dtype = node.inputs[0].dtype
+        if dtype is not None:
+            dtype = dtype.numpy()
+        else:
+            dtype = next((v.dtype for v in (min_clip, max_clip) if v is not None), None)
         return min_clip, max_clip, dtype
 
     def check(self, context, **kwargs):
@@ -112,6 +117,9 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
 
             if ir.convenience.get_const_tensor(m) is None:
                 return check_result.fail(f"{m.name} is not a constant.")
+
+        if self.has_relu and not clip_min_max and clip_nodes[0].inputs[0].dtype is None:
+            return check_result.fail("Cannot infer the dtype of the fused Clip's min.")
 
         # When the ranges don't overlap, the original nodes output a constant
         # but the fused Clip would not. For example, Relu(Clip(X, -3, -1)) is 0
