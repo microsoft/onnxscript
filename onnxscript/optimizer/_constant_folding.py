@@ -48,6 +48,7 @@ FOLDED_FROM_KEY = "pkg.onnxscript.optimizer.folded_from"
 
 _NON_DETERMINISTIC_OPS = frozenset(
     {
+        "Dropout",
         "RandomUniform",
         "RandomNormal",
         "RandomUniformLike",
