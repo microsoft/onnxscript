@@ -2044,6 +2044,19 @@ class TorchLibe2eTest(unittest.TestCase):
                 self.assertEqual(node.attributes.get_int("noop_with_empty_axes", 0), 0)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_python_float_keeps_float64_precision(self):
+        # torch.export turns the Python floats into scalar_tensor(0.1, dtype=float64).
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return x + 0.1, x * 0.1, x == 0.1, torch.clamp(x, max=0.1)
+
+        x = torch.tensor([1.0, 0.3, 0.1, -2.7], dtype=torch.float64)
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        # assert_onnx_program allows 1e-7 for float64, more than 0.1 rounded to float32
+        # is off by, so compare exactly.
+        for actual, expected in zip(onnx_program(x), Model()(x)):
+            torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
     def test_conv3d_without_bias_produces_1d_bias(self):
         class Model(torch.nn.Module):
             def __init__(self):
