@@ -31,6 +31,7 @@ from typing import Callable, Optional, Sequence, Tuple
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 import onnxruntime as ort
 import parameterized
 import torch
@@ -40,6 +41,7 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 from onnxscript._internal import version_utils
+from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from tests.function_libs.torch_lib import (
     error_reproduction,
     ops_test_common,
@@ -108,6 +110,62 @@ class TestFunctionValidity(unittest.TestCase):
             self.skipTest("Traced functions does not have a function proto")
         function_proto = torchlib_op_info.op.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
+
+
+class TestConverterGuards(unittest.TestCase):
+    """Converter-level guards that the OpInfo sample matrix cannot exercise."""
+
+    def test_linalg_solve_triangular_rejects_symbolic_matrix_dim(self):
+        a = ir.Value(
+            name="a",
+            shape=ir.Shape([2, 3, ir.SymbolicDim("n")]),
+            type=ir.TensorType(ir.DataType.FLOAT),
+        )
+        b = ir.Value(
+            name="b",
+            shape=ir.Shape([2, 3, 4]),
+            type=ir.TensorType(ir.DataType.FLOAT),
+        )
+        with self.assertRaisesRegex(ValueError, "statically-known, nonzero matrix"):
+            linalg_ops.aten_linalg_solve_triangular(a, b, upper=True)
+
+    def test_linalg_solve_triangular_rejects_unknown_shape(self):
+        a = ir.Value(name="a", type=ir.TensorType(ir.DataType.FLOAT))
+        b = ir.Value(
+            name="b",
+            shape=ir.Shape([2, 3, 4]),
+            type=ir.TensorType(ir.DataType.FLOAT),
+        )
+        with self.assertRaisesRegex(ValueError, "statically-known, nonzero matrix"):
+            linalg_ops.aten_linalg_solve_triangular(a, b, upper=True)
+
+    def test_linalg_solve_triangular_rejects_vector_input(self):
+        a = ir.Value(
+            name="a",
+            shape=ir.Shape([3]),
+            type=ir.TensorType(ir.DataType.FLOAT),
+        )
+        b = ir.Value(
+            name="b",
+            shape=ir.Shape([3, 1]),
+            type=ir.TensorType(ir.DataType.FLOAT),
+        )
+        with self.assertRaisesRegex(ValueError, "statically-known, nonzero matrix"):
+            linalg_ops.aten_linalg_solve_triangular(a, b, upper=True)
+
+    def test_linalg_solve_triangular_rejects_zero_matrix_dim(self):
+        a = ir.Value(
+            name="a",
+            shape=ir.Shape([2, 0, 0]),
+            type=ir.TensorType(ir.DataType.FLOAT),
+        )
+        b = ir.Value(
+            name="b",
+            shape=ir.Shape([2, 0, 1]),
+            type=ir.TensorType(ir.DataType.FLOAT),
+        )
+        with self.assertRaisesRegex(ValueError, "statically-known, nonzero matrix"):
+            linalg_ops.aten_linalg_solve_triangular(a, b, upper=True)
 
 
 def run_test_output_match(

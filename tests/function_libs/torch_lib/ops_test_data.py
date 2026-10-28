@@ -786,6 +786,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
     TorchLibOpInfo("lift_fresh_copy", core_ops.aten_lift_fresh_copy),
     TorchLibOpInfo("linalg.det", linalg_ops.aten_linalg_det),
+    TorchLibOpInfo("linalg.solve_triangular", linalg_ops.aten_linalg_solve_triangular).skip(
+        matcher=lambda sample: sample.input.numel() == 0 or sample.args[0].numel() == 0,
+        reason="Size 0 inputs are not handled by design",
+    ),
+    TorchLibOpInfo(
+        "linalg.solve_triangular_broadcast",
+        linalg_ops.aten_linalg_solve_triangular,
+        # Unrolled substitution and torch.linalg's native solver accumulate in
+        # different orders; float32 comparisons need a small numerical margin.
+        tolerance={torch.float32: (1e-5, 5e-5)},
+    ),
     TorchLibOpInfo(
         "linalg.vector_norm",
         linalg_ops.aten_linalg_vector_norm,
