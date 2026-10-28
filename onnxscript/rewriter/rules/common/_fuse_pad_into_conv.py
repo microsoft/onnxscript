@@ -181,7 +181,7 @@ class FuseConvPad(_FuseConvPadBase):
 
 
 class FuseConvIntegerPad(FuseConvPad):
-    """Replaces ``ConvInteger(Pad(x))`` with ``ConvInteger(x)``."""
+    """Replaces ``ConvInteger(Pad(x))`` with ``ConvInteger(x)`` for zero input zero-point."""
 
     def pattern(self, op, x):
         return op.ConvInteger(
@@ -189,6 +189,21 @@ class FuseConvIntegerPad(FuseConvPad):
             _allow_other_inputs=True,
             _outputs=["conv"],
         )
+
+    def check(self, context, x: ir.Value, pad: ir.Value, conv: ir.Value) -> orp.MatchResult:
+        check_result = super().check(context, x, pad, conv)
+        if not check_result:
+            return check_result
+
+        # Pad inserts raw zeros, whereas implicit ConvInteger padding inserts zeros
+        # after subtracting x_zero_point. These agree only for a zero input zero-point.
+        conv_node = conv.producer()
+        if len(conv_node.inputs) > 2 and (zero_point := conv_node.inputs[2]) is not None:
+            if zero_point.const_value is None or zero_point.is_graph_input():
+                return check_result.fail("ConvInteger input zero-point must be constant zero.")
+            if np.any(zero_point.const_value.numpy() != 0):
+                return check_result.fail("ConvInteger input zero-point must be zero.")
+        return check_result
 
 
 class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
