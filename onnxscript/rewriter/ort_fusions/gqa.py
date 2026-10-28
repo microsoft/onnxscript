@@ -44,6 +44,8 @@ def _causal_mask(
     min_val,
     window_size,
     dtype,
+    *,
+    extra_column=False,
 ):
     """Defines a pattern for a pure causal mask, with optional sliding window support."""
     seq_len = op.Shape(input_ids, end=2, start=1)
@@ -54,14 +56,16 @@ def _causal_mask(
 
     total_seq_len_0D = op.Add(past_seq_len_0D, seq_len_0D)
     total_seq_len = op.Reshape(total_seq_len_0D, [-1])
+    mask_seq_len_0D = op.Add(total_seq_len_0D, 1) if extra_column else total_seq_len_0D
+    mask_seq_len = op.Reshape(mask_seq_len_0D, [-1]) if extra_column else total_seq_len
 
     current_range = op.Range(past_seq_len_0D, total_seq_len_0D, 1)
-    mask_shape = op.Concat(seq_len, total_seq_len, axis=0)
+    mask_shape = op.Concat(seq_len, mask_seq_len, axis=0)
     mask_all_min_expand = op.Expand(min_val, mask_shape)
     # The following Trilu is optional: not used in Phi models, but used in LLama.
     mask_all_min_trilu = op.Trilu(mask_all_min_expand, 1, upper=1)
     mask_all_min = pattern.OrValue([mask_all_min_expand, mask_all_min_trilu])
-    total_range_as_row = op.Range(0, total_seq_len_0D, 1)
+    total_range_as_row = op.Range(0, mask_seq_len_0D, 1)
     current_range_as_column = op.Reshape(current_range, [-1, 1])
 
     non_causal = op.Greater(total_range_as_row, current_range_as_column)
@@ -78,6 +82,8 @@ def _causal_mask(
     mask_4d_11ST = op.Unsqueeze(float_0_min_mask, [0, 1])
     mask_4d_B1ST = op.Expand(mask_4d_11ST, shape_B111)
 
+    if extra_column:
+        return op.Slice(mask_4d_B1ST, [0], total_seq_len, [3], [1])
     return mask_4d_B1ST
 
 
@@ -115,12 +121,16 @@ class _CausalMaskPattern(pattern.PatternBase):
         result = op.Where(is_zero, min_val, causal_mask)
         return result
 
-    def check(self, context, dtype1, dtype2, min_val, attn_mask_2d, sliding_window=None, **_):
+    def check(
+        self, context, dtype1, min_val, dtype2=None, attn_mask_2d=None, window_size=None, **_
+    ):
         # Check that attn_mask_2d is the model input "attention_mask"
-        if not _is_model_input(attn_mask_2d, "attention_mask", context.model):
+        if attn_mask_2d is not None and not _is_model_input(
+            attn_mask_2d, "attention_mask", context.model
+        ):
             return pattern.MatchResult().fail("Invalid attention_mask input", attn_mask_2d)
 
-        if dtype1.as_int() != dtype2.as_int():
+        if dtype2 is not None and dtype1.as_int() != dtype2.as_int():
             return pattern.MatchResult().fail("Dtype mismatch", [dtype1, dtype2])
 
         # Check that min_val is a constant and matches the expected minimum value for the dtype.
@@ -134,14 +144,38 @@ class _CausalMaskPattern(pattern.PatternBase):
             )
 
         # TODO(rama) Sliding window: not yet supported.
-        if sliding_window:
-            return pattern.MatchResult().fail(
-                "Sliding window not yet supported", sliding_window
-            )
+        if window_size is not None:
+            return pattern.MatchResult().fail("Sliding window not yet supported", window_size)
         return True
 
 
 _causal_mask_pattern = _CausalMaskPattern()
+
+
+class _PureCausalMaskPattern(_CausalMaskPattern):
+    def __init__(self, *, extra_column=False):
+        super().__init__()
+        self._extra_column = extra_column
+
+    def pattern(self, op, input_ids, past_kv_cache, shape_B111, min_val, window_size, dtype1):
+        return _causal_mask(
+            op,
+            input_ids,
+            past_kv_cache,
+            shape_B111,
+            min_val,
+            window_size,
+            dtype1,
+            extra_column=self._extra_column,
+        )
+
+
+_causal_mask_patterns = (
+    _causal_mask_pattern,
+    _PureCausalMaskPattern(),
+    # Older exporters build one extra column and slice it off.
+    _PureCausalMaskPattern(extra_column=True),
+)
 
 
 class GroupQueryAttention(pattern.RewriteRuleClassBase):
@@ -334,17 +368,28 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         mask_node = mask.producer()
         if mask_node is None:
             return pattern.MatchResult().fail("Unhandled mask pattern", mask)
-        mask_match_result = _causal_mask_pattern.match(
-            context.model,
-            context.graph_or_function,
-            mask_node,
-            check_nodes_are_removable=False,
+        tracer = _basics.MatchingTracer()
+        for mask_pattern in _causal_mask_patterns:
+            mask_match_result = mask_pattern.match(
+                context.model,
+                context.graph_or_function,
+                mask_node,
+                check_nodes_are_removable=False,
+                tracer=tracer,
+            )
+            if mask_match_result:
+                return True
+        reasons = [
+            match.match_result.reason
+            for matches in tracer.best_matches_map.values()
+            for match in matches
+            if match.status == _basics.MatchStatus.CONDITION_FAILED
+        ]
+        return pattern.MatchResult().fail(
+            "Mask does not match supported causal mask pattern"
+            + (f": {'; '.join(reasons)}" if reasons else ""),
+            mask,
         )
-        if mask_match_result is None:
-            return pattern.MatchResult().fail("Mask does not match causal mask pattern", mask)
-        # TODO: handle sliding window support in mask
-
-        return True
 
     def rewrite(
         self,

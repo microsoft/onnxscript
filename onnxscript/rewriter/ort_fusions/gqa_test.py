@@ -17,10 +17,11 @@ import onnxscript
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
+from onnxscript.rewriter import pattern
 from onnxscript.rewriter.models._phi4lm import phi4lm_test
 from onnxscript.rewriter.ort_fusions import optimize_for_ort
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
-from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
+from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa, gqa_rules
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
@@ -278,16 +279,30 @@ class GQAFusionTest(unittest.TestCase):
         self.assertEqual(len(source_model_outputs), len(target_model_outputs))
         assert_allclose(source_model_outputs, target_model_outputs)
 
-    def test_fusion(self):
+    @parameterized.parameterized.expand(
+        [
+            ("sliced",),
+            ("direct",),
+            ("wrapped",),
+            ("wrong_mask",),
+            ("sliding",),
+            ("sliding_zero",),
+            ("sliding_dynamic",),
+            ("sliding_wrapped",),
+        ]
+    )
+    def test_fusion(self, mask_kind):
         """Test that GQA fusion is successful on source model and produces an equivalent model."""
         inputs = self.inputs
+        options = ort.SessionOptions()
+        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
 
         source_model = self.source_model_script().to_model_proto(
             input_types=self.input_types,
             output_types=self.output_types,
         )
         session = ort.InferenceSession(
-            source_model.SerializeToString(), providers=("CPUExecutionProvider",)
+            source_model.SerializeToString(), options, providers=("CPUExecutionProvider",)
         )
         source_model_outputs = session.run(None, inputs)
 
@@ -349,17 +364,117 @@ class GQAFusionTest(unittest.TestCase):
         count = fuse_sdpa(inferred_model, debug=True)
         self.assertGreater(count, 0)
 
+        sdpa = next(n for n in inferred_model.graph if n.op_type == "SDPA")
+        mask = sdpa.inputs[3]
+        self.assertEqual(mask.producer().op_type, "Slice")
+        if mask_kind in ("direct", "wrapped", "sliding_wrapped"):
+            # Use the same causal construction without the extra column and Slice.
+            extra_length = next(
+                n
+                for n in inferred_model.graph
+                if n.op_type == "Add" and n.outputs[0].name == "total_seq_len_plus_1_0D"
+            )
+            extra_length.outputs[0].replace_all_uses_with(extra_length.inputs[0])
+            mask = mask.producer().inputs[0]
+            sdpa.replace_input_with(3, mask)
+
+        boolean_node = next(n for n in inferred_model.graph if n.op_type == "Greater")
+        if mask_kind == "wrong_mask":
+            boolean_node.op_type = "Less"
+        elif mask_kind.startswith("sliding"):
+            window = ir.val(
+                "window_size", const_value=ir.tensor(0 if mask_kind == "sliding_zero" else 4)
+            )
+            if mask_kind == "sliding_dynamic":
+                window = ir.Value(
+                    name="window_size",
+                    type=ir.TensorType(ir.DataType.INT64),
+                    shape=ir.Shape([]),
+                )
+                inferred_model.graph.inputs.append(window)
+            else:
+                inferred_model.graph.register_initializer(window)
+            row, column = boolean_node.inputs
+            subtract = ir.Node("", "Sub", [column, window])
+            outside = ir.Node("", "LessOrEqual", [row, subtract.outputs[0]])
+            combine = ir.Node("", "Or", [boolean_node.outputs[0], outside.outputs[0]])
+            cast = next(
+                n
+                for n in inferred_model.graph
+                if n.op_type == "Cast" and n.inputs[0] is boolean_node.outputs[0]
+            )
+            inferred_model.graph.insert_before(cast, [subtract, outside, combine])
+            cast.replace_input_with(0, combine.outputs[0])
+
+        if mask_kind in ("wrapped", "sliding_wrapped"):
+            attention_mask = ir.Value(
+                name="attention_mask",
+                type=ir.TensorType(ir.DataType.FLOAT),
+                shape=ir.Shape([self.batchsize, self.total_seqlen]),
+            )
+            inferred_model.graph.inputs.append(attention_mask)
+            axes = ir.val("mask_axes", const_value=ir.tensor([1, 2]))
+            zero = ir.val("mask_zero", const_value=ir.tensor(0.0))
+            minval = next(
+                n.inputs[0]
+                for n in inferred_model.graph
+                if n.op_type == "Expand"
+                and n.inputs[0].const_value is not None
+                and n.inputs[0].dtype == ir.DataType.FLOAT
+            )
+            for value in (axes, zero):
+                inferred_model.graph.register_initializer(value)
+            unsqueeze = ir.Node("", "Unsqueeze", [attention_mask, axes])
+            cast = ir.Node(
+                "",
+                "Cast",
+                [unsqueeze.outputs[0]],
+                attributes=[ir.AttrInt64("to", ir.DataType.FLOAT)],
+            )
+            add = ir.Node("", "Add", [mask, cast.outputs[0]])
+            equal = ir.Node("", "Equal", [add.outputs[0], zero])
+            where = ir.Node("", "Where", [equal.outputs[0], minval, mask])
+            inferred_model.graph.insert_before(sdpa, [unsqueeze, cast, add, equal, where])
+            sdpa.replace_input_with(3, where.outputs[0])
+            inputs = {
+                **inputs,
+                "attention_mask": np.ones(
+                    (self.batchsize, self.total_seqlen), dtype=np.float32
+                ),
+            }
+
+        if mask_kind == "wrong_mask" or mask_kind.startswith("sliding"):
+            # Normalize unused test scaffolding before checking rejected candidates.
+            onnxscript.optimizer.remove_unused_nodes(inferred_model)
+            before = ir.serde.to_proto(inferred_model).SerializeToString()
+            self.assertEqual(fuse_gqa(inferred_model), 0)
+            self.assertEqual(ir.serde.to_proto(inferred_model).SerializeToString(), before)
+            tracer = pattern.MatchingTracer()
+            self.assertEqual(gqa_rules.apply_to_model(inferred_model, tracer=tracer), 0)
+            reasons = [
+                m.match_result.reason
+                for matches in tracer.best_matches_map.values()
+                for m in matches
+            ]
+            expected_reason = (
+                "Sliding window not yet supported"
+                if mask_kind.startswith("sliding")
+                else "Mask does not match supported causal mask pattern"
+            )
+            self.assertTrue(any(expected_reason in reason for reason in reasons), reasons)
+            return
+
         count = fuse_gqa(inferred_model, debug=True)
         self.assertGreater(count, 0)
 
         fused_model = ir.serde.to_proto(inferred_model)
         session = ort.InferenceSession(
-            fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
+            fused_model.SerializeToString(), options, providers=("CPUExecutionProvider",)
         )
         outputs3 = session.run(None, inputs)
 
         self.assertEqual(len(outputs3), len(source_model_outputs))
-        assert_allclose(outputs3, source_model_outputs)
+        assert_allclose(outputs3, source_model_outputs, rtol=1e-5, atol=1e-5)
 
 
 @parameterized.parameterized_class(
