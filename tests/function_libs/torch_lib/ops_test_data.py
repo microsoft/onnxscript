@@ -875,6 +875,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("ops.aten.mean.dtype", core_ops.aten_mean),
     TorchLibOpInfo(
+        "ops.aten.mean.dim_dtype",
+        core_ops.aten_mean_dim,
+        input_wrangler=_mean_input_wrangler,
+    ),
+    TorchLibOpInfo(
         "mean_dim", core_ops.aten_mean_dim, input_wrangler=_mean_input_wrangler
     ).skip(
         matcher=lambda sample: sample.kwargs.get("dim") is None,
