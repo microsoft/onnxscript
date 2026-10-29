@@ -361,24 +361,59 @@ def aten_cross_entropy_loss(
     weight: Optional[TFloat] = None,
     reduction: int = 1,  # default is 'mean'
     ignore_index: int = -100,
-    label_smoothing: float = 0.0,  # this was ignored due to ONNX not support
+    label_smoothing: float = 0.0,
 ) -> TFloat:
     """cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor"""
 
     if reduction == 0:  # "none"
-        result, _ = op.SoftmaxCrossEntropyLoss(
+        result, log_prob = op.SoftmaxCrossEntropyLoss(
             self, target, weight, reduction="none", ignore_index=ignore_index
         )
     elif reduction == 2:  # "sum"
-        result, _ = op.SoftmaxCrossEntropyLoss(
+        result, log_prob = op.SoftmaxCrossEntropyLoss(
             self, target, weight, reduction="sum", ignore_index=ignore_index
         )
     else:  # "mean", default
-        result, _ = op.SoftmaxCrossEntropyLoss(
+        result, log_prob = op.SoftmaxCrossEntropyLoss(
             self, target, weight, reduction="mean", ignore_index=ignore_index
         )
 
-    return result
+    if label_smoothing == 0.0:
+        return result
+
+    # Same as PyTorch's cross_entropy_loss_label_smoothing:
+    # (1 - eps) * nll_loss + eps / n_classes * smooth_loss, where smooth_loss is
+    # the (weighted) sum of -log_prob over the classes of each element.
+    rank = len(self.shape)
+    if weight is not None:
+        weight_shape = op.Constant(value_ints=[1, -1] + [1] * (rank - 2))
+        log_prob = op.Mul(log_prob, op.Reshape(weight, weight_shape))
+    smooth_loss = op.Neg(op.ReduceSum(log_prob, op.Constant(value_ints=[1]), keepdims=False))
+    ignore_mask = op.Equal(target, op.CastLike(ignore_index, target))
+    zero = op.CastLike(0.0, self)
+    smooth_loss = op.Where(ignore_mask, zero, smooth_loss)
+
+    if reduction == 0:  # "none"
+        smooth_result = smooth_loss
+    elif reduction == 2:  # "sum"
+        smooth_result = op.ReduceSum(smooth_loss, keepdims=False)
+    else:  # "mean": normalized like nll_loss
+        if weight is not None:
+            safe_target = op.Where(ignore_mask, op.CastLike(0, target), target)
+            denominator = op.Where(ignore_mask, zero, op.Gather(weight, safe_target))
+        else:
+            denominator = op.Where(ignore_mask, zero, op.CastLike(1.0, self))
+        smooth_result = op.Div(
+            op.ReduceSum(smooth_loss, keepdims=False),
+            op.ReduceSum(denominator, keepdims=False),
+        )
+
+    n_classes = op.CastLike(op.Shape(self, start=1, end=2), self)
+    smooth_factor = op.Div(op.CastLike(label_smoothing, self), op.Squeeze(n_classes))
+    return op.Add(
+        op.Mul(op.CastLike(1.0 - label_smoothing, self), result),
+        op.Mul(smooth_factor, smooth_result),
+    )
 
 
 @torch_op("aten::elu", trace_only=True)
