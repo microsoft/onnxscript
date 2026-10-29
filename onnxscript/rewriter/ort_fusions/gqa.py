@@ -46,16 +46,22 @@ def _causal_mask(
     dtype,
     *,
     extra_column=False,
+    no_past=False,
 ):
     """Defines a pattern for a pure causal mask, with optional sliding window support."""
     seq_len = op.Shape(input_ids, end=2, start=1)
     seq_len_0D = op.Squeeze(seq_len)
 
-    past_seq_len = op.Shape(past_kv_cache, end=3, start=2)
-    past_seq_len_0D = op.Squeeze(past_seq_len)
-
-    total_seq_len_0D = op.Add(past_seq_len_0D, seq_len_0D)
-    total_seq_len = op.Reshape(total_seq_len_0D, [-1])
+    if no_past:
+        # Constant propagation folds the known-zero cache length and Add(0, S).
+        past_seq_len_0D = 0
+        total_seq_len_0D = seq_len_0D
+        total_seq_len = pattern.OrValue([seq_len, op.Identity(seq_len)])
+    else:
+        past_seq_len = op.Shape(past_kv_cache, end=3, start=2)
+        past_seq_len_0D = op.Squeeze(past_seq_len)
+        total_seq_len_0D = op.Add(past_seq_len_0D, seq_len_0D)
+        total_seq_len = op.Reshape(total_seq_len_0D, [-1])
     mask_seq_len_0D = op.Add(total_seq_len_0D, 1) if extra_column else total_seq_len_0D
     mask_seq_len = op.Reshape(mask_seq_len_0D, [-1]) if extra_column else total_seq_len
 
@@ -88,6 +94,11 @@ def _causal_mask(
 
 
 class _CausalMaskPattern(pattern.PatternBase):
+    def __init__(self, *, extra_column=False, no_past=False):
+        super().__init__()
+        self._extra_column = extra_column
+        self._no_past = no_past
+
     def pattern(
         self,
         op,
@@ -108,6 +119,8 @@ class _CausalMaskPattern(pattern.PatternBase):
             min_val,
             window_size,
             dtype1,
+            extra_column=self._extra_column,
+            no_past=self._no_past,
         )
 
         attn_mask_4d = op.Unsqueeze(attn_mask_2d, [1, 2])
@@ -153,10 +166,6 @@ _causal_mask_pattern = _CausalMaskPattern()
 
 
 class _PureCausalMaskPattern(_CausalMaskPattern):
-    def __init__(self, *, extra_column=False):
-        super().__init__()
-        self._extra_column = extra_column
-
     def pattern(self, op, input_ids, past_kv_cache, shape_B111, min_val, window_size, dtype1):
         return _causal_mask(
             op,
@@ -167,6 +176,7 @@ class _PureCausalMaskPattern(_CausalMaskPattern):
             window_size,
             dtype1,
             extra_column=self._extra_column,
+            no_past=self._no_past,
         )
 
 
@@ -175,6 +185,9 @@ _causal_mask_patterns = (
     _PureCausalMaskPattern(),
     # Older exporters build one extra column and slice it off.
     _PureCausalMaskPattern(extra_column=True),
+    _CausalMaskPattern(no_past=True),
+    _PureCausalMaskPattern(no_past=True),
+    _PureCausalMaskPattern(extra_column=True, no_past=True),
 )
 
 
@@ -378,6 +391,35 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
                 tracer=tracer,
             )
             if mask_match_result:
+                mask_query = mask_match_result.bindings["input_ids"]
+                mask_query_length = _ir_utils.get_dim(mask_query, 1)
+                query_length = _ir_utils.get_dim(query_BSD, 1)
+                if mask_query is not query_BSD and (
+                    mask_query_length is None
+                    or query_length is None
+                    or not _ir_utils.same_dim(mask_query_length, query_length)
+                ):
+                    return result.fail(
+                        "Causal mask sequence length is not proven to match query length.",
+                        mask_query,
+                    )
+                mask_cache = mask_match_result.bindings["past_kv_cache"]
+                mask_past_length = (
+                    _ir_utils.get_dim(mask_cache, 2) if mask_cache is not None else 0
+                )
+                actual_cache = past_key if past_key is not None else past_value
+                past_length = (
+                    _ir_utils.get_dim(actual_cache, 2) if actual_cache is not None else 0
+                )
+                if mask_cache is not actual_cache and (
+                    mask_past_length is None
+                    or past_length is None
+                    or not _ir_utils.same_dim(mask_past_length, past_length)
+                ):
+                    return result.fail(
+                        "Causal mask past length is not proven to match attention cache length.",
+                        mask_cache,
+                    )
                 return True
         reasons = [
             match.match_result.reason

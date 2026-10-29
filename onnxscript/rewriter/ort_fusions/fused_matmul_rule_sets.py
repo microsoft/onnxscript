@@ -50,6 +50,14 @@ def _division_alpha(x: ir.Value, y: ir.Value, cst: ir.Value, alpha: float = 1.0)
     c = _ir_utils.get_singleton_value(cst)
     if c is None:
         raise MatchFailureError("Divisor is not a singleton value.", cst)
+    divisor_rank = len(cst.const_value.shape)
+    if divisor_rank:
+        if x.shape is None or y.shape is None:
+            raise MatchFailureError("Cannot prove divisor preserves MatMul output rank.", cst)
+        x_rank, y_rank = x.shape.rank(), y.shape.rank()
+        output_rank = max(x_rank, y_rank) - int(x_rank == 1) - int(y_rank == 1)
+        if x_rank == 0 or y_rank == 0 or divisor_rank > output_rank:
+            raise MatchFailureError("Divisor would expand MatMul output rank.", cst)
     c = float(c)
     if not math.isfinite(c) or c == 0:
         raise MatchFailureError("Divisor must be finite and nonzero.", cst)

@@ -289,6 +289,10 @@ class GQAFusionTest(unittest.TestCase):
             ("sliding_zero",),
             ("sliding_dynamic",),
             ("sliding_wrapped",),
+            ("different_sources_same_lengths",),
+            ("unproven_query_length",),
+            ("unproven_past_length",),
+            ("broadcast_mask",),
         ]
     )
     def test_fusion(self, mask_kind):
@@ -301,6 +305,64 @@ class GQAFusionTest(unittest.TestCase):
             input_types=self.input_types,
             output_types=self.output_types,
         )
+        if mask_kind in (
+            "different_sources_same_lengths",
+            "unproven_query_length",
+            "unproven_past_length",
+            "broadcast_mask",
+        ):
+            model = ir.serde.from_proto(source_model)
+            if mask_kind != "unproven_past_length":
+                mask_query = ir.val(
+                    "mask_query",
+                    ir.DataType.FLOAT,
+                    [
+                        "B",
+                        "S" if mask_kind == "different_sources_same_lengths" else "mask_s",
+                        1,
+                    ],
+                )
+                model.graph.inputs.append(mask_query)
+                shape = next(n for n in model.graph if n.outputs[0].name == "seq_len")
+                shape.replace_input_with(0, mask_query)
+                length = 1 if mask_kind == "broadcast_mask" else self.seqlen
+                inputs = {
+                    **inputs,
+                    "mask_query": np.zeros((self.batchsize, length, 1), dtype=np.float32),
+                }
+            if mask_kind != "unproven_query_length":
+                mask_past = ir.val(
+                    "mask_past",
+                    ir.DataType.FLOAT,
+                    [
+                        "B",
+                        1,
+                        "P" if mask_kind == "different_sources_same_lengths" else "mask_p",
+                        1,
+                    ],
+                )
+                model.graph.inputs.append(mask_past)
+                squeeze = next(
+                    n for n in model.graph if n.outputs[0].name == "past_seq_len_0D"
+                )
+                shape = ir.Node(
+                    "",
+                    "Shape",
+                    [mask_past],
+                    attributes=[ir.AttrInt64("start", 2), ir.AttrInt64("end", 3)],
+                )
+                model.graph.insert_before(squeeze, shape)
+                squeeze.replace_input_with(0, shape.outputs[0])
+                length = (
+                    self.total_seqlen - 1
+                    if mask_kind == "broadcast_mask"
+                    else self.past_seqlen
+                )
+                inputs = {
+                    **inputs,
+                    "mask_past": np.zeros((self.batchsize, 1, length, 1), dtype=np.float32),
+                }
+            source_model = ir.serde.to_proto(model)
         session = ort.InferenceSession(
             source_model.SerializeToString(), options, providers=("CPUExecutionProvider",)
         )
@@ -443,7 +505,12 @@ class GQAFusionTest(unittest.TestCase):
                 ),
             }
 
-        if mask_kind == "wrong_mask" or mask_kind.startswith("sliding"):
+        if mask_kind in (
+            "wrong_mask",
+            "unproven_query_length",
+            "unproven_past_length",
+            "broadcast_mask",
+        ) or mask_kind.startswith("sliding"):
             # Normalize unused test scaffolding before checking rejected candidates.
             onnxscript.optimizer.remove_unused_nodes(inferred_model)
             before = ir.serde.to_proto(inferred_model).SerializeToString()
@@ -456,11 +523,14 @@ class GQAFusionTest(unittest.TestCase):
                 for matches in tracer.best_matches_map.values()
                 for m in matches
             ]
-            expected_reason = (
-                "Sliding window not yet supported"
-                if mask_kind.startswith("sliding")
-                else "Mask does not match supported causal mask pattern"
-            )
+            if mask_kind.startswith("sliding"):
+                expected_reason = "Sliding window not yet supported"
+            elif mask_kind == "wrong_mask":
+                expected_reason = "Mask does not match supported causal mask pattern"
+            elif mask_kind == "unproven_past_length":
+                expected_reason = "Causal mask past length is not proven"
+            else:
+                expected_reason = "Causal mask sequence length is not proven"
             self.assertTrue(any(expected_reason in reason for reason in reasons), reasons)
             return
 
@@ -483,11 +553,14 @@ class GQAFusionTest(unittest.TestCase):
         {"with_past": True, "transpose_first": False},
         {"with_past": False, "transpose_first": True},
         {"with_past": False, "transpose_first": False},
+        {"with_past": False, "transpose_first": True, "unknown_past": True},
+        {"with_past": False, "transpose_first": False, "unknown_past": True},
     ]
 )
 class GemmaGQAFusionTest(unittest.TestCase):
     with_past = True
     transpose_first = True
+    unknown_past = False
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -523,12 +596,14 @@ class GemmaGQAFusionTest(unittest.TestCase):
 
         # Input/output types have some dimensions as dynamic (even though the
         # test case instance has specific values above).
+        # Without a cache, the mask's past length must be proven zero.
+        past_dim = "P" if self.with_past or self.unknown_past else 0
         self.input_types = (
             FLOAT["B", "S", D],  # query
             FLOAT["B", "S", Dkv],  # key
             FLOAT["B", "S", Dkv],  # value
-            FLOAT["B", Hkv, "P", Dh],  # past_key
-            FLOAT["B", Hkv, "P", Dh],  # past_value
+            FLOAT["B", Hkv, past_dim, Dh],  # past_key
+            FLOAT["B", Hkv, past_dim, Dh],  # past_value
             FLOAT["max_seqlen", Dh // 2],  # cos
             FLOAT["max_seqlen", Dh // 2],  # sin
             FLOAT["Dh"],  # query_scale
@@ -770,6 +845,21 @@ class GemmaGQAFusionTest(unittest.TestCase):
 
         count = fuse_sdpa(inferred_model, debug=True)
         self.assertGreater(count, 0)
+
+        if self.unknown_past:
+            self.assertEqual(fuse_gqa(inferred_model), 0)
+            tracer = pattern.MatchingTracer()
+            gqa_rules.apply_to_model(inferred_model, tracer=tracer)
+            reasons = [
+                m.match_result.reason
+                for matches in tracer.best_matches_map.values()
+                for m in matches
+            ]
+            self.assertTrue(
+                any("Causal mask past length is not proven" in reason for reason in reasons),
+                reasons,
+            )
+            return
 
         count = fuse_gqa(inferred_model, debug=True)
         self.assertGreater(count, 0)

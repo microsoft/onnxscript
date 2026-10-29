@@ -33,12 +33,18 @@ operators rather than general ONNX runtimes.
 GQA fusion recognizes supported causal-mask constructions, including the legacy
 extra-column-and-slice form. It declines structurally different masks and
 sliding-window masks: the replacement does not set `local_window_size`. The
-supported `attention_mask` wrapper retains the existing ORT GenAI assumption
+mask's current and past sequence lengths must be proven to agree with the
+attention query and cache lengths; an absent cache requires a known zero past
+length. Matching mask structure alone is insufficient when unrelated or
+broadcastable length sources are used. The supported `attention_mask` wrapper
+retains the existing ORT GenAI assumption
 that this input only identifies current tokens, not arbitrary attention masking.
 
 FusedMatMul division fusion requires a singleton, finite, nonzero divisor and
 matching floating-point tensor types supported by the target operator. It leaves
-zero (including negative zero), NaN, and infinite divisors as `Div` operations.
+rank-expanding singleton divisors unchanged, including non-scalar divisors when
+the MatMul output rank cannot be established. It also leaves zero (including
+negative zero), NaN, and infinite divisors as `Div` operations.
 In particular, division by infinity is not replaced by multiplication by zero,
 which can behave differently for infinite matrix products. Scaling must remain
 finite and normal in both the float32 `alpha` attribute and the tensor type;

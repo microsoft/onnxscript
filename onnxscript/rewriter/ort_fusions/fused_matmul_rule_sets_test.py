@@ -377,6 +377,78 @@ class TestFusedMatmulRules(unittest.TestCase):
                     reason = "constant" if kind == "dynamic" else "dtypes"
                     self.assertTrue(any(reason in r for r in reasons), reasons)
 
+    def test_division_preserves_output_rank(self):
+        cases = [
+            ([2, 2], [2, 2], [[[2.0]]], False),
+            ([2], [2], [2.0], False),
+            ([2], [2], 2.0, True),
+            ([2], [2, 2], [[2.0]], False),
+            ([2, 2], [2], [[2.0]], False),
+            (None, None, [2.0], False),
+            (None, None, 2.0, True),
+            ([1, 2, 2], [2, 2], [[[2.0]]], True),
+        ]
+        for fused in (False, True):
+            for x_shape, y_shape, divisor, should_fuse in cases:
+                with self.subTest(
+                    fused=fused, x_shape=x_shape, y_shape=y_shape, divisor=divisor
+                ):
+                    model = self._division_model(ir.DataType.FLOAT, divisor, fused)
+                    model.graph.inputs[0].shape = (
+                        ir.Shape(x_shape) if x_shape is not None else None
+                    )
+                    model.graph.inputs[1].shape = (
+                        ir.Shape(y_shape) if y_shape is not None else None
+                    )
+                    product = model.graph[0].outputs[0]
+                    product.shape = None
+                    model.graph.outputs[0].shape = None
+                    feeds = None
+                    if x_shape is not None and y_shape is not None:
+                        feeds = {
+                            "x": np.ones(x_shape, dtype=np.float32),
+                            "y": np.full(y_shape, 2.0, dtype=np.float32),
+                        }
+                        expected_product = np.matmul(feeds["x"], feeds["y"])
+                        expected_output = expected_product / np.asarray(
+                            divisor, dtype=np.float32
+                        )
+                        product.shape = ir.Shape(expected_product.shape)
+                        model.graph.outputs[0].shape = ir.Shape(expected_output.shape)
+                    rules = self._division_rule_set(fused)
+                    original = ir.serde.to_proto(model)
+                    before = ir.serde.to_proto(model).SerializeToString()
+                    self.assertEqual(rules.apply_to_model(model), int(should_fuse))
+                    if not should_fuse:
+                        self.assertEqual(ir.serde.to_proto(model).SerializeToString(), before)
+                        tracer = pattern.MatchingTracer()
+                        rules.apply_to_model(model, tracer=tracer)
+                        reasons = [
+                            m.match_result.reason
+                            for matches in tracer.best_matches_map.values()
+                            for m in matches
+                        ]
+                        self.assertTrue(
+                            any("output rank" in reason for reason in reasons), reasons
+                        )
+                    if feeds is not None:
+                        options = ort.SessionOptions()
+                        options.graph_optimization_level = (
+                            ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+                        )
+                        expected = ort.InferenceSession(
+                            original.SerializeToString(),
+                            options,
+                            providers=["CPUExecutionProvider"],
+                        ).run(None, feeds)[0]
+                        actual = ort.InferenceSession(
+                            ir.serde.to_proto(model).SerializeToString(),
+                            options,
+                            providers=["CPUExecutionProvider"],
+                        ).run(None, feeds)[0]
+                        self.assertEqual(actual.shape, expected_output.shape)
+                        np.testing.assert_array_equal(actual, expected)
+
     def test_division_positive_singletons(self):
         for fused in (False, True):
             for dtype in (
