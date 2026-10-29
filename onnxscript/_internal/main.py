@@ -157,11 +157,19 @@ def is_converted_fun(f: Any) -> bool:
 
 
 def export_onnx_lib(functions: Sequence[values.OnnxFunction], filename: str) -> None:
+    """Saves functions in a legacy, weakly supported library container.
+
+    The file is a ModelProto with an empty graph and the supplied local functions,
+    not an executable model or a standardized ONNX library format. This helper is
+    retained for compatibility; it does not validate the container or its functions.
+    For individual functions, prefer :meth:`onnxscript.OnnxFunction.to_function_proto`;
+    for executable models, use :meth:`onnxscript.OnnxFunction.to_model_proto` and
+    explicitly validate with :func:`onnx.checker.check_model` when required.
+    """
     # Since we don't yet have LibProto defined, we use a ModelProto as a temporary
     # container for the list of functions exported as a library, with an empty graph
     # and dummy opset_imports.
 
-    # TODO(justinchuby): This function is not well supported. We should consider removing it
     model = ir.Model(
         ir.Graph(
             inputs=[],
