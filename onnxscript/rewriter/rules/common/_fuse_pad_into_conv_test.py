@@ -7,6 +7,7 @@ from typing import Mapping, Sequence
 
 import numpy as np
 import onnx_ir as ir
+import onnxruntime as ort
 import parameterized
 from onnx_ir.passes.common import onnx_checker, shape_inference
 
@@ -42,6 +43,7 @@ class FuseConvPadBaseTest(unittest.TestCase):
         pad_inputs: Sequence[ir.TensorProtocol | ir.Value | None],
         pad_attributes: Mapping[str, ir.Attr] | None = None,
         conv_attributes: Mapping[str, ir.Attr] | None = None,
+        conv_inputs: Sequence[ir.TensorProtocol | ir.Value | None] = (),
     ) -> ir.Model:
         tape = ir.tape.Tape()
         inputs = []
@@ -59,13 +61,20 @@ class FuseConvPadBaseTest(unittest.TestCase):
             elif x is not None:
                 raise ValueError(f"Unsupported type for pad input ({x}): {type(x)}.")
 
+        conv_inputs = list(conv_inputs)
+        for idx, value in enumerate(conv_inputs):
+            if isinstance(value, ir.TensorProtocol):
+                conv_inputs[idx] = tape.initializer(value)
+            elif isinstance(value, ir.Value):
+                inputs.append(value)
+
         # Register operations in the tape
         idtype = ir.DataType.UINT8 if op_type == "ConvInteger" else ir.DataType.FLOAT
         x = ir.val("X", shape=input_shape, type=ir.TensorType(idtype))
         y = tape.op("Pad", inputs=[x, *pad_inputs], attributes=pad_attributes)
         y = tape.op(
             op_type,
-            inputs=[y, self.get_conv_weights(weight_shape, tape)],
+            inputs=[y, self.get_conv_weights(weight_shape, tape), *conv_inputs],
             attributes=conv_attributes,
             output=ir.val("Y", shape=output_shape, type=ir.TensorType(x.dtype)),
         )
@@ -232,6 +241,71 @@ class FuseConvIntegerPadTest(FuseConvPadBaseTest):
         if tape is not None:
             w = tape.initializer(w)
         return w
+
+    @parameterized.parameterized.expand(
+        [
+            (zero_point, pad_value)
+            for zero_point in ("omitted", "empty", "zero", "nonzero", "dynamic", "overridable")
+            for pad_value in ("omitted", "empty", "zero")
+        ]
+    )
+    def test_input_zero_point(self, zero_point, pad_value):
+        conv_inputs = []
+        if zero_point in ("zero", "nonzero", "overridable"):
+            conv_inputs.append(
+                ir.tensor(
+                    np.array(5 if zero_point == "nonzero" else 0, dtype=np.uint8),
+                    name="x_zero_point",
+                )
+            )
+        elif zero_point == "dynamic":
+            conv_inputs.append(ir.val("x_zero_point", dtype=ir.DataType.UINT8, shape=[]))
+        elif zero_point == "empty":
+            conv_inputs.append(None)
+        # Weight zero-point does not determine the input padding value.
+        conv_inputs.append(ir.tensor(np.array(3, dtype=np.uint8), name="w_zero_point"))
+        if zero_point == "omitted":
+            conv_inputs = []
+        pad_inputs = [ir.tensor([0, 0, 1, 1, 0, 0, 1, 1], name="pads")]
+        if pad_value == "empty":
+            pad_inputs.extend([None, ir.tensor([0, 1, 2, 3], name="axes")])
+        elif pad_value == "zero":
+            pad_inputs.append(ir.tensor(np.array(0, dtype=np.uint8), name="pad_value"))
+        model = self.build_model(
+            op_type="ConvInteger",
+            input_shape=ir.Shape((1, 2, 3, 3)),
+            weight_shape=(2, 2, 3, 3),
+            pad_inputs=pad_inputs,
+            conv_inputs=conv_inputs,
+            conv_attributes={"pads": [1, 0, 0, 1]},
+        )
+        if zero_point == "overridable":
+            model.graph.inputs.append(model.graph.initializers["x_zero_point"])
+        original = _clone_model(model)
+        before = ir.to_proto(model).SerializeToString()
+        nodes = tuple(model.graph)
+        initializers = dict(model.graph.initializers)
+        expected_count = 1 if zero_point in ("omitted", "empty", "zero") else 0
+
+        self.assertEqual(
+            _fuse_pad_into_conv.fuse_pad_into_conv_integer_rule.apply_to_model(model),
+            expected_count,
+        )
+        if expected_count == 0:
+            self.assertEqual(ir.to_proto(model).SerializeToString(), before)
+            self.assertEqual(tuple(model.graph), nodes)
+            self.assertEqual(dict(model.graph.initializers), initializers)
+        else:
+            self.assertEqual(model.graph.num_nodes(), 1)
+            onnx_checker.CheckerPass(True)(model)
+            testing.assert_numerically_equal(
+                original,
+                model,
+                (self.rng.integers(0, 20, (1, 2, 3, 3), dtype=np.uint8),),
+                ort_optimization_level=ort.GraphOptimizationLevel.ORT_DISABLE_ALL,
+                atol=0,
+                rtol=0,
+            )
 
     @parameterized.parameterized.expand(
         [
