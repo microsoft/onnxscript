@@ -1024,6 +1024,12 @@ def _record_contributing_values(original_node: ir.Node, replacement: Replacement
         new_output.metadata_props[FOLDED_FROM_KEY] = repr(sorted(folded_from))
 
 
+def _is_string_array(array: np.ndarray) -> bool:
+    if array.dtype.kind in ("U", "S"):
+        return True
+    return array.dtype.kind == "O" and all(isinstance(x, (str, bytes)) for x in array.flat)
+
+
 class FoldConstantsPass(ir.passes.InPlacePass):
     """A pass that folds constant expressions in the model.
 
@@ -1122,13 +1128,13 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
     def _prepare_folded_tensor(
         self, node: ir.Node, output_name: str, output_array: np.ndarray | Any
-    ) -> ir.Tensor | None:
+    ) -> ir.Tensor | ir.StringTensor | None:
         """
         Shared helper for constant/init creation:
         - Validates the folded Python value is a numpy ndarray.
-        - Wraps it in an ir.Tensor and names it.
+        - Wraps it in an IR tensor and names it.
         - Applies output_size_limit logic with input-usage compensation.
-        Returns the ir.Tensor or None if it should be skipped.
+        Returns the IR tensor or None if it should be skipped.
         """
         if not isinstance(output_array, np.ndarray):
             logger.info(
@@ -1138,7 +1144,14 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             )
             return None
 
-        tensor = ir.tensor(output_array)
+        if _is_string_array(output_array):
+            # ir.tensor() would wrap strings in a numeric Tensor, which cannot be serialized.
+            tensor = ir.StringTensor(
+                [x.encode("utf-8") if isinstance(x, str) else x for x in output_array.flat],
+                shape=ir.Shape(output_array.shape),
+            )
+        else:
+            tensor = ir.tensor(output_array)
         tensor.name = output_name
 
         # Size gating (shared logic)

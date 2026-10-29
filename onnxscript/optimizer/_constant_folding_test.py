@@ -107,6 +107,30 @@ class FoldConstantsTest(unittest.TestCase):
         optimized = self._fold(model, dce=True)
         self.assertEqual(len(optimized.graph), 1)
 
+    @parameterized.parameterized.expand(
+        [
+            ("identity", "Identity(classes)", ["cat", "dog", "bird"]),
+            ("concat", "Concat <axis=0> (classes, extra)", ["cat", "dog", "bird", "fish"]),
+            ("cast", "Cast <to=8> (ids)", ["1", "20"]),
+        ]
+    )
+    def test_fold_string_output(self, _, expression, expected):
+        model = f"""
+            <ir_version: 8, opset_import: [ "" : 18]>
+            agraph (int64[1] idx) => (string[1] label)
+            <string[3] classes = {{"cat", "dog", "bird"}}, string[1] extra = {{"fish"}},
+             int64[2] ids = {{1, 20}}>
+            {{
+                labels = {expression}
+                label = Gather(labels, idx)
+            }}
+        """
+
+        optimized = self._fold(model)
+        labels = optimized.graph.initializers["labels"].const_value
+        self.assertEqual(labels.dtype, ir.DataType.STRING)
+        self.assertEqual([x.decode() for x in labels.string_data()], expected)
+
     def test_fold_shape(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>
