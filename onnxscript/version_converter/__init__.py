@@ -38,6 +38,7 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         self.target_version = target_version
         self.fallback = fallback
         self._inline_pass = ir.passes.Sequential(
+            # NOTE: The current version converter only supports inlined models.
             common_passes.InlinePass(),
             # NOTE: Old torch version might include legacy Rank onnx functions which is
             # not used in the converted model.
@@ -54,57 +55,16 @@ class ConvertVersionPass(ir.passes.InPlacePass):
             common_passes.RemoveUnusedOpsetsPass(),
         )
 
-    def _prepare_functions_for_inlining(self, model: ir.Model) -> bool:
-        source_version = _version_converter._get_onnx_opset_version(model)
-        if source_version is None:
-            source_version = next(
-                (
-                    version
-                    for function in model.functions.values()
-                    if (version := _version_converter._get_onnx_opset_version(function))
-                    is not None
-                ),
-                None,
-            )
-        if source_version is None:
-            return False
-
-        def preserve_versions(graph: ir.Graph | ir.Function, inherited: int) -> None:
-            version = _version_converter._get_onnx_opset_version(graph) or inherited
-            for node in graph:
-                if node.domain in ("", "ai.onnx") and node.version is None:
-                    node.version = version
-                for attr in node.attributes.values():
-                    if attr.is_ref():
-                        continue
-                    if attr.type == ir.AttributeType.GRAPH:
-                        preserve_versions(attr.as_graph(), version)
-                    elif attr.type == ir.AttributeType.GRAPHS:
-                        for subgraph in attr.as_graphs():
-                            preserve_versions(subgraph, version)
-
-        modified = False
-        for function in model.functions.values():
-            version = _version_converter._get_onnx_opset_version(function)
-            if version is not None and version != source_version:
-                # The inliner requires identical imports. Preserve the actual source
-                # versions on nodes so adapters still run after attribute resolution.
-                preserve_versions(function, version)
-                _version_converter._set_onnx_opset_version(function, source_version)
-                modified = True
-        return modified
-
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         # Run the conversion pass outside of Sequential so that errors
         # (e.g. VersionConverterError) propagate directly without being
         # wrapped in PassError.
-        prepared = self._prepare_functions_for_inlining(model)
         inline_result = self._inline_pass(model)
         result = self._convert_pass(inline_result.model)
         cleanup_result = self._cleanup_passes(result.model)
         return ir.passes.PassResult(
             cleanup_result.model,
-            prepared or result.modified or cleanup_result.modified or inline_result.modified,
+            result.modified or cleanup_result.modified or inline_result.modified,
         )
 
 
@@ -129,6 +89,12 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         self.fallback = fallback
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
+        if "" in model.graph.opset_imports:
+            onnx_opset_version = model.graph.opset_imports[""]
+            if onnx_opset_version == self.target_version:
+                # No need to convert the version
+                return ir.passes.PassResult(model, False)
+
         # When fallback is disabled, always use the onnxscript version converter;
         # When fallback is enabled, use the onnxscript version converter
         # if the target version is supported. Otherwise, use the onnx C API
@@ -136,11 +102,11 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         if not self.fallback or _version_converter.version_supported(
             model, self.target_version
         ):
-            modified = _version_converter.convert_version(
+            _version_converter.convert_version(
                 model,
                 target_version=self.target_version,
             )
-            return ir.passes.PassResult(model, modified)
+            return ir.passes.PassResult(model, True)
 
         if not self.fallback:
             logger.warning(
@@ -221,6 +187,3 @@ def convert_version(
         model_proto.graph.Clear()
         del model_proto.functions[:]
         model_proto.graph.CopyFrom(ir.to_proto(model.graph))
-        del model_proto.opset_import[:]
-        for domain, version in model.opset_imports.items():
-            model_proto.opset_import.add(domain=domain, version=version)

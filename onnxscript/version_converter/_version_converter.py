@@ -19,27 +19,23 @@ from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
 logger = logging.getLogger(__name__)
 
 
-SUPPORTED_MAX_ONNX_OPSET = 28
+SUPPORTED_MAX_ONNX_OPSET = 25
 SUPPORTED_MIN_ONNX_OPSET = 18
 
 
-def _get_onnx_opset_version(model: ir.Model | ir.Graph | ir.Function) -> int | None:
+def _get_onnx_opset_version(model: ir.Model) -> int | None:
     """Get the ONNX opset version imported by the model."""
     model_version1 = model.opset_imports.get("")
     model_version2 = model.opset_imports.get("ai.onnx")
     if model_version1 is not None and model_version2 is not None:
         if model_version1 != model_version2:
             raise ValueError(
-                f"Model imports conflicting standard-domain opsets: {model_version1} "
-                f"and {model_version2}. Use the same version for '' and 'ai.onnx' "
-                "before converting."
+                f"Model imports multiple onnx opsets: {model_version1} and {model_version2}."
             )
-    return model_version1 if model_version1 is not None else model_version2
+    return model_version1 or model_version2
 
 
-def _set_onnx_opset_version(
-    model_or_function: ir.Model | ir.Graph | ir.Function, version: int
-) -> None:
+def _set_onnx_opset_version(model_or_function: ir.Model | ir.Function, version: int) -> None:
     """Set the ONNX opset version imported by the model or function."""
     if "ai.onnx" in model_or_function.opset_imports:
         del model_or_function.opset_imports["ai.onnx"]
@@ -68,11 +64,15 @@ AdapterFunction = Callable[[ir.Node, VCContext], ReturnValue]
 
 def version_supported(model: ir.Model, target_version: int) -> bool:
     """Check if the target version is supported by the current version."""
-    if not SUPPORTED_MIN_ONNX_OPSET <= target_version <= SUPPORTED_MAX_ONNX_OPSET:
-        return False
-    current_version = _get_onnx_opset_version(model)
-    return current_version is None or (
-        SUPPORTED_MIN_ONNX_OPSET <= current_version <= target_version
+    if "" in model.graph.opset_imports:
+        current_version = model.graph.opset_imports[""]
+    else:
+        return True
+    return (
+        SUPPORTED_MIN_ONNX_OPSET
+        <= current_version
+        <= target_version
+        <= SUPPORTED_MAX_ONNX_OPSET
     )
 
 
@@ -121,35 +121,32 @@ def _get_input(node: ir.Node, index: int) -> ir.Value | None:
     return None
 
 
-def _constant_attribute(
-    node: ir.Node, name: str, constant_name: str, attr_type: ir.AttributeType, default=None
-) -> ir.Attr:
-    attr = node.attributes.get(name)
-    if attr is None:
-        if default is None:
-            raise VersionConverterError(
-                f"Cannot convert {node.op_type} node {node.name!r}: missing required "
-                f"attribute {name!r}. Supply the attribute before converting."
-            )
-        return ir.Attr(constant_name, attr_type, default)
-    if attr.type != attr_type:
-        raise VersionConverterError(
-            f"Cannot convert {node.op_type} node {node.name!r}: attribute {name!r} "
-            f"must have type {attr_type}, not {attr.type}. Correct the attribute type."
-        )
-    if attr.is_ref():
-        return ir.RefAttr(constant_name, attr.ref_attr_name, attr_type)
-    return ir.Attr(constant_name, attr_type, attr.value)
+def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> int | None:
+    if name in node.attributes:
+        attr = node.attributes[name]
+        if not isinstance(attr, ir.Attr):
+            return None
+        attr_val = attr.value
+        if isinstance(attr_val, int):
+            return attr_val
+        # This is an invalid model: attribute has invalid/unexpected type.
+        # For now, we just return None. We could raise an error too.
+        return None
+    return default
 
 
-def _require_input(node: ir.Node, index: int) -> ir.Value:
-    value = _get_input(node, index)
-    if value is None:
-        raise VersionConverterError(
-            f"Cannot convert {node.op_type} node {node.name!r}: required input "
-            f"{index} is missing. Supply all required inputs before converting."
-        )
-    return value
+def _get_str_attribute(node: ir.Node, name: str, default: str | None = None) -> str | None:
+    if name in node.attributes:
+        attr = node.attributes[name]
+        if not isinstance(attr, ir.Attr):
+            return None
+        attr_val = attr.value
+        if isinstance(attr_val, str):
+            return attr_val
+        # This is an invalid model: attribute has invalid/unexpected type.
+        # For now, we just return None. We could raise an error too.
+        return None
+    return default
 
 
 ## Op-specific adapters
@@ -159,41 +156,35 @@ def _require_input(node: ir.Node, index: int) -> ir.Value:
 
 @register("DFT", node_version=19, up_conversion=True)
 def dft_19_20(node: ir.Node, op):
-    input = _require_input(node, 0)
-    dft_length = _get_input(node, 1)
+    input = node.inputs[0]
+    dft_length = node.inputs[1] if len(node.inputs) > 1 else None
+    inverse = _get_int_attribute(node, "inverse", 0)
+    onesided = _get_int_attribute(node, "onesided", 0)
     # In opset 19 `axis` is an attribute defaulting to 1; in opset 20 it became an
     # input defaulting to -2. An omitted attribute must therefore be materialized
     # explicitly, or the converted node silently transforms a different axis.
-    axis = _constant_attribute(node, "axis", "value_int", ir.AttributeType.INT, 1)
+    axis = _get_int_attribute(node, "axis", 1)
+    if axis is None:
+        return None
     axis_value = op.Constant(value_int=axis)
-    attributes = {name: attr for name, attr in node.attributes.items() if name != "axis"}
-    return op.DFT(input, dft_length, axis_value, **attributes)
+    return op.DFT(input, dft_length, axis_value, inverse=inverse, onesided=onesided)
 
 
 @register("GridSample", node_version=19, up_conversion=True)
 def gridsample_19_20(node: ir.Node, op):
-    del op
-    mode = node.attributes.get("mode")
-    if mode is None:
-        return None
-    if mode.is_ref():
-        raise VersionConverterError(
-            f"Cannot convert GridSample node {node.name!r} with a referenced mode. "
-            "Inline the local function first, or use the public ConvertVersionPass."
+    x = node.inputs[0]
+    grid = node.inputs[1]
+    align_corners = _get_int_attribute(node, "align_corners", 0)
+    mode = _get_str_attribute(node, "mode", "linear")
+    padding_mode = _get_str_attribute(node, "padding_mode", "zeros")
+    if mode == "bilinear":
+        return op.GridSample(
+            x, grid, align_corners=align_corners, mode="linear", padding_mode=padding_mode
         )
-    if mode.type != ir.AttributeType.STRING or mode.as_string() not in (
-        "bilinear",
-        "bicubic",
-        "nearest",
-    ):
-        raise VersionConverterError(
-            f"Cannot convert GridSample node {node.name!r}: mode must be "
-            "'bilinear', 'bicubic', or 'nearest' in opset 19. Correct the mode attribute."
+    elif mode == "bicubic":
+        return op.GridSample(
+            x, grid, align_corners=align_corners, mode="cubic", padding_mode=padding_mode
         )
-    new_mode = {"bilinear": "linear", "bicubic": "cubic", "nearest": "nearest"}[
-        mode.as_string()
-    ]
-    node.attributes["mode"] = ir.Attr("mode", ir.AttributeType.STRING, new_mode)
     return None
 
 
@@ -202,31 +193,51 @@ def gridsample_19_20(node: ir.Node, op):
 
 @register("GroupNormalization", node_version=20, up_conversion=True)
 def groupnormalization_20_21(node: ir.Node, op):
-    x = _require_input(node, 0)
-    scale = _require_input(node, 1)
-    bias = _require_input(node, 2)
-    groups = _constant_attribute(node, "num_groups", "value_int", ir.AttributeType.INT)
-    epsilon = _constant_attribute(node, "epsilon", "value_float", ir.AttributeType.FLOAT, 1e-5)
-    # Decompose the legacy formula: opset 21 changes both parameter granularity
-    # and accumulation precision. CastLike preserves the old dtype without
-    # requiring static type or shape information.
-    axes = op.Constant(value_ints=[0])
-    groups_vector = op.Unsqueeze(op.Constant(value_int=groups), axes)
-    grouped_shape = op.Concat(
-        op.Constant(value_ints=[0]), groups_vector, op.Constant(value_ints=[-1]), axis=0
-    )
-    grouped = op.Reshape(x, grouped_shape)
-    reduction_axes = op.Constant(value_ints=[2])
-    mean = op.ReduceMean(grouped, reduction_axes, keepdims=1)
-    mean_square = op.ReduceMean(op.Mul(grouped, grouped), reduction_axes, keepdims=1)
-    variance = op.Sub(mean_square, op.Mul(mean, mean))
-    epsilon_value = op.CastLike(op.Constant(value_float=epsilon), x)
-    normalized = op.Div(op.Sub(grouped, mean), op.Sqrt(op.Add(variance, epsilon_value)))
-    parameter_shape = op.Constant(value_ints=[1, -1, 1])
-    scale_reshaped = op.Reshape(op.CastLike(scale, x), parameter_shape)
-    bias_reshaped = op.Reshape(op.CastLike(bias, x), parameter_shape)
-    result = op.Add(op.Mul(scale_reshaped, normalized), bias_reshaped)
-    return op.Reshape(result, op.Shape(x))
+    x = _get_input(node, 0)
+    scale = _get_input(node, 1)
+    bias = _get_input(node, 2)
+    if x is None or scale is None or bias is None:
+        raise VersionConverterError(f"Missing input for {node}")
+
+    x_shape = x.shape
+    if x_shape is None:
+        raise VersionConverterError(f"Missing required shape for {x}")
+    num_channels = x_shape[1]
+    if not isinstance(num_channels, int):
+        return None
+
+    scale_shape = scale.shape
+    bias_shape = bias.shape
+    if scale_shape is None or bias_shape is None:
+        return None
+    if not isinstance(scale_shape[0], int) or not isinstance(bias_shape[0], int):
+        return None
+
+    num_groups = _get_int_attribute(node, "num_groups", None)
+    if num_groups is None:
+        raise VersionConverterError("Missing required attribute: num_groups")
+    if (
+        num_groups != num_channels
+        and num_groups == scale_shape[0]
+        and num_groups == bias_shape[0]
+    ):
+        reshape_1_sizes = op.Constant(value_ints=[-1, 1])
+        reshape_2_sizes = op.Constant(value_ints=[-1])
+        c_div = int(num_channels / num_groups)
+        expand_sizes = op.Constant(value_ints=[1, c_div])
+
+        # Modify scale input
+        scale_reshape_1 = op.Reshape(scale, reshape_1_sizes)
+        scale_expand = op.Expand(scale_reshape_1, expand_sizes)
+        scale_reshape_2 = op.Reshape(scale_expand, reshape_2_sizes)
+
+        # Modify bias input
+        bias_reshape_1 = op.Reshape(bias, reshape_1_sizes)
+        bias_expand = op.Expand(bias_reshape_1, expand_sizes)
+        bias_reshape_2 = op.Reshape(bias_expand, reshape_2_sizes)
+
+        return op.GroupNormalization(x, scale_reshape_2, bias_reshape_2, num_groups=num_groups)
+    return None
 
 
 class _VersionConverter:
@@ -265,14 +276,14 @@ class _VersionConverter:
         )
         self._modified = True
 
-    def visit_attribute(self, attr: ir.Attr, default_version: int | None) -> None:
+    def visit_attribute(self, attr: ir.Attr) -> None:
         if attr.is_ref():
             return
         if attr.type == ir.AttributeType.GRAPH:
-            self.visit_graph_or_function(attr.as_graph(), default_version)
+            self.visit_graph_or_function(attr.as_graph())
         elif attr.type == ir.AttributeType.GRAPHS:
             for graph in attr.as_graphs():
-                self.visit_graph_or_function(graph, default_version)
+                self.visit_graph_or_function(graph)
 
     def visit_node(
         self,
@@ -280,76 +291,62 @@ class _VersionConverter:
         root: ir.Graph | ir.Function,
         from_version: int,
         up_conversion: bool = True,
-    ) -> Sequence[ir.Node]:
-        self._modified = True
+    ) -> None:
         if up_conversion:
             to_version = from_version + 1
         else:
             to_version = from_version - 1
         replacement = self.process_node(node, from_version, up_conversion)
         if replacement is None:
+            # No change. Process attributes.
+            for attr in node.attributes.values():
+                self.visit_attribute(attr)
             node.version = to_version
-            return [node]
         else:
             for new_node in replacement.new_nodes:
+                # TODO: control-flow
                 new_node.version = to_version
             self._default_metadata_merger.copy_merged_metadata([node], replacement.new_nodes)
             self.replace_node(node, replacement, root)
-            return replacement.new_nodes
 
-    def visit_graph_or_function(
-        self, graph_or_function: ir.Graph | ir.Function, default_version: int | None = None
-    ) -> None:
-        source_version = _get_onnx_opset_version(graph_or_function)
-        if source_version is None:
-            source_version = default_version
-        uses_standard_domain = source_version is not None
-        if source_version is not None:
-            self._check_source_version(source_version)
-        for node in tuple(graph_or_function):
-            for attr in node.attributes.values():
-                self.visit_attribute(attr, source_version)
-            if node.domain not in ("", "ai.onnx"):
+    def visit_graph_or_function(self, graph_or_function: ir.Graph | ir.Function) -> None:
+        for node in graph_or_function:
+            if node.domain != "":
                 continue
-            uses_standard_domain = True
-            node_version = node.version if node.version is not None else source_version
+            node_version = node.version or self._default_onnx_opset
             if node_version is None:
+                raise VersionConverterError(f"Node {node} has no version.")
+            # RefAttr is not supported by adapters for now.
+            if any(attr.is_ref() for attr in node.attributes.values()):
                 raise VersionConverterError(
-                    f"Cannot convert node {node.name!r} ({node.op_type}): no source opset "
-                    "version is available. Add a standard-domain opset import to its model "
-                    "or local function."
+                    f"Node '{node!r}' has ref attribute, which is not supported by version converter."
                 )
-            self._check_source_version(node_version)
-            if node.domain == "ai.onnx":
-                node.domain = ""
-                self._modified = True
-            active_nodes: Sequence[ir.Node] = [node]
+            # Iterate each node from current node version -> target version
+            # and updating node based on the correct adapter
+            # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
+            # TODO(shubhambhokare1): Remove once down-conversion adapters are supoorted
+            if self._target_version < node_version:
+                raise VersionConverterError(
+                    f"Target opset: {self._target_version} less than node version: {node.version}, "
+                    "downstream version conversion not currently handled."
+                )
             for from_version in range(node_version, self._target_version):
-                active_nodes = [
-                    new_node
-                    for current in active_nodes
-                    for new_node in self.visit_node(current, graph_or_function, from_version)
-                ]
-        if uses_standard_domain:
-            if graph_or_function.opset_imports.get("") != self._target_version or (
-                "ai.onnx" in graph_or_function.opset_imports
-            ):
-                self._modified = True
-            _set_onnx_opset_version(graph_or_function, self._target_version)
-
-    def _check_source_version(self, source_version: int) -> None:
-        if not SUPPORTED_MIN_ONNX_OPSET <= source_version <= self._target_version:
-            raise VersionConverterError(
-                f"Cannot convert source opset {source_version} to {self._target_version}: "
-                f"native conversion only supports upgrades from opset "
-                f"{SUPPORTED_MIN_ONNX_OPSET} through {SUPPORTED_MAX_ONNX_OPSET}. "
-                "Use fallback=True to request ONNX conversion outside this range."
-            )
+                try:
+                    self.visit_node(node, graph_or_function, from_version, up_conversion=True)
+                except VersionConverterError as e:
+                    logger.warning(
+                        "Skipping version conversion for node %s due to exception: %s",
+                        node.op_type,
+                        e,
+                    )
 
     def visit_model(self, model: ir.Model) -> None:
+        self._default_onnx_opset = _get_onnx_opset_version(model)
         self.visit_graph_or_function(model.graph)
         for function in model.functions.values():
             self.visit_graph_or_function(function)
+            _set_onnx_opset_version(function, self._target_version)
+        _set_onnx_opset_version(model, self._target_version)
         if self._modified:
             # TapeBuilder may create values with names that clash with existing graph
             # values when nodes are inserted via replace_nodes_and_values.
@@ -357,8 +354,8 @@ class _VersionConverter:
             ir_passes_common.NameFixPass()(model)
 
 
-def convert_version(model: ir.Model, target_version: int) -> bool:
-    """Convert the model in place and return whether it was modified."""
+def convert_version(model: ir.Model, target_version: int) -> None:
+    """Convert the model to the specified ONNX opset version."""
     if (target_version > SUPPORTED_MAX_ONNX_OPSET) or (
         target_version < SUPPORTED_MIN_ONNX_OPSET
     ):
@@ -368,4 +365,3 @@ def convert_version(model: ir.Model, target_version: int) -> bool:
         )
     version_converter = _VersionConverter(target_version=target_version)
     version_converter.visit_model(model)
-    return version_converter._modified
