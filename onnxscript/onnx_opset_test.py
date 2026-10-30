@@ -42,19 +42,28 @@ class OpsetCoverageTest(unittest.TestCase):
 
 @pytest.mark.skipif(onnx.defs.onnx_opset_version() < 28, reason="Requires ONNX opset 28.")
 class Opset28Test(unittest.TestCase):
-    def test_new_operator_and_attribute(self):
+    def test_new_operator(self):
         @onnxscript.script()
-        def swiglu(a: FLOAT[1, 4, 2, 2], b: FLOAT[1, 4, 2, 2]) -> FLOAT[1, 16, 1, 1]:
-            gated = op.SwiGLU(a, b)
-            return op.SpaceToDepth(gated, blocksize=2, mode="CRD")
+        def swiglu(a: FLOAT[1, 4, 2, 2], b: FLOAT[1, 4, 2, 2]) -> FLOAT[1, 4, 2, 2]:
+            return op.SwiGLU(a, b)
 
         model = swiglu.to_model_proto()
         onnx.checker.check_model(model, full_check=True)
         self.assertEqual(model.opset_import[0].version, 28)
-        self.assertEqual(
-            [node.op_type for node in model.graph.node], ["SwiGLU", "SpaceToDepth"]
-        )
-        attributes = {attr.name: attr for attr in model.graph.node[1].attribute}
+        self.assertEqual([node.op_type for node in model.graph.node], ["SwiGLU"])
+
+    @pytest.mark.skipif(
+        "mode" not in onnx.defs.get_schema("SpaceToDepth", 28).attributes,
+        reason="Installed ONNX predates the opset 28 SpaceToDepth mode attribute.",
+    )
+    def test_space_to_depth_mode(self):
+        @onnxscript.script()
+        def space_to_depth(x: FLOAT[1, 4, 2, 2]) -> FLOAT[1, 16, 1, 1]:
+            return op.SpaceToDepth(x, blocksize=2, mode="CRD")
+
+        model = space_to_depth.to_model_proto()
+        onnx.checker.check_model(model, full_check=True)
+        attributes = {attr.name: attr for attr in model.graph.node[0].attribute}
         self.assertEqual(attributes["mode"].s, b"CRD")
 
 
