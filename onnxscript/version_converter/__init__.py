@@ -187,3 +187,6 @@ def convert_version(
         model_proto.graph.Clear()
         del model_proto.functions[:]
         model_proto.graph.CopyFrom(ir.to_proto(model.graph))
+        del model_proto.opset_import[:]
+        for domain, version in model.opset_imports.items():
+            model_proto.opset_import.add(domain=domain, version=version)

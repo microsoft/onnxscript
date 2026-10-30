@@ -19,7 +19,7 @@ from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
 logger = logging.getLogger(__name__)
 
 
-SUPPORTED_MAX_ONNX_OPSET = 25
+SUPPORTED_MAX_ONNX_OPSET = 28
 SUPPORTED_MIN_ONNX_OPSET = 18
 
 

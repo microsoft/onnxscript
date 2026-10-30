@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import unittest
 
+import numpy as np
 import onnx.defs
 import onnx_ir as ir
 import pytest
+from onnx.reference import ReferenceEvaluator
 
 from onnxscript import version_converter
+from onnxscript.version_converter import _version_converter
 
 
 class AdapterCoverageTest(unittest.TestCase):
@@ -540,7 +543,6 @@ class VersionConverterMetadataMergeTest(unittest.TestCase):
 
 
 class VersionConverter25to26Test(unittest.TestCase):
-    @pytest.mark.xfail(strict=True, reason="Version upgrade beyond 25 not yet supported.")
     def test_version_convert_compatible(self):
         model = ir.from_onnx_text(
             """
@@ -559,6 +561,99 @@ class VersionConverter25to26Test(unittest.TestCase):
         )
         target_version = 26
         version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
+
+
+class LatestOpsetConversionTest(unittest.TestCase):
+    def test_all_supported_upgrades(self):
+        for source in range(18, 29):
+            for target in range(source, 29):
+                with self.subTest(source=source, target=target):
+                    model = ir.from_onnx_text(
+                        f"""
+                        <ir_version: 10, opset_import: [ "" : {source}]>
+                        graph (float[2] x) => (float[2] y) {{
+                            y = Identity (x)
+                        }}
+                        """
+                    )
+                    self.assertTrue(_version_converter.version_supported(model, target))
+                    version_converter.convert_version(model, target_version=target)
+                    self.assertEqual(model.opset_imports[""], target)
+                    self.assertEqual(model.graph.node(0).version or source, target)
+                    if target <= onnx.defs.onnx_opset_version():
+                        onnx.checker.check_model(ir.to_proto(model), full_check=True)
+
+    def test_unreleased_target_is_rejected(self):
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 10, opset_import: [ "" : 28]>
+            graph (float[2] x) => (float[2] y) { y = Identity (x) }
+            """
+        )
+        self.assertFalse(_version_converter.version_supported(model, 29))
+        with self.assertRaisesRegex(ValueError, "Supported range: 18 to 28"):
+            version_converter.convert_version(model, target_version=29)
+        self.assertEqual(model.opset_imports[""], 28)
+
+    @pytest.mark.skipif(onnx.defs.onnx_opset_version() < 28, reason="Requires ONNX opset 28.")
+    def test_model_proto_opset_import_is_updated(self):
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 25]>
+            graph (float[2] x) => (float[2] y) { y = Identity (x) }
+            """
+        )
+        version_converter.convert_version(model, target_version=28)
+        self.assertEqual([(op.domain, op.version) for op in model.opset_import], [("", 28)])
+        onnx.checker.check_model(model, full_check=True)
+
+    @pytest.mark.skipif(onnx.defs.onnx_opset_version() < 28, reason="Requires ONNX opset 28.")
+    def test_adapter_outputs_reach_latest_opset(self):
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 10, opset_import: [ "" : 19]>
+            graph (float[2, 3, 4, 2] x) => (float[2, 3, 4, 2] y) {
+                y = DFT (x)
+            }
+            """
+        )
+        feeds = {"x": np.arange(48, dtype=np.float32).reshape(2, 3, 4, 2)}
+        expected = ReferenceEvaluator(ir.to_proto(model)).run(None, feeds)
+        version_converter.convert_version(model, target_version=28)
+        for node in model.graph:
+            self.assertEqual(node.version, 28)
+        converted = ir.to_proto(model)
+        onnx.checker.check_model(converted, full_check=True)
+        actual = ReferenceEvaluator(converted).run(None, feeds)
+        np.testing.assert_allclose(actual[0], expected[0], rtol=1e-6, atol=1e-6)
+
+    @pytest.mark.skipif(onnx.defs.onnx_opset_version() < 28, reason="Requires ONNX opset 28.")
+    def test_new_schema_defaults_preserve_results(self):
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 10, opset_import: [ "" : 25]>
+            graph (float[1, 2, 4, 4] x, float start, float limit, float delta)
+                => (float[1, 8, 2, 2] y, float[3] range)
+            {
+                y = SpaceToDepth <blocksize = 2> (x)
+                range = Range (start, limit, delta)
+            }
+            """
+        )
+        feeds = {
+            "x": np.arange(32, dtype=np.float32).reshape(1, 2, 4, 4),
+            "start": np.array(1, dtype=np.float32),
+            "limit": np.array(7, dtype=np.float32),
+            "delta": np.array(2, dtype=np.float32),
+        }
+        expected = ReferenceEvaluator(ir.to_proto(model)).run(None, feeds)
+        version_converter.convert_version(model, target_version=28)
+        converted = ir.to_proto(model)
+        onnx.checker.check_model(converted, full_check=True)
+        actual = ReferenceEvaluator(converted).run(None, feeds)
+        for output, reference in zip(actual, expected):
+            np.testing.assert_array_equal(output, reference)
 
 
 def _all_value_names_unique(model: ir.Model) -> bool:
