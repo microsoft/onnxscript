@@ -40,6 +40,7 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 from onnxscript._internal import version_utils
+from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from tests.function_libs.torch_lib import (
     error_reproduction,
     ops_test_common,
@@ -95,6 +96,22 @@ def _should_skip_xfail_test_sample(
             if decorator_meta.matcher(sample):
                 return decorator_meta.test_behavior, decorator_meta.reason
     return None, None
+
+
+class TestDivModeCompatibility(unittest.TestCase):
+    @parameterized.parameterized.expand([(torch.int32,), (torch.int64,)])
+    def test_no_rounding_mode_promotes_integer_inputs(self, dtype):
+        x = torch.tensor([7, -7, 0, 6], dtype=dtype)
+        y = torch.tensor([[3], [-3]], dtype=dtype)
+        expected = torch.div(x, y, rounding_mode=None)
+
+        # Exercise this overload directly: the exporter may route unrounded
+        # torch.div calls through aten_div instead of aten_div_mode.
+        executor = ops_test_common.graph_executor(self.id(), (expected,))
+        (actual,) = executor(
+            core_ops.aten_div_mode, (x.numpy(), y.numpy()), {"rounding_mode": None}
+        )
+        torch.testing.assert_close(torch.from_numpy(actual), expected, rtol=0, atol=0)
 
 
 class TestFunctionValidity(unittest.TestCase):
