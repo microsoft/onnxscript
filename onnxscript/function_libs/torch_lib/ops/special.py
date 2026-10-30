@@ -375,8 +375,8 @@ def aten_special_xlogy(self: TFloat, other: TFloat) -> TFloat:
     nans = op.IsNaN(other)
     zeros = op.Equal(self, 0)
     xlogy = op.Mul(self, op.Log(other))
-    xlogy_with_nans = op.Where(nans, other, xlogy)
-    return op.Where(zeros, self, xlogy_with_nans)
+    xlogy_with_zeros = op.Where(zeros, self, xlogy)
+    return op.Where(nans, other, xlogy_with_zeros)
 
 
 def aten_special_zeta(self: TensorType, other: TensorType) -> TensorType:
