@@ -1453,6 +1453,7 @@ def aten_bitwise_and_scalar_tensor(self: float, other: TTensor) -> TTensor:
 @torch_op(
     (
         "aten::bitwise_left_shift.Tensor",
+        "aten::__lshift__.Tensor",
         "_operator::__lshift__",
     ),
     trace_only=True,
@@ -1462,6 +1463,9 @@ def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
     assert self.dtype == other.dtype or self.dtype is None or other.dtype is None
     dtype = self.dtype if self.dtype is not None else other.dtype
     assert dtype is not None
+
+    if not dtype.is_signed():
+        return op.BitShift(self, other, direction="LEFT")
 
     # assert other >= 0
     if dtype.bitwidth == 8:
@@ -1552,6 +1556,7 @@ def aten_bitwise_or_scalar_tensor(self: int, other: TTensor) -> TTensor:
 @torch_op(
     (
         "aten::bitwise_right_shift.Tensor",
+        "aten::__rshift__.Tensor",
         "_operator::__rshift__",
     ),
     trace_only=True,
@@ -1561,6 +1566,9 @@ def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     assert self.dtype == other.dtype or self.dtype is None or other.dtype is None
     dtype = self.dtype if self.dtype is not None else other.dtype
     assert dtype is not None
+
+    if not dtype.is_signed():
+        return op.BitShift(self, other, direction="RIGHT")
 
     if dtype.bitwidth == 8:
         unsigned_dtype = ir.DataType.UINT8
@@ -2270,7 +2278,7 @@ def aten_conv3d(
 
     if bias is None:
         weight_dim_0 = op.Shape(weight, start=0, end=1)
-        bias_shape = op.Concat(weight_dim_0, op.Constant(value_ints=[2]), axis=0)
+        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
         zero = op.CastLike(0.0, input)
         bias = op.Expand(zero, bias_shape)
 
@@ -4410,6 +4418,15 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def _rnn_output_to_layer_output(Y: TFloat, bidirectional: bool, hidden_size: int) -> TFloat:
+    """Convert [seq, directions, batch, hidden] to [seq, batch, directions * hidden]."""
+    if not bidirectional:
+        return op.Squeeze(Y, [1])
+    Y = op.Transpose(Y, perm=[0, 2, 1, 3])
+    # Zeros copy the sequence and batch dimensions without runtime shape computation.
+    return op.Reshape(Y, op.Constant(value_ints=[0, 0, 2 * hidden_size]))
+
+
 @torch_op("aten::gru.input", trace_only=True)
 def aten_gru(
     input: TFloat,
@@ -4563,25 +4580,7 @@ def aten_gru(
                 linear_before_reset=1,
             )
 
-        # Y shape: [seq_length, num_directions, batch_size, hidden_size]
-        # Reshape to [seq_length, batch_size, num_directions * hidden_size]
-        Y = op.Transpose(
-            Y, perm=[0, 2, 1, 3]
-        )  # [seq_length, batch_size, num_directions, hidden_size]
-        Y_shape = op.Shape(Y)
-        new_shape = op.Concat(
-            op.Slice(Y_shape, [0], [1]),  # seq_length
-            op.Slice(Y_shape, [1], [2]),  # batch_size
-            op.Reshape(
-                op.Mul(
-                    op.Slice(Y_shape, [2], [3]),  # num_directions
-                    op.Slice(Y_shape, [3], [4]),  # hidden_size
-                ),
-                op.Constant(value_ints=[-1]),
-            ),
-            axis=0,
-        )
-        current_input = op.Reshape(Y, new_shape)
+        current_input = _rnn_output_to_layer_output(Y, bidirectional, hidden_size_attr)
 
         # Apply dropout if not last layer and dropout > 0
         if layer_idx < num_layers - 1 and dropout > 0.0 and train:
@@ -6293,25 +6292,7 @@ def aten_lstm(
                 hidden_size=hidden_size_attr,
             )
 
-        # Y shape: [seq_length, num_directions, batch_size, hidden_size]
-        # Reshape to [seq_length, batch_size, num_directions * hidden_size]
-        Y = op.Transpose(
-            Y, perm=[0, 2, 1, 3]
-        )  # [seq_length, batch_size, num_directions, hidden_size]
-        Y_shape = op.Shape(Y)
-        new_shape = op.Concat(
-            op.Slice(Y_shape, [0], [1]),  # seq_length
-            op.Slice(Y_shape, [1], [2]),  # batch_size
-            op.Reshape(
-                op.Mul(
-                    op.Slice(Y_shape, [2], [3]),  # num_directions
-                    op.Slice(Y_shape, [3], [4]),  # hidden_size
-                ),
-                op.Constant(value_ints=[-1]),
-            ),
-            axis=0,
-        )
-        current_input = op.Reshape(Y, new_shape)
+        current_input = _rnn_output_to_layer_output(Y, bidirectional, hidden_size_attr)
 
         # Apply dropout if not last layer and dropout > 0
         if layer_idx < num_layers - 1 and dropout > 0.0 and train:
@@ -9071,6 +9052,8 @@ def aten_scalar_tensor(
     if dtype == -1:
         dtype = FLOAT.dtype
 
+    if isinstance(s, float) and dtype in (DOUBLE.dtype, COMPLEX128.dtype):
+        s = op.Constant(value=ir.tensor(s, dtype=ir.DataType.DOUBLE))
     return common_ops.cast_to(s, dtype=dtype)
 
 
@@ -10594,6 +10577,16 @@ def aten_unsafe_split_with_sizes(
 def aten_unsqueeze(self: TTensor, dim: int) -> TTensor:
     """unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"""
 
+    return op.Unsqueeze(self, [dim])
+
+
+@torch_op("aten::unsqueeze", complex=True, trace_only=True)
+def aten_unsqueeze_complex(self: TTensor, dim: int) -> TTensor:
+    """unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"""
+
+    if dim < 0:
+        # Account for the complex dimension in ONNX
+        dim = dim - 1
     return op.Unsqueeze(self, [dim])
 
 

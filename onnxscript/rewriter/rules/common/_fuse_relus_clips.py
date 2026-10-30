@@ -29,6 +29,9 @@ class FuseSuccessiveRelu(RewriteRuleClassBase):
 
 
 class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
+    # Whether the pattern includes a Relu, which acts as a lower bound of 0.
+    has_relu: bool = False
+
     def rewrite(self, op, x, **kwargs):
         first_clip_node = kwargs.get("out_first_clip").producer()
         second_clip_node = None
@@ -63,8 +66,6 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
         pass
 
     def extract_min_max(self, node: ir.Node):
-        # Infer dtype from node first input
-        dtype = node.inputs[0].dtype.numpy()
         min_clip, max_clip = None, None
 
         if len(node.inputs) > 1:
@@ -78,13 +79,21 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
             if max_clip is not None:
                 max_clip = max_clip.const_value.numpy()
 
+        # min and max have the input's type, so they give the dtype when the
+        # input has no type information.
+        dtype = node.inputs[0].dtype
+        if dtype is not None:
+            dtype = dtype.numpy()
+        else:
+            dtype = next((v.dtype for v in (min_clip, max_clip) if v is not None), None)
         return min_clip, max_clip, dtype
 
     def check(self, context, **kwargs):
         """Condition to check if we need to replace the pattern.
 
         The pattern is applied only when the min and max inputs of the Clip nodes are
-        not graph inputs and are constant values (i.e., provided by Constant nodes or initializers).
+        not graph inputs and are constant values (i.e., provided by Constant nodes or initializers),
+        and when the fused Clip would have min <= max.
 
         Returns:
             MatchResult:
@@ -96,14 +105,11 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
         # Check if Clip min/max are not graph inputs and are constant values
         clip_min_max = []
 
-        first_clip_node = kwargs.get("out_first_clip").producer()
-        clip_min_max.extend([inp for inp in first_clip_node.inputs[1:] if inp is not None])
-
+        clip_nodes = [kwargs.get("out_first_clip").producer()]
         if out_second_clip := kwargs.get("out_second_clip"):
-            second_clip_node = out_second_clip.producer()
-            clip_min_max.extend(
-                [inp for inp in second_clip_node.inputs[1:] if inp is not None]
-            )
+            clip_nodes.append(out_second_clip.producer())
+        for node in clip_nodes:
+            clip_min_max.extend([inp for inp in node.inputs[1:] if inp is not None])
 
         for m in clip_min_max:
             if m.is_graph_input():
@@ -111,6 +117,27 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
 
             if ir.convenience.get_const_tensor(m) is None:
                 return check_result.fail(f"{m.name} is not a constant.")
+
+        if self.has_relu and not clip_min_max and clip_nodes[0].inputs[0].dtype is None:
+            return check_result.fail("Cannot infer the dtype of the fused Clip's min.")
+
+        # When the ranges don't overlap, the original nodes output a constant
+        # but the fused Clip would not. For example, Relu(Clip(X, -3, -1)) is 0
+        # everywhere, while Clip(X, 0, -1) is -1 everywhere.
+        lower_bounds = [0] if self.has_relu else []
+        upper_bounds = []
+        for node in clip_nodes:
+            if len(node.inputs) > 1 and node.inputs[1] is not None:
+                lower_bounds.append(ir.convenience.get_const_tensor(node.inputs[1]).numpy())
+            if len(node.inputs) > 2 and node.inputs[2] is not None:
+                upper_bounds.append(ir.convenience.get_const_tensor(node.inputs[2]).numpy())
+        if lower_bounds and upper_bounds:
+            lower = max(np.max(v) for v in lower_bounds)
+            upper = min(np.min(v) for v in upper_bounds)
+            if lower > upper:
+                return check_result.fail(
+                    f"The fused Clip would have min ({lower}) > max ({upper})."
+                )
 
         return check_result
 
@@ -146,6 +173,8 @@ class FuseSuccessiveClip(_FuseReluClipBase):
 
 class FuseSuccessiveClipRelu(_FuseReluClipBase):
     """Replaces ``Clip(Relu(X))`` with ``Clip(X)``."""
+
+    has_relu = True
 
     def pattern(self, op, x):
         return op.Clip(op.Relu(x), _allow_other_inputs=True, _outputs=["out_first_clip"])

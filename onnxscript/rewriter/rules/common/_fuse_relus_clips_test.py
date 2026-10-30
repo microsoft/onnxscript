@@ -31,9 +31,11 @@ class _FuseReluClipTestBase(unittest.TestCase):
         base_model: ir.Model,
         expected_op_types: list[str],
         dtype: str = "float",
+        infer_shapes: bool = True,
     ):
         onnx_checker.CheckerPass(True)(base_model)
-        base_model = shape_inference.infer_shapes(base_model)
+        if infer_shapes:
+            base_model = shape_inference.infer_shapes(base_model)
         updated_model = self.clone_model(base_model)
         _ = _fuse_relus_clips.rules.apply_to_model(updated_model)
 
@@ -291,6 +293,19 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
         """)
         self.run_failed_condition_test(model, rewrite_rule, "is a graph input.")
 
+    def test_fail_fuse_successive_relu_clip_negative_max(self):
+        # Relu(Clip(X, -3, -1)) is 0 everywhere, Clip(X, 0, -1) would be -1.
+        model = ir.from_onnx_text("""
+            < ir_version: 10, opset_import: ["" : 20] >
+            test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
+            <float min = {-3.0}, float max = {-1.0}>
+            {
+                x1 = Clip(X, min, max)
+                Y = Relu(x1)
+            }
+        """)
+        self.run_failed_condition_test(model, successive_relu_clip_rule, "min .* > max")
+
 
 class FuseSuccessiveClipTest(_FuseReluClipTestBase):
     @parameterized.parameterized.expand(
@@ -346,6 +361,25 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
         """)
         self.run_test(model, expected_op_types=["Clip"])
 
+    @parameterized.parameterized.expand(
+        [
+            ("disjoint", "x1 = Clip(X, min1, max1)\n                Y = Clip(x1, min2, max2)"),
+            ("no_min_no_max", "x1 = Clip(X,, max1)\n                Y = Clip(x1, min2)"),
+        ]
+    )
+    def test_fail_fuse_successive_clips_disjoint_ranges(self, _, nodes):
+        # Clip(Clip(X, 0, 1), 2, 3) is 2 everywhere, Clip(X, 2, 1) would be 1.
+        model = ir.from_onnx_text(f"""
+            < ir_version: 10, opset_import: ["" : 20] >
+            test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
+            <float min1 = {{0.0}}, float max1 = {{1.0}},
+             float min2 = {{2.0}}, float max2 = {{3.0}}>
+            {{
+                {nodes}
+            }}
+        """)
+        self.run_failed_condition_test(model, successive_clip_rule, "min .* > max")
+
     def test_fail_fuse_successive_clips_non_initializers(self):
         model = ir.from_onnx_text("""
             < ir_version: 10, opset_import: ["" : 20] >
@@ -371,6 +405,46 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
             }
         """)
         self.run_failed_condition_test(model, successive_clip_rule, "is a graph input.")
+
+
+class FuseReluClipWithoutTypeInfoTest(_FuseReluClipTestBase):
+    @parameterized.parameterized.expand(
+        [
+            (
+                "clip_then_clip",
+                "x2 = Clip(x1, min, max)\n                Y = Clip(x2, min2, max2)",
+            ),
+            ("relu_then_clip", "x2 = Relu(x1)\n                Y = Clip(x2, min, max)"),
+            ("clip_then_relu", "x2 = Clip(x1, min, max)\n                Y = Relu(x2)"),
+        ]
+    )
+    def test_successful_fuse_when_clip_input_has_no_type(self, _, nodes):
+        # x1 has no type information because shape inference was not run.
+        model = ir.from_onnx_text(f"""
+            < ir_version: 10, opset_import: ["" : 20] >
+            test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
+            <float min = {{-2.0}}, float max = {{6.0}},
+             float min2 = {{1.0}}, float max2 = {{3.0}}>
+            {{
+                x1 = Abs(X)
+                {nodes}
+            }}
+        """)
+        self.run_test(model, expected_op_types=["Abs", "Clip"], infer_shapes=False)
+
+    def test_fail_fuse_clip_relu_without_bounds_or_type(self):
+        model = ir.from_onnx_text("""
+            < ir_version: 10, opset_import: ["" : 20] >
+            test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
+            {
+                x1 = Abs(X)
+                x2 = Relu(x1)
+                Y = Clip(x2)
+            }
+        """)
+        self.run_failed_condition_test(
+            model, successive_clip_relu_rule, "Cannot infer the dtype"
+        )
 
 
 class FuseReluClipIntegrationTest(_FuseReluClipTestBase):

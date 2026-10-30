@@ -14,6 +14,7 @@ from onnxscript.rewriter import pattern as orp
 from onnxscript.rewriter import testing
 from onnxscript.rewriter.rules.common import _fuse_pad_into_conv
 from onnxscript.rewriter.rules.common._fuse_pad_into_conv import (
+    fuse_pad_into_conv_integer_rule,
     fuse_pad_into_conv_rule,
     normalize_pad_format_conv_rule,
 )
@@ -42,6 +43,7 @@ class FuseConvPadBaseTest(unittest.TestCase):
         pad_inputs: Sequence[ir.TensorProtocol | ir.Value | None],
         pad_attributes: Mapping[str, ir.Attr] | None = None,
         conv_attributes: Mapping[str, ir.Attr] | None = None,
+        conv_extra_inputs: Sequence[ir.TensorProtocol | ir.Value] = (),
     ) -> ir.Model:
         tape = ir.tape.Tape()
         inputs = []
@@ -59,13 +61,21 @@ class FuseConvPadBaseTest(unittest.TestCase):
             elif x is not None:
                 raise ValueError(f"Unsupported type for pad input ({x}): {type(x)}.")
 
+        # Inputs of the conv node after the weights (e.g. x_zero_point of ConvInteger)
+        conv_extra_inputs = list(conv_extra_inputs)
+        for idx, x in enumerate(conv_extra_inputs):
+            if isinstance(x, ir.TensorProtocol):
+                conv_extra_inputs[idx] = tape.initializer(x)
+            else:
+                inputs.append(x)
+
         # Register operations in the tape
         idtype = ir.DataType.UINT8 if op_type == "ConvInteger" else ir.DataType.FLOAT
         x = ir.val("X", shape=input_shape, type=ir.TensorType(idtype))
         y = tape.op("Pad", inputs=[x, *pad_inputs], attributes=pad_attributes)
         y = tape.op(
             op_type,
-            inputs=[y, self.get_conv_weights(weight_shape, tape)],
+            inputs=[y, self.get_conv_weights(weight_shape, tape), *conv_extra_inputs],
             attributes=conv_attributes,
             output=ir.val("Y", shape=output_shape, type=ir.TensorType(x.dtype)),
         )
@@ -273,6 +283,70 @@ class FuseConvIntegerPadTest(FuseConvPadBaseTest):
         # Check inference
         inputs = self.rng.integers(0, 255, (1, 24, 19, 23), dtype="uint8")
         testing.assert_numerically_equal(base_model, updated_model, (inputs,), atol=0, rtol=0)
+
+    def test_fuse_pad_into_conv_integer_with_zero_x_zero_point(self):
+        base_model = self.build_model(
+            op_type="ConvInteger",
+            input_shape=ir.Shape(("N", 24, 19, 23)),
+            weight_shape=(8, 24, 3, 3),
+            pad_inputs=[ir.tensor([0, 0, 1, 1, 0, 0, 1, 1], name="pads")],
+            conv_extra_inputs=[ir.tensor(np.array(0, "uint8"), name="x_zero_point")],
+        )
+        updated_model = _clone_model(base_model)
+
+        # Apply rule
+        count = _fuse_pad_into_conv.rules.apply_to_model(updated_model)
+
+        # Check that Pad was fused
+        self.assertEqual(count, 1)
+        self.assertEqual(updated_model.graph.num_nodes(), 1)
+        onnx_checker.CheckerPass(True)(updated_model)
+
+        # Check inference
+        inputs = self.rng.integers(0, 255, (1, 24, 19, 23), dtype="uint8")
+        testing.assert_numerically_equal(base_model, updated_model, (inputs,), atol=0, rtol=0)
+
+    @parameterized.parameterized.expand(
+        [
+            (
+                "nonzero",
+                ir.tensor(np.array(128, "uint8"), name="x_zero_point"),
+                "x_zero_point must be equal to 0.",
+            ),
+            (
+                "dynamic",
+                ir.Value(
+                    name="x_zero_point",
+                    shape=ir.Shape([]),
+                    type=ir.TensorType(ir.DataType.UINT8),
+                ),
+                "x_zero_point is not a constant/initializer.",
+            ),
+        ]
+    )
+    def test_unsupported_fuse_pad_into_conv_integer(self, _, x_zero_point, err_msg):
+        # ConvInteger pads with x_zero_point, so Pad(x, 0) cannot be fused into it
+        # unless x_zero_point is zero.
+        base_model = self.build_model(
+            op_type="ConvInteger",
+            input_shape=ir.Shape(("N", 24, 19, 23)),
+            weight_shape=(8, 24, 3, 3),
+            pad_inputs=[ir.tensor([0, 0, 1, 1, 0, 0, 1, 1], name="pads")],
+            conv_extra_inputs=[x_zero_point],
+        )
+        updated_model = _clone_model(base_model)
+
+        # Apply rules and check that Pad was not fused
+        count = _fuse_pad_into_conv.rules.apply_to_model(updated_model)
+        self.assertEqual(count, 0)
+        self.assertEqual(updated_model.graph.num_nodes(), 2)
+
+        # Check that the error message is the expected one
+        tracer = orp.MatchingTracer()
+        fuse_pad_into_conv_integer_rule.apply_to_model(base_model, tracer=tracer)
+        tracer_match = tracer.best_matches_map[fuse_pad_into_conv_integer_rule][0]
+        self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
+        self.assertRegex(tracer_match.match_result.reason, err_msg)
 
 
 class NormalizePadFormatTest(FuseConvPadBaseTest):
