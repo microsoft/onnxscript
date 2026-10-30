@@ -229,6 +229,16 @@ class TestOnnxBackEnd(unittest.TestCase):
     def test_export2python_produces_correct_onnx_script_model(
         self, _: str, backend_test: onnx_backend.OnnxBackendTest
     ):
+        if any(
+            value.type.HasField("optional_type")
+            for value in (
+                *backend_test.onnx_model.graph.input,
+                *backend_test.onnx_model.graph.output,
+            )
+        ):
+            self.skipTest(
+                "ONNXScript does not support Optional input/output type annotations."
+            )
         for skip_info in SKIP_TESTS:
             if skip_info.pattern.match(backend_test.name) and skip_info.condition:
                 self.skipTest(skip_info.reason)
