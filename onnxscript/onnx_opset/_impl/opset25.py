@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: D214, D402, D405, D411, D412, D416, RUF036
+# ruff: noqa: D214, D402, D405, D411, D412, D416
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -963,7 +963,6 @@ class Opset25(Opset24):
     B_If: TypeAlias = BOOL
 
     V_If: TypeAlias = Union[
-        None,
         Sequence[BFLOAT16],
         Sequence[BOOL],
         Sequence[COMPLEX128],
@@ -1016,6 +1015,7 @@ class Opset25(Opset24):
         Sequence[INT4],
         Sequence[UINT2],
         Sequence[UINT4],
+        None,
     ]
 
     def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:

@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# ruff: noqa: D402, RUF036
+# ruff: noqa: D402
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -799,7 +799,6 @@ class Opset28(Opset27):
     )
 
     O_Optional: TypeAlias = Union[
-        None,
         Sequence[BFLOAT16],
         Sequence[BOOL],
         Sequence[COMPLEX128],
@@ -856,6 +855,7 @@ class Opset28(Opset27):
         UINT4,
         UINT64,
         UINT8,
+        None,
     ]
 
     def Optional(
