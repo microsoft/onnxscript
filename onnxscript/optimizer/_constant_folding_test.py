@@ -33,6 +33,44 @@ class FoldConstantsTest(unittest.TestCase):
         onnx.checker.check_model(ir.serde.serialize_model(model))
         return model
 
+    @parameterized.parameterized.expand(
+        [
+            ("scalar_unicode", "value_string", "你好 café 🧠"),
+            ("vector_unicode", "value_strings", ["你好", "café", "🧠", ""]),
+            ("scalar_ascii", "value_string", "hello"),
+            ("vector_ascii", "value_strings", ["hello", "world"]),
+            ("scalar_empty", "value_string", ""),
+            ("vector_empty", "value_strings", []),
+        ]
+    )
+    def test_fold_string_constant(self, _, attribute_name, value):
+        scalar = attribute_name == "value_string"
+        shape = [] if scalar else [len(value)]
+        node = onnx.helper.make_node("Constant", [], ["output"])
+        attribute_type = onnx.AttributeProto.STRING if scalar else onnx.AttributeProto.STRINGS
+        node.attribute.append(
+            onnx.helper.make_attribute(attribute_name, value, attr_type=attribute_type)
+        )
+        model = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                [node],
+                "string_constant",
+                [],
+                [onnx.helper.make_tensor_value_info("output", onnx.TensorProto.STRING, shape)],
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 18)],
+        )
+        onnx.checker.check_model(model)
+        expected = ReferenceEvaluator(model).run(None, {})[0]
+
+        optimized = optimizer.optimize(model)
+
+        optimized = onnx.load_model_from_string(optimized.SerializeToString())
+        onnx.checker.check_model(optimized)
+        actual = ReferenceEvaluator(optimized).run(None, {})[0]
+        np.testing.assert_array_equal(actual, expected)
+        self.assertEqual(actual.shape, tuple(shape))
+
     def test_fold_add(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>
@@ -727,6 +765,19 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         self.assertEqual(len(nodes), 3)
         ops = [node.op_type for node in nodes]
         self.assertEqual(ops, ["Identity", "Shape", "ConstantOfShape"])
+
+    def test_dropout_in_training_mode_on_constant_input_is_not_folded(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4] input) => (float[4] output)
+            <float[4] weight = {1.0, 1.0, 1.0, 1.0}, float half = {0.5}, bool true = {1}>
+            {
+                dropped = Dropout(weight, half, true)
+                output = Add(input, dropped)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual([node.op_type for node in optimized.graph], ["Dropout", "Add"])
 
     def test_concat_identity(self):
         model = """
