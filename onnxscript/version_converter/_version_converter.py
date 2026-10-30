@@ -9,6 +9,7 @@ import functools
 import logging
 from typing import Callable, Sequence, Union
 
+import onnx.defs
 import onnx_ir as ir
 import onnx_ir.convenience as ir_convenience
 import onnx_ir.passes.common as ir_passes_common
@@ -319,7 +320,7 @@ class _VersionConverter:
                     "version is available. Add a standard-domain opset import to its model "
                     "or local function."
                 )
-            self._check_source_version(node_version)
+            self._check_node_version(node, node_version)
             if node.domain == "ai.onnx":
                 node.domain = ""
                 self._modified = True
@@ -336,6 +337,32 @@ class _VersionConverter:
             ):
                 self._modified = True
             _set_onnx_opset_version(graph_or_function, self._target_version)
+
+    def _check_node_version(self, node: ir.Node, source_version: int) -> None:
+        if 0 < source_version < SUPPORTED_MIN_ONNX_OPSET:
+            # Exporters may record the operator's schema revision, not the model's
+            # imported opset. Accept it only if the same schema is active at opset 18.
+            try:
+                source_schema = onnx.defs.get_schema(node.op_type, source_version, "")
+                supported_schema = onnx.defs.get_schema(
+                    node.op_type, SUPPORTED_MIN_ONNX_OPSET, ""
+                )
+            except onnx.defs.SchemaError as e:
+                raise VersionConverterError(
+                    f"Cannot convert node {node.name!r} ({node.op_type}) from opset "
+                    f"{source_version}: no standard-domain schema is available at its "
+                    "source version or opset 18. Check the operator name and version."
+                ) from e
+            if source_schema.since_version == supported_schema.since_version:
+                return
+            raise VersionConverterError(
+                f"Cannot convert node {node.name!r} ({node.op_type}) from source opset "
+                f"{source_version} to {self._target_version}: its schema changed before "
+                f"opset {SUPPORTED_MIN_ONNX_OPSET}, outside the native conversion range. "
+                "Upgrade the node's original model or function using ONNX's converter "
+                "before combining it with this model."
+            )
+        self._check_source_version(source_version)
 
     def _check_source_version(self, source_version: int) -> None:
         if not SUPPORTED_MIN_ONNX_OPSET <= source_version <= self._target_version:

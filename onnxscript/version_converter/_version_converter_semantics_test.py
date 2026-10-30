@@ -298,6 +298,79 @@ def test_native_converter_records_explicit_node_versions():
     assert identity.version == 28
 
 
+@pytest.mark.parametrize("target", [18, 20, 28])
+@pytest.mark.parametrize("inline", [False, True])
+def test_legacy_node_schema_revisions_in_supported_opset(inline, target):
+    model = ir.from_onnx_text(
+        """
+        <ir_version: 10, opset_import: ["" : 18, "local" : 1]>
+        graph (float[2,3] x, float[3,2] w, float[2] b) => (float[2,2] y) {
+            y = local.linear (x, w, b)
+        }
+        <domain: "local", opset_import: ["" : 18]>
+        linear (x, w, b) => (y) {
+            m = MatMul (x, w)
+            a = Add (m, b)
+            y = Identity (a)
+        }
+        """
+    )
+    function = model.functions[("local", "linear", "")]
+    for node in function:
+        node.version = onnx.defs.get_schema(node.op_type, 18).since_version
+        assert node.version < 18
+    feeds = {
+        "x": np.arange(6, dtype=np.float32).reshape(2, 3),
+        "w": np.arange(6, dtype=np.float32).reshape(3, 2),
+        "b": np.array([1, -1], dtype=np.float32),
+    }
+    expected = ReferenceEvaluator(ir.to_proto(model)).run(None, feeds)
+    if inline:
+        result = version_converter.ConvertVersionPass(target)(model)
+        assert result.modified
+        nodes = model.graph
+    else:
+        assert _version_converter.convert_version(model, target)
+        nodes = function
+    assert all(node.version == target for node in nodes)
+    assert model.opset_imports[""] == target
+    converted = ir.to_proto(model)
+    if target <= onnx.defs.onnx_opset_version():
+        onnx.checker.check_model(converted, full_check=True)
+    actual = ReferenceEvaluator(converted).run(None, feeds)
+    np.testing.assert_array_equal(actual[0], expected[0])
+
+
+@pytest.mark.parametrize(
+    "op_type,source", [("ReduceMean", 13), ("Softmax", 11), ("Squeeze", 11)]
+)
+def test_changed_legacy_node_schemas_are_not_relabelled(op_type, source):
+    x = ir.Value(name="x", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([2]))
+    node = ir.Node("", op_type, [x], num_outputs=1, version=source)
+    model = ir.Model(
+        ir.Graph([x], [node.outputs[0]], nodes=[node], opset_imports={"": 18}),
+        ir_version=10,
+    )
+    with pytest.raises(_version_converter.VersionConverterError, match="source opset"):
+        version_converter.convert_version(model, 18)
+    assert node.version == source
+    assert model.opset_imports[""] == 18
+
+
+def test_unknown_legacy_node_schema_is_not_relabelled():
+    x = ir.Value(name="x", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape([2]))
+    node = ir.Node("", "UnknownOperator", [x], num_outputs=1, version=13)
+    model = ir.Model(
+        ir.Graph([x], [node.outputs[0]], nodes=[node], opset_imports={"": 18}),
+        ir_version=10,
+    )
+    with pytest.raises(
+        _version_converter.VersionConverterError, match=r"UnknownOperator.*no standard-domain"
+    ):
+        version_converter.convert_version(model, 18)
+    assert node.version == 13
+
+
 def test_fallback_still_supports_older_source_opsets():
     model = ir.from_onnx_text(
         """

@@ -20,6 +20,12 @@ static intermediate shapes or dtypes. DFT axis attributes are materialized as
 inputs, and GridSample interpolation modes are translated when crossing opset 20.
 Other revisions through opset 28 are upward-compatible for existing valid inputs.
 
+Individual IR nodes may record an operator's schema revision rather than the
+enclosing scope's imported opset (for example, MatMul-13 in an opset-18 model).
+Such revisions below 18 are accepted only when the same operator schema is still
+active at opset 18; they do not enable conversion of pre-18 model imports or
+operators whose schemas changed before opset 18.
+
 Missing source versions, unsupported native source/target ranges, and invalid
 required adapter inputs or attributes raise errors instead of silently marking
 an unconverted model with the target opset. An IR model may be partially modified
