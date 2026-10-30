@@ -20,12 +20,39 @@ class AdapterCoverageTest(unittest.TestCase):
         op_version_dict = {}
         all_schemas = onnx.defs.get_all_schemas_with_history()
         for schema in all_schemas:
+            if schema.domain:
+                continue
             if schema.name not in op_version_dict:
                 op_version_dict[schema.name] = [schema.since_version]
             else:
                 if schema.since_version not in op_version_dict[schema.name]:
                     op_version_dict[schema.name].append(schema.since_version)
         return op_version_dict
+
+    def test_incompatible_schema_changes_have_adapters(self):
+        for schema in onnx.defs.get_all_schemas_with_history():
+            if schema.domain or not 19 <= schema.since_version <= 28:
+                continue
+            try:
+                previous = onnx.defs.get_schema(schema.name, schema.since_version - 1)
+            except onnx.defs.SchemaError:
+                continue
+            changed_defaults = any(
+                name not in schema.attributes
+                or attr.default_value != schema.attributes[name].default_value
+                for name, attr in previous.attributes.items()
+            )
+            new_required_attributes = any(
+                attr.required and name not in previous.attributes
+                for name, attr in schema.attributes.items()
+            )
+            if changed_defaults or new_required_attributes:
+                with self.subTest(op=schema.name, version=schema.since_version):
+                    self.assertIsNotNone(
+                        _version_converter.registry.lookup_adapters(
+                            "", schema.name, schema.since_version - 1
+                        )
+                    )
 
     # TODO(shubhambhokare1) : Using existing onnx testing suite to verify operator adapter's functionality
     def test_upstream_coverage(self):
@@ -46,7 +73,6 @@ class AdapterCoverageTest(unittest.TestCase):
             self.assertEqual(domain, "")
             self.assertIn((name, upgrade_version), op_upgrades)
 
-    @pytest.mark.xfail(reason="TODO: Cleanup error status API.")
     def test_version_convert_no_source_version(self):
         model = ir.from_onnx_text(
             """
@@ -67,12 +93,12 @@ class AdapterCoverageTest(unittest.TestCase):
         self.assertEqual(model.graph.node(4).attributes["mode"].value, "bilinear")
 
         target_version = 20
-        version_converter.convert_version(model, target_version=target_version)
+        with self.assertRaisesRegex(_version_converter.VersionConverterError, "source opset"):
+            version_converter.convert_version(model, target_version=target_version)
 
 
 class VersionConverter18to17Test(unittest.TestCase):
-    @pytest.mark.xfail(strict=True, reason="Version downgrade not yet supported.")
-    def test_version_convert_compatible(self):
+    def test_version_downgrade_requires_fallback(self):
         model = ir.from_onnx_text(
             """
             <ir_version: 7, opset_import: [ "" : 18]>
@@ -89,7 +115,9 @@ class VersionConverter18to17Test(unittest.TestCase):
         """
         )
         target_version = 17
-        version_converter.convert_version(model, target_version=target_version)
+        with self.assertRaisesRegex(ValueError, "Supported range: 18 to 28"):
+            version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], 18)
 
 
 class VersionConverter18to19Test(unittest.TestCase):
@@ -234,7 +262,6 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(4).version, 20)
         self.assertEqual(model.graph.node(4).attributes["mode"].value, "cubic")
 
-    @pytest.mark.xfail(reason="Version converter does not currently support local-function.")
     def test_version_convert_function_nodes(self):
         """Test that version converter processes nodes inside model functions."""
         model = ir.from_onnx_text(
@@ -261,7 +288,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(len(func), 5)  # 5 nodes in the function
 
         target_version = 20
-        version_converter.convert_version(model, target_version=target_version)
+        _version_converter.convert_version(model, target_version=target_version)
         self.assertEqual(model.opset_imports[""], target_version)
 
         # Verify that the function's opset_imports are updated
@@ -280,7 +307,6 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(func[3].version, 20)
         self.assertEqual(len(func[3].inputs), 3)  # DFT 19->20 adds dft_length input
 
-    @pytest.mark.xfail(reason="Version converter does not currently support local-function.")
     def test_version_convert_function_with_control_flow_subgraph(self):
         """Test that version converter processes subgraphs inside control flow nodes in functions."""
         model = ir.from_onnx_text(
@@ -321,7 +347,7 @@ class VersionConverter19to20Test(unittest.TestCase):
 
         target_version = 20
         # Use internal API to test function version conversion without inlining
-        version_converter.convert_version(model, target_version=target_version)
+        _version_converter.convert_version(model, target_version=target_version)
         self.assertEqual(model.opset_imports[""], target_version)
 
         # Verify that the function's opset_imports are updated
@@ -370,20 +396,9 @@ class VersionConverter20to21Test(unittest.TestCase):
         version_converter.convert_version(model, target_version=target_version)
         self.assertEqual(model.opset_imports[""], target_version)
 
-        self.assertEqual(model.graph.node(3).op_type, "Reshape")
-        self.assertEqual(model.graph.node(3).version, 21)
-        self.assertEqual(model.graph.node(4).op_type, "Expand")
-        self.assertEqual(model.graph.node(4).version, 21)
-        self.assertEqual(model.graph.node(5).op_type, "Reshape")
-        self.assertEqual(model.graph.node(5).version, 21)
-        self.assertEqual(model.graph.node(6).op_type, "Reshape")
-        self.assertEqual(model.graph.node(6).version, 21)
-        self.assertEqual(model.graph.node(7).op_type, "Expand")
-        self.assertEqual(model.graph.node(7).version, 21)
-        self.assertEqual(model.graph.node(8).op_type, "Reshape")
-        self.assertEqual(model.graph.node(8).version, 21)
-        self.assertEqual(model.graph.node(9).op_type, "GroupNormalization")
-        self.assertEqual(model.graph.node(9).version, 21)
+        self.assertNotIn("GroupNormalization", [node.op_type for node in model.graph])
+        for node in model.graph:
+            self.assertEqual(node.version, 21)
 
     def test_version_groupnorm_no_bias(self):
         model = ir.from_onnx_text(
@@ -398,11 +413,9 @@ class VersionConverter20to21Test(unittest.TestCase):
         """
         )
         target_version = 21
-        version_converter.convert_version(model, target_version=target_version)
-        self.assertEqual(model.opset_imports[""], target_version)
-
-        self.assertEqual(model.graph.node(0).op_type, "GroupNormalization")
-        self.assertEqual(model.graph.node(0).version, 20)
+        with self.assertRaisesRegex(_version_converter.VersionConverterError, "input 2"):
+            version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], 18)
 
 
 class VersionConverterMetadataMergeTest(unittest.TestCase):
@@ -463,29 +476,15 @@ class VersionConverterMetadataMergeTest(unittest.TestCase):
         version_converter.convert_version(model, target_version=target_version)
         self.assertEqual(model.opset_imports[""], target_version)
 
-        # GroupNormalization adapter creates multiple nodes (Reshape, Expand, etc.)
-        # Verify that metadata was copied to the new nodes created by the adapter
-        new_groupnorm_node = model.graph.node(9)
-        self.assertEqual(new_groupnorm_node.op_type, "GroupNormalization")
-        self.assertEqual(new_groupnorm_node.version, 21)
+        self.assertNotIn("GroupNormalization", [node.op_type for node in model.graph])
+        replacement_nodes = list(model.graph)[:-2]
+        self.assertTrue(replacement_nodes)
+        for node in replacement_nodes:
+            self.assertEqual(node.version, 21)
+            self.assertEqual(node.metadata_props.get("source"), "original_groupnorm")
 
-        # Verify metadata was copied to the new GroupNormalization node
-        self.assertEqual(new_groupnorm_node.metadata_props.get("source"), "original_groupnorm")
-
-        # Also check that intermediate nodes created by the adapter received the metadata
-        # The adapter creates Reshape, Expand, Reshape nodes for scale and bias
-        for i in range(9):
-            node = model.graph.node(i)
-            if node.version == 21 and node.op_type in ("Reshape", "Expand", "Constant"):
-                self.assertEqual(
-                    node.metadata_props.get("source"),
-                    "original_groupnorm",
-                    f"Node {i} ({node.op_type}) should have metadata copied",
-                )
-
-    @pytest.mark.xfail(reason="Version converter does not currently support local-function.")
-    def test_version_convert_raises_on_function_node_with_ref_attribute(self):
-        """Test that version conversion raises when a function contains a node with a ref attribute."""
+    def test_version_convert_preserves_function_ref_attribute(self):
+        """Unchanged reference attributes remain valid in a converted function."""
         # Build a function with a LeakyRelu node that uses a RefAttr for 'alpha'
         func_input = ir.Value(name="x")
         ref_attr = ir.RefAttr("alpha", "alpha", ir.AttributeType.FLOAT)
@@ -535,11 +534,10 @@ class VersionConverterMetadataMergeTest(unittest.TestCase):
         )
 
         target_version = 20
-        with self.assertRaisesRegex(
-            version_converter._version_converter.VersionConverterError,  # pylint: disable=protected-access
-            "has ref attribute, which is not supported by version converter",
-        ):
-            version_converter.convert_version(model, target_version=target_version)
+        _version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(function.opset_imports[""], target_version)
+        self.assertEqual(leaky_relu_node.version, target_version)
+        self.assertTrue(leaky_relu_node.attributes["alpha"].is_ref())
 
 
 class VersionConverter25to26Test(unittest.TestCase):
