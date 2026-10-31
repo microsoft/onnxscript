@@ -284,7 +284,7 @@ def build_graph(
         )
     for returned_val, declared_val in zip(trace_outputs, outputs):
         if declared_val.name:
-            returned_val.name = declared_val.name
+            sub_builder._rename_value(returned_val, declared_val.name)
         if declared_val.type is not None:
             if returned_val.type is not None and returned_val.type != declared_val.type:
                 raise ValueError(
@@ -427,6 +427,11 @@ class GraphBuilder(BuilderBase):
             self._constant_cache: dict[tuple[Any, ir.DataType | None], ir.Value] = {}
             self._functions: dict[ir.OperatorIdentifier, ir.Function] = {}
             self._anonymous_initializers: set[ir.Value] = set()
+            # Names that generated initializers must avoid. Each graph is scanned
+            # once; names added later through a builder are recorded as they appear.
+            self._used_names: set[str] = set()
+            self._scanned_graphs: set[ir.Graph] = set()
+            self._next_initializer_index = 0
 
     def opset(self, domain: str, version: int = 1) -> OpBuilder:
         """Create an OpBuilder bound to the given domain and version."""
@@ -460,7 +465,7 @@ class GraphBuilder(BuilderBase):
 
     def _add_node(self, node: ir.Node) -> None:
         """Append a node to the graph."""
-        if not self._root._anonymous_initializers:
+        if not self._root._scanned_graphs:
             self.graph.append(node)
             return
         # Captures may first become visible in this node, after constants were
@@ -491,28 +496,17 @@ class GraphBuilder(BuilderBase):
                     values.extend(graph.initializers.values())
                     pending.extend(graph)
         for value in values:
-            if value is None or value.name is None:
-                continue
-            initializer = self._root.graph.initializers.get(value.name)
-            if (
-                initializer is not None
-                and initializer is not value
-                and initializer in self._root._anonymous_initializers
-            ):
-                name = self._unused_initializer_name(values)
-                self._root.graph.initializers.pop(initializer.name)
-                # Value.name also renames its tensor; keep the caller's tensor intact.
-                tensor = initializer.const_value
-                initializer.const_value = None
-                try:
-                    initializer.name = name
-                finally:
-                    initializer.const_value = tensor
-                self._root.graph.register_initializer(initializer)
+            if value is not None and value.name is not None:
+                self._root._used_names.add(value.name)
+        for value in values:
+            if value is not None and value.name is not None:
+                self._reserve_name(value.name, value, values)
         self.graph.append(node)
 
     def _add_initializer(self, value: ir.Value) -> None:
         """Register an initializer in the root graph."""
+        if value.name:
+            self._reserve_name(value.name, value)
         self._root._graph.register_initializer(value)
 
     def _record_opset(self, domain: str, version: int | None) -> None:
@@ -594,7 +588,7 @@ class GraphBuilder(BuilderBase):
         value = ir.Value(
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
         )
-        self._root._graph.register_initializer(value)
+        self._add_initializer(value)
         return value
 
     def input(
@@ -621,6 +615,7 @@ class GraphBuilder(BuilderBase):
         Returns:
             A Value object.
         """
+        self._reserve_name(name)
         value = ir.val(
             name=name,
             dtype=dtype,
@@ -642,28 +637,72 @@ class GraphBuilder(BuilderBase):
             name: The name to assign to the output value. If None, no renaming is done.
         """
         if name:
-            value.name = name
+            self._rename_value(value, name)
         self._graph.outputs.append(value)
 
-    def _unused_initializer_name(self, inputs: Sequence[ir.Value | None] = ()) -> str:
-        used_names = {value.name for value in inputs if value is not None}
-        # A captured graph can occur on many Values; scan it only once per allocation.
-        graphs = set()
-        for value in inputs:
+    def _rename_value(self, value: ir.Value, name: str) -> None:
+        """Give *value* a caller-chosen name, moving a generated initializer if needed."""
+        self._reserve_name(name, value)
+        # The caller now owns this name; never relocate it as a generated one.
+        self._root._anonymous_initializers.discard(value)
+        value.name = name
+
+    def _reserve_name(
+        self,
+        name: str,
+        value: ir.Value | None = None,
+        context: Sequence[ir.Value | None] = (),
+    ) -> None:
+        """Keep *name* for *value* by moving a generated initializer that uses it."""
+        root = self._root
+        if root._scanned_graphs:
+            root._used_names.add(name)
+        initializer = root.graph.initializers.get(name)
+        if (
+            initializer is None
+            or initializer is value
+            or initializer not in root._anonymous_initializers
+        ):
+            return
+        new_name = self._unused_initializer_name(context)
+        root.graph.initializers.pop(name)
+        # Value.name also renames its tensor; keep the caller's tensor intact.
+        tensor = initializer.const_value
+        initializer.const_value = None
+        try:
+            initializer.name = new_name
+        finally:
+            initializer.const_value = tensor
+        root.graph.register_initializer(initializer)
+
+    def _unused_initializer_name(self, context: Sequence[ir.Value | None] = ()) -> str:
+        root = self._root
+        # Captured Values may belong to graphs outside this builder chain.
+        graphs: dict[ir.Graph, None] = {}
+        for value in context:
             if value is not None and value.graph is not None:
-                graphs.add(value.graph)
+                graphs[value.graph] = None
         current: GraphBuilder | None = self
         while current is not None:
-            graphs.add(current.graph)
+            graphs[current.graph] = None
             current = current.parent
+        # Nodes are scanned once and then recorded as builders add them. Graph
+        # interfaces can also be changed directly, so check them on every call.
+        interface_names: set[str | None] = set()
         for graph in graphs:
-            used_names.update(ir.convenience.create_value_mapping(graph))
-        index = len(self._root.graph.initializers)
-        name = f"const_tensor_{index}"
-        while name in used_names:
-            index += 1
-            name = f"const_tensor_{index}"
-        return name
+            if graph not in root._scanned_graphs:
+                root._scanned_graphs.add(graph)
+                root._used_names.update(ir.convenience.create_value_mapping(graph))
+            interface_names.update(value.name for value in graph.inputs)
+            interface_names.update(value.name for value in graph.outputs)
+        while True:
+            name = f"const_tensor_{root._next_initializer_index}"
+            root._next_initializer_index += 1
+            if name not in root._used_names and name not in interface_names:
+                if any(name in graph.initializers for graph in graphs):
+                    continue
+                root._used_names.add(name)
+                return name
 
     def _get_or_create_constant(
         self, value: VALUE_LIKE, dtype: ir.DataType | None
