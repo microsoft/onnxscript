@@ -343,6 +343,43 @@ class TestMaxMinToClip(_TestMinMaxToClipBase):
         self.run_failed_condition_test(base_model, max_min_rule, "is not a scalar")
 
 
+class TestClipFusionBoundRank(_TestMinMaxToClipBase):
+    """Min/Max broadcast X up to the rank of the bounds, while Clip keeps the shape of X."""
+
+    @staticmethod
+    def make_model(rule: RewriteRule, signature: str, bound_type: str) -> ir.Model:
+        if rule is min_max_rule:  # Max(Min(X, ub), lb)
+            first, second = "Min(X, ub)", "Max(x1, lb)"
+        else:  # Min(Max(X, lb), ub)
+            first, second = "Max(X, lb)", "Min(x1, ub)"
+        return ir.from_onnx_text(f"""
+            < ir_version: 10, opset_import: ["" : 20] >
+            test_model {signature}
+            <{bound_type} lb = {{0.0}}, {bound_type} ub = {{6.0}}>
+            {{
+                x1 = {first}
+                Y = {second}
+            }}
+        """)
+
+    @parameterized.expand(
+        [
+            ("min_max_1d", min_max_rule, "(float[N] X) => (float[1, N] Y)", "float[1, 1]"),
+            ("min_max_0d", min_max_rule, "(float X) => (float[1] Y)", "float[1]"),
+            ("max_min_1d", max_min_rule, "(float[N] X) => (float[1, N] Y)", "float[1, 1]"),
+            ("max_min_0d", max_min_rule, "(float X) => (float[1] Y)", "float[1]"),
+        ]
+    )
+    def test_failure_clip_fusion_bound_rank_above_input_rank(self, _, rule, signature, bound):
+        base_model = self.make_model(rule, signature, bound)
+        self.run_failed_condition_test(base_model, rule, "has more dimensions than")
+
+    @parameterized.expand([("min_max", min_max_rule), ("max_min", max_min_rule)])
+    def test_successful_clip_fusion_bound_rank_equal_to_input_rank(self, _, rule):
+        base_model = self.make_model(rule, "(float[N] X) => (float[N] Y)", "float[1]")
+        self.run_test(base_model, expected_op_types=["Clip"])
+
+
 class TestIntegrationMinMaxToClip(_TestMinMaxToClipBase):
     def test_successful_full_chain_fusion(self):
         model = ir.from_onnx_text("""
