@@ -16,6 +16,8 @@ from onnxscript.rewriter._ir_utils import get_const_value, get_singleton_value
 
 
 class _ConvAffineFusionBase(pattern.RewriteRuleClassBase):
+    _affine_before_conv = False
+
     def check(
         self,
         context,
@@ -35,11 +37,20 @@ class _ConvAffineFusionBase(pattern.RewriteRuleClassBase):
             return check_result.fail("Operand for Mul should be constant scalar value")
         if get_singleton_value(offset) is None:
             return check_result.fail("Operand for Add should be constant scalar value")
+        input_rank = len(w.const_value.shape)
+        if self._affine_before_conv:
+            if x.shape is None:
+                return check_result.fail("Input rank of the pre-Conv affine is unknown")
+            input_rank = len(x.shape)
+        if any(len(value.const_value.shape) > input_rank for value in (scale, offset)):
+            return check_result.fail("Affine operands increase the input rank")
         return check_result
 
 
 class AffineConvFusion(_ConvAffineFusionBase):
     """Pattern: scalar Mul + scalar Add + Conv (1x1) --> Conv(1x1)"""
+
+    _affine_before_conv = True
 
     def pattern(self, op, x, w, b, scale, offset):
         return op.Conv(
@@ -61,8 +72,10 @@ class AffineConvFusion(_ConvAffineFusionBase):
         offset: ir.Value,
         conv_out: ir.Value,
     ) -> ir.Value:
-        scale_value = scale.const_value.numpy()
-        offset_value = offset.const_value.numpy()
+        # Singleton operands may carry broadcast dimensions that must not be
+        # propagated to the Conv weights or its one-dimensional bias.
+        scale_value = scale.const_value.numpy().reshape(())
+        offset_value = offset.const_value.numpy().reshape(())
         w_value = w.const_value.numpy()
         b_value = b.const_value.numpy()
         scaled_w_value = op.initializer(ir.tensor(w_value * scale_value), w.name + "_scaled")
@@ -93,8 +106,8 @@ class ConvAffineFusion(_ConvAffineFusionBase):
         offset: ir.Value,
         conv_out: ir.Value,
     ) -> ir.Value:
-        scale_value = scale.const_value.numpy()
-        offset_value = offset.const_value.numpy()
+        scale_value = scale.const_value.numpy().reshape(())
+        offset_value = offset.const_value.numpy().reshape(())
         w_value = w.const_value.numpy()
         b_value = b.const_value.numpy()
         scaled_w_weight = op.initializer(ir.tensor(w_value * scale_value), w.name + "_scaled")
