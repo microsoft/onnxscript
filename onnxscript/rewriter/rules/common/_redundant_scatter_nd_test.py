@@ -249,5 +249,99 @@ class RedundantScatterNdTest(unittest.TestCase):
         self.assertEqual([node.op_type for node in function], ["ScatterND"])
 
 
+    def test_dynamic_indices_out_of_bounds_axis_rejected(self):
+        """Out of bounds axis should be safely rejected without IndexError."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 14]>
+            test (float[4, 8] data, float[4, 8] transposed_data, float[4, 8] updates) => (float[4, 8] out)
+            <
+                int64 axis = {10},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_negative_out_of_bounds_axis_rejected(self):
+        """Negative out of bounds axis should be safely rejected without IndexError."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 14]>
+            test (float[4, 8] data, float[4, 8] transposed_data, float[4, 8] updates) => (float[4, 8] out)
+            <
+                int64 axis = {-5},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_valid_negative_axis_supported(self):
+        """Valid negative axis (-1 referring to axis 1 of rank 2) should be supported."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 14]>
+            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {-1},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+
+    def test_dynamic_indices_scalar_transposed_data_rejected(self):
+        """Scalar transposed_data shape should be safely rejected without IndexError."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 14]>
+            test (float[4, 8] data, float updates) => (float out)
+            <
+                int64 axis = {0},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(updates, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
