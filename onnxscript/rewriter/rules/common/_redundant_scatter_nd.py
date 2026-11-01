@@ -47,11 +47,20 @@ class ScatterAllDynamic(RewriteRuleClassBase):
         shape: ir.Shape | None = data.shape
         if shape is None:
             return result.fail("Data shape is not statically known.", data)
+        rank = shape.rank()
+        if rank is None or axis_value < -rank or axis_value >= rank:
+            return result.fail("Axis value is out of bounds for data shape.", axis)
+        if axis_value < 0:
+            axis_value += rank
         updated_dim_value = shape[axis_value]
         transposed_data_shape: ir.Shape | None = transposed_data.shape
         if transposed_data_shape is None:
             return result.fail(
                 "Transposed data shape is not statically known.", transposed_data
+            )
+        if len(transposed_data_shape) == 0:
+            return result.fail(
+                "Transposed data shape must have at least rank 1.", transposed_data
             )
         actual_dim_value = transposed_data_shape[0]
         if not _ir_utils.same_dim(updated_dim_value, actual_dim_value):
