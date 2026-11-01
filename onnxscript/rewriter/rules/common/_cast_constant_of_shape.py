@@ -23,6 +23,22 @@ def fused_cast_constant_of_shape(op, shape: ir.Value, scalar: ir.Attr, dtype: ir
     return op.ConstantOfShape(shape, value=cast_value)
 
 
+def check_cast_constant_of_shape(context, shape, scalar, dtype, **_) -> bool:
+    del context, shape
+    if dtype.is_ref() or scalar.is_ref():
+        return False
+    if dtype.type != ir.AttributeType.INT:
+        return False
+    to_dtype = dtype.as_int()
+    if to_dtype in (ir.DataType.UNDEFINED, ir.DataType.STRING):
+        return False
+    if scalar.type != ir.AttributeType.TENSOR or scalar.value is None:
+        return False
+    if scalar.value.size != 1 or scalar.value.dtype == ir.DataType.STRING:
+        return False
+    return True
+
+
 def cast_constant_of_shape_without_value(op, shape, dtype):
     constant = op.ConstantOfShape(shape)
     return op.Cast(constant, to=dtype)
@@ -33,10 +49,28 @@ def fused_cast_constant_of_shape_without_value(op, shape, dtype, **_):
     return op.ConstantOfShape(shape, value=zero)
 
 
-cast_constant_of_shape_rule = RewriteRule(cast_constant_of_shape, fused_cast_constant_of_shape)
+def check_cast_constant_of_shape_without_value(context, shape, dtype, **_) -> bool:
+    del context, shape
+    if dtype.is_ref():
+        return False
+    if dtype.type != ir.AttributeType.INT:
+        return False
+    to_dtype = dtype.as_int()
+    if to_dtype in (ir.DataType.UNDEFINED, ir.DataType.STRING):
+        return False
+    return True
+
+
+cast_constant_of_shape_rule = RewriteRule(
+    cast_constant_of_shape,
+    fused_cast_constant_of_shape,
+    check_cast_constant_of_shape,
+)
 
 cast_constant_of_shape_without_value_rule = RewriteRule(
-    cast_constant_of_shape_without_value, fused_cast_constant_of_shape_without_value
+    cast_constant_of_shape_without_value,
+    fused_cast_constant_of_shape_without_value,
+    check_cast_constant_of_shape_without_value,
 )
 
 rules = RewriteRuleSet(
