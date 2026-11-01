@@ -49,6 +49,40 @@ class CastConstantOfShapeTest(unittest.TestCase):
         output_model_proto = ir.serde.serialize_model(model)
         onnx.checker.check_model(output_model_proto, True)
 
+    def test_cast_to_string_after_constant_of_shape_is_not_fused(self):
+        """Cast to string should not be fused into ConstantOfShape as string serialization fails."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (int64[2] input_x) => (string[1, 4] output)
+            {
+                constant = ConstantOfShape <value: tensor = float[1] {1.}>(input_x)
+                output = Cast <to = 8> (constant)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        # Verify the model serializes cleanly without SerdeError
+        output_proto = ir.serde.serialize_model(model)
+        self.assertIsNotNone(output_proto)
+
+    def test_cast_to_string_after_constant_of_shape_without_value_is_not_fused(self):
+        """Cast to string without value should not be fused into ConstantOfShape."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (int64[2] input_x) => (string[1, 4] output)
+            {
+                constant = ConstantOfShape (input_x)
+                output = Cast <to = 8> (constant)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        # Verify the model serializes cleanly without SerdeError
+        output_proto = ir.serde.serialize_model(model)
+        self.assertIsNotNone(output_proto)
+
 
 if __name__ == "__main__":
     unittest.main()
