@@ -1305,6 +1305,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("unfold", core_ops.aten_unfold),
     TorchLibOpInfo("ops.aten.unfold", core_ops.aten_unfold),
     TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
+    TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze_complex, complex=True),
     TorchLibOpInfo("view", core_ops.aten_view),
     TorchLibOpInfo("view", core_ops.aten_view_complex, complex=True),
     TorchLibOpInfo("view_as", core_ops.aten_view_as),

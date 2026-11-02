@@ -33,6 +33,44 @@ class FoldConstantsTest(unittest.TestCase):
         onnx.checker.check_model(ir.serde.serialize_model(model))
         return model
 
+    @parameterized.parameterized.expand(
+        [
+            ("scalar_unicode", "value_string", "你好 café 🧠"),
+            ("vector_unicode", "value_strings", ["你好", "café", "🧠", ""]),
+            ("scalar_ascii", "value_string", "hello"),
+            ("vector_ascii", "value_strings", ["hello", "world"]),
+            ("scalar_empty", "value_string", ""),
+            ("vector_empty", "value_strings", []),
+        ]
+    )
+    def test_fold_string_constant(self, _, attribute_name, value):
+        scalar = attribute_name == "value_string"
+        shape = [] if scalar else [len(value)]
+        node = onnx.helper.make_node("Constant", [], ["output"])
+        attribute_type = onnx.AttributeProto.STRING if scalar else onnx.AttributeProto.STRINGS
+        node.attribute.append(
+            onnx.helper.make_attribute(attribute_name, value, attr_type=attribute_type)
+        )
+        model = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                [node],
+                "string_constant",
+                [],
+                [onnx.helper.make_tensor_value_info("output", onnx.TensorProto.STRING, shape)],
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 18)],
+        )
+        onnx.checker.check_model(model)
+        expected = ReferenceEvaluator(model).run(None, {})[0]
+
+        optimized = optimizer.optimize(model)
+
+        optimized = onnx.load_model_from_string(optimized.SerializeToString())
+        onnx.checker.check_model(optimized)
+        actual = ReferenceEvaluator(optimized).run(None, {})[0]
+        np.testing.assert_array_equal(actual, expected)
+        self.assertEqual(actual.shape, tuple(shape))
+
     def test_fold_add(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>
@@ -250,6 +288,87 @@ class FoldConstantsTest(unittest.TestCase):
         self.assertEqual(optimized.graph[0].outputs[0].name, "z")
         self.assertEqual(optimized.graph[0].inputs[0].name, "x")
 
+    def test_cast_like_to_cast_preserves_saturate(self):
+        model = """
+            <ir_version: 10, opset_import: [ "" : 19]>
+            agraph (float[3] x) => (float[3] z) {
+                like = Constant <value = float8e4m3fn[1] {0}> ()
+                x_f8 = CastLike <saturate = 0> (x, like)
+                z = Cast <to = 1> (x_f8)
+            }
+        """
+        original = ir.from_onnx_text(model)
+        data = np.array([1000.0, 1.0, -1000.0], dtype=np.float32)
+        # With saturate=0, out-of-range values become NaN instead of +/-448
+        expected = np.array([np.nan, 1.0, np.nan], dtype=np.float32)
+        np.testing.assert_array_equal(
+            ReferenceEvaluator(ir.serde.serialize_model(original)).run(None, {"x": data})[0],
+            expected,
+        )
+
+        optimized = self._fold(original)
+        self.assertEqual(len(optimized.graph), 2)
+        cast = optimized.graph[0]
+        self.assertEqual(cast.op_type, "Cast")
+        self.assertEqual(cast.attributes["to"].as_int(), ir.DataType.FLOAT8E4M3FN)
+        self.assertEqual(cast.attributes["saturate"].as_int(), 0)
+        np.testing.assert_array_equal(
+            ReferenceEvaluator(ir.serde.serialize_model(optimized)).run(None, {"x": data})[0],
+            expected,
+        )
+
+    def test_fold_cast_like_preserves_saturate(self):
+        model = """
+            <ir_version: 10, opset_import: [ "" : 19]>
+            agraph () => (float[3] z) {
+                x = Constant <value = float[3] {1000.0, 1.0, -1000.0}> ()
+                like = Constant <value = float8e4m3fn[1] {0}> ()
+                x_f8 = CastLike <saturate = 0> (x, like)
+                z = Cast <to = 1> (x_f8)
+            }
+        """
+
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 0)
+        np.testing.assert_array_equal(
+            optimized.graph.initializers["z"].const_value.numpy(),
+            np.array([np.nan, 1.0, np.nan], dtype=np.float32),
+        )
+
+    def test_cast_like_to_cast_does_not_add_round_mode(self):
+        # ONNX's CastLike function body passes only saturate on to Cast.
+        model = """
+            <ir_version: 11, opset_import: [ "" : 24]>
+            agraph (float[2] x) => (float8e4m3fn[2] z) {
+                like = Constant <value = float8e4m3fn[1] {0}> ()
+                z = CastLike <round_mode = "down"> (x, like)
+            }
+        """
+
+        optimized = self._fold(model)
+        self.assertEqual([n.op_type for n in optimized.graph], ["Cast"])
+        self.assertNotIn("round_mode", optimized.graph[0].attributes)
+
+    def test_cast_like_with_attribute_reference_keeps_it(self):
+        model = """
+            <ir_version: 10, opset_import: ["this" : 1, "" : 19]>
+            agraph (float[3] x) => (float8e4m3fn[3] z) {
+                z = this.function <sat = 0> (x)
+            }
+            <domain: "this", opset_import: ["" : 19]>
+            function <sat> (x) => (z) {
+                like = Constant <value = float8e4m3fn[1] {0}> ()
+                z = CastLike <saturate: int = @sat> (x, like)
+            }
+        """
+
+        optimized = self._fold(model)
+        function = next(iter(optimized.functions.values()))
+        self.assertEqual([n.op_type for n in function], ["Cast"])
+        saturate = function[0].attributes["saturate"]
+        self.assertTrue(saturate.is_ref())
+        self.assertEqual(saturate.ref_attr_name, "sat")
+
     def test_shape_inference(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>
@@ -459,7 +578,7 @@ func (float[1,512] x) => (float[1,N] return_val) {
         self.assertEqual(len(optimized.graph[-2].outputs), 3)
         self.assertEqual(optimized.graph[-2].op_type, "Split")
 
-    def test_static_split_to_sequence_with_list_split_no_keepdims_and_squence_at_is_folded_as_split_with_squeeze(
+    def test_static_split_to_sequence_with_list_split_no_keepdims_and_squence_at_is_folded_as_split(
         self,
     ):
         model = """
@@ -479,10 +598,15 @@ func (float[1,3] x) => (float[1,3] return_val) {
    return_val = Concat <axis: int = 1> (split_0, split_1, split_2)
 }"""
         optimized = self._fold(model)
-        self.assertEqual(len(optimized.graph), 7)
         self.assertEqual(len(optimized.graph[1].outputs), 3)
         self.assertEqual(optimized.graph[1].op_type, "Split")
-        self.assertEqual(len([n for n in optimized.graph if n.op_type == "Squeeze"]), 3)
+        # keepdims is ignored when split is a list, so the split axis stays.
+        self.assertEqual(len([n for n in optimized.graph if n.op_type == "Squeeze"]), 0)
+        data = np.arange(3, dtype=np.float32).reshape(1, 3)
+        np.testing.assert_array_equal(
+            ReferenceEvaluator(ir.serde.serialize_model(optimized)).run(None, {"x": data})[0],
+            ReferenceEvaluator(onnx.parser.parse_model(model)).run(None, {"x": data})[0],
+        )
 
     def test_split_to_sequence_and_concat_from_sequence_with_new_axis_0(
         self,
@@ -549,7 +673,7 @@ func (float[2,N] x, int64[4] split) => (float[2,N] return_val) {
         self.assertTrue(all(n.op_type != "SequenceAt" for n in optimized.graph))
 
     def test_dynamic_split_to_sequence_list_shape_no_keepdims(self):
-        # keepdims=0 path with dynamic (non-constant) splits input; triggers squeeze logic.
+        # keepdims is ignored when split is a list, even a dynamic one.
         model = """
 <
    ir_version: 8,
@@ -570,9 +694,20 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         self.assertEqual(len(split_nodes), 1)
         self.assertEqual(len(split_nodes[0].outputs), 3)
         self.assertTrue(all(n.op_type != "SequenceAt" for n in optimized.graph))
-        # Each split output should have a corresponding Squeeze (keepdims=0 branch)
         squeeze_nodes = [n for n in optimized.graph if n.op_type == "Squeeze"]
-        self.assertEqual(len(squeeze_nodes), 3)
+        self.assertEqual(len(squeeze_nodes), 0)
+
+    def test_dynamic_split_to_sequence_with_scalar_split_not_rewritten(self):
+        # The number of chunks depends on the value of split, which is unknown.
+        model = ir.from_onnx_text("""
+            <ir_version: 8, opset_import: ["" : 18]>
+            func (float[3,6] x, int64 split) => (float[3,6] y) {
+                splits = SplitToSequence <axis: int = 1> (x, split)
+                y = ConcatFromSequence <axis: int = 1> (splits)
+            }
+        """)
+        optimized = self._fold(model)
+        self.assertEqual(optimized.graph[0].op_type, "SplitToSequence")
 
     def test_initializer_input_not_folded(self):
         model_text = """
@@ -630,6 +765,19 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         self.assertEqual(len(nodes), 3)
         ops = [node.op_type for node in nodes]
         self.assertEqual(ops, ["Identity", "Shape", "ConstantOfShape"])
+
+    def test_dropout_in_training_mode_on_constant_input_is_not_folded(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4] input) => (float[4] output)
+            <float[4] weight = {1.0, 1.0, 1.0, 1.0}, float half = {0.5}, bool true = {1}>
+            {
+                dropped = Dropout(weight, half, true)
+                output = Add(input, dropped)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual([node.op_type for node in optimized.graph], ["Dropout", "Add"])
 
     def test_concat_identity(self):
         model = """

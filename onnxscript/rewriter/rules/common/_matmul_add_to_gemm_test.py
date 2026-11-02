@@ -161,6 +161,52 @@ class MatMulAddToGemmTest(_MatMulAddToGemmTestBase):
         }
         return super().check_matmul_add_to_gemm_incompatible_shapes(**kwargs)
 
+    @parameterized.expand(
+        [
+            ("bias_m_n", (2, 5), (2, 3), 1),
+            ("bias_1_n", (2, 5), (1, 3), 1),
+            # Add broadcasts the (1, 3) MatMul output up to (2, 3); Gemm can't.
+            ("bias_grows_output", (1, 5), (2, 3), 0),
+            ("bias_rank_3", (2, 5), (1, 1, 3), 0),
+        ]
+    )
+    def test_matmul_add_to_gemm_bias_shape(self, _, input_shape, bias_shape, expected_count):
+        base_model = ir.from_proto(
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("MatMul", ["X", "W"], ["XW"]),
+                        onnx.helper.make_node("Add", ["XW", "B"], ["Y"]),
+                    ],
+                    "test_model",
+                    [
+                        onnx.helper.make_tensor_value_info(
+                            "X", onnx.TensorProto.FLOAT, input_shape
+                        )
+                    ],
+                    [onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, None)],
+                    [
+                        onnx.numpy_helper.from_array(
+                            self.rng.uniform(-0.5, 0.5, (5, 3)).astype("float32"), "W"
+                        ),
+                        onnx.numpy_helper.from_array(
+                            self.rng.uniform(-0.5, 0.5, bias_shape).astype("float32"), "B"
+                        ),
+                    ],
+                ),
+                opset_imports=[onnx.helper.make_opsetid("", 20)],
+                ir_version=10,
+            )
+        )
+        base_model = shape_inference.infer_shapes(base_model)
+        updated_model = self.clone_model(base_model)
+        count = _matmul_add_to_gemm.matmul_add_to_gemm_rule.apply_to_model(updated_model)
+        self.assertEqual(count, expected_count)
+
+        inputs = (self.rng.random(input_shape).astype(np.float32),)
+        testing.assert_numerically_equal(base_model, updated_model, inputs)
+        onnx.checker.check_model(ir.serde.serialize_model(updated_model), full_check=True)
+
 
 class TransAMatMulAddToGemmTest(_MatMulAddToGemmTestBase):
     @parameterized.expand(
