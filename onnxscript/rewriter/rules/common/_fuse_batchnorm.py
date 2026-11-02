@@ -89,13 +89,17 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
             bias_name = inbound_node.inputs[1].name + "_bias"
         fused_bias = ir.tensor((gemm_beta * original_bias - input_mean) * scale_factor + beta)
 
-        return op.op(
+        fused_out = op.op(
             self.op_type,
             x,
             op.initializer(fused_weights, name=inbound_node.inputs[1].name),
             op.initializer(fused_bias, name=bias_name),
             **new_attributes,
         )
+        # Preserve the operation's provenance before the default metadata merger
+        # fills in properties from the matched BatchNormalization node.
+        fused_out.producer().metadata_props.update(inbound_node.metadata_props)
+        return fused_out
 
     def check(self, context, x, inbound_out: ir.Value, batchnorm_out: ir.Value) -> MatchResult:
         del context  # Unused
@@ -103,6 +107,12 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
 
         inbound_node = inbound_out.producer()
         batchnorm_node = batchnorm_out.producer()
+
+        if batchnorm_node.attributes.get_int("training_mode", 0) != 0:
+            return check_result.fail(
+                "BatchNormalization in training mode uses the batch statistics, "
+                "not input_mean and input_var."
+            )
 
         # Check that inbound weights + (inbound bias) + batchnorm params are initializers
         # and that they are not graph inputs

@@ -12,6 +12,56 @@ from onnxscript.rewriter.rules.common import _fuse_batchnorm
 
 
 class FuseBatchnormTest(unittest.TestCase):
+    @parameterized.parameterized.expand([("Conv",), ("ConvTranspose",), ("Gemm",)])
+    def test_preserves_inbound_metadata(self, op_type: str):
+        shape = [1, 2] if op_type == "Gemm" else [1, 2, 3, 3]
+        weight_shape = [2, 2] if op_type == "Gemm" else [2, 2, 1, 1]
+        model_proto = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                [
+                    onnx.helper.make_node(op_type, ["X", "W"], ["X1"]),
+                    onnx.helper.make_node(
+                        "BatchNormalization",
+                        ["X1", "gamma", "beta", "input_mean", "input_var"],
+                        ["Y"],
+                    ),
+                ],
+                "metadata_test",
+                [onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, shape)],
+                [onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, shape)],
+                [
+                    onnx.numpy_helper.from_array(
+                        np.ones(weight_shape, dtype=np.float32), name="W"
+                    ),
+                    *self._create_batchnorm_params(size=2),
+                ],
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 17)],
+            ir_version=10,
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        inbound, batchnorm = model.graph
+        provenance = {
+            "pkg.torch.onnx.name_scopes": "['', 'backbone', 'backbone.conv']",
+            "namespace": "backbone.conv",
+            "pkg.torch.onnx.class_hierarchy": f"['Model', '{op_type}']",
+        }
+        inbound.metadata_props.update(provenance)
+        batchnorm.metadata_props.update(dict.fromkeys(provenance, "normalization"))
+        batchnorm.metadata_props["batchnorm_only"] = "retained"
+
+        self.assertEqual(_fuse_batchnorm.rules.apply_to_model(model), 1)
+        self.assertEqual(len(model.graph), 1)
+        fused = model.graph[0]
+        for key, value in provenance.items():
+            self.assertEqual(fused.metadata_props[key], value)
+        self.assertEqual(fused.metadata_props["batchnorm_only"], "retained")
+        self.assertIn("pkg.onnxscript.rewriter.rule_name", fused.metadata_props)
+        onnx.checker.check_model(ir.serde.serialize_model(model), full_check=True)
+        testing.assert_numerically_equal(
+            model_proto, model, (np.ones(shape, dtype=np.float32),)
+        )
+
     def _create_batchnorm_params(self, size: int):
         return [
             onnx.numpy_helper.from_array(
@@ -437,6 +487,39 @@ class FuseBatchnormTest(unittest.TestCase):
 
         output_model_proto = ir.serde.serialize_model(model)
         onnx.checker.check_model(output_model_proto, True)
+
+    def test_fuse_batchnorm_skips_training_mode(self):
+        """In training mode BatchNormalization uses the batch statistics, so it cannot be fused."""
+        model_proto = onnx.parser.parse_model("""
+            < ir_version: 7, opset_import: ["" : 17] >
+            test_model (float[N, 32, 14, 16] X) => (float [N, ?, ?, ?] Y)
+            <float[64, 32, 3, 3] W, float[64] gamma,
+             float[64] beta, float[64] input_mean, float[64] input_var>
+            {
+                X1 = Conv(X, W)
+                Y, running_mean, running_var = BatchNormalization<training_mode=1>(
+                    X1, gamma, beta, input_mean, input_var
+                )
+            }
+        """)
+        model_proto.graph.initializer.extend(
+            [
+                onnx.numpy_helper.from_array(
+                    np.random.randn(64, 32, 3, 3).astype(np.float32), name="W"
+                ),
+                *self._create_batchnorm_params(size=64),
+            ]
+        )
+
+        onnx.checker.check_model(model_proto, True)
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = _fuse_batchnorm.rules.apply_to_model(model)
+
+        testing.assert_numerically_equal(
+            model_proto, model, (np.random.rand(2, 32, 14, 16).astype(np.float32),)
+        )
+        self.assertEqual(count, 0)
 
 
 if __name__ == "__main__":
