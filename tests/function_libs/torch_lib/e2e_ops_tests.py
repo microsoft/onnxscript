@@ -2051,6 +2051,33 @@ class TorchLibe2eTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
+            ("float32", torch.float32),
+            ("float16", torch.float16),
+        ]
+    )
+    def test_hypot_large_small_and_special_values(self, _: str, dtype: torch.dtype):
+        # Squaring these inputs overflows or underflows, but the results are in range.
+        # hypot is inf when either input is inf, even if the other one is NaN.
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.hypot(a, b)
+
+        nan = math.nan
+        inf = math.inf
+        big = torch.finfo(dtype).max / 4
+        tiny = torch.finfo(dtype).tiny * 4
+        a = torch.tensor(
+            [300.0, -big, tiny, 0.0, -0.0, inf, nan, -inf, nan, 3.0, 1.0], dtype=dtype
+        )
+        b = torch.tensor(
+            [400.0, big, -tiny, 0.0, 5.0, nan, -inf, 2.0, 1.0, -4.0, 1e-3], dtype=dtype
+        )
+
+        onnx_program = torch.onnx.export(Model(), (a, b), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
             ("amax", "amax", False),
             ("amax_keepdim", "amax", True),
             ("amin", "amin", False),
