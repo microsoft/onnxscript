@@ -190,6 +190,22 @@ class FuseConvIntegerPad(FuseConvPad):
             _outputs=["conv"],
         )
 
+    def check(self, context, x: ir.Value, pad: ir.Value, conv: ir.Value) -> orp.MatchResult:
+        check_result = super().check(context, x, pad, conv)
+        if not check_result:
+            return check_result
+
+        # ConvInteger subtracts x_zero_point before convolving, so its own padding behaves
+        # like padding x with x_zero_point. The Pad was checked to pad with 0, so the two
+        # only agree when x_zero_point is absent or zero.
+        conv_node = conv.producer()
+        if len(conv_node.inputs) > 2 and (x_zero_point := conv_node.inputs[2]) is not None:
+            if x_zero_point.const_value is None:
+                return check_result.fail(f"{x_zero_point.name} is not a constant/initializer.")
+            if np.any(x_zero_point.const_value.numpy() != 0):
+                return check_result.fail(f"{x_zero_point.name} must be equal to 0.")
+        return check_result
+
 
 class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
     """Interface to normalize pad attributes in conv nodes."""

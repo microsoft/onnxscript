@@ -48,6 +48,10 @@ class MaterializeReshapeShape(RewriteRuleClassBase):
                 f"Output shape has {sym_count} symbolic dims, cannot materialize."
             )
 
+        # The rewrite uses allowzero=1, which does not allow both 0 and -1 in the shape.
+        if sym_count and 0 in self._new_dims:
+            return check_result.fail("Cannot combine a 0 dim with -1 when allowzero=1.")
+
         return check_result
 
     def rewrite(self, op, data: ir.Value, shape: ir.Value):

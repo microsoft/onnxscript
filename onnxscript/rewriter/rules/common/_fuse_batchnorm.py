@@ -108,6 +108,12 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
         inbound_node = inbound_out.producer()
         batchnorm_node = batchnorm_out.producer()
 
+        if batchnorm_node.attributes.get_int("training_mode", 0) != 0:
+            return check_result.fail(
+                "BatchNormalization in training mode uses the batch statistics, "
+                "not input_mean and input_var."
+            )
+
         # Check that inbound weights + (inbound bias) + batchnorm params are initializers
         # and that they are not graph inputs
         initializers = [inbound_node.inputs[1], *batchnorm_node.inputs[1:]]
