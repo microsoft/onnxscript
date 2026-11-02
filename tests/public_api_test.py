@@ -9,15 +9,24 @@ import unittest
 
 import onnx
 
-import onnxscript
-from onnxscript import FLOAT, evaluator, export_onnx_lib, graph, opset18, script, values
-from onnxscript.values import OnnxFunction, Op, Opset, TracedOnnxFunction
+from onnxscript import (
+    FLOAT,
+    OnnxFunction,
+    TracedOnnxFunction,
+    evaluator,
+    export_onnx_lib,
+    graph,
+    opset18,
+    script,
+    values,
+)
+from onnxscript.values import Op, Opset
 
 
 class PublicCoreApiTest(unittest.TestCase):
     def test_public_value_imports(self):
-        self.assertIs(onnxscript.OnnxFunction, OnnxFunction)
-        self.assertIs(onnxscript.TracedOnnxFunction, TracedOnnxFunction)
+        self.assertIs(OnnxFunction, values.OnnxFunction)
+        self.assertIs(TracedOnnxFunction, values.TracedOnnxFunction)
         self.assertIsInstance(opset18, Opset)
         self.assertIsInstance(Op(opset18, "Identity"), Op)
         for name in ("OnnxFunction", "TracedOnnxFunction", "Op", "Opset"):
