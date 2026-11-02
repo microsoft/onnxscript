@@ -5960,7 +5960,12 @@ def aten_log(self: TFloat) -> TFloat:
 def aten_log10(self: TFloat) -> TFloat:
     """log10(Tensor self) -> Tensor"""
 
-    return op.Div(op.Log(self), op.CastLike(op.Log(10.0), self))
+    # log10(x) = ln(x) * log10(e). ln(x) / ln(10) is a ulp low on some powers of
+    # ten (floor(log10(1000)) is 2). The factor has to be created in the input
+    # dtype: a Python float is a float32 constant, and casting it afterwards
+    # keeps that rounding error. See microsoft/onnxscript#3143.
+    log10_e = op.Constant(value=ir.tensor(math.log10(math.e), dtype=self.dtype))
+    return op.Mul(op.Log(self), log10_e)
 
 
 @torch_op("aten::log1p")
@@ -5974,7 +5979,10 @@ def aten_log1p(self: TFloat) -> TFloat:
 def aten_log2(self: TFloat) -> TFloat:
     """log2(Tensor self) -> Tensor"""
 
-    return op.Div(op.Log(self), op.CastLike(op.Log(2.0), self))
+    # Cast 2 to the input dtype before Log. Log of a float32 2.0, then a cast,
+    # keeps the float32 rounding error, so floor(log2(8)) is 2.
+    # See microsoft/onnxscript#3143.
+    return op.Div(op.Log(self), op.Log(op.CastLike(2.0, self)))
 
 
 @torch_op("aten::logaddexp", trace_only=True)
