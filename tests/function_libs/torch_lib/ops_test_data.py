@@ -732,6 +732,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("flatten", core_ops.aten_flatten),
     TorchLibOpInfo("floor", core_ops.aten_floor),
     TorchLibOpInfo("ops.aten.floor_divide", core_ops.aten_floor_divide),
+    TorchLibOpInfo("fmax", core_ops.aten_fmax),
+    TorchLibOpInfo("fmin", core_ops.aten_fmin),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
     TorchLibOpInfo("frac", core_ops.aten_frac),
     TorchLibOpInfo("full", core_ops.aten_full),

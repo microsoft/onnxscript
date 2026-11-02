@@ -4238,16 +4238,38 @@ def operator_floordiv(self: INT64, other: INT64) -> INT64:
     return op.Div(self, other)
 
 
-def aten_fmax(self: TensorType, other: TensorType) -> TensorType:
+@torch_op(("aten::fmax", "prims::fmax"), trace_only=True)
+def aten_fmax(self: TTensor, other: TTensor) -> TTensor:
     """fmax(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    if self.dtype == ir.DataType.BOOL:
+        return op.Or(self, other)
+
+    result = op.Max(self, other)
+    if not self.dtype.is_floating_point():
+        return result
+
+    # Max returns NaN if either input is NaN. fmax returns the other input instead,
+    # and NaN only when both are NaN.
+    result = op.Where(op.IsNaN(self), other, result)
+    return op.Where(op.IsNaN(other), self, result)
 
 
-def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
+@torch_op(("aten::fmin", "prims::fmin"), trace_only=True)
+def aten_fmin(self: TTensor, other: TTensor) -> TTensor:
     """fmin(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    if self.dtype == ir.DataType.BOOL:
+        return op.And(self, other)
+
+    result = op.Min(self, other)
+    if not self.dtype.is_floating_point():
+        return result
+
+    # Min returns NaN if either input is NaN. fmin returns the other input instead,
+    # and NaN only when both are NaN.
+    result = op.Where(op.IsNaN(self), other, result)
+    return op.Where(op.IsNaN(other), self, result)
 
 
 @torch_op(("aten::fmod.Tensor", "aten::fmod.Scalar"), trace_only=True)

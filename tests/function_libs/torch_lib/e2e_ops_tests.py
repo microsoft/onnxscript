@@ -2015,6 +2015,42 @@ class TorchLibe2eTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
+            ("fmax_float32", "fmax", torch.float32),
+            ("fmax_float16", "fmax", torch.float16),
+            ("fmin_float32", "fmin", torch.float32),
+            ("fmin_float16", "fmin", torch.float16),
+        ]
+    )
+    def test_fmax_fmin_ignore_nan(self, _: str, func: str, dtype: torch.dtype):
+        # fmax and fmin return the other input when one of them is NaN, and NaN
+        # only when both are.
+        func = getattr(torch, func)
+
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return func(a, b)
+
+        nan = math.nan
+        inf = math.inf
+        a = torch.tensor([nan, 1.0, nan, -inf, inf, 2.0, -3.0], dtype=dtype)
+        b = torch.tensor([1.0, nan, nan, nan, 0.5, 5.0, -4.0], dtype=dtype)
+
+        onnx_program = torch.onnx.export(Model(), (a, b), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_fmax_fmin_integer_inputs(self):
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.fmax(a, b), torch.fmin(a, b)
+
+        a = torch.tensor([1, -2, 3, 7], dtype=torch.int64)
+        b = torch.tensor([4, -5, 3, 0], dtype=torch.int64)
+
+        onnx_program = torch.onnx.export(Model(), (a, b), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
             ("amax", "amax", False),
             ("amax_keepdim", "amax", True),
             ("amin", "amin", False),
