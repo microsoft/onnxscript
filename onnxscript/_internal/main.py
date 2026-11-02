@@ -102,12 +102,15 @@ def graph() -> Callable[[Callable], values.OnnxClosure]:
     """A parametric decorator used to annotate nested-functions that are used
     as graph-attributes.
 
+    Eager execution supports graph functions defined directly inside the active
+    scripted function, not graphs nested inside graph bodies. Call the decorated
+    scripted function so evaluator dispatch establishes its function context.
+
     Returns:
-        A decorator that returns its input function, but attaches a graph_proto
-        attribute representing the input function. The translation is not
-        done at this time, but previously when the outer-level function
-        was translated to an OnnxFunction. The decorator just looks up
-        and retrieves the GraphProto representation previously generated.
+        A decorator that returns an OnnxClosure containing the compiled graph,
+        the Python function, and its enclosing invocation's frame. Translation
+        was already performed when the outer-level function was converted to an
+        OnnxFunction.
 
     Example:
     ::
@@ -131,21 +134,29 @@ def graph() -> Callable[[Callable], values.OnnxClosure]:
             return result
 
     """
-    # This is a bit fragile. We want to get the ONNXFunction object representing
-    # the outer-scope ONNXScript function from the execution stack. The caller of
-    # @graph is the original script function (cumulative_sum in the above example),
-    # and the caller of that function is the wrapper function/method in the
-    # corresponding OnnxFunction object.
-    # Currently, there is no support for eager-mode execution of nested functions,
-    # so we don't need to handle doubly nested functions (e.g., a function defined
-    # inside Sum in the above example).
+    from onnxscript._internal import evaluator  # pylint: disable=import-outside-toplevel
 
+    # The frame is needed only for closure values, not for discovering the OnnxFunction.
     function_frame = sys._getframe(1)  # pylint: disable=protected-access
-    wrapper_frame = sys._getframe(3)  # pylint: disable=protected-access
-    onnx_function = wrapper_frame.f_locals["self"]
+    onnx_function = evaluator._current_function.get()
+    if onnx_function is None:
+        raise RuntimeError(
+            "@graph() requires an active ONNXScript function. "
+            "Call the @script() function rather than its raw Python function."
+        )
+    if function_frame.f_code is not onnx_function.function.__code__:
+        raise RuntimeError(
+            "@graph() supports only graph functions defined directly inside the active "
+            "@script() function; graphs nested inside graph bodies are not supported."
+        )
     nested_functions = onnx_function.function_ir.nested_functions
 
     def transform(f: Callable) -> values.OnnxClosure:
+        if f.__name__ not in nested_functions:
+            raise RuntimeError(
+                f"@graph() cannot find compiled graph {f.__name__!r} in "
+                f"ONNXScript function {onnx_function.name!r}."
+            )
         return values.OnnxClosure(nested_functions[f.__name__], function_frame, f)
 
     return transform

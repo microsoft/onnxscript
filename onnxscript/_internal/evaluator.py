@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import abc
 import contextlib
+import contextvars
 import pprint
 from typing import (
     Any,
@@ -42,6 +43,19 @@ ExtendedModeValue: TypeAlias = Union[
 ]
 
 _T = TypeVar("_T")
+
+_current_function: contextvars.ContextVar[values.OnnxFunction | None] = contextvars.ContextVar(
+    "onnxscript_current_function", default=None
+)
+
+
+@contextlib.contextmanager
+def _function_context(function: values.OnnxFunction):
+    token = _current_function.set(function)
+    try:
+        yield
+    finally:
+        _current_function.reset(token)
 
 
 def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> tuple[EagerModeValue, bool]:
@@ -306,7 +320,9 @@ class BaseEvaluator(Evaluator, abc.ABC):
             else:
                 adapted_kwargs[key] = arg
 
-        result = function.function(*adapted_args, **adapted_kwargs)
+        # Also support calling eval_function directly, without OnnxFunction.__call__.
+        with _function_context(function):
+            result = function.function(*adapted_args, **adapted_kwargs)
 
         # We use a heuristic to decide whether to return output values as
         # numpy arrays or tensor.Tensors. If the function has at least one
@@ -604,28 +620,40 @@ def SequenceMap(inputs: Sequence[Any], attributes: Mapping[str, Any]):
     return [fun(*(get_input(i))) for i in range(len(inputs[0]))]
 
 
-# Used to control the default evaluator instance. A simple approach for now.
-
 _default_evaluator: Evaluator = ort_evaluator
+_temporary_evaluator: contextvars.ContextVar[Evaluator | None] = contextvars.ContextVar(
+    "onnxscript_temporary_evaluator", default=None
+)
 
 
 def default() -> Evaluator:
-    """Returns the default Evaluator default."""
-    return _default_evaluator
+    """Returns the context-local override, or the process-global default evaluator."""
+    override = _temporary_evaluator.get()
+    return _default_evaluator if override is None else override
 
 
 def set_default(new_default: Evaluator) -> None:
-    """Sets the current Evaluator default."""
+    """Sets the process-global default evaluator.
+
+    This does not replace active :func:`default_as` overrides. Contexts without
+    an override see the new default immediately.
+    """
     global _default_evaluator  # pylint: disable=global-statement
     _default_evaluator = new_default
 
 
 @contextlib.contextmanager
 def default_as(temp_default: Evaluator):
-    """Context manager that temporarily switches the default evaluator."""
-    old_default = _default_evaluator
-    set_default(temp_default)
+    """Temporarily overrides the evaluator in the current execution context.
+
+    Nested contexts restore the previous choice, including after exceptions.
+    Asyncio tasks inherit the context at task creation, and subsequent changes
+    are isolated. Threads follow Python's context inheritance rules: a fresh
+    context uses the global default; an explicitly copied context inherits the
+    override. This does not make the evaluator instance itself thread-safe.
+    """
+    token = _temporary_evaluator.set(temp_default)
     try:
         yield
     finally:
-        set_default(old_default)
+        _temporary_evaluator.reset(token)
