@@ -166,7 +166,18 @@ _causal_mask_pattern = _CausalMaskPattern()
 
 
 class _PureCausalMaskPattern(_CausalMaskPattern):
-    def pattern(self, op, input_ids, past_kv_cache, shape_B111, min_val, window_size, dtype1):
+    def pattern(
+        self,
+        op,
+        input_ids,
+        past_kv_cache,
+        shape_B111,
+        min_val,
+        window_size,
+        dtype1,
+        attn_mask_2d=None,
+        dtype2=None,
+    ):
         return _causal_mask(
             op,
             input_ids,
