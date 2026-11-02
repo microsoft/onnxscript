@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+from __future__ import annotations
+
 import unittest
 
 import onnx_ir as ir
@@ -19,6 +21,44 @@ class NoOpTest(unittest.TestCase):
         model = ir.from_onnx_text(model_text)
         count = _no_op.rules.apply_to_model(model)
         self.assertEqual(count, 0)
+
+    @parameterized.parameterized.expand(
+        [
+            ("Add", "1e-12", "input, constant"),
+            ("Add", "1e-12", "constant, input"),
+            ("Add", "-1e-12", "input, constant"),
+            ("Add", "-1e-12", "constant, input"),
+            ("Sub", "1e-12", "input, constant"),
+            ("Sub", "-1e-12", "input, constant"),
+            ("Mul", "1.000001", "input, constant"),
+            ("Mul", "1.000001", "constant, input"),
+            ("Mul", "0.999999", "input, constant"),
+            ("Mul", "0.999999", "constant, input"),
+            ("Div", "1.000001", "input, constant"),
+            ("Div", "0.999999", "input, constant"),
+        ]
+    )
+    def test_near_identity_constant_is_not_eliminated(self, op_type, value, inputs):
+        for dtype in ("float", "double"):
+            for representation in ("constant", "initializer"):
+                with self.subTest(dtype=dtype, representation=representation):
+                    if representation == "constant":
+                        initializer = ""
+                        constant = f"constant = Constant<value = {dtype} {{{value}}}>()"
+                    else:
+                        initializer = f"<{dtype} constant = {{{value}}}>"
+                        constant = ""
+                    self._check_no_optimization(
+                        f"""
+                        <ir_version: 7, opset_import: ["" : 17]>
+                        agraph ({dtype}[M] input) => ({dtype}[M] output)
+                        {initializer}
+                        {{
+                            {constant}
+                            output = {op_type}({inputs})
+                        }}
+                        """
+                    )
 
     @parameterized.parameterized.expand(
         [

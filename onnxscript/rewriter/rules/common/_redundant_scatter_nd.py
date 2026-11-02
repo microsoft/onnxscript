@@ -108,7 +108,10 @@ class ScatterAllStatic(RewriteRuleClassBase):
         # 3. the indices is referring to the whole data, which is from 0 to data.shape[0]
         if indices.const_value is None:
             return result.fail("The value 'indices' is not statically known.", indices)
-        expected_indices = [[i] for i in range(data.shape[0])]
+        first_dim = data.shape[0]
+        if not isinstance(first_dim, int):
+            return result.fail("The first dimension of 'data' is not statically known.", data)
+        expected_indices = [[i] for i in range(first_dim)]
         actual_indices = indices.const_value.numpy().tolist()
         if actual_indices != expected_indices:
             return result.fail("The 'indices' is not referring to the whole data.", indices)
