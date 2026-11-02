@@ -2044,6 +2044,21 @@ class TorchLibe2eTest(unittest.TestCase):
                 self.assertEqual(node.attributes.get_int("noop_with_empty_axes", 0), 0)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_log2_log10_keep_float64_precision(self):
+        # Log of a float32 2.0/10.0, then a cast to float64, leaves the divisor
+        # slightly low, so floor(log2(8)) is 2, floor(log2(1024)) is 9, and
+        # floor(log10(1000)) is 2.
+        # See https://github.com/microsoft/onnxscript/issues/3143.
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.floor(torch.log2(x)), torch.floor(torch.log10(x))
+
+        x = torch.tensor([8.0, 1024.0, 1000.0], dtype=torch.float64)
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        # assert_onnx_program's float64 tolerance hides this error, so compare exactly.
+        for actual, expected in zip(onnx_program(x), Model()(x)):
+            torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
     def test_python_float_keeps_float64_precision(self):
         # torch.export turns the Python floats into scalar_tensor(0.1, dtype=float64).
         class Model(torch.nn.Module):
