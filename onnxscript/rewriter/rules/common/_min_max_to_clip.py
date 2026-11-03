@@ -12,6 +12,7 @@ Where:
     - fused_const is the reduction (min or max) over all constant inputs.
     - For Clip fusion:
         * All constant inputs must be scalars.
+        * No constant input may have more dimensions than X, since Clip keeps the shape of X.
         * The effective lower bound is the maximum of all lower-bound constants.
         * The effective upper bound is the minimum of all upper-bound constants.
 
@@ -72,7 +73,7 @@ class _FuseMinMaxBase(RewriteRuleClassBase, abc.ABC):
     def _is_scalar(self, v: np.ndarray) -> bool:
         return np.isscalar(v) or np.size(v) == 1
 
-    def check(self, context, out1, out2, **_):
+    def check(self, context, x, out1, out2, **_):
         """Condition to check if we need to replace the pattern.
 
         Conditions:
@@ -80,6 +81,7 @@ class _FuseMinMaxBase(RewriteRuleClassBase, abc.ABC):
             - These inputs (except the first) must be constant values (from Constant nodes or initializers).
             - In the case of Min(Max) and Max(Min) patterns:
                 * All inputs must be scalars (as Clip requires scalars).
+                * No input may have more dimensions than X (Clip keeps the shape of X).
                 For Max(Min) pattern:
                     * The lower bound must be less than or equal to the upper bound.
 
@@ -92,6 +94,9 @@ class _FuseMinMaxBase(RewriteRuleClassBase, abc.ABC):
 
         first_node = out1.producer()
         second_node = out2.producer()
+        # Min/Max broadcast X up to the rank of a bound such as float[1, 1], but Clip
+        # keeps the shape of X. An unknown rank only allows scalar bounds.
+        x_rank = len(x.shape) if x.shape is not None else 0
 
         # Ensure all inputs except the first are constants
         for input_ in first_node.inputs[1:] + second_node.inputs[1:]:
@@ -99,8 +104,15 @@ class _FuseMinMaxBase(RewriteRuleClassBase, abc.ABC):
                 return check_result.fail(f"{input_.name} is not a constant.")
 
             # If scalars are required (Clip fusion), enforce scalar-ness
-            if self.need_scalars and not self._is_scalar(input_.const_value.numpy()):
-                return check_result.fail(f"{input_.name} is not a scalar.")
+            if self.need_scalars:
+                value = input_.const_value.numpy()
+                if not self._is_scalar(value):
+                    return check_result.fail(f"{input_.name} is not a scalar.")
+                if value.ndim > x_rank:
+                    return check_result.fail(
+                        f"{input_.name} has more dimensions than {x.name}, "
+                        "so the fused Clip would change the output shape."
+                    )
 
         if self.need_scalars and self.check_bounds:
             # For Clip fusion in the case of Max(Min(X, upper_bound), lower_bound): check that lower_bound <= upper_bound
