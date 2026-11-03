@@ -12,6 +12,7 @@ import onnx_ir as ir
 import onnxscript._internal.builder as builder
 import onnxscript.testing
 from onnxscript import script
+from onnxscript._internal.tape_builder import BuilderFeature, TapeBuilder
 from onnxscript.onnx_types import DOUBLE, FLOAT, INT64
 
 _default_opset_version = 23
@@ -1039,6 +1040,35 @@ class GraphBuilderTest(unittest.TestCase):
         self.assertIsNone(node.inputs[1])
         self.assertIs(node.inputs[2], y)
         self.assertIsNotNone(result)
+
+    def test_non_value_positional_argument_raises_clear_type_error(self):
+        """GitHub issue #1984: passing a constant where an attribute/keyword was
+        expected (e.g. ``op.LeakyRelu(x, 1.0)``) used to raise a cryptic
+        ``AttributeError`` from onnx_ir (``'float' object has no attribute
+        '_add_usage'``). It should now raise a clear ``TypeError`` that tells
+        the user to pass the value as a keyword argument.
+        """
+        x = ir.Value(name="x", shape=[1, 3, 4, 4], type=ir.TensorType(ir.DataType.FLOAT))
+
+        # Default (NONE-feature) builder: no scalar promotion, so the float is a
+        # genuine misuse of a positional argument.
+        with self.assertRaises(TypeError) as cm:
+            TapeBuilder().LeakyRelu(x, 1.0)
+        message = str(cm.exception)
+        self.assertIn("LeakyRelu", message)
+        self.assertIn("keyword", message)
+        # Make sure we did not regress to the old cryptic AttributeError.
+        self.assertNotIn("_add_usage", message)
+
+        # The same clear error is produced for other ops (e.g. Add).
+        with self.assertRaises(TypeError):
+            TapeBuilder().Add(x, 1.0)
+
+        # Legitimate scalar constants must still be promoted to constants when
+        # the builder enables CAST_INPUTS (the FULL feature set used by
+        # ``@script``), so valid usage is unaffected.
+        out = TapeBuilder(features=BuilderFeature.FULL).Add(x, 1.0)
+        self.assertIsInstance(out, ir.Value)
 
     def test_call_creates_single_function_node(self):
         """Test that GraphBuilder.call creates a single function call node."""
