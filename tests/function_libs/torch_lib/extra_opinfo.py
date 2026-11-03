@@ -1248,6 +1248,42 @@ def sample_inputs_mean_dtype(op_info, device, dtype, requires_grad, **kwargs):
     )
 
 
+def _large_and_infinite_values(dtype, device, requires_grad):
+    # Values where exp() overflows or the result underflows in a naive formula
+    return torch.tensor(
+        [
+            -1000.0,
+            -200.0,
+            -50.0,
+            -1.0,
+            0.0,
+            2.0,
+            50.0,
+            200.0,
+            1000.0,
+            -float("inf"),
+            float("inf"),
+        ],
+        dtype=dtype,
+        device=device,
+        requires_grad=requires_grad,
+    )
+
+
+def sample_inputs_logaddexp_large(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+    values = _large_and_infinite_values(dtype, device, requires_grad)
+    # every pair of values, including equal infinities
+    yield opinfo_core.SampleInput(values.unsqueeze(1), args=(values.unsqueeze(0),))
+
+
+def sample_inputs_log_sigmoid_large(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+    yield opinfo_core.SampleInput(_large_and_infinite_values(dtype, device, requires_grad))
+
+
 def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
@@ -2794,6 +2830,30 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="mean",
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs_mean_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.logaddexp.large",
+        op=torch.ops.aten.logaddexp,
+        aten_name="logaddexp",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_logaddexp_large,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.logaddexp2.large",
+        op=torch.ops.aten.logaddexp2,
+        aten_name="logaddexp2",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_logaddexp_large,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.log_sigmoid.large",
+        op=torch.ops.aten.log_sigmoid,
+        aten_name="log_sigmoid",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_log_sigmoid_large,
         supports_out=False,
     ),
     opinfo_core.OpInfo(

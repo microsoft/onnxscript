@@ -845,7 +845,11 @@ def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) ->
 def aten_log_sigmoid(self: TFloat) -> TFloat:
     """log_sigmoid(Tensor self) -> Tensor"""
 
-    return op.Log(op.Sigmoid(self))
+    # min(x, 0) - log(1 + exp(-|x|)) stays finite where log(sigmoid(x))
+    # underflows to log(0) for large negative x
+    zero = op.CastLike(0.0, self)
+    one = op.CastLike(1.0, self)
+    return op.Sub(op.Min(self, zero), op.Log(op.Add(one, op.Exp(op.Neg(op.Abs(self))))))
 
 
 def aten_log_sigmoid_backward(
