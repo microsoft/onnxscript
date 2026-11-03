@@ -931,15 +931,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_cross_entropy_loss,
         tolerance={torch.float16: (1e-2, 1e-2)},
         input_wrangler=_cross_entropy_input_wrangler,
-    ).xfail(
-        matcher=lambda sample: (
-            len(sample.args) < 1
-            or (
-                isinstance(sample.args[0], torch.Tensor)
-                and sample.args[0].dtype != torch.int64
-            )
-        ),
-        reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[target] as int type",
     ),
     TorchLibOpInfo(
         "nn.functional.dropout", core_ops.aten_dropout, input_wrangler=_dropout_input_wrangler
