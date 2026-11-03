@@ -1047,18 +1047,33 @@ def aten_atan2(self: TFloat, other: TFloat) -> TFloat:
 
 
 def _atan2(y: TFloat, x: TFloat, dtype: ir.DataType) -> TFloat:
-    slope = op.Div(y, x)
-    atan = op.Atan(slope)
     zero = common_ops.constant(0.0, dtype=dtype)
     pi = common_ops.constant(_MATH_PI, dtype=dtype)
+    quarter_pi = common_ops.constant(_MATH_PI / 4, dtype=dtype)
+    inf = common_ops.constant(math.inf, dtype=dtype)
 
-    second_third_quadrant = op.Where(op.Greater(y, zero), atan + pi, atan - pi)
-    result = op.Where(op.Less(x, zero), second_third_quadrant, atan)
+    # Compute the angle in [0, pi/2] from the magnitudes first. 0/0 and inf/inf
+    # give NaN, so set the values atan2 defines for them. A NaN input still
+    # gives NaN.
+    abs_y = op.Abs(y)
+    abs_x = op.Abs(x)
+    angle = op.Atan(op.Div(abs_y, abs_x))
+    both_zero = op.And(op.Equal(abs_y, zero), op.Equal(abs_x, zero))
+    angle = op.Where(both_zero, zero, angle)
+    both_inf = op.And(op.Equal(abs_y, inf), op.Equal(abs_x, inf))
+    angle = op.Where(both_inf, quarter_pi, angle)
 
-    # Map NaN to 0 to match PyTorch behavior
-    result = op.Where(op.IsNaN(result), zero, result)
-
-    return result
+    # Move the angle to the quadrant of (x, y). Zeros keep their sign here as
+    # in PyTorch, e.g. atan2(0.0, -1.0) is pi and atan2(-0.0, -1.0) is -pi.
+    # A sign of zero cannot be seen with Less, but 1 / -0.0 is -inf.
+    x_negative = op.Or(op.Less(x, zero), op.Less(op.Reciprocal(x), zero))
+    y_negative = op.Or(op.Less(y, zero), op.Less(op.Reciprocal(y), zero))
+    angle = op.Where(x_negative, op.Sub(pi, angle), angle)
+    # Apply the sign with Mul so that a zero angle becomes -0.0. Where can
+    # return +0.0 when it selects -0.0 in ONNX Runtime.
+    one = common_ops.constant(1.0, dtype=dtype)
+    minus_one = common_ops.constant(-1.0, dtype=dtype)
+    return op.Mul(angle, op.Where(y_negative, minus_one, one))
 
 
 @torch_op("aten::atanh", trace_only=True)

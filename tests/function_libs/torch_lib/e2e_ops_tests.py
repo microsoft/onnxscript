@@ -2057,6 +2057,37 @@ class TorchLibe2eTest(unittest.TestCase):
         for actual, expected in zip(onnx_program(x), Model()(x)):
             torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
+    def test_atan2_signed_zeros_infinities_and_nan(self):
+        class Atan2Model(torch.nn.Module):
+            def forward(self, y, x):
+                return torch.atan2(y, x)
+
+        inf = math.inf
+        nan = math.nan
+        values = [0.0, -0.0, 1.0, -1.0, inf, -inf, nan, 1e-30, -1e30]
+        y = torch.tensor([v for v in values for _ in values])
+        x = torch.tensor(values * len(values))
+
+        onnx_program = torch.onnx.export(Atan2Model(), (y, x), dynamo=True, optimize=False)
+        (actual,) = onnx_program(y, x)
+        expected = torch.atan2(y, x)
+        torch.testing.assert_close(actual, expected, equal_nan=True)
+        # assert_close does not compare the sign of zeros, e.g. atan2(-0.0, 1.0)
+        not_nan = ~torch.isnan(expected)
+        torch.testing.assert_close(
+            torch.signbit(actual[not_nan]), torch.signbit(expected[not_nan])
+        )
+
+    def test_angle_complex_negative_real(self):
+        class AngleModel(torch.nn.Module):
+            def forward(self, z):
+                return torch.angle(z)
+
+        z = torch.tensor([-1 + 0j, -2 - 0j, 3 + 0j, 0j, -1j, complex(-0.0, 0.0)])
+
+        onnx_program = torch.onnx.export(AngleModel(), (z,), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
     def test_conv3d_without_bias_produces_1d_bias(self):
         class Model(torch.nn.Module):
             def __init__(self):
