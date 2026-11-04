@@ -88,6 +88,14 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         if stash_type != 1:
             return check_result.fail("Stash type is not supported.")
 
+        if (
+            input.dtype is not None
+            and skip.dtype is not None
+            and gamma.dtype is not None
+            and (input.dtype != skip.dtype or input.dtype != gamma.dtype)
+        ):
+            return check_result.fail("Dtype mismatch", [input, skip, gamma])
+
         return check_result
 
     def rewrite(
