@@ -57,6 +57,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         position_ids,
         cos,
         sin,
+        attention_shape,
     ):
         # First, query, key, and value are reshaped+transposed from (B, S, D) to (B, H, S, D/H)
 
@@ -128,7 +129,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         attention_transposed = op.Transpose(sdpa, perm=[0, 2, 1, 3])
         # Reshape back to (B, S, D)
         attention = op.Reshape(
-            attention_transposed, pattern.ANY_VALUE, _outputs=["attention_reshaped"]
+            attention_transposed, attention_shape, _outputs=["attention_reshaped"]
         )
         if self._has_past_present:
             return attention, key_seq, value_seq
@@ -148,6 +149,8 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         key_transposed=None,
         key_BSHDh=None,
         value_BSHDh=None,
+        attention_reshaped=None,
+        attention_shape=None,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
@@ -164,6 +167,26 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 f"Shape mismatch: {query_BSD} does not match expected dimensions ['B', 'S', 'D']",
                 query_BSD,
             )
+
+        # MultiHeadAttention returns (B, S, D), but some exports reshape the attention output
+        # straight to (B*S, D) (e.g. GPT-2's Conv1D feeds a 2D Gemm). Replacing that 2D value
+        # with the 3D MultiHeadAttention output would leave an invalid graph.
+        # In that case, keep the final Reshape after the fused op. Its target shape must be a
+        # constant without zeros, since a 0 copies a dimension of its (now 3D, was 4D) input.
+        self._output_shape = None
+        if (
+            attention_reshaped is not None
+            and attention_reshaped.shape is not None
+            and attention_reshaped.shape.rank() != 3
+        ):
+            target_shape = _ir_utils.get_numpy_value(attention_shape)
+            if target_shape is None or (target_shape == 0).any():
+                return check_result.fail(
+                    f"{attention_reshaped} is not 3D (B, S, D) and its Reshape target shape is"
+                    " not a constant without zeros",
+                    attention_reshaped,
+                )
+            self._output_shape = attention_shape
 
         if no_match(query_BSHDh, ["B", "S", "H", "Dh"]):
             return check_result.fail(
@@ -324,7 +347,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             mask = op.Expand(mask, shape_11S1)
 
         num_outputs = 1 + (2 * self._has_past_present)
-        return op.MultiHeadAttention(
+        mha = op.MultiHeadAttention(
             query_BSD_emb,
             key_BSD_emb,
             value,
@@ -338,6 +361,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             _outputs=num_outputs,
             scale=self._scale,
         )
+        if self._output_shape is None:
+            return mha
+        # Restore the shape the matched final Reshape produced.
+        if num_outputs == 1:
+            return op.Reshape(mha, self._output_shape)
+        attention, present_key, present_value = mha
+        return op.Reshape(attention, self._output_shape), present_key, present_value
 
 
 def _make_rule_set(has_past_present: bool):
