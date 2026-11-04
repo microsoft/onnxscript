@@ -234,6 +234,7 @@ class _VersionConverter:
     def __init__(self, target_version: int):
         self._target_version = target_version
         self._modified: bool = False
+        self._validated_legacy_schemas: set[tuple[str, int]] = set()
         # Default metadata merger: no merging should be needed; keep the first value.
         self._default_metadata_merger: metadata_merger.MetadataMerger = (
             metadata_merger.MetadataMerger(
@@ -342,6 +343,9 @@ class _VersionConverter:
         if 0 < source_version < SUPPORTED_MIN_ONNX_OPSET:
             # Exporters may record the operator's schema revision, not the model's
             # imported opset. Accept it only if the same schema is active at opset 18.
+            key = (node.op_type, source_version)
+            if key in self._validated_legacy_schemas:
+                return
             try:
                 source_schema = onnx.defs.get_schema(node.op_type, source_version, "")
                 supported_schema = onnx.defs.get_schema(
@@ -354,6 +358,7 @@ class _VersionConverter:
                     "source version or opset 18. Check the operator name and version."
                 ) from e
             if source_schema.since_version == supported_schema.since_version:
+                self._validated_legacy_schemas.add(key)
                 return
             raise VersionConverterError(
                 f"Cannot convert node {node.name!r} ({node.op_type}) from source opset "

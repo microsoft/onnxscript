@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+from unittest import mock
+
 import numpy as np
 import onnx
 import onnx_ir as ir
@@ -369,6 +371,24 @@ def test_unknown_legacy_node_schema_is_not_relabelled():
     ):
         version_converter.convert_version(model, 18)
     assert node.version == 13
+
+
+def test_legacy_schema_validation_is_cached_per_conversion():
+    converter = _version_converter._VersionConverter(18)
+    with mock.patch.object(onnx.defs, "get_schema", wraps=onnx.defs.get_schema) as lookup:
+        for _ in range(1000):
+            converter._check_node_version(ir.Node("", "Identity", [], version=16), 16)
+        assert lookup.call_count == 2
+        converter._check_node_version(ir.Node("", "Identity", [], version=18), 18)
+        assert lookup.call_count == 2
+        converter._check_node_version(ir.Node("", "Identity", [], version=17), 17)
+        assert lookup.call_count == 4
+        with pytest.raises(_version_converter.VersionConverterError, match="schema changed"):
+            converter._check_node_version(ir.Node("", "Identity", [], version=1), 1)
+        assert lookup.call_count == 6
+        other_converter = _version_converter._VersionConverter(18)
+        other_converter._check_node_version(ir.Node("", "Identity", [], version=16), 16)
+        assert lookup.call_count == 8
 
 
 def test_fallback_still_supports_older_source_opsets():
