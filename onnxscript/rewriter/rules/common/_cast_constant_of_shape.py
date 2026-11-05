@@ -18,7 +18,7 @@ def cast_constant_of_shape(op, shape, scalar, dtype):
 
 def fused_cast_constant_of_shape(op, shape: ir.Value, scalar: ir.Attr, dtype: ir.Attr, **_):
     # Cast scalar (a TensorProto attribute) to the specified dtype
-    scalar_value = scalar.value.numpy().item()
+    scalar_value = scalar.as_tensor().numpy().item()
     cast_value = ir.tensor([scalar_value], dtype=ir.DataType(dtype.as_int()))
     return op.ConstantOfShape(shape, value=cast_value)
 
@@ -34,13 +34,14 @@ def check_cast_constant_of_shape(context, shape, scalar, dtype, **_) -> bool:
         return False
     if scalar.type != ir.AttributeType.TENSOR or scalar.value is None:
         return False
-    if scalar.value.size != 1 or scalar.value.dtype == ir.DataType.STRING:
+    scalar_tensor = scalar.as_tensor()
+    if scalar_tensor.size != 1 or scalar_tensor.dtype == ir.DataType.STRING:
         return False
     return True
 
 
 def cast_constant_of_shape_without_value(op, shape, dtype):
-    constant = op.ConstantOfShape(shape)
+    constant = op.ConstantOfShape(shape, _allow_other_attributes=False)
     return op.Cast(constant, to=dtype)
 
 
