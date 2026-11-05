@@ -256,3 +256,51 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             model,
             (np.random.rand(4, 8).astype(np.float32),),
         )
+
+    def test_slice_negative_normalized_start_collapses(self):
+        """Slice with negative start normalizing to 0 (e.g., -8 on dim 8) should collapse."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[1] {-8}>()
+                ends = Constant<value: tensor = int64[1] {8}>()
+                axes = Constant<value: tensor = int64[1] {1}>()
+                steps = Constant<value: tensor = int64[1] {1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (np.random.rand(4, 8).astype(np.float32),),
+        )
+
+    def test_slice_negative_clamped_start_collapses(self):
+        """Slice with negative start clamping to 0 (e.g., -10 on dim 8) should collapse."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[1] {-10}>()
+                ends = Constant<value: tensor = int64[1] {8}>()
+                axes = Constant<value: tensor = int64[1] {1}>()
+                steps = Constant<value: tensor = int64[1] {1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (np.random.rand(4, 8).astype(np.float32),),
+        )
