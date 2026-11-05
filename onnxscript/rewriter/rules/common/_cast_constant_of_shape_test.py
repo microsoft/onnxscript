@@ -83,6 +83,29 @@ class CastConstantOfShapeTest(unittest.TestCase):
         output_proto = ir.serde.serialize_model(model)
         self.assertIsNotNone(output_proto)
 
+    def test_cast_after_constant_of_shape_with_ref_attr_is_not_fused(self):
+        """Cast after ConstantOfShape with a reference value attribute should not be fused or replaced with zero."""
+        model_text = """
+            <ir_version: 10, opset_import: ["pkg": 1, "": 17]>
+            main_graph (int64[2] shape) => (float[1, 4] output) {
+                output = pkg.my_func <fill = float[1] {3.0}> (shape)
+            }
+            <domain: "pkg", opset_import: ["": 17]>
+            my_func <fill> (shape) => (output) {
+                constant = ConstantOfShape <value: tensor = @fill> (shape)
+                output = Cast <to = 1> (constant)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        function = next(iter(model.functions.values()))
+        self.assertEqual([node.op_type for node in function], ["ConstantOfShape", "Cast"])
+        constant_node = function[0]
+        self.assertIn("value", constant_node.attributes)
+        self.assertTrue(constant_node.attributes["value"].is_ref())
+        self.assertEqual(constant_node.attributes["value"].ref_attr_name, "fill")
+
 
 if __name__ == "__main__":
     unittest.main()
