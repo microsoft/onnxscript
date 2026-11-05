@@ -11,6 +11,7 @@ import onnx.reference
 import onnx.reference.op_run
 import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
+import onnxruntime as ort
 import parameterized
 
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
@@ -247,6 +248,38 @@ def _transpose_fused_matmul_flip_transB(
     return out
 
 
+# Issue #3156: a batch Transpose folded into FusedMatMul sets transBatchA/B.
+# ONNX Runtime only accepts those flags when both inputs have the same rank >= 3.
+@script()
+def _transpose_batch_matmul_div_rank3_a_rank2_b(
+    X: FLOAT[4, 2, 8], W: FLOAT[8, 16]
+) -> FLOAT[2, 4, 16]:
+    two = op.Constant(value_float=2.0)
+    xt = op.Transpose(X, perm=[1, 0, 2])
+    product = op.MatMul(xt, W)
+    return op.Div(product, two)
+
+
+@script()
+def _transpose_batch_matmul_div_rank2_a_rank3_b(
+    X: FLOAT[4, 8], Y: FLOAT[8, 2, 16]
+) -> FLOAT[2, 4, 16]:
+    two = op.Constant(value_float=2.0)
+    yt = op.Transpose(Y, perm=[1, 0, 2])
+    product = op.MatMul(X, yt)
+    return op.Div(product, two)
+
+
+@script()
+def _transpose_batch_matmul_div_rank3(
+    X: FLOAT[4, 2, 8], Y: FLOAT[2, 8, 16]
+) -> FLOAT[2, 4, 16]:
+    two = op.Constant(value_float=2.0)
+    xt = op.Transpose(X, perm=[1, 0, 2])
+    product = op.MatMul(xt, Y)
+    return op.Div(product, two)
+
+
 class TestFusedMatmulRules(unittest.TestCase):
     def _apply_fusion_rules(self, ir_model: ir.Model):
         rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
@@ -443,6 +476,77 @@ class TestFusedMatmulRules(unittest.TestCase):
         rewritten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual([n.op_type for n in ir_model.graph], ["FusedMatMul"])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
+
+    def _ort_run(self, model: onnx.ModelProto, feeds: dict[str, Any]):
+        options = ort.SessionOptions()
+        # Execute the graph we produced. ORT's own fusions would hide a bad transBatch.
+        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+        session = ort.InferenceSession(
+            model.SerializeToString(),
+            options,
+            providers=["CPUExecutionProvider"],
+        )
+        return session.run(None, feeds)[0]
+
+    @parameterized.parameterized.expand(
+        [
+            (
+                "rank3_x_rank2_a",
+                _transpose_batch_matmul_div_rank3_a_rank2_b,
+                [FLOAT[4, 2, 8], FLOAT[8, 16]],
+                [FLOAT[2, 4, 16]],
+                ["Constant", "Transpose", "FusedMatMul"],
+                0,
+                0,
+            ),
+            (
+                "rank2_x_rank3_b",
+                _transpose_batch_matmul_div_rank2_a_rank3_b,
+                [FLOAT[4, 8], FLOAT[8, 2, 16]],
+                [FLOAT[2, 4, 16]],
+                ["Constant", "Transpose", "FusedMatMul"],
+                0,
+                0,
+            ),
+            (
+                "equal_rank3",
+                _transpose_batch_matmul_div_rank3,
+                [FLOAT[4, 2, 8], FLOAT[2, 8, 16]],
+                [FLOAT[2, 4, 16]],
+                ["Constant", "FusedMatMul"],
+                1,
+                0,
+            ),
+        ]
+    )
+    def test_trans_batch_requires_equal_rank_at_least_3(
+        self,
+        _,
+        script_func,
+        input_types,
+        output_types,
+        expected_ops,
+        trans_batch_a,
+        trans_batch_b,
+    ):
+        model_proto = script_func.to_model_proto(
+            input_types=input_types,
+            output_types=output_types,
+        )
+        ir_model = ir.serde.deserialize_model(model_proto)
+        self._apply_fusion_rules(ir_model)
+        rewritten_model = ir.serde.serialize_model(ir_model)
+        self.assertEqual([n.op_type for n in ir_model.graph], expected_ops)
+        fused = next(n for n in ir_model.graph if n.op_type == "FusedMatMul")
+        attrs = {key: attr.value for key, attr in fused.attributes.items()}
+        self.assertEqual(attrs.get("transBatchA", 0), trans_batch_a)
+        self.assertEqual(attrs.get("transBatchB", 0), trans_batch_b)
+        self.assertAlmostEqual(float(attrs["alpha"]), 0.5)
+        feeds = self._get_random_inputs(model_proto)
+        self._check_model(model_proto, rewritten_model, feeds=feeds, atol=1e-6)
+        expected = self._ort_run(model_proto, feeds)
+        got = self._ort_run(rewritten_model, feeds)
+        np.testing.assert_allclose(got, expected, atol=1e-6, rtol=1e-7)
 
 
 if __name__ == "__main__":

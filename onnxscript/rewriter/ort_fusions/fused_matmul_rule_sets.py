@@ -23,6 +23,21 @@ def _get_kwargs(node: ir.Node) -> dict[str, float | int]:
     return kwargs
 
 
+def _inputs_allow_trans_batch(x: ir.Value, y: ir.Value) -> bool:
+    """True if both inputs have the same statically known rank of at least 3.
+
+    ONNX Runtime rejects ``FusedMatMul`` when ``transBatchA`` or ``transBatchB`` is set
+    unless both inputs have equal rank >= 3.
+    """
+    x_shape = x.shape
+    y_shape = y.shape
+    if x_shape is None or y_shape is None:
+        return False
+    x_rank = x_shape.rank()
+    y_rank = y_shape.rank()
+    return x_rank == y_rank and x_rank >= 3
+
+
 class FusedMatMulDiv1(orp.RewriteRuleClassBase):
     """Replaces ``MatMul + Div`` with MatMul."""
 
@@ -181,6 +196,18 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
     _flip_transpose_batch: ClassVar = False
     _flip_transpose: ClassVar = False
 
+    def _rewrite_sets_trans_batch(self, fused_node: ir.Node) -> bool:
+        """True if the rewritten FusedMatMul would set transBatchA or transBatchB."""
+        trans_batch_a = fused_node.attributes.get_int("transBatchA", 0)
+        trans_batch_b = fused_node.attributes.get_int("transBatchB", 0)
+        # Mirrors rewrite(): only the transposed input's batch flag is flipped.
+        if self._flip_transpose_batch:
+            if self._pos == 1:
+                trans_batch_a = 1 - trans_batch_a
+            else:
+                trans_batch_b = 1 - trans_batch_b
+        return trans_batch_a != 0 or trans_batch_b != 0
+
     def check(
         self, context, x, y, transposed: ir.Value, fused: ir.Value, **_
     ) -> orp.MatchResult:
@@ -194,6 +221,7 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
             return check_result.fail("Permutation values for Transpose are not correct.")
 
         list_perm = list(range(len(perm)))
+        matched = False
         if self._flip_transpose_batch and self._flip_transpose:
             #  Case 1: transBatchA/B is 0, Transpose "perm" is [1, 2, ..., N-1, 0]
             #       or transBatchA/B is 1, Transpose "perm" is [N-1, 0, 1, ..., N-2]
@@ -202,8 +230,7 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
                 expected_perm = [*list_perm[1:], list_perm[0]]
             else:
                 expected_perm = [list_perm[-1], *list_perm[0:-1]]
-            if expected_perm == perm:
-                return check_result
+            matched = expected_perm == perm
         elif self._flip_transpose_batch:
             #  Case 2: transBatchA/B is 0, Transpose "perm" is [1, 2, ..., N-2, 0, N-1]
             #       or transBatchA/B is 1, Transpose "perm" is [N-2, 0, 1, ..., N-3, N-1]
@@ -212,16 +239,22 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
                 expected_perm = [*list_perm[1:-1], list_perm[0], list_perm[-1]]
             else:
                 expected_perm = [list_perm[-2], *list_perm[0:-2], list_perm[-1]]
-            if expected_perm == perm:
-                return check_result
+            matched = expected_perm == perm
         elif self._flip_transpose:
             #  Case 3: transBatchA is 1, Transpose "perm" is [N-1, 1, ..., N-2, 0]
             #   - Then transA can be flipped in FusedMatMul when rewriting.
             expected_perm = [list_perm[-1], *list_perm[1:-1], list_perm[0]]
-            if expected_perm == perm and trans_batch == 1:
-                return check_result
+            matched = expected_perm == perm and trans_batch == 1
 
-        return check_result.fail("Permutation values for Transpose are not correct.")
+        if not matched:
+            return check_result.fail("Permutation values for Transpose are not correct.")
+        # Keep the Transpose when the fused op would set a batch-transpose flag that
+        # ONNX Runtime cannot execute (unknown ranks, unequal ranks, or rank < 3).
+        if self._rewrite_sets_trans_batch(fused_node) and not _inputs_allow_trans_batch(x, y):
+            return check_result.fail(
+                "transBatchA/transBatchB requires both inputs to have the same known rank >= 3."
+            )
+        return check_result
 
     def rewrite(self, op, x, y, fused: ir.Value, **_):
         kwargs = {}
