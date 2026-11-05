@@ -1,11 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+from __future__ import annotations
+
 import unittest
 
+import numpy as np
 import onnx.checker
 import onnx.parser
 import onnx_ir as ir
 
+from onnxscript.rewriter import testing
 from onnxscript.rewriter.rules.common import _cast_constant_of_shape
 
 
@@ -105,6 +109,41 @@ class CastConstantOfShapeTest(unittest.TestCase):
         self.assertIn("value", constant_node.attributes)
         self.assertTrue(constant_node.attributes["value"].is_ref())
         self.assertEqual(constant_node.attributes["value"].ref_attr_name, "fill")
+
+    def test_cast_after_constant_of_shape_with_non_scalar_value_is_not_fused(self):
+        """Cast after ConstantOfShape with a non-scalar value attribute should not be fused."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (int64[2] input_x) => (float[1, 4] output)
+            {
+                constant = ConstantOfShape <value: tensor = float[2] {1., 2.}>(input_x)
+                output = Cast <to = 1> (constant)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual([node.op_type for node in model.graph], ["ConstantOfShape", "Cast"])
+
+    def test_cast_after_constant_of_shape_without_value_numerical_correctness(self):
+        """Verify numerical correctness of legitimate ConstantOfShape without value cast fusion."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (int64[2] input_x) => (float[1, 4] output)
+            {
+                constant = ConstantOfShape (input_x)
+                output = Cast <to = 1> (constant)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (np.array([1, 4], dtype=np.int64),),
+        )
 
 
 if __name__ == "__main__":
