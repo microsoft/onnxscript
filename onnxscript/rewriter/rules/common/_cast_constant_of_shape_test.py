@@ -145,6 +145,89 @@ class CastConstantOfShapeTest(unittest.TestCase):
             (np.array([1, 4], dtype=np.int64),),
         )
 
+    def test_cast_with_ref_attr_to_after_constant_of_shape_is_not_fused(self):
+        """Cast with reference target dtype attribute should not be fused."""
+        model_text = """
+            <ir_version: 10, opset_import: ["pkg": 1, "": 17]>
+            main_graph (int64[2] shape) => (float[1, 4] output) {
+                output = pkg.my_func <target = 1> (shape)
+            }
+            <domain: "pkg", opset_import: ["": 17]>
+            my_func <target> (shape) => (output) {
+                constant = ConstantOfShape <value: tensor = float[1] {1.0}> (shape)
+                output = Cast <to = @target> (constant)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        function = next(iter(model.functions.values()))
+        self.assertEqual([node.op_type for node in function], ["ConstantOfShape", "Cast"])
+
+    def test_cast_with_ref_attr_to_after_constant_of_shape_without_value_is_not_fused(self):
+        """Cast with reference target dtype without value should not be fused."""
+        model_text = """
+            <ir_version: 10, opset_import: ["pkg": 1, "": 17]>
+            main_graph (int64[2] shape) => (float[1, 4] output) {
+                output = pkg.my_func <target = 1> (shape)
+            }
+            <domain: "pkg", opset_import: ["": 17]>
+            my_func <target> (shape) => (output) {
+                constant = ConstantOfShape (shape)
+                output = Cast <to = @target> (constant)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        function = next(iter(model.functions.values()))
+        self.assertEqual([node.op_type for node in function], ["ConstantOfShape", "Cast"])
+
+    def test_cast_to_undefined_after_constant_of_shape_is_not_fused(self):
+        """Cast to undefined data type should not be fused into ConstantOfShape."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (int64[2] input_x) => (float[1, 4] output)
+            {
+                constant = ConstantOfShape <value: tensor = float[1] {1.}>(input_x)
+                output = Cast <to = 0> (constant)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual([node.op_type for node in model.graph], ["ConstantOfShape", "Cast"])
+
+    def test_cast_to_undefined_after_constant_of_shape_without_value_is_not_fused(self):
+        """Cast to undefined data type without value should not be fused into ConstantOfShape."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (int64[2] input_x) => (float[1, 4] output)
+            {
+                constant = ConstantOfShape (input_x)
+                output = Cast <to = 0> (constant)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual([node.op_type for node in model.graph], ["ConstantOfShape", "Cast"])
+
+    def test_cast_after_constant_of_shape_with_string_value_is_not_fused(self):
+        """Cast after ConstantOfShape with a string value tensor should not be fused."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (int64[2] input_x) => (float[1, 4] output)
+            {
+                constant = ConstantOfShape <value: tensor = string[1] {"hello"}>(input_x)
+                output = Cast <to = 1> (constant)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual([node.op_type for node in model.graph], ["ConstantOfShape", "Cast"])
+
 
 if __name__ == "__main__":
     unittest.main()
