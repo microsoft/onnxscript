@@ -59,12 +59,9 @@ def _check_if_redundant_slice(
     axis = int(axes_const.numpy().item())
     if data.shape is not None:
         rank = data.shape.rank()
-        if rank is not None:
-            if axis < -rank or axis >= rank:
-                logger.info("The value 'axis' is out of range for the data rank.")
-                return False
-            if axis < 0:
-                axis += rank
+        if axis < -rank or axis >= rank:
+            logger.info("The value 'axis' is out of range for the data rank.")
+            return False
 
     # In case data.shape is not statically known, we still can tell the slice is redundant if ends is sys.maxsize
     if ends_const.numpy().item() == _INT64_MAX:
@@ -110,18 +107,39 @@ def _same_shape(
     elif not _ir_utils.is_singleton_value(steps, 1):
         return False
 
+    rank = data.shape.rank()
+
+    axes_np = _ir_utils.get_numpy_value(axes) if axes is not None else None
+    if axes_np is not None:
+        for a in axes_np.flat:
+            if a < -rank or a >= rank:
+                return False
+
     if starts is not None:
         starts_np = _ir_utils.get_numpy_value(starts)
-        if starts_np is not None and not all(s == 0 for s in starts_np.flat):
-            return False
-
-    if axes is not None and data.shape is not None:
-        rank = data.shape.rank()
-        if rank is not None:
-            axes_np = _ir_utils.get_numpy_value(axes)
+        if starts_np is not None:
             if axes_np is not None:
-                for a in axes_np.flat:
-                    if a < -rank or a >= rank:
+                axes_list = [int(a) for a in axes_np.flat]
+                if len(axes_list) != len(starts_np.flat):
+                    return False
+            elif axes is None:
+                axes_list = list(range(len(starts_np.flat)))
+            else:
+                if not all(s == 0 for s in starts_np.flat):
+                    return False
+                axes_list = []
+
+            for s, a in zip(starts_np.flat, axes_list):
+                if a < -rank or a >= rank:
+                    return False
+                if data.shape.is_dynamic(a):
+                    if s != 0:
+                        return False
+                else:
+                    dim = data.shape[a]
+                    eff_start = s + dim if s < 0 else s
+                    eff_start = max(0, min(dim, eff_start))
+                    if eff_start != 0:
                         return False
 
     return _ir_utils.same_shape(data.shape, slice_output.shape)
