@@ -21,6 +21,12 @@ from typing import Any, Callable, Iterable, Sequence, Union
 import numpy as np
 import onnx
 import onnx.reference.ops
+
+try:
+    from onnx.reference.ops_optimized import optimized_operators as _optimized_operators
+except ImportError:
+    _optimized_operators = None
+
 import onnx_ir as ir
 import onnx_ir.passes.common as ir_passes_common
 
@@ -144,6 +150,14 @@ def basic_constant_propagation(nodes: Iterable[ir.Node]) -> None:
 
 class ReferenceEvaluator:
     def get_evaluator(self, domain: str, op: str, version: int) -> Callable | None:
+        # Try optimized operators first (e.g., Conv uses im2col+GEMM instead of
+        # a slow Python loop nest). This matches what onnx's own ReferenceEvaluator
+        # does when optimized=True (the default).
+        if _optimized_operators is not None:
+            op_key = (domain, op)
+            if op_key in _optimized_operators:
+                return _optimized_operators[op_key].eval
+        # Fall back to the plain reference implementation.
         try:
             op_impl_class = onnx.reference.ops.load_op(domain, op, version)
             return op_impl_class.eval  # noqa: TRY300
