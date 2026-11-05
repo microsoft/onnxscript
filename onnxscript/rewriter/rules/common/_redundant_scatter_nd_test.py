@@ -14,6 +14,7 @@ from onnx_ir.passes.common import CheckerPass, ShapeInferencePass
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
+from onnxscript.rewriter import testing
 from onnxscript.rewriter.rules.common import _redundant_scatter_nd
 
 shape_inference = ShapeInferencePass()
@@ -248,7 +249,6 @@ class RedundantScatterNdTest(unittest.TestCase):
         self.assertEqual(count, 0)
         self.assertEqual([node.op_type for node in function], ["ScatterND"])
 
-
     def test_dynamic_indices_out_of_bounds_axis_rejected(self):
         """Out of bounds axis should be safely rejected without IndexError."""
         model_text = """
@@ -298,7 +298,7 @@ class RedundantScatterNdTest(unittest.TestCase):
     def test_dynamic_indices_valid_negative_axis_supported(self):
         """Valid negative axis (-1 referring to axis 1 of rank 2) should be supported."""
         model_text = """
-            <ir_version: 8, opset_import: ["" : 14]>
+            <ir_version: 8, opset_import: ["" : 17]>
             test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
             <
                 int64 axis = {-1},
@@ -314,10 +314,20 @@ class RedundantScatterNdTest(unittest.TestCase):
                 out = ScatterND<reduction = "none">(transposed_data, full_range_2d, updates)
             }
         """
+        original = ir.from_onnx_text(model_text)
         model = ir.from_onnx_text(model_text)
         count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (
+                np.random.rand(4, 8).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+            ),
+        )
 
     def test_dynamic_indices_scalar_transposed_data_rejected(self):
         """Scalar transposed_data shape should be safely rejected without IndexError."""
