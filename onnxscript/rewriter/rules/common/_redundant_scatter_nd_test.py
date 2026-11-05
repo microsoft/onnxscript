@@ -352,6 +352,30 @@ class RedundantScatterNdTest(unittest.TestCase):
         count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
+    def test_dynamic_indices_missing_data_shape_rejected(self):
+        """Unranked/missing data shape should be safely rejected without crashing."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 14]>
+            test (float[] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {0},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        model.graph.inputs[0].shape = None
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
