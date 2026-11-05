@@ -1151,5 +1151,42 @@ class NameClashAfterFoldTest(unittest.TestCase):
         )
 
 
+class ReferenceEvaluatorOptimizedOpsTest(unittest.TestCase):
+    """Test that the internal ReferenceEvaluator prefers optimized ops."""
+
+    def test_get_evaluator_prefers_optimized_ops(self):
+        """Verify that get_evaluator returns optimized op implementations when available."""
+        evaluator = _constant_folding.ReferenceEvaluator()
+
+        try:
+            from onnx.reference.ops_optimized import optimized_operators
+        except ImportError:
+            self.skipTest("onnx.reference.ops_optimized not available")
+
+        for (domain, op_name), optimized_cls in optimized_operators.items():
+            with self.subTest(domain=domain, op=op_name):
+                result = evaluator.get_evaluator(domain, op_name, version=1)
+                self.assertIsNotNone(result, f"Expected evaluator for {domain}::{op_name}")
+                self.assertIs(
+                    result,
+                    optimized_cls.eval,
+                    f"Expected optimized implementation for {domain}::{op_name}, "
+                    f"got {result} instead of {optimized_cls.eval}",
+                )
+
+    def test_get_evaluator_falls_back_to_plain_ops(self):
+        """Verify fallback to plain ops still works for non-optimized ops."""
+        evaluator = _constant_folding.ReferenceEvaluator()
+        # Relu is a simple op that is unlikely to have an optimized variant
+        result = evaluator.get_evaluator("", "Relu", version=14)
+        self.assertIsNotNone(result, "Expected evaluator for Relu")
+
+    def test_get_evaluator_returns_none_for_unknown_op(self):
+        """Verify None is returned for ops that don't exist."""
+        evaluator = _constant_folding.ReferenceEvaluator()
+        result = evaluator.get_evaluator("", "NonExistentOp12345", version=1)
+        self.assertIsNone(result)
+
+
 if __name__ == "__main__":
     unittest.main()
