@@ -38,6 +38,8 @@ class SDPA(pattern.RewriteRuleClassBase):
         query_scale,
         key_scale,
         qk_scale,
+        key_squeeze_axes,
+        key_unsqueeze_axes,
     ):
         # The last two axes of key must be transposed before computing the dot product with query.
         # Three patterns are observed in practice:
@@ -54,10 +56,14 @@ class SDPA(pattern.RewriteRuleClassBase):
         # the key from BSHd format to BHSd format.
         key_transposed_3 = op.Transpose(key, perm=[0, 2, 3, 1])
 
+        key_squeezed = op.Squeeze(key, key_squeeze_axes)
+        key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
+        key_transposed_4 = op.Unsqueeze(key_squeezed_transposed, key_unsqueeze_axes)
+
         key_transposed = pattern.OrValue(
-            [key_transposed_1, key_transposed_2, key_transposed_3],
+            [key_transposed_1, key_transposed_2, key_transposed_3, key_transposed_4],
             tag_var="key_format",
-            tag_values=["BHSd", "BHSd", "BSHd"],
+            tag_values=["BHSd", "BHSd", "BSHd", "BHSd_squeezed"],
         )
 
         # Some implementations scale the query and key before computing the dot product
@@ -114,11 +120,24 @@ class SDPA(pattern.RewriteRuleClassBase):
         value: ir.Value | None,
         mask: ir.Value | None,
         key_format: str,
+        key_squeeze_axes=None,
+        key_unsqueeze_axes=None,
         **match_bindings,
     ):
         check_result = pattern.MatchResult()
 
         bindings: dict[str, Dim] = {}
+        if key_format == "BHSd_squeezed":
+            axes = [
+                _ir_utils.get_numpy_value(key_squeeze_axes),
+                _ir_utils.get_numpy_value(key_unsqueeze_axes),
+            ]
+            if not all(
+                axis is not None and axis.shape == (1,) and int(axis.item()) in (0, -4)
+                for axis in axes
+            ):
+                return check_result.fail("Key must squeeze and restore only the batch axis.")
+            key_format = "BHSd"
 
         # Check that query/key/value have the expected shapes:
         # They all should have same batch-size (B) and number of heads (H). Conceptually, it is
@@ -179,6 +198,8 @@ class SDPA(pattern.RewriteRuleClassBase):
         key_format: str,
         **_,
     ):
+        if key_format == "BHSd_squeezed":
+            key_format = "BHSd"
         sdpa_args = [query, key, value]
         if mask is not None:
             sdpa_args.append(mask)
