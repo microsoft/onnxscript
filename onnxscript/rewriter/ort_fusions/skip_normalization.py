@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Sequence, Union
 
+import numpy as np
 import onnx_ir as ir
 
 from onnxscript.rewriter import _fusion_utils, pattern
@@ -14,13 +15,20 @@ Dim = Union[int, ir.SymbolicDim]
 
 
 class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
-    def __init__(self, name: str, has_bias: bool = False, bias_pre_add: bool = False):
+    def __init__(
+        self,
+        name: str,
+        has_bias: bool = False,
+        bias_pre_add: bool = False,
+        cast_back: bool = False,
+    ):
         """Fusion rule for SkipRMSNormalization."""
         super().__init__(name=name)
         self._has_bias = has_bias
         self._bias_pre_add = bias_pre_add
+        self._cast_back = cast_back
 
-    def pattern(self, op, input, skip, gamma, bias, epsilon, stash_type):
+    def pattern(self, op, input, skip, gamma, bias, epsilon, stash_type, target_dtype):
         if self._has_bias and self._bias_pre_add:
             input = op.Add(input, bias)
 
@@ -43,6 +51,8 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
             _allow_other_attributes=True,
             _outputs=["simplified_layer_norm"],
         )
+        if self._cast_back:
+            normalized = op.Cast(normalized, to=target_dtype)
         return normalized, skip_sum
 
     def check(
@@ -53,10 +63,35 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         gamma,
         bias,
         simplified_layer_norm,
+        target_dtype,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SkipSimplifiedLayerNormalization op."""
         check_result = pattern.MatchResult()
+        if input.dtype is None or input.dtype != skip.dtype:
+            return check_result.fail("Input and skip must have the same known dtype.")
+        if self._has_bias and bias.dtype != input.dtype:
+            return check_result.fail("Bias must have the same dtype as input.", bias)
+        if self._cast_back:
+            if (
+                input.dtype != ir.DataType.FLOAT16
+                or gamma.dtype != ir.DataType.FLOAT
+                or target_dtype.as_int() != input.dtype
+            ):
+                return check_result.fail(
+                    "Scale narrowing requires float16 input, float32 scale, and a cast back to float16."
+                )
+            if gamma.const_value is None:
+                return check_result.fail("Scale narrowing requires a constant scale.", gamma)
+            scale = gamma.const_value.numpy()
+            with np.errstate(over="ignore", invalid="ignore"):
+                exact = np.array_equal(scale.astype(np.float16).astype(scale.dtype), scale)
+            if not exact:
+                return check_result.fail(
+                    "Scale cannot be represented exactly in float16.", gamma
+                )
+        elif gamma.dtype != input.dtype:
+            return check_result.fail("Scale must have the same dtype as input.", gamma)
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
@@ -101,6 +136,8 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         **_,
     ):
         epsilon = simplified_layer_norm.producer().attributes.get_float("epsilon", 1e-5)
+        if self._cast_back:
+            gamma = op.Constant(value=ir.tensor(gamma.const_value.numpy().astype(np.float16)))
 
         if self._has_bias:
             normalized, _mean, _inv_std_var, skip_sum = op.SkipSimplifiedLayerNormalization(
@@ -133,7 +170,16 @@ _skip_rms_pre_add_bias_rule = SkipRmsNormFusion.rule(
 _skip_rms_rule = SkipRmsNormFusion.rule("SkipRmsNorm", has_bias=False)
 
 skip_rms_normalization_ruleset = pattern.RewriteRuleSet(
-    [_skip_rms_pre_add_bias_rule, _skip_rms_add_bias_rule, _skip_rms_rule]
+    [
+        SkipRmsNormFusion.rule(
+            "SkipRmsNormPreBiasCastBack", has_bias=True, bias_pre_add=True, cast_back=True
+        ),
+        SkipRmsNormFusion.rule("SkipRmsNormBiasCastBack", has_bias=True, cast_back=True),
+        SkipRmsNormFusion.rule("SkipRmsNormCastBack", cast_back=True),
+        _skip_rms_pre_add_bias_rule,
+        _skip_rms_add_bias_rule,
+        _skip_rms_rule,
+    ]
 )
 fuse_skip_rms_normalization = _fusion_utils.apply_fusion_rules(skip_rms_normalization_ruleset)
 
