@@ -187,18 +187,15 @@ def aten_avg_pool2d(
         expand_size, kernel_size, stride, padding
     )
 
-    # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
-    # mask = [
-    #    1, 2, 3, S,..3, 2, 1
-    #    2, 4, 6, 2S, 6, 4, 2
-    #    3, 6, 9, 3S, 9, 6, 3
-    #    S, 2S,3S,SS,3S,2S, S
-    #    3, 6, 9, 3S, 9, 6, 3
-    #    2, 4, 6, 2S, 6, 4, 2
-    #    1, 2, 3, S,..3, 2, 1
-    # ]
-    # S is stride size, in this case S=4,
-    # S may dup lot of times according to the image size
+    if divisor_override is not None:
+        # With count_include_pad, AveragePool divides each window sum by the kernel size.
+        # torch divides it by divisor_override instead. ceil_mode windows that run past the
+        # input are divided by a smaller count in ONNX, so they cannot be rescaled this way.
+        if ceil_mode:
+            raise NotImplementedError("divisor_override with ceil_mode=True is not supported.")
+        result = _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, True)
+        scale = op.CastLike(math.prod(kernel_shape) / divisor_override, result)
+        return op.Mul(result, scale)
 
     return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
@@ -239,18 +236,15 @@ def aten_avg_pool3d(
         expand_size, kernel_size, stride, padding
     )
 
-    # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
-    # mask = [
-    #    1, 2, 3, S,..3, 2, 1
-    #    2, 4, 6, 2S, 6, 4, 2
-    #    3, 6, 9, 3S, 9, 6, 3
-    #    S, 2S,3S,SS,3S,2S, S
-    #    3, 6, 9, 3S, 9, 6, 3
-    #    2, 4, 6, 2S, 6, 4, 2
-    #    1, 2, 3, S,..3, 2, 1
-    # ]
-    # S is stride size, in this case S=4,
-    # S may dup lot of times according to the image size
+    if divisor_override is not None:
+        # With count_include_pad, AveragePool divides each window sum by the kernel size.
+        # torch divides it by divisor_override instead. ceil_mode windows that run past the
+        # input are divided by a smaller count in ONNX, so they cannot be rescaled this way.
+        if ceil_mode:
+            raise NotImplementedError("divisor_override with ceil_mode=True is not supported.")
+        result = _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, True)
+        scale = op.CastLike(math.prod(kernel_shape) / divisor_override, result)
+        return op.Mul(result, scale)
 
     return _aten_avg_pool_onnx(self, kernel_shape, strides, pads, ceil_mode, count_include_pad)
 
