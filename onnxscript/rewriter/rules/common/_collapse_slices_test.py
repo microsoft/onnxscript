@@ -304,3 +304,21 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             model,
             (np.random.rand(4, 8).astype(np.float32),),
         )
+
+    def test_slice_multi_axis_nonzero_start_does_not_collapse(self):
+        """Slice with matching shapes, unit steps, valid axes, but nonzero start should not collapse."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[2] {0, 1}>()
+                ends = Constant<value: tensor = int64[2] {4, 8}>()
+                axes = Constant<value: tensor = int64[2] {0, 1}>()
+                steps = Constant<value: tensor = int64[2] {1, 1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        )
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
