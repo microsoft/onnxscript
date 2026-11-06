@@ -38,6 +38,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         cast: bool = False,
         reshape: bool = False,
         const_freqs: bool = False,
+        concat_after_trig: bool = False,
     ):
         # This pattern makes use of shared Cos/Sin values. So, we can't remove the
         # matched nodes as part of the rewrite-step. We apply a separate final
@@ -50,6 +51,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         self._reshape = reshape
         self._cast = cast
         self._const_freqs = const_freqs
+        self._concat_after_trig = concat_after_trig
 
     @property
     def max_pos_id(self) -> int | None:
@@ -123,10 +125,12 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             # B: batch size, S: sequence length, E: embedding dimension
             # position_ids: [B, S] or [S]
             # inv_freq: [1, E, 1]
-            position_ids_expanded = op.Unsqueeze(
-                position_ids, extra_dims
-            )  # [B, S] | [S] => [B, 1, S]
-            position_ids_expanded = op.Cast(position_ids_expanded, to=ir.DataType.FLOAT)
+            position_ids_expanded = pattern.OrValue(
+                [
+                    op.Cast(op.Unsqueeze(position_ids, extra_dims), to=ir.DataType.FLOAT),
+                    op.Unsqueeze(op.Cast(position_ids, to=ir.DataType.FLOAT), extra_dims),
+                ]
+            )
             # if self._reshape:
             #     position_ids_expanded = op.Expand(position_ids_expanded, _allow_other_inputs=True)
             #     position_ids_expanded = op.Reshape(position_ids_expanded, _allow_other_inputs=True)
@@ -141,13 +145,16 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         # if self._reshape:
         #     freqs = op.Reshape(freqs, freqs_3d_shape)  # redundant reshape
         freqs = op.Transpose(freqs, perm=[0, 2, 1])  # [B, S, E]
-        emb = op.Concat(freqs, freqs, axis=-1)
+        emb = freqs if self._concat_after_trig else op.Concat(freqs, freqs, axis=-1)
         cos = op.Cos(emb)
         if self._cast:
             cos = op.Cast(cos, to=dtype)
         sin = op.Sin(emb)
         if self._cast:
             sin = op.Cast(sin, to=dtype)
+        if self._concat_after_trig:
+            cos = op.Concat(cos, cos, axis=-1)
+            sin = op.Concat(sin, sin, axis=-1)
         cos_4d = op.Unsqueeze(cos, [1])  # convert
         sin_4d = op.Unsqueeze(sin, [1])
         return op.RotaryEmbedding(
@@ -226,7 +233,24 @@ _cast = CosSinCacheFusion.rule("CosSinCache_cast", cast=True, const_freqs=False)
 _const_freqs = CosSinCacheFusion.rule("CosSinCache_const_freqs", cast=False, const_freqs=True)
 _basic = CosSinCacheFusion.rule("CosSinCache", cast=False)
 
-cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_freqs, _basic])
+cos_sin_cache_rules = pattern.RewriteRuleSet(
+    [
+        _cast,
+        _cast_const_freqs,
+        _const_freqs,
+        _basic,
+        *(
+            CosSinCacheFusion.rule(
+                f"CosSinCache_concat_after_trig_{cast}_{const_freqs}",
+                cast=cast,
+                const_freqs=const_freqs,
+                concat_after_trig=True,
+            )
+            for cast in (False, True)
+            for const_freqs in (False, True)
+        ),
+    ]
+)
 
 
 fuse_cos_sin_cache = _fusion_utils.apply_fusion_rules(cos_sin_cache_rules)

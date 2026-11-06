@@ -52,6 +52,8 @@ def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int
 
 
 def get_const_value(value: ir.Value) -> ir.TensorProtocol | None:
+    if value.is_graph_input():
+        return None
     node = value.producer()
     if node is not None:
         optimizer.basic_constant_propagation([node])
@@ -61,11 +63,7 @@ def get_const_value(value: ir.Value) -> ir.TensorProtocol | None:
 def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
     """Convenience wrapper to get (optional) numpy value from an optional IR Value.
 
-    This is intended for use in optimizations/rewriting. Note that this does not
-    yet handle the distinction between inputs with default values (values that are
-    both graph inputs and graph initializers), which should not be treated as a
-    constant, and true constant values. The caller should make the distinction, as
-    a value does not contain enough information to determine this. (TODO)
+    Graph inputs with initializer defaults remain overridable and are not constants.
     """
     if val is None:
         return None

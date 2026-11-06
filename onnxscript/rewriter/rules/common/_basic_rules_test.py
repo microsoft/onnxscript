@@ -605,7 +605,7 @@ class ReshapeReshapeTest(unittest.TestCase):
         _constant_folding.FoldConstantsPass(
             shape_inference=True, input_size_limit=1024, output_size_limit=1024
         )(model)
-        rewriter.RewritePass(rewriter._DEFAULT_REWRITE_RULES)(model)
+        rewriter.RewritePass([_basic_rules.reshape_reshape_rule])(model)
         common_passes.RemoveUnusedNodesPass()(model)
         common_passes.LiftConstantsToInitializersPass(lift_all_constants=True, size_limit=0)(
             model

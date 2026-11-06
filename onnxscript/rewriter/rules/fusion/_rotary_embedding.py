@@ -19,28 +19,92 @@ from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 #        q_embed = (q * cos) + (rotate_half(q) * sin)
 
 
-def _rotate_half_pattern(op, x, start1, end1, start2, end2):
+def _rotary_split_size(x, split_sizes, split_axis):
+    if (
+        x.shape is None
+        or len(x.shape) != 4
+        or not isinstance(x.shape[3], int)
+        or split_axis is None
+        or split_axis.is_ref()
+        or split_axis.as_int() not in (3, -1)
+    ):
+        return None
+    sizes = _ir_utils.get_numpy_value(split_sizes)
+    if (
+        sizes is None
+        or sizes.ndim != 1
+        or sizes.size != 2
+        or any(size <= 0 for size in sizes)
+        or sum(int(size) for size in sizes) != x.shape[3]
+    ):
+        return None
+    return int(sizes[0])
+
+
+def _rotate_half_pattern(
+    op, x, start1, end1, start2, end2, split_sizes=None, split_axis=None, use_split=False
+):
     # Slice(input, starts, ends, axes, steps)
-    x1 = op.Slice(x, start1, end1, [3], [1])
-    x2 = op.Slice(x, start2, end2, [3], [1])
+    if use_split:
+        x1, x2 = op.Split(x, split_sizes, axis=split_axis, _outputs=2)
+    else:
+        x1 = op.Slice(x, start1, end1, [3], [1])
+        x2 = op.Slice(x, start2, end2, [3], [1])
     minus_x2 = op.Neg(x2)
     rotated_x = op.Concat(minus_x2, x1, axis=-1)
     return rotated_x
 
 
 class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
-    def __init__(self):
+    def __init__(self, use_split=False, concat_after_trig=False):
+        self._use_split = use_split
+        self._concat_after_trig = concat_after_trig
         super().__init__(name="RotaryEmbedding23", remove_nodes=False)
 
-    def pattern(self, op, x, freqs, start1, end1, start2, end2, one1, one2):
-        freqs_repeated = op.Concat(freqs, freqs, axis=-1)
-        cos = op.Cos(freqs_repeated)
-        sin = op.Sin(freqs_repeated)
+    def pattern(
+        self,
+        op,
+        x,
+        freqs,
+        start1,
+        end1,
+        start2,
+        end2,
+        one1,
+        one2,
+        split_sizes=None,
+        split_axis=None,
+    ):
+        if self._concat_after_trig:
+            cos = op.Cos(freqs)
+            sin = op.Sin(freqs)
+            cos = op.Concat(cos, cos, axis=-1)
+            sin = op.Concat(sin, sin, axis=-1)
+        else:
+            freqs_repeated = op.Concat(freqs, freqs, axis=-1)
+            cos = op.Cos(freqs_repeated)
+            sin = op.Sin(freqs_repeated)
         cos_4d = op.Unsqueeze(cos, one1)
         sin_4d = op.Unsqueeze(sin, one2)
-        return x * cos_4d + _rotate_half_pattern(op, x, start1, end1, start2, end2) * sin_4d
+        rotated = _rotate_half_pattern(
+            op, x, start1, end1, start2, end2, split_sizes, split_axis, self._use_split
+        )
+        return x * cos_4d + rotated * sin_4d
 
-    def check(self, op, x, start1, end1, start2, end2, one1, one2, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
+    def check(
+        self,
+        op,
+        x,
+        one1,
+        one2,
+        start1=None,
+        end1=None,
+        start2=None,
+        end2=None,
+        split_sizes=None,
+        split_axis=None,
+        **_,
+    ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
 
         if not _ir_utils.is_singleton_value(one1, 1):
@@ -59,7 +123,11 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         half_head_size = head_size // 2
 
         # Check that x is being split into two equal halves of size half_head_size
-        if not (
+        if self._use_split:
+            split_size = _rotary_split_size(x, split_sizes, split_axis)
+            if split_size != half_head_size or head_size != 2 * split_size:
+                return check_result.fail("Split does not select equal rotary halves.")
+        elif not (
             _ir_utils.is_singleton_value(start1, 0)
             and _ir_utils.is_singleton_value(end1, half_head_size)
             and _ir_utils.is_singleton_value(start2, half_head_size)
@@ -91,9 +159,16 @@ MAX_INT64 = 9223372036854775807
 
 
 class PartialRotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
-    def pattern(self, op, x, end1, start2):
-        x_part_1 = op.Slice(x, [0], end1, [3], [1])
-        x_part_2 = op.Slice(x, start2, [MAX_INT64], [3], [1])
+    def __init__(self, use_split=False):
+        super().__init__()
+        self._use_split = use_split
+
+    def pattern(self, op, x, end1, start2, split_sizes=None, split_axis=None):
+        if self._use_split:
+            x_part_1, x_part_2 = op.Split(x, split_sizes, axis=split_axis, _outputs=2)
+        else:
+            x_part_1 = op.Slice(x, [0], end1, [3], [1])
+            x_part_2 = op.Slice(x, start2, [MAX_INT64], [3], [1])
         x_part_1_rope = op.RotaryEmbedding(
             x_part_1,
             _allow_other_inputs=True,
@@ -102,10 +177,23 @@ class PartialRotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         )
         return op.Concat(x_part_1_rope, x_part_2, axis=-1)
 
-    def check(self, op, x, end1, start2, x_part_1_rope, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
+    def check(
+        self,
+        op,
+        x,
+        x_part_1_rope,
+        end1=None,
+        start2=None,
+        split_sizes=None,
+        split_axis=None,
+        **_,
+    ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
-        end1_value = _ir_utils.get_singleton_value(end1)
-        start2_value = _ir_utils.get_singleton_value(start2)
+        if self._use_split:
+            end1_value = start2_value = _rotary_split_size(x, split_sizes, split_axis)
+        else:
+            end1_value = _ir_utils.get_singleton_value(end1)
+            start2_value = _ir_utils.get_singleton_value(start2)
         if not isinstance(end1_value, int) or not isinstance(start2_value, int):
             return check_result.fail("Unable to validate slice start/end values.")
         if end1_value != start2_value:
@@ -120,11 +208,12 @@ class PartialRotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
             and rotary_embedding_attributes["interleaved"].value != 0
         ):
             return check_result.fail("interleaved is not equal to 0.")
+        self._rotary_dimension = end1_value
         return check_result
 
-    def rewrite(self, op, x, end1, x_part_1_rope, **_):
+    def rewrite(self, op, x, x_part_1_rope, **_):
         # Create a modified version of the RotaryEmbedding op:
-        rotary_embedding_dim = _ir_utils.get_singleton_value(end1)
+        rotary_embedding_dim = self._rotary_dimension
         original_node = x_part_1_rope.producer()
         inputs = list(original_node.inputs)
         inputs[0] = x
@@ -140,9 +229,18 @@ _rule = RotaryEmbedding23Fusion.rule()
 
 _partial_embedding_rule = PartialRotaryEmbedding23Fusion.rule()
 
-rotary_embedding_rules = pattern.RewriteRuleSet([_rule])
+rotary_embedding_rules = pattern.RewriteRuleSet(
+    [
+        _rule,
+        RotaryEmbedding23Fusion.rule(True),
+        RotaryEmbedding23Fusion.rule(False, True),
+        RotaryEmbedding23Fusion.rule(True, True),
+    ]
+)
 
-partial_embedding_rules = pattern.RewriteRuleSet([_partial_embedding_rule])
+partial_embedding_rules = pattern.RewriteRuleSet(
+    [_partial_embedding_rule, PartialRotaryEmbedding23Fusion.rule(True)]
+)
 
 fuse_rotary_embedding = _fusion_utils.apply_fusion_rules(rotary_embedding_rules)
 

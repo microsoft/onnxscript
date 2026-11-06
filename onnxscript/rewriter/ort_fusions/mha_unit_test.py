@@ -170,6 +170,30 @@ class MultiHeadAttentionFusionTest(unittest.TestCase):
 
     # --- Positive tests ---
 
+    def test_decoding_unit_layout_preserves_fusion(self):
+        model = self._build(
+            _mha_basic_key_transposed,
+            (FLOAT[2, 1, _D],) * 3,
+            (FLOAT[2, 1, _D],),
+        )
+        self.assertEqual(self._apply(model), 1)
+        self.assertEqual(self._get_mha_node(model).attributes.get_int("num_heads"), _H)
+
+    def test_unit_layout_requires_an_equivalent_axis_order(self):
+        from onnxscript.rewriter.ort_fusions.mha import _is_unit_layout
+
+        source = ir.Value(shape=ir.Shape([2, 3, 16]))
+        incorrect = ir.Value(shape=ir.Shape([2, 4, 3, 4]))
+        self.assertFalse(_is_unit_layout(source, incorrect))
+        unknown = ir.Value(shape=ir.Shape([2, None, 16]))
+        self.assertFalse(_is_unit_layout(unknown, incorrect))
+        singleton = ir.Value(shape=ir.Shape([2, 1, 16]))
+        equivalent = ir.Value(shape=ir.Shape([2, 4, 1, 4]))
+        self.assertTrue(_is_unit_layout(singleton, equivalent))
+        flattened = ir.Value(shape=ir.Shape([1, 16]))
+        self.assertTrue(_is_unit_layout(flattened, ir.Value(shape=ir.Shape([1, 4, 1, 4]))))
+        self.assertFalse(_is_unit_layout(flattened, equivalent))
+
     def test_basic_key_transposed(self):
         """Simplest MHA: no rotary, no past, key transposed → fuses."""
         model = self._build(_mha_basic_key_transposed, self._3D, self._OUT_1)
