@@ -5008,12 +5008,25 @@ def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
 def aten_hypot(self: TFloat, other: TFloat) -> TFloat:
     """hypot(Tensor self, Tensor other) -> Tensor"""
 
-    zero = common_ops.constant(0.0, dtype=self.dtype)
-    one = common_ops.constant(1.0, dtype=self.dtype)
-    inf = common_ops.constant(math.inf, dtype=self.dtype)
+    dtype = self.dtype
+    if dtype in {ir.DataType.FLOAT16, ir.DataType.BFLOAT16}:
+        # Compute in float32 so the intermediate steps keep full precision near the
+        # top of the half precision range. onnxruntime also lacks bfloat16 kernels
+        # for some of the ops below, e.g. Abs.
+        self = op.Cast(self, to=FLOAT.dtype)
+        other = op.Cast(other, to=FLOAT.dtype)
+        return op.Cast(_hypot(self, other, ir.DataType.FLOAT), to=dtype)
+
+    return _hypot(self, other, dtype)
+
+
+def _hypot(self: TFloat, other: TFloat, dtype: ir.DataType) -> TFloat:
+    zero = common_ops.constant(0.0, dtype=dtype)
+    one = common_ops.constant(1.0, dtype=dtype)
+    inf = common_ops.constant(math.inf, dtype=dtype)
 
     # Squaring the inputs directly overflows or underflows long before the result
-    # does, e.g. hypot(300, 400) in float16. Scale by the larger magnitude instead:
+    # does, e.g. hypot(1e30, 1e30) in float32. Scale by the larger magnitude instead:
     # hypot(x, y) = big * sqrt(1 + (small / big) ** 2)
     abs_self = op.Abs(self)
     abs_other = op.Abs(other)
@@ -5025,8 +5038,7 @@ def aten_hypot(self: TFloat, other: TFloat) -> TFloat:
     # 0 / 0 and inf / inf give NaN above. hypot is 0 when both inputs are 0, and
     # inf when either input is inf, even if the other one is NaN.
     result = op.Where(op.Equal(big, zero), zero, result)
-    # IsInf only accepts float16 from opset 20, so compare the magnitudes instead.
-    either_inf = op.Or(op.Equal(abs_self, inf), op.Equal(abs_other, inf))
+    either_inf = op.Or(op.IsInf(self), op.IsInf(other))
     return op.Where(either_inf, inf, result)
 
 

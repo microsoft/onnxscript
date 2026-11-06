@@ -2078,6 +2078,27 @@ class TorchLibe2eTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
+            ("float16", torch.float16),
+            ("bfloat16", torch.bfloat16),
+        ]
+    )
+    def test_hypot_half_results_near_max(self, _: str, dtype: torch.dtype):
+        # These results are finite but close to the largest value of the type, so
+        # rounding in a half precision computation could turn them into inf.
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.hypot(a, b)
+
+        big = torch.finfo(dtype).max
+        a = torch.tensor([big, big * 0.75, big * 0.7, big * 0.99], dtype=dtype)
+        b = torch.tensor([1.0, big * 0.6, big * 0.7, big * 0.1], dtype=dtype)
+        self.assertTrue(torch.isfinite(torch.hypot(a, b)).all())
+
+        onnx_program = torch.onnx.export(Model(), (a, b), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
             ("amax", "amax", False),
             ("amax_keepdim", "amax", True),
             ("amin", "amin", False),
