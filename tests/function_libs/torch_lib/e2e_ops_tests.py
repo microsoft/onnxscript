@@ -2015,6 +2015,90 @@ class TorchLibe2eTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
+            ("fmax_float32", "fmax", torch.float32),
+            ("fmax_float16", "fmax", torch.float16),
+            ("fmin_float32", "fmin", torch.float32),
+            ("fmin_float16", "fmin", torch.float16),
+        ]
+    )
+    def test_fmax_fmin_ignore_nan(self, _: str, func: str, dtype: torch.dtype):
+        # fmax and fmin return the other input when one of them is NaN, and NaN
+        # only when both are.
+        func = getattr(torch, func)
+
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return func(a, b)
+
+        nan = math.nan
+        inf = math.inf
+        a = torch.tensor([nan, 1.0, nan, -inf, inf, 2.0, -3.0], dtype=dtype)
+        b = torch.tensor([1.0, nan, nan, nan, 0.5, 5.0, -4.0], dtype=dtype)
+
+        onnx_program = torch.onnx.export(Model(), (a, b), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_fmax_fmin_integer_inputs(self):
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.fmax(a, b), torch.fmin(a, b)
+
+        a = torch.tensor([1, -2, 3, 7], dtype=torch.int64)
+        b = torch.tensor([4, -5, 3, 0], dtype=torch.int64)
+
+        onnx_program = torch.onnx.export(Model(), (a, b), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
+            ("float32", torch.float32),
+            ("float16", torch.float16),
+        ]
+    )
+    def test_hypot_large_small_and_special_values(self, _: str, dtype: torch.dtype):
+        # Squaring these inputs overflows or underflows, but the results are in range.
+        # hypot is inf when either input is inf, even if the other one is NaN.
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.hypot(a, b)
+
+        nan = math.nan
+        inf = math.inf
+        big = torch.finfo(dtype).max / 4
+        tiny = torch.finfo(dtype).tiny * 4
+        a = torch.tensor(
+            [300.0, -big, tiny, 0.0, -0.0, inf, nan, -inf, nan, 3.0, 1.0], dtype=dtype
+        )
+        b = torch.tensor(
+            [400.0, big, -tiny, 0.0, 5.0, nan, -inf, 2.0, 1.0, -4.0, 1e-3], dtype=dtype
+        )
+
+        onnx_program = torch.onnx.export(Model(), (a, b), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
+            ("float16", torch.float16),
+            ("bfloat16", torch.bfloat16),
+        ]
+    )
+    def test_hypot_half_results_near_max(self, _: str, dtype: torch.dtype):
+        # These results are finite but close to the largest value of the type, so
+        # rounding in a half precision computation could turn them into inf.
+        class Model(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.hypot(a, b)
+
+        big = torch.finfo(dtype).max
+        a = torch.tensor([big, big * 0.75, big * 0.7, big * 0.99], dtype=dtype)
+        b = torch.tensor([1.0, big * 0.6, big * 0.7, big * 0.1], dtype=dtype)
+        self.assertTrue(torch.isfinite(torch.hypot(a, b)).all())
+
+        onnx_program = torch.onnx.export(Model(), (a, b), dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
+    @parameterized.parameterized.expand(
+        [
             ("amax", "amax", False),
             ("amax_keepdim", "amax", True),
             ("amin", "amin", False),

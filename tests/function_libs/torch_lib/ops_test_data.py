@@ -732,6 +732,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("flatten", core_ops.aten_flatten),
     TorchLibOpInfo("floor", core_ops.aten_floor),
     TorchLibOpInfo("ops.aten.floor_divide", core_ops.aten_floor_divide),
+    TorchLibOpInfo("fmax", core_ops.aten_fmax),
+    TorchLibOpInfo("fmin", core_ops.aten_fmin),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
     TorchLibOpInfo("frac", core_ops.aten_frac),
     TorchLibOpInfo("full", core_ops.aten_full),
@@ -764,6 +766,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="we skip float16 because of https://github.com/pytorch/pytorch/issues/174668",
     ),
+    TorchLibOpInfo("hypot", core_ops.aten_hypot),
     # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
     TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index),
