@@ -1830,6 +1830,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
         reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
+    TorchLibOpInfo("ops.aten.upsample_linear1d.vec", nn_ops.aten_upsample_linear1d_vec),
     TorchLibOpInfo("ops.aten.upsample_nearest1d", nn_ops.aten_upsample_nearest1d),
     TorchLibOpInfo("ops.aten.upsample_nearest1d.vec", nn_ops.aten_upsample_nearestnd_vec),
     TorchLibOpInfo("ops.aten.upsample_nearest2d", nn_ops.aten_upsample_nearest2d),
