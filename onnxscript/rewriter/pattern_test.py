@@ -4,6 +4,7 @@ import contextlib
 import io
 import logging
 import unittest
+import unittest.mock
 
 import numpy as np
 import onnx.checker
@@ -1053,6 +1054,76 @@ class NameClashAfterRewriteTest(unittest.TestCase):
             _all_value_names_unique(model),
             "All value names must be unique after apply_to_model",
         )
+
+
+class MultiOutputPatternTest(unittest.TestCase):
+    @staticmethod
+    def _rule() -> pattern.RewriteRule:
+        def relu_neg_pattern(op, x):
+            return op.Relu(x), op.Neg(x)
+
+        def relu_neg_replacement(op, x):
+            return op.Relu(x), op.Mul(x, op.Constant(value_float=-1.0))
+
+        return pattern.RewriteRule(relu_neg_pattern, relu_neg_replacement)
+
+    def test_other_outputs_are_matched_against_consumers_of_bound_inputs(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] a, float[N] b, float[N] c) => (float[N] y1, float[N] y2, float[N] y3, float[N] y4)
+            {
+                y1 = Relu(a)
+                y2 = Neg(b)
+                y3 = Neg(c)
+                y4 = Relu(c)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = self._rule().apply_to_model(model)
+
+        self.assertEqual(count, 1)
+        # Only the Relu and Neg that share the input c are rewritten.
+        self.assertEqual(
+            sorted(n.op_type for n in model.graph), ["Constant", "Mul", "Neg", "Relu", "Relu"]
+        )
+        (mul,) = [n for n in model.graph if n.op_type == "Mul"]
+        self.assertEqual(mul.inputs[0].name, "c")
+
+    def test_candidates_are_limited_to_consumers_of_bound_inputs(self):
+        # Each Relu has its own input, so no Neg can complete a match with it. Only the
+        # Neg that reads the same input is tried, instead of every Neg in the graph.
+        n = 20
+        inputs = ", ".join(f"float[N] x{i}" for i in range(n))
+        outputs = ", ".join(f"float[N] r{i}, float[N] s{i}" for i in range(n))
+        body = "\n".join(f"r{i} = Relu(x{i})\ns{i} = Neg(x{(i + 1) % n})" for i in range(n))
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph ({inputs}) => ({outputs})
+            {{
+                {body}
+            }}
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        matcher_class = onnxscript.rewriter._matcher.SimplePatternMatcher
+        original_multi_match = matcher_class._multi_match
+        calls = 0
+
+        def counting_multi_match(self, *args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return original_multi_match(self, *args, **kwargs)
+
+        with unittest.mock.patch.object(matcher_class, "_multi_match", counting_multi_match):
+            count = self._rule().apply_to_model(model)
+
+        # Every Relu shares its input with exactly one Neg, so each pair is rewritten.
+        self.assertEqual(count, n)
+        self.assertLessEqual(calls, 2 * n)
 
 
 if __name__ == "__main__":
