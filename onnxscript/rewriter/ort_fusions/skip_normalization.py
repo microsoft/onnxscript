@@ -83,7 +83,14 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
                 )
             if gamma.const_value is None:
                 return check_result.fail("Scale narrowing requires a constant scale.", gamma)
-            scale = gamma.const_value.numpy()
+            if gamma.is_graph_input():
+                return check_result.fail(
+                    "Scale narrowing does not support graph-input scales.", gamma
+                )
+            try:
+                scale = gamma.const_value.numpy()
+            except FileNotFoundError:
+                return check_result.fail("Scale tensor data is unavailable.", gamma)
             with np.errstate(over="ignore", invalid="ignore"):
                 exact = np.array_equal(scale.astype(np.float16).astype(scale.dtype), scale)
             if not exact:

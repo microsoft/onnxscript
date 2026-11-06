@@ -197,7 +197,9 @@ class SkipNormalizationTest(unittest.TestCase):
             self._count_op(model, "SkipSimplifiedLayerNormalization", "com.microsoft"), 1
         )
 
-    def _mixed_precision_rms(self, script_fn, scale, cast_dtype=ir.DataType.FLOAT16):
+    def _mixed_precision_rms(
+        self, script_fn, scale, cast_dtype=ir.DataType.FLOAT16, keep_gamma_input=False
+    ):
         has_bias = script_fn in (_skip_rms_post_bias, _skip_rms_pre_bias)
         input_types = [FLOAT16[_B, _S, _D], FLOAT16[_B, _S, _D], FLOAT[_D]]
         if has_bias:
@@ -206,7 +208,8 @@ class SkipNormalizationTest(unittest.TestCase):
         if scale is not None:
             gamma = model.graph.inputs[2]
             gamma.const_value = ir.tensor(scale)
-            model.graph.inputs.remove(gamma)
+            if not keep_gamma_input:
+                model.graph.inputs.remove(gamma)
             model.graph.register_initializer(gamma)
         normalized = model.graph.outputs[0]
         cast = ir.Node(
@@ -246,6 +249,21 @@ class SkipNormalizationTest(unittest.TestCase):
         np.testing.assert_array_equal(fused.inputs[2].const_value.numpy(), scale)
         self.assertEqual(self._count_op(model, "Cast"), 0)
         self.assertEqual(model.graph.outputs[1].dtype, ir.DataType.FLOAT16)
+
+    def test_skip_rms_overridable_float32_scale(self):
+        scale = np.ones((_D,), dtype=np.float32)
+        model, _ = self._mixed_precision_rms(
+            _skip_rms_no_bias, scale, keep_gamma_input=True
+        )
+        inputs = {
+            k: v.astype(np.float16) for k, v in self._make_inputs("input", "skip").items()
+        }
+        inputs["gamma"] = np.linspace(0.5, 2.0, _D).astype(np.float32)
+        original_output = test_utils.ort_run("Original", model, inputs)
+        self.assertEqual(fuse_skip_rms_normalization(model), 0)
+        test_utils.assert_allclose(
+            test_utils.ort_run("Unfused", model, inputs), original_output
+        )
 
     @parameterized.expand(
         [
