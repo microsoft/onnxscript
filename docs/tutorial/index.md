@@ -15,6 +15,8 @@ For extended tutorials on how to use the **Optimizer**, **Rewriter**, and **Grap
 
 
 In this tutorial, we illustrate the features supported by {{ onnxscript }} using examples.
+The [supported Python subset](language_support.md) summarizes the compiler/eager
+boundary and the restrictions on control flow, slices, and graph functions.
 
 ## Basic Features
 
@@ -255,8 +257,10 @@ as the attribute-value when invoking the *Scan* op.
 Function definitions used as graph-attributes must satisfy some constraints.
 They cannot update outer-scope variables, but may reference them.
 (Specifically, the functions cannot use *global* or *nonlocal* declarations.)
-They are also restricted from using local-variables with the same name
-as outer-scope variables (no shadowing).
+Use distinct names for graph parameters and captured outer values to keep
+the graph's inputs and captures clear. See the
+[supported Python subset](language_support.md) for compilation and eager-mode
+nesting boundaries.
 
 There is also an interaction between SSA-renaming and the use of outer-scope
 variables inside a function-definition. The following code is invalid, since
@@ -271,6 +275,7 @@ ONNX perspective, the two assignments to *g* represent two distinct tensors
 ```{toctree}
 :maxdepth: 1
 
+language_support
 rewriter/index
 optimizer/index
 builder/index

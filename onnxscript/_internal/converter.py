@@ -649,6 +649,7 @@ class Converter:
             A[-1]
             A[0]
             A[:0:-1]
+            A[::-1]
 
         *i* is a tensor holding one integer.
 
@@ -667,7 +668,7 @@ class Converter:
 
         ::
 
-            A[::-1]
+            A[::step]  # runtime step with omitted bounds
         """
         var = self._translate_expr(node.value)
         var_name = var.name
@@ -1399,9 +1400,16 @@ class Converter:
 
     def _translate_nested_function_def(self, fn: ast.FunctionDef) -> None:
         """Translate a nested function definition."""
+        outer_returntype = self.returntype
+        outer_depth = len(self._outer)
         self._enter_scope(fn.name, fn)
-        self._translate_function_def_common(fn)
-        function_ir = self._exit_scope()
+        try:
+            function_ir = self._translate_function_def_common(fn)
+        finally:
+            # A failed body can also leave control-flow scopes open.
+            while len(self._outer) > outer_depth:
+                self._exit_scope()
+            self.returntype = outer_returntype
         outer_scope_vars = self.analyzer.outer_scope_variables(fn)
         function_ir.outer_scope_variables = [
             (var, self._lookup(var, self._source_of(fn))) for var in outer_scope_vars
