@@ -6014,7 +6014,7 @@ def aten_log(self: TFloat) -> TFloat:
 def aten_log10(self: TFloat) -> TFloat:
     """log10(Tensor self) -> Tensor"""
 
-    return op.Div(op.Log(self), op.CastLike(op.Log(10.0), self))
+    return op.Div(op.Log(self), ir.tensor(math.log(10.0), dtype=self.dtype))
 
 
 @torch_op("aten::log1p")
@@ -6028,7 +6028,7 @@ def aten_log1p(self: TFloat) -> TFloat:
 def aten_log2(self: TFloat) -> TFloat:
     """log2(Tensor self) -> Tensor"""
 
-    return op.Div(op.Log(self), op.CastLike(op.Log(2.0), self))
+    return op.Div(op.Log(self), ir.tensor(math.log(2.0), dtype=self.dtype))
 
 
 @torch_op("aten::logaddexp", trace_only=True)
