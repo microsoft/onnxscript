@@ -11,11 +11,13 @@ import onnx.reference
 import onnx.reference.op_run
 import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
+import onnxruntime as ort
 import parameterized
 
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 from onnxscript import FLOAT, script
 from onnxscript.onnx_opset import opset18 as op
+from onnxscript.rewriter import pattern
 from onnxscript.values import Opset
 
 ms_op = Opset("com.microsoft", 1)
@@ -248,6 +250,253 @@ def _transpose_fused_matmul_flip_transB(
 
 
 class TestFusedMatmulRules(unittest.TestCase):
+    def _division_model(self, dtype, divisor, fused, alpha=None):
+        x = ir.Value(name="x", type=ir.TensorType(dtype), shape=ir.Shape([2, 2]))
+        y = ir.Value(name="y", type=ir.TensorType(dtype), shape=ir.Shape([2, 2]))
+        cst = ir.val(
+            "divisor", const_value=ir.tensor(np.asarray(divisor, dtype=dtype.numpy()))
+        )
+        attributes = [ir.AttrFloat32("alpha", alpha)] if alpha is not None else []
+        matmul = ir.Node(
+            "com.microsoft" if fused else "",
+            "FusedMatMul" if fused else "MatMul",
+            [x, y],
+            attributes=attributes,
+        )
+        matmul.outputs[0].type = ir.TensorType(dtype)
+        matmul.outputs[0].shape = ir.Shape([2, 2])
+        div = ir.Node("", "Div", [matmul.outputs[0], cst])
+        div.outputs[0].name = "output"
+        div.outputs[0].type = ir.TensorType(dtype)
+        div.outputs[0].shape = ir.Shape([2, 2])
+        return ir.Model(
+            ir.Graph(
+                [x, y],
+                [div.outputs[0]],
+                nodes=[matmul, div],
+                initializers=[cst],
+                opset_imports={"": 18, "com.microsoft": 1},
+                name="division",
+            ),
+            ir_version=10,
+        )
+
+    def _division_rule_set(self, fused):
+        rule = (
+            fused_matmul_rule_sets.FusedMatMulDiv2
+            if fused
+            else fused_matmul_rule_sets.FusedMatMulDiv1
+        )
+        return pattern.RewriteRuleSet([rule.rule()])
+
+    def test_division_boundaries_decline_with_reason(self):
+        cases = [
+            (ir.DataType.FLOAT, 0.0, None, "finite and nonzero"),
+            (ir.DataType.FLOAT, -0.0, None, "finite and nonzero"),
+            (ir.DataType.FLOAT, [0.0], None, "finite and nonzero"),
+            (ir.DataType.FLOAT, [[-0.0]], None, "finite and nonzero"),
+            (ir.DataType.FLOAT, np.inf, None, "finite and nonzero"),
+            (ir.DataType.FLOAT, -np.inf, None, "finite and nonzero"),
+            (ir.DataType.FLOAT, np.nan, None, "finite and nonzero"),
+            (
+                ir.DataType.FLOAT,
+                np.nextafter(np.float32(0), np.float32(1)),
+                None,
+                "overflows or underflows",
+            ),
+            (
+                ir.DataType.FLOAT16,
+                np.nextafter(np.float16(0), np.float16(1)),
+                None,
+                "overflows or underflows",
+            ),
+            (ir.DataType.DOUBLE, 1e-300, None, "overflows or underflows"),
+            (ir.DataType.DOUBLE, np.nextafter(0.0, 1.0), None, "overflows or underflows"),
+            (ir.DataType.DOUBLE, 1e300, None, "overflows or underflows"),
+            (ir.DataType.FLOAT, np.finfo(np.float32).max, None, "overflows or underflows"),
+            (ir.DataType.FLOAT16, np.finfo(np.float16).max, None, "overflows or underflows"),
+            (ir.DataType.DOUBLE, 3.0, None, "exactly representable"),
+            (ir.DataType.INT32, 2, None, "supported floating-point dtypes"),
+            (ir.DataType.INT64, 2, None, "supported floating-point dtypes"),
+            (ir.DataType.UINT64, 2, None, "supported floating-point dtypes"),
+            (ir.DataType.COMPLEX64, 2, None, "supported floating-point dtypes"),
+            (ir.DataType.FLOAT8E4M3FN, 2, None, "supported floating-point dtypes"),
+            (ir.DataType.FLOAT, [], None, "singleton"),
+            (ir.DataType.FLOAT, [1.0, 2.0], None, "singleton"),
+            (ir.DataType.FLOAT, 1.0, np.inf, "alpha must be finite"),
+            (ir.DataType.FLOAT, 1.0, np.nan, "alpha must be finite"),
+            (ir.DataType.FLOAT, 0.5, np.finfo(np.float32).max, "overflows or underflows"),
+            (
+                ir.DataType.FLOAT,
+                2.0,
+                np.nextafter(np.float32(0), np.float32(1)),
+                "overflows or underflows",
+            ),
+        ]
+        for fused in (False, True):
+            for dtype, divisor, alpha, reason in cases:
+                if alpha is not None and not fused:
+                    continue
+                with self.subTest(fused=fused, dtype=dtype, divisor=divisor, alpha=alpha):
+                    model = self._division_model(dtype, divisor, fused, alpha)
+                    before = ir.serde.to_proto(model).SerializeToString()
+                    rules = self._division_rule_set(fused)
+                    self.assertEqual(rules.apply_to_model(model), 0)
+                    self.assertEqual(ir.serde.to_proto(model).SerializeToString(), before)
+                    tracer = pattern.MatchingTracer()
+                    self.assertEqual(rules.apply_to_model(model, tracer=tracer), 0)
+                    reasons = [
+                        m.match_result.reason
+                        for matches in tracer.best_matches_map.values()
+                        for m in matches
+                    ]
+                    self.assertTrue(any(reason in r for r in reasons), reasons)
+
+    def test_division_requires_known_matching_dtypes_and_constant(self):
+        for fused in (False, True):
+            for kind in ("unknown", "mismatch", "dynamic"):
+                with self.subTest(fused=fused, kind=kind):
+                    model = self._division_model(ir.DataType.FLOAT, 2.0, fused)
+                    if kind == "unknown":
+                        model.graph.inputs[0].type = None
+                    elif kind == "mismatch":
+                        model.graph.inputs[1].type = ir.TensorType(ir.DataType.DOUBLE)
+                    else:
+                        cst = model.graph.initializers.pop("divisor")
+                        cst.const_value = None
+                        model.graph.inputs.append(cst)
+                    tracer = pattern.MatchingTracer()
+                    rules = self._division_rule_set(fused)
+                    self.assertEqual(rules.apply_to_model(model), 0)
+                    self.assertEqual(rules.apply_to_model(model, tracer=tracer), 0)
+                    reasons = [
+                        m.match_result.reason
+                        for matches in tracer.best_matches_map.values()
+                        for m in matches
+                    ]
+                    reason = "constant" if kind == "dynamic" else "dtypes"
+                    self.assertTrue(any(reason in r for r in reasons), reasons)
+
+    def test_division_preserves_output_rank(self):
+        cases = [
+            ([2, 2], [2, 2], [[[2.0]]], False),
+            ([2], [2], [2.0], False),
+            ([2], [2], 2.0, True),
+            ([2], [2, 2], [[2.0]], False),
+            ([2, 2], [2], [[2.0]], False),
+            (None, None, [2.0], False),
+            (None, None, 2.0, True),
+            ([1, 2, 2], [2, 2], [[[2.0]]], True),
+        ]
+        for fused in (False, True):
+            for x_shape, y_shape, divisor, should_fuse in cases:
+                with self.subTest(
+                    fused=fused, x_shape=x_shape, y_shape=y_shape, divisor=divisor
+                ):
+                    model = self._division_model(ir.DataType.FLOAT, divisor, fused)
+                    model.graph.inputs[0].shape = (
+                        ir.Shape(x_shape) if x_shape is not None else None
+                    )
+                    model.graph.inputs[1].shape = (
+                        ir.Shape(y_shape) if y_shape is not None else None
+                    )
+                    product = model.graph[0].outputs[0]
+                    product.shape = None
+                    model.graph.outputs[0].shape = None
+                    feeds = None
+                    if x_shape is not None and y_shape is not None:
+                        feeds = {
+                            "x": np.ones(x_shape, dtype=np.float32),
+                            "y": np.full(y_shape, 2.0, dtype=np.float32),
+                        }
+                        expected_product = np.matmul(feeds["x"], feeds["y"])
+                        expected_output = expected_product / np.asarray(
+                            divisor, dtype=np.float32
+                        )
+                        product.shape = ir.Shape(expected_product.shape)
+                        model.graph.outputs[0].shape = ir.Shape(expected_output.shape)
+                    rules = self._division_rule_set(fused)
+                    original = ir.serde.to_proto(model)
+                    before = ir.serde.to_proto(model).SerializeToString()
+                    self.assertEqual(rules.apply_to_model(model), int(should_fuse))
+                    if not should_fuse:
+                        self.assertEqual(ir.serde.to_proto(model).SerializeToString(), before)
+                        tracer = pattern.MatchingTracer()
+                        rules.apply_to_model(model, tracer=tracer)
+                        reasons = [
+                            m.match_result.reason
+                            for matches in tracer.best_matches_map.values()
+                            for m in matches
+                        ]
+                        self.assertTrue(
+                            any("output rank" in reason for reason in reasons), reasons
+                        )
+                    if feeds is not None:
+                        options = ort.SessionOptions()
+                        options.graph_optimization_level = (
+                            ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+                        )
+                        expected = ort.InferenceSession(
+                            original.SerializeToString(),
+                            options,
+                            providers=["CPUExecutionProvider"],
+                        ).run(None, feeds)[0]
+                        actual = ort.InferenceSession(
+                            ir.serde.to_proto(model).SerializeToString(),
+                            options,
+                            providers=["CPUExecutionProvider"],
+                        ).run(None, feeds)[0]
+                        self.assertEqual(actual.shape, expected_output.shape)
+                        np.testing.assert_array_equal(actual, expected)
+
+    def test_division_positive_singletons(self):
+        for fused in (False, True):
+            for dtype in (
+                ir.DataType.FLOAT16,
+                ir.DataType.FLOAT,
+                ir.DataType.DOUBLE,
+                ir.DataType.BFLOAT16,
+            ):
+                for divisor in (2.0, [2.0], [[-2.0]]):
+                    with self.subTest(fused=fused, dtype=dtype, divisor=divisor):
+                        model = self._division_model(
+                            dtype, divisor, fused, 0.5 if fused else None
+                        )
+                        original = ir.serde.to_proto(model)
+                        self.assertEqual(
+                            self._division_rule_set(fused).apply_to_model(model), 1
+                        )
+                        self.assertEqual([n.op_type for n in model.graph], ["FusedMatMul"])
+                        expected_alpha = (0.5 if fused else 1.0) / float(
+                            np.asarray(divisor).item()
+                        )
+                        self.assertEqual(
+                            model.graph[0].attributes.get_float("alpha"), expected_alpha
+                        )
+                        if dtype not in (ir.DataType.FLOAT, ir.DataType.DOUBLE):
+                            continue  # These CPU ORT kernels support float and double.
+                        rewritten = ir.serde.to_proto(model)
+                        onnx.checker.check_model(rewritten)
+                        feeds = {
+                            "x": np.array([[1, -2], [3, 4]], dtype=dtype.numpy()),
+                            "y": np.array([[2, 1], [-1, 3]], dtype=dtype.numpy()),
+                        }
+                        options = ort.SessionOptions()
+                        options.graph_optimization_level = (
+                            ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+                        )
+                        expected = ort.InferenceSession(
+                            original.SerializeToString(),
+                            options,
+                            providers=["CPUExecutionProvider"],
+                        ).run(None, feeds)
+                        actual = ort.InferenceSession(
+                            rewritten.SerializeToString(),
+                            options,
+                            providers=["CPUExecutionProvider"],
+                        ).run(None, feeds)
+                        np.testing.assert_array_equal(actual[0], expected[0])
+
     def _apply_fusion_rules(self, ir_model: ir.Model):
         rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
         rule_set.apply_to_model(ir_model)

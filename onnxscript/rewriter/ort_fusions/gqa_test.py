@@ -17,10 +17,11 @@ import onnxscript
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
+from onnxscript.rewriter import pattern
 from onnxscript.rewriter.models._phi4lm import phi4lm_test
 from onnxscript.rewriter.ort_fusions import optimize_for_ort
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
-from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
+from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa, gqa_rules
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
@@ -278,16 +279,92 @@ class GQAFusionTest(unittest.TestCase):
         self.assertEqual(len(source_model_outputs), len(target_model_outputs))
         assert_allclose(source_model_outputs, target_model_outputs)
 
-    def test_fusion(self):
+    @parameterized.parameterized.expand(
+        [
+            ("sliced",),
+            ("direct",),
+            ("wrapped",),
+            ("wrong_mask",),
+            ("sliding",),
+            ("sliding_zero",),
+            ("sliding_dynamic",),
+            ("sliding_wrapped",),
+            ("different_sources_same_lengths",),
+            ("unproven_query_length",),
+            ("unproven_past_length",),
+            ("broadcast_mask",),
+        ]
+    )
+    def test_fusion(self, mask_kind):
         """Test that GQA fusion is successful on source model and produces an equivalent model."""
         inputs = self.inputs
+        options = ort.SessionOptions()
+        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
 
         source_model = self.source_model_script().to_model_proto(
             input_types=self.input_types,
             output_types=self.output_types,
         )
+        if mask_kind in (
+            "different_sources_same_lengths",
+            "unproven_query_length",
+            "unproven_past_length",
+            "broadcast_mask",
+        ):
+            model = ir.serde.from_proto(source_model)
+            if mask_kind != "unproven_past_length":
+                mask_query = ir.val(
+                    "mask_query",
+                    ir.DataType.FLOAT,
+                    [
+                        "B",
+                        "S" if mask_kind == "different_sources_same_lengths" else "mask_s",
+                        1,
+                    ],
+                )
+                model.graph.inputs.append(mask_query)
+                shape = next(n for n in model.graph if n.outputs[0].name == "seq_len")
+                shape.replace_input_with(0, mask_query)
+                length = 1 if mask_kind == "broadcast_mask" else self.seqlen
+                inputs = {
+                    **inputs,
+                    "mask_query": np.zeros((self.batchsize, length, 1), dtype=np.float32),
+                }
+            if mask_kind != "unproven_query_length":
+                mask_past = ir.val(
+                    "mask_past",
+                    ir.DataType.FLOAT,
+                    [
+                        "B",
+                        1,
+                        "P" if mask_kind == "different_sources_same_lengths" else "mask_p",
+                        1,
+                    ],
+                )
+                model.graph.inputs.append(mask_past)
+                squeeze = next(
+                    n for n in model.graph if n.outputs[0].name == "past_seq_len_0D"
+                )
+                shape = ir.Node(
+                    "",
+                    "Shape",
+                    [mask_past],
+                    attributes=[ir.AttrInt64("start", 2), ir.AttrInt64("end", 3)],
+                )
+                model.graph.insert_before(squeeze, shape)
+                squeeze.replace_input_with(0, shape.outputs[0])
+                length = (
+                    self.total_seqlen - 1
+                    if mask_kind == "broadcast_mask"
+                    else self.past_seqlen
+                )
+                inputs = {
+                    **inputs,
+                    "mask_past": np.zeros((self.batchsize, 1, length, 1), dtype=np.float32),
+                }
+            source_model = ir.serde.to_proto(model)
         session = ort.InferenceSession(
-            source_model.SerializeToString(), providers=("CPUExecutionProvider",)
+            source_model.SerializeToString(), options, providers=("CPUExecutionProvider",)
         )
         source_model_outputs = session.run(None, inputs)
 
@@ -349,17 +426,125 @@ class GQAFusionTest(unittest.TestCase):
         count = fuse_sdpa(inferred_model, debug=True)
         self.assertGreater(count, 0)
 
+        sdpa = next(n for n in inferred_model.graph if n.op_type == "SDPA")
+        mask = sdpa.inputs[3]
+        self.assertEqual(mask.producer().op_type, "Slice")
+        if mask_kind in ("direct", "wrapped", "sliding_wrapped"):
+            # Use the same causal construction without the extra column and Slice.
+            extra_length = next(
+                n
+                for n in inferred_model.graph
+                if n.op_type == "Add" and n.outputs[0].name == "total_seq_len_plus_1_0D"
+            )
+            extra_length.outputs[0].replace_all_uses_with(extra_length.inputs[0])
+            mask = mask.producer().inputs[0]
+            sdpa.replace_input_with(3, mask)
+
+        boolean_node = next(n for n in inferred_model.graph if n.op_type == "Greater")
+        if mask_kind == "wrong_mask":
+            boolean_node.op_type = "Less"
+        elif mask_kind.startswith("sliding"):
+            window = ir.val(
+                "window_size", const_value=ir.tensor(0 if mask_kind == "sliding_zero" else 4)
+            )
+            if mask_kind == "sliding_dynamic":
+                window = ir.Value(
+                    name="window_size",
+                    type=ir.TensorType(ir.DataType.INT64),
+                    shape=ir.Shape([]),
+                )
+                inferred_model.graph.inputs.append(window)
+            else:
+                inferred_model.graph.register_initializer(window)
+            row, column = boolean_node.inputs
+            subtract = ir.Node("", "Sub", [column, window])
+            outside = ir.Node("", "LessOrEqual", [row, subtract.outputs[0]])
+            combine = ir.Node("", "Or", [boolean_node.outputs[0], outside.outputs[0]])
+            cast = next(
+                n
+                for n in inferred_model.graph
+                if n.op_type == "Cast" and n.inputs[0] is boolean_node.outputs[0]
+            )
+            inferred_model.graph.insert_before(cast, [subtract, outside, combine])
+            cast.replace_input_with(0, combine.outputs[0])
+
+        if mask_kind in ("wrapped", "sliding_wrapped"):
+            attention_mask = ir.Value(
+                name="attention_mask",
+                type=ir.TensorType(ir.DataType.FLOAT),
+                shape=ir.Shape([self.batchsize, self.total_seqlen]),
+            )
+            inferred_model.graph.inputs.append(attention_mask)
+            axes = ir.val("mask_axes", const_value=ir.tensor([1, 2]))
+            zero = ir.val("mask_zero", const_value=ir.tensor(0.0))
+            minval = next(
+                n.inputs[0]
+                for n in inferred_model.graph
+                if n.op_type == "Expand"
+                and n.inputs[0].const_value is not None
+                and n.inputs[0].dtype == ir.DataType.FLOAT
+            )
+            for value in (axes, zero):
+                inferred_model.graph.register_initializer(value)
+            unsqueeze = ir.Node("", "Unsqueeze", [attention_mask, axes])
+            cast = ir.Node(
+                "",
+                "Cast",
+                [unsqueeze.outputs[0]],
+                attributes=[ir.AttrInt64("to", ir.DataType.FLOAT)],
+            )
+            add = ir.Node("", "Add", [mask, cast.outputs[0]])
+            equal = ir.Node("", "Equal", [add.outputs[0], zero])
+            where = ir.Node("", "Where", [equal.outputs[0], minval, mask])
+            inferred_model.graph.insert_before(sdpa, [unsqueeze, cast, add, equal, where])
+            sdpa.replace_input_with(3, where.outputs[0])
+            inputs = {
+                **inputs,
+                "attention_mask": np.ones(
+                    (self.batchsize, self.total_seqlen), dtype=np.float32
+                ),
+            }
+
+        if mask_kind in (
+            "wrong_mask",
+            "unproven_query_length",
+            "unproven_past_length",
+            "broadcast_mask",
+        ) or mask_kind.startswith("sliding"):
+            # Normalize unused test scaffolding before checking rejected candidates.
+            onnxscript.optimizer.remove_unused_nodes(inferred_model)
+            before = ir.serde.to_proto(inferred_model).SerializeToString()
+            self.assertEqual(fuse_gqa(inferred_model), 0)
+            self.assertEqual(ir.serde.to_proto(inferred_model).SerializeToString(), before)
+            tracer = pattern.MatchingTracer()
+            self.assertEqual(gqa_rules.apply_to_model(inferred_model, tracer=tracer), 0)
+            reasons = [
+                m.match_result.reason
+                for matches in tracer.best_matches_map.values()
+                for m in matches
+            ]
+            if mask_kind.startswith("sliding"):
+                expected_reason = "Sliding window not yet supported"
+            elif mask_kind == "wrong_mask":
+                expected_reason = "Mask does not match supported causal mask pattern"
+            elif mask_kind == "unproven_past_length":
+                expected_reason = "Causal mask past length is not proven"
+            else:
+                expected_reason = "Causal mask sequence length is not proven"
+            self.assertTrue(any(expected_reason in reason for reason in reasons), reasons)
+            return
+
         count = fuse_gqa(inferred_model, debug=True)
         self.assertGreater(count, 0)
 
         fused_model = ir.serde.to_proto(inferred_model)
         session = ort.InferenceSession(
-            fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
+            fused_model.SerializeToString(), options, providers=("CPUExecutionProvider",)
         )
         outputs3 = session.run(None, inputs)
 
         self.assertEqual(len(outputs3), len(source_model_outputs))
-        assert_allclose(outputs3, source_model_outputs)
+        assert_allclose(outputs3, source_model_outputs, rtol=1e-5, atol=1e-5)
 
 
 @parameterized.parameterized_class(
@@ -368,11 +553,14 @@ class GQAFusionTest(unittest.TestCase):
         {"with_past": True, "transpose_first": False},
         {"with_past": False, "transpose_first": True},
         {"with_past": False, "transpose_first": False},
+        {"with_past": False, "transpose_first": True, "unknown_past": True},
+        {"with_past": False, "transpose_first": False, "unknown_past": True},
     ]
 )
 class GemmaGQAFusionTest(unittest.TestCase):
     with_past = True
     transpose_first = True
+    unknown_past = False
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -408,12 +596,14 @@ class GemmaGQAFusionTest(unittest.TestCase):
 
         # Input/output types have some dimensions as dynamic (even though the
         # test case instance has specific values above).
+        # Without a cache, the mask's past length must be proven zero.
+        past_dim = "P" if self.with_past or self.unknown_past else 0
         self.input_types = (
             FLOAT["B", "S", D],  # query
             FLOAT["B", "S", Dkv],  # key
             FLOAT["B", "S", Dkv],  # value
-            FLOAT["B", Hkv, "P", Dh],  # past_key
-            FLOAT["B", Hkv, "P", Dh],  # past_value
+            FLOAT["B", Hkv, past_dim, Dh],  # past_key
+            FLOAT["B", Hkv, past_dim, Dh],  # past_value
             FLOAT["max_seqlen", Dh // 2],  # cos
             FLOAT["max_seqlen", Dh // 2],  # sin
             FLOAT["Dh"],  # query_scale
@@ -655,6 +845,21 @@ class GemmaGQAFusionTest(unittest.TestCase):
 
         count = fuse_sdpa(inferred_model, debug=True)
         self.assertGreater(count, 0)
+
+        if self.unknown_past:
+            self.assertEqual(fuse_gqa(inferred_model), 0)
+            tracer = pattern.MatchingTracer()
+            gqa_rules.apply_to_model(inferred_model, tracer=tracer)
+            reasons = [
+                m.match_result.reason
+                for matches in tracer.best_matches_map.values()
+                for m in matches
+            ]
+            self.assertTrue(
+                any("Causal mask past length is not proven" in reason for reason in reasons),
+                reasons,
+            )
+            return
 
         count = fuse_gqa(inferred_model, debug=True)
         self.assertGreater(count, 0)
