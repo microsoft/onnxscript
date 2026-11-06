@@ -324,7 +324,9 @@ class OnnxFunction(Op, Generic[_P, _R]):
         """Implements an eager-mode execution of an onnxscript function."""
         from onnxscript._internal import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.default().eval_function(self, args, kwargs)  # type: ignore[arg-type, return-value]
+        # Establish graph lookup context even for custom Evaluator implementations.
+        with evaluator._function_context(self):
+            return evaluator.default().eval_function(self, args, kwargs)  # type: ignore[arg-type, return-value]
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.function!r})"
