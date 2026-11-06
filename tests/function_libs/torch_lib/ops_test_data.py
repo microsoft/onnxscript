@@ -43,7 +43,6 @@ import sys
 from typing import Any, Callable, Collection, Optional
 
 import numpy as np
-import packaging.version
 import torch
 from torch.testing._internal import common_methods_invocations
 from torch.testing._internal.opinfo import definitions as opinfo_definitions
@@ -58,8 +57,6 @@ from onnxscript.function_libs.torch_lib.ops import prims as prims_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
 from onnxscript.function_libs.torch_lib.ops import vision as vision_ops
 from tests.function_libs.torch_lib import extra_opinfo, ops_test_common
-
-_IS_TORCH_NIGHTLY = packaging.version.parse(torch.__version__).is_devrelease
 
 # Create a copy of the op_db to modify
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
@@ -507,16 +504,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "addbmm",
         core_ops.aten_addbmm,
         tolerance={torch.float32: (2e-5, 2e-5), torch.float16: (2e-1, 2e-2)},
-    ).xfail(
-        matcher=lambda sample: (
-            len(sample.args) >= 2
-            and isinstance(sample.args[0], torch.Tensor)
-            and isinstance(sample.args[1], torch.Tensor)
-            and (sample.args[0].numel() == 0 or sample.args[1].numel() == 0)
-            and sample.kwargs.get("beta") == 0
-        ),
-        reason="fixme: In PyTorch nightly, beta=0 with zero-size reduction dimension does not propagate inf to NaN.",
-        enabled_if=_IS_TORCH_NIGHTLY,
     ),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv, tolerance={torch.float16: (3e-2, 1e-3)}),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
@@ -609,19 +596,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             "https://github.com/microsoft/onnxscript/issues/1007"
         )
     ),
-    TorchLibOpInfo(
-        "baddbmm", core_ops.aten_baddbmm, tolerance={torch.float16: (1e-3, 1e-2)}
-    ).xfail(
-        matcher=lambda sample: (
-            len(sample.args) >= 2
-            and isinstance(sample.args[0], torch.Tensor)
-            and isinstance(sample.args[1], torch.Tensor)
-            and (sample.args[0].numel() == 0 or sample.args[1].numel() == 0)
-            and sample.kwargs.get("beta") == 0
-        ),
-        reason="fixme: In PyTorch nightly, beta=0 with zero-size reduction dimension does not propagate inf to NaN.",
-        enabled_if=_IS_TORCH_NIGHTLY,
-    ),
+    TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm, tolerance={torch.float16: (1e-3, 1e-2)}),
     TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
     TorchLibOpInfo(
         "bilinear", core_ops.aten_bilinear, tolerance={torch.float32: (2e-5, 2e-5)}
@@ -1463,23 +1438,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("logical_not", core_ops.aten_logical_not),
     TorchLibOpInfo("logical_or", core_ops.aten_logical_or),
     TorchLibOpInfo("logical_xor", core_ops.aten_logical_xor),
-    TorchLibOpInfo(
-        "logit", core_ops.aten_logit, tolerance={torch.float16: (1e-1, 7e-4)}
-    ).xfail(
-        matcher=lambda sample: (
-            (
-                len(sample.args) > 0
-                and isinstance(sample.args[0], (int, float))
-                and sample.args[0] > 0.5
-            )
-            or (
-                isinstance(sample.kwargs.get("eps"), (int, float))
-                and sample.kwargs["eps"] > 0.5
-            )
-        ),
-        reason="fixme: In PyTorch nightly, eps > 0.5 uses ternary clamp min/max evaluation.",
-        enabled_if=_IS_TORCH_NIGHTLY,
-    ),
+    TorchLibOpInfo("logit", core_ops.aten_logit, tolerance={torch.float16: (1e-1, 7e-4)}),
     TorchLibOpInfo("max_dim", core_ops.aten_max_dim)
     .xfail(
         variant_name="reduction_with_dim",

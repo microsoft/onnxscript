@@ -54,7 +54,7 @@ class CastConstantOfShapeTest(unittest.TestCase):
         onnx.checker.check_model(output_model_proto, True)
 
     def test_cast_to_string_after_constant_of_shape_is_not_fused(self):
-        """Cast to string should not be fused into ConstantOfShape as string serialization fails."""
+        """Cast to string should not be fused into ConstantOfShape as ConstantOfShape does not support STRING output."""
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (int64[2] input_x) => (string[1, 4] output)
@@ -71,7 +71,7 @@ class CastConstantOfShapeTest(unittest.TestCase):
         self.assertIsNotNone(output_proto)
 
     def test_cast_to_string_after_constant_of_shape_without_value_is_not_fused(self):
-        """Cast to string without value should not be fused into ConstantOfShape."""
+        """Cast to string without value should not be fused into ConstantOfShape as ConstantOfShape does not support STRING output."""
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (int64[2] input_x) => (string[1, 4] output)
