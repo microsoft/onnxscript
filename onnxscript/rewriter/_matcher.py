@@ -391,18 +391,56 @@ class SimplePatternMatcher(PatternMatcher):
             # that can be used for debugging and testing. The GenericPatternMatcher is a
             # more sophisticated implementation, but incomplete.
             pattern_output_nodes = self.pattern.output_nodes
-            op_to_nodes: dict[tuple[str, str, str], list[ir.Node]] = {}
-            for n in graph_or_function:
-                op_to_nodes.setdefault(n.op_identifier(), []).append(n)
-            all_nodes = iter(graph_or_function)
+
+            # The first output node is matched first in every combination, so its result
+            # does not depend on the other candidates. Match it once: if it fails, no
+            # combination can succeed, and if it succeeds, its bindings narrow down the
+            # candidates for the other output nodes.
+            self._init_match(verbose)
+            if not self._match_node(pattern_output_nodes[0], node):
+                return self._match
+            first_match = self._match
+
+            def bound_value(pattern_value) -> ir.Value | None:
+                # Named pattern variables are bound by name, the others by the pattern value.
+                if pattern_value.name is not None:
+                    value = first_match.bindings.get(pattern_value.name)
+                else:
+                    value = first_match.value_bindings.get(pattern_value)
+                return value if isinstance(value, ir.Value) else None
+
+            op_to_nodes: dict[tuple[str, str, str], list[ir.Node]] | None = None
 
             def get_nodes(pattern_node):
+                nonlocal op_to_nodes
                 id = pattern_node.op_identifier()
+                # A graph node can only match if each of its inputs equals the value
+                # already bound to the corresponding pattern input, so it must be a
+                # consumer of that value.
+                for index, input_pattern in enumerate(pattern_node.inputs):
+                    if input_pattern is None:
+                        continue
+                    bound = bound_value(input_pattern)
+                    if bound is None:
+                        continue
+                    # A dict keeps the first-use order and drops repeated uses of a node.
+                    consumers = {
+                        user: None
+                        for user, user_index in bound.uses()
+                        if user_index == index
+                        and user.graph is self._graph
+                        and (id is None or user.op_identifier() == id)
+                    }
+                    return list(consumers)
                 if id is None:
-                    return all_nodes
+                    return list(graph_or_function)
+                if op_to_nodes is None:
+                    op_to_nodes = {}
+                    for n in graph_or_function:
+                        op_to_nodes.setdefault(n.op_identifier(), []).append(n)
                 return op_to_nodes.get(id, [])
 
-            candidates = [iter([node])] + [get_nodes(pn) for pn in pattern_output_nodes[1:]]
+            candidates = [[node]] + [get_nodes(pn) for pn in pattern_output_nodes[1:]]
             match = None
             for combination in itertools.product(*candidates):
                 self._init_match(verbose)
