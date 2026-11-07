@@ -3469,19 +3469,12 @@ def _aten_embedding_bag_onnx(
     if mode == _EMBEDDING_BAG_MODE_MEAN and padding_idx is None:
         divisor = _embedding_bag_torch_bag_sizes(indices, offsets, include_last_offset)
     elif mode != _EMBEDDING_BAG_MODE_SUM:
-        # Number of entries that contribute to each bag.
-        entry_counts = (
-            op.Cast(is_valid, to=INT64.dtype)
+        # Number of entries that contribute to each bag. Computed from the offsets, not
+        # with a scatter: many entries in one bag would all update the same counter.
+        divisor = (
+            _embedding_bag_valid_counts(is_valid, offsets, num_indices, include_last_offset)
             if is_valid is not None
-            else op.Expand(op.Constant(value_int=1), num_indices)
-        )
-        divisor = drop_sentinel_slot(
-            op.ScatterElements(
-                op.Expand(op.Constant(value_int=0), num_slots),
-                bag_ids_with_tail,
-                entry_counts,
-                reduction="add",
-            )
+            else _embedding_bag_torch_bag_sizes(indices, offsets, include_last_offset)
         )
 
     if mode == _EMBEDDING_BAG_MODE_MEAN:
@@ -3515,6 +3508,21 @@ def _embedding_bag_torch_bag_sizes(
     inner_ends = op.Slice(offsets, [1], op.Shape(bag_starts))
     last_end = op.Shape(indices, start=0, end=1)
     return op.Concat(inner_ends, last_end, axis=0) - bag_starts
+
+
+def _embedding_bag_valid_counts(
+    is_valid: BOOL, offsets: INT64, num_indices: INT64, include_last_offset: bool
+) -> INT64:
+    """Return the number of valid entries of each bag, the last bag extending to the end.
+
+    Differences of a running count of the valid entries at the bag boundaries.
+    """
+    running = op.CumSum(op.Cast(is_valid, to=INT64.dtype), op.Constant(value_int=0))
+    running = op.Concat(op.Constant(value_ints=[0]), running, axis=0)  # (num_indices + 1,)
+    bag_starts = op.Slice(offsets, [0], [-1]) if include_last_offset else offsets
+    inner_ends = op.Slice(offsets, [1], op.Shape(bag_starts))
+    bag_ends = op.Concat(inner_ends, num_indices, axis=0)
+    return op.Gather(running, bag_ends) - op.Gather(running, bag_starts)
 
 
 def _embedding_bag_bag_ids(offsets: INT64, num_indices: INT64) -> INT64:
