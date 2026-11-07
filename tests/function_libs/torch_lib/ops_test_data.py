@@ -954,9 +954,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float32: (1e-4, 5e-4)},
         compare_shape_only_for_output=(1, 2, 3),
         input_wrangler=_embedding_bag_input_wrangler,
-    ).skip(
-        dtypes=(torch.float16,),
-        reason="fixme: results mismatch in torch nightly.",
     ),
     TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx",
