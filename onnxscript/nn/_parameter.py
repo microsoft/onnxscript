@@ -81,6 +81,7 @@ class Parameter(ir.Value):
             )
         root = builder.root
         self_name = self.name = root._qualify_initializer_name(self_name)  # pylint: disable=protected-access
+        root._reserve_name(self_name, self)  # pylint: disable=protected-access
         root.graph.initializers[self_name] = self
         self._realized = True
         return self
