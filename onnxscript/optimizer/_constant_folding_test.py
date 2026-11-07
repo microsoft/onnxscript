@@ -608,6 +608,94 @@ func (float[1,3] x) => (float[1,3] return_val) {
             ReferenceEvaluator(onnx.parser.parse_model(model)).run(None, {"x": data})[0],
         )
 
+    def test_concat_from_sequence_preserves_opset_axes_signature(self):
+        a = np.arange(6, dtype=np.float32).reshape(2, 3)
+        b = a + 10
+        for opset in (11, 12, 13, 18):
+            for new_axis in (0, 1):
+                for axis in (1, -1):
+                    with self.subTest(opset=opset, new_axis=new_axis, axis=axis):
+                        expected = (
+                            np.stack([a, b], axis=axis)
+                            if new_axis
+                            else np.concatenate([a, b], axis=axis)
+                        )
+                        model = onnx.helper.make_model(
+                            onnx.helper.make_graph(
+                                [
+                                    onnx.helper.make_node(
+                                        "SequenceConstruct", ["a", "b"], ["seq"]
+                                    ),
+                                    onnx.helper.make_node(
+                                        "ConcatFromSequence",
+                                        ["seq"],
+                                        ["y"],
+                                        axis=axis,
+                                        new_axis=new_axis,
+                                    ),
+                                ],
+                                "concat_sequence",
+                                [
+                                    onnx.helper.make_tensor_value_info(
+                                        name, onnx.TensorProto.FLOAT, [2, 3]
+                                    )
+                                    for name in ("a", "b")
+                                ],
+                                [
+                                    onnx.helper.make_tensor_value_info(
+                                        "y", onnx.TensorProto.FLOAT, expected.shape
+                                    )
+                                ],
+                            ),
+                            opset_imports=[onnx.helper.make_opsetid("", opset)],
+                            ir_version=10,
+                        )
+                        onnx.checker.check_model(model, full_check=True)
+                        optimized = optimizer.optimize(model)
+                        onnx.checker.check_model(optimized, full_check=True)
+                        actual = ReferenceEvaluator(optimized).run(None, {"a": a, "b": b})[0]
+                        np.testing.assert_array_equal(actual, expected)
+                        self.assertEqual(
+                            {o.domain: o.version for o in optimized.opset_import}, {"": opset}
+                        )
+
+    def test_concat_from_sequence_inherits_opset_in_if_branches(self):
+        a = np.arange(6, dtype=np.float32).reshape(2, 3)
+        b = a + 10
+        for opset in (11, 12, 13, 18):
+            with self.subTest(opset=opset):
+                model = onnx.parser.parse_model(
+                    f"""
+                    <ir_version: 10, opset_import: ["" : {opset}]>
+                    main (float[2,3] a, float[2,3] b, bool cond) => (float[2,2,3] y) {{
+                        y = If (cond) <
+                            then_branch = then_graph () => (then_y) {{
+                                seq = SequenceConstruct (a, b)
+                                then_y = ConcatFromSequence <axis=1, new_axis=1> (seq)
+                            }},
+                            else_branch = else_graph () => (else_y) {{
+                                seq = SequenceConstruct (b, a)
+                                else_y = ConcatFromSequence <axis=1, new_axis=1> (seq)
+                            }}
+                        >
+                    }}
+                    """
+                )
+                onnx.checker.check_model(model, full_check=True)
+                optimized = optimizer.optimize(model)
+                onnx.checker.check_model(optimized, full_check=True)
+                for attr in optimized.graph.node[0].attribute:
+                    self.assertEqual(
+                        [node.op_type for node in attr.g.node],
+                        ["Unsqueeze", "Unsqueeze", "Concat"],
+                    )
+                for cond in (True, False):
+                    actual = ReferenceEvaluator(optimized).run(
+                        None, {"a": a, "b": b, "cond": np.array(cond)}
+                    )[0]
+                    expected = np.stack([a, b] if cond else [b, a], axis=1)
+                    np.testing.assert_array_equal(actual, expected)
+
     def test_split_to_sequence_and_concat_from_sequence_with_new_axis_0(
         self,
     ):

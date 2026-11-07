@@ -189,6 +189,7 @@ SymbolicValue = Union[ir.Value, list[ir.Value], ir.Shape]
 
 class OptimizerState:
     def __init__(self):
+        self.opset_imports: dict[str, int] = {}
         self._sym_value_map: dict[ir.Value, SymbolicValue] = {}
         self._initializer_inputs: list[set[ir.Value]] = []
 
@@ -796,13 +797,21 @@ def concat_from_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValu
             logger.debug("ConcatFromSequence => Concat: %s", [x.name for x in inputs])
             return op.Concat(*inputs, axis=axis)
         if new_axis == 1:
-            # Unsqueeze the inputs with concat axis if new_axis is 1
-            axis_value = op.Constant(value_int=axis)
+            opset_version = state.opset_imports.get(node.domain)
+            if opset_version is None:
+                return None
+            # Unsqueeze takes axes as an attribute before opset 13.
+            axis_value = op.Constant(value_int=axis) if opset_version >= 13 else None
             unsqueezed_inputs = []
             for node_input in inputs:
-                unsqueezed_input = op.Unsqueeze(
-                    node_input, axis_value, _outputs=[f"{node_input.name}_unsqueeze"]
-                )
+                if opset_version < 13:
+                    unsqueezed_input = op.Unsqueeze(
+                        node_input, axes=[axis], _outputs=[f"{node_input.name}_unsqueeze"]
+                    )
+                else:
+                    unsqueezed_input = op.Unsqueeze(
+                        node_input, axis_value, _outputs=[f"{node_input.name}_unsqueeze"]
+                    )
                 unsqueezed_inputs.append(unsqueezed_input)
             # Send unsqueezed outputs to Concat
             logger.debug(
@@ -1450,6 +1459,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
     def call(self, model: ir.Model) -> FoldConstantsResult:
         self._reset()
         self._opset_imports = model.opset_imports
+        self._state.opset_imports = self._opset_imports
         self.visit_graph(model.graph)
         for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
