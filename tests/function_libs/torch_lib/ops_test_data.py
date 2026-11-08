@@ -632,6 +632,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
+    TorchLibOpInfo("cdist", core_ops.aten_cdist).skip(
+        matcher=lambda sample: sample.input.numel() == 0 or sample.args[0].numel() == 0,
+        reason="fixme: ORT reduces size 0 inputs to the wrong shape",
+    ),
     TorchLibOpInfo("ceil", core_ops.aten_ceil),
     TorchLibOpInfo("chunk", core_ops.aten_chunk),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max_tensor).skip(
