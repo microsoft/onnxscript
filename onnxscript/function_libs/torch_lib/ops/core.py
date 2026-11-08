@@ -5781,12 +5781,92 @@ def aten_kron(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def _sorted_select(
+    self: TReal, dim: int, keepdim: bool, mode: str, k: int = 1, flatten: bool = False
+) -> tuple[TReal, INT64]:
+    """Select one element along `dim` from `self` sorted ascending with NaN last.
+
+    mode:
+        "kth": the k-th smallest element (1-based); NaN when it falls on a NaN.
+        "median": the lower median; NaN when the slice contains a NaN.
+        "nanmedian": the lower median of the non-NaN elements.
+
+    If `flatten` is set, `self` is flattened first and `dim` is ignored.
+    """
+    is_float = self.dtype.is_floating_point()
+    if mode == "nanmedian" and not is_float:
+        mode = "median"
+    is_scalar = len(self.shape) == 0
+    if flatten:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+        dim = 0
+        is_scalar = False
+    elif is_scalar:
+        self = op.Reshape(self, op.Constant(value_ints=[1]))
+        dim = 0
+    dims = op.Constant(value_ints=[dim])
+    size = op.Gather(op.Shape(self), dims, axis=0)
+    if is_float:
+        # TopK has no defined order for NaN. PyTorch sorts NaN after everything else,
+        # so sort with NaN replaced by inf and patch the selected values afterwards.
+        is_nan = op.IsNaN(self)
+        nan_count = op.ReduceSum(op.Cast(is_nan, to=INT64.dtype), dims, keepdims=True)
+        key = op.Where(is_nan, op.CastLike(float("inf"), self), self)
+    else:
+        key = self
+    sorted_values, sorted_indices = op.TopK(key, size, axis=dim, largest=False, sorted=True)
+
+    one = op.Constant(value_ints=[1])
+    if mode == "kth":
+        pos = op.Constant(value_ints=[k - 1])
+        values = op.Slice(sorted_values, pos, pos + 1, dims)
+        indices = op.Slice(sorted_indices, pos, pos + 1, dims)
+        if is_float:
+            values = op.Where(
+                op.Greater(op.Constant(value_ints=[k]), size - nan_count),
+                op.CastLike(float("nan"), self),
+                values,
+            )
+    elif mode == "median":
+        pos = op.Div(size - one, op.Constant(value_ints=[2]))
+        values = op.Slice(sorted_values, pos, pos + one, dims)
+        indices = op.Slice(sorted_indices, pos, pos + one, dims)
+        if is_float:
+            has_nan = op.Greater(nan_count, op.Constant(value_int=0))
+            first_nan = op.ArgMax(op.Cast(is_nan, to=INT32.dtype), axis=dim, keepdims=True)
+            values = op.Where(has_nan, op.CastLike(float("nan"), self), values)
+            indices = op.Where(has_nan, first_nan, indices)
+    else:
+        assert mode == "nanmedian"
+        valid_count = size - nan_count
+        pos = op.Div(
+            op.Max(valid_count - one, op.Constant(value_int=0)), op.Constant(value_int=2)
+        )
+        values = op.GatherElements(sorted_values, pos, axis=dim)
+        indices = op.GatherElements(sorted_indices, pos, axis=dim)
+        values = op.Where(
+            op.Equal(valid_count, op.Constant(value_int=0)),
+            op.CastLike(float("nan"), self),
+            values,
+        )
+
+    if is_scalar:
+        empty_shape = op.Constant(value_ints=[])
+        values = op.Reshape(values, empty_shape)
+        indices = op.Reshape(indices, empty_shape)
+    elif not keepdim:
+        values = op.Squeeze(values, dims)
+        indices = op.Squeeze(indices, dims)
+    return values, indices
+
+
+@torch_op("aten::kthvalue", trace_only=True)
 def aten_kthvalue(
-    self: TensorType, k: int, dim: int = -1, keepdim: bool = False
-) -> tuple[TensorType, TensorType]:
+    self: TReal, k: int, dim: int = -1, keepdim: bool = False
+) -> tuple[TReal, INT64]:
     """kthvalue(Tensor self, int k, int dim=-1, bool keepdim=False) -> (Tensor values, Tensor indices)"""
 
-    raise NotImplementedError()
+    return _sorted_select(self, dim, keepdim, "kth", k)
 
 
 @torch_op("aten::layer_norm", trace_only=True)
@@ -6627,10 +6707,19 @@ def aten_mean_dim_complex(
     return result
 
 
-def aten_median(self: TensorType) -> TensorType:
+@torch_op("aten::median", trace_only=True)
+def aten_median(self: TReal) -> TReal:
     """median(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    values, _ = _sorted_select(self, 0, False, "median", flatten=True)
+    return values
+
+
+@torch_op("aten::median.dim", trace_only=True)
+def aten_median_dim(self: TReal, dim: int, keepdim: bool = False) -> tuple[TReal, INT64]:
+    """median.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
+
+    return _sorted_select(self, dim, keepdim, "median")
 
 
 def aten_meshgrid(tensors: Sequence[TensorType]) -> TensorType:
@@ -7121,10 +7210,19 @@ def aten_nanmean(
     raise NotImplementedError()
 
 
-def aten_nanmedian(self: TensorType) -> TensorType:
+@torch_op("aten::nanmedian", trace_only=True)
+def aten_nanmedian(self: TReal) -> TReal:
     """nanmedian(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    values, _ = _sorted_select(self, 0, False, "nanmedian", flatten=True)
+    return values
+
+
+@torch_op("aten::nanmedian.dim", trace_only=True)
+def aten_nanmedian_dim(self: TReal, dim: int, keepdim: bool = False) -> tuple[TReal, INT64]:
+    """nanmedian.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
+
+    return _sorted_select(self, dim, keepdim, "nanmedian")
 
 
 def aten_nanquantile(
