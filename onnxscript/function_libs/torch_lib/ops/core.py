@@ -9216,17 +9216,39 @@ def aten_scatter_reduce(
     return result
 
 
+@torch_op(("aten::searchsorted.Tensor", "aten::searchsorted.Scalar"), trace_only=True)
 def aten_searchsorted(
-    sorted_sequence: TensorType,
-    self: TensorType,
+    sorted_sequence: TReal,
+    self: TReal,
     out_int32: bool = False,
     right: bool = False,
     side: Optional[str] = None,
-    sorter: Optional[TensorType] = None,
-) -> TensorType:
+    sorter: Optional[INT64] = None,
+) -> TInt:
     """searchsorted.Tensor(Tensor sorted_sequence, Tensor self, *, bool out_int32=False, bool right=False, str? side=None, Tensor? sorter=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if sorter is not None:
+        sorted_sequence = op.GatherElements(sorted_sequence, sorter, axis=-1)
+    if side is not None:
+        right = side == "right"
+
+    # The insertion index is the number of boundaries below each value:
+    # boundaries < value (left), or boundaries <= value (right).
+    values = op.CastLike(self, sorted_sequence)
+    if isinstance(self, (int, float)):
+        boundaries = sorted_sequence  # [..., M] against one scalar
+    else:
+        # [..., K, 1] against [..., 1, M]; a 1-D sequence broadcasts to every value.
+        values = op.Unsqueeze(values, [-1])
+        boundaries = op.Unsqueeze(sorted_sequence, [-2])
+    below = op.LessOrEqual(boundaries, values) if right else op.Less(boundaries, values)
+    count = op.ReduceSum(op.Cast(below, to=INT64.dtype), [-1], keepdims=False)
+    if not isinstance(self, (int, float)):
+        # The result has the shape of the values (this also restores 0-d values).
+        count = op.Reshape(count, op.Shape(self))
+    if out_int32:
+        count = op.Cast(count, to=INT32.dtype)
+    return count
 
 
 def aten_segment_reduce(

@@ -1189,6 +1189,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: ORT error: MLFloat16 data type is not supported with ScatterElements opset 16 when reduction is 'add'",
     ),
+    TorchLibOpInfo("searchsorted", core_ops.aten_searchsorted).skip(
+        matcher=lambda sample: (
+            sample.input.numel() == 0
+            or (isinstance(sample.args[0], torch.Tensor) and sample.args[0].numel() == 0)
+        ),
+        reason="fixme: ORT reduces size 0 inputs to the wrong shape",
+    ),
     TorchLibOpInfo("select", core_ops.aten_select),
     TorchLibOpInfo("select_scatter", core_ops.aten_select_scatter),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
