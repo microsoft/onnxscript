@@ -1,7 +1,9 @@
 # onnxscript.version_converter
 
-The native converter supports **upgrading standard-domain opsets 18 through 28**.
-Opset 29 is not supported. Both `onnx_ir.Model` and `onnx.ModelProto` inputs are
+The native converter supports **upgrading standard-domain opsets from 18 onward**,
+with no maximum target opset. When no up-conversion adapter is registered, the
+operator is left unchanged apart from its version.
+Both `onnx_ir.Model` and `onnx.ModelProto` inputs are
 updated in place, including their opset imports.
 
 Downgrades and conversions outside the native range require `fallback=True`,

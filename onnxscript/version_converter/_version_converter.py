@@ -20,7 +20,6 @@ from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
 logger = logging.getLogger(__name__)
 
 
-SUPPORTED_MAX_ONNX_OPSET = 28
 SUPPORTED_MIN_ONNX_OPSET = 18
 
 
@@ -69,7 +68,7 @@ AdapterFunction = Callable[[ir.Node, VCContext], ReturnValue]
 
 def version_supported(model: ir.Model, target_version: int) -> bool:
     """Check if the target version is supported by the current version."""
-    if not SUPPORTED_MIN_ONNX_OPSET <= target_version <= SUPPORTED_MAX_ONNX_OPSET:
+    if target_version < SUPPORTED_MIN_ONNX_OPSET:
         return False
     current_version = _get_onnx_opset_version(model)
     return current_version is None or (
@@ -374,7 +373,7 @@ class _VersionConverter:
             raise VersionConverterError(
                 f"Cannot convert source opset {source_version} to {self._target_version}: "
                 f"native conversion only supports upgrades from opset "
-                f"{SUPPORTED_MIN_ONNX_OPSET} through {SUPPORTED_MAX_ONNX_OPSET}. "
+                f"{SUPPORTED_MIN_ONNX_OPSET} or higher, without downgrading. "
                 "Use fallback=True to request ONNX conversion outside this range."
             )
 
@@ -391,12 +390,10 @@ class _VersionConverter:
 
 def convert_version(model: ir.Model, target_version: int) -> bool:
     """Convert the model in place and return whether it was modified."""
-    if (target_version > SUPPORTED_MAX_ONNX_OPSET) or (
-        target_version < SUPPORTED_MIN_ONNX_OPSET
-    ):
+    if target_version < SUPPORTED_MIN_ONNX_OPSET:
         raise ValueError(
             f"Target opset version {target_version} is not supported. "
-            f"Supported range: {SUPPORTED_MIN_ONNX_OPSET} to {SUPPORTED_MAX_ONNX_OPSET}."
+            f"The minimum supported target opset version is {SUPPORTED_MIN_ONNX_OPSET}."
         )
     version_converter = _VersionConverter(target_version=target_version)
     version_converter.visit_model(model)

@@ -115,7 +115,9 @@ class VersionConverter18to17Test(unittest.TestCase):
         """
         )
         target_version = 17
-        with self.assertRaisesRegex(ValueError, "Supported range: 18 to 28"):
+        with self.assertRaisesRegex(
+            ValueError, "minimum supported target opset version is 18"
+        ):
             version_converter.convert_version(model, target_version=target_version)
         self.assertEqual(model.opset_imports[""], 18)
 
@@ -582,17 +584,25 @@ class LatestOpsetConversionTest(unittest.TestCase):
                     if target <= onnx.defs.onnx_opset_version():
                         onnx.checker.check_model(ir.to_proto(model), full_check=True)
 
-    def test_unreleased_target_is_rejected(self):
+    def test_unreleased_target_is_supported(self):
         model = ir.from_onnx_text(
             """
             <ir_version: 10, opset_import: [ "" : 28]>
             graph (float[2] x) => (float[2] y) { y = Identity (x) }
             """
         )
-        self.assertFalse(_version_converter.version_supported(model, 29))
-        with self.assertRaisesRegex(ValueError, "Supported range: 18 to 28"):
-            version_converter.convert_version(model, target_version=29)
-        self.assertEqual(model.opset_imports[""], 28)
+        for target in (29, 99):
+            for fallback in (False, True):
+                with self.subTest(target=target, fallback=fallback):
+                    converted = model.clone()
+                    original_node = converted.graph.node(0)
+                    self.assertTrue(_version_converter.version_supported(converted, target))
+                    version_converter.convert_version(
+                        converted, target_version=target, fallback=fallback
+                    )
+                    self.assertEqual(converted.opset_imports[""], target)
+                    self.assertIs(converted.graph.node(0), original_node)
+                    self.assertEqual(original_node.version, target)
 
     @pytest.mark.skipif(onnx.defs.onnx_opset_version() < 28, reason="Requires ONNX opset 28.")
     def test_model_proto_opset_import_is_updated(self):
