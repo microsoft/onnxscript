@@ -1531,6 +1531,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
         reason="fixme: ORT only supports BatchNorm less than opset14",
     ),
+    TorchLibOpInfo("ops.aten._fused_rms_norm", core_ops.aten__fused_rms_norm).skip(
+        enabled_if=not hasattr(torch.ops.aten, "_fused_rms_norm"),
+        reason="torch.ops.aten._fused_rms_norm is not available in this version of PyTorch",
+    ),
     TorchLibOpInfo(
         "ops.aten.native_group_norm",
         core_ops.aten_native_group_norm,

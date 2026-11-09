@@ -1248,6 +1248,28 @@ def sample_inputs_mean_dtype(op_info, device, dtype, requires_grad, **kwargs):
     )
 
 
+def sample_inputs__fused_rms_norm(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    # Ordered as input shape, normalized_shape, has weight and eps
+    cases = (
+        ((2, 3, 8), (8,), True, 1e-6),
+        ((2, 3, 8), (3, 8), True, 1e-5),
+        ((4, 16), (16,), False, 1e-6),
+        ((2, 5, 6), (6,), True, None),
+        ((7,), (7,), False, None),
+    )
+    for input_shape, normalized_shape, has_weight, eps in cases:
+        weight = make_arg(normalized_shape) if has_weight else None
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape), args=(normalized_shape, weight, eps)
+        )
+
+
 def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
@@ -2844,6 +2866,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="native_dropout",
         dtypes=common_dtype.all_types_and_half(),
         sample_inputs_func=sample_inputs_native_dropout,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._fused_rms_norm",
+        aten_name="_fused_rms_norm",
+        op=getattr(torch.ops.aten, "_fused_rms_norm", lambda *args, **kwargs: None),
+        dtypes=common_dtype.floating_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs__fused_rms_norm,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
