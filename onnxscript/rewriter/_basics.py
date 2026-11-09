@@ -13,7 +13,6 @@ import onnx_ir as ir
 
 if TYPE_CHECKING:
     import onnxscript.rewriter._pattern_ir as _pattern_ir
-    import onnxscript.rewriter._rewrite_rule as _rewrite_rule
 
 
 class MatchFailureInfo:
@@ -490,3 +489,8 @@ class MatchingTracer:
             best_match.print()
         else:
             print("No matches found.")
+
+
+# RewriteRule depends on MatchingTracer through the matcher; define the tracer first.
+if TYPE_CHECKING:
+    import onnxscript.rewriter._rewrite_rule as _rewrite_rule
