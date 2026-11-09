@@ -8,6 +8,7 @@ import abc
 import itertools
 import math
 from typing import (
+    TYPE_CHECKING,
     Iterable,
     Sequence,
 )
@@ -16,6 +17,9 @@ import onnx_ir as ir
 
 import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._pattern_ir as _pattern_ir
+
+if TYPE_CHECKING:
+    from onnxscript.rewriter._basics import MatchingTracer
 
 
 def _valid_to_replace(
@@ -52,7 +56,7 @@ class PatternMatcher(abc.ABC):
         *,
         verbose: int = 0,
         remove_nodes: bool = True,
-        tracer: _basics.MatchingTracer | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> _basics.MatchResult:
         """Match the pattern against the subgraph ending at the given node."""
 
@@ -67,7 +71,7 @@ class PatternMatcher(abc.ABC):
         *,
         verbose: int = 0,
         remove_nodes: bool = True,
-        tracer: _basics.MatchingTracer | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> Iterable[_basics.MatchResult]:
         """Yield structural matches for ``node``.
 
@@ -394,7 +398,7 @@ class SimplePatternMatcher(PatternMatcher):
         *,
         verbose: int = 0,
         remove_nodes: bool = True,
-        tracer: _basics.MatchingTracer | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> _basics.MatchResult:
         """Match the pattern against the subgraph ending at the given node.
 
@@ -432,7 +436,7 @@ class SimplePatternMatcher(PatternMatcher):
         *,
         verbose: int = 0,
         remove_nodes: bool = True,
-        tracer: _basics.MatchingTracer | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> Iterable[_basics.MatchResult]:
         """Yield structural matches, including alternatives for multi-output patterns.
 

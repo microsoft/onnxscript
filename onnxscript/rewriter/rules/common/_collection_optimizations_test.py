@@ -367,7 +367,7 @@ def test_concat_twice_cast_preserves_round_mode_attribute():
     _, optimized, count = _rewrite(
         """
         <ir_version: 10, opset_import: ["" : 29]>
-        graph (float[2] x) => (float8e8m0[4] y) {
+        graph (float[2] x) => (y) {
           joined = Concat <axis = 0> (x, x)
           y = Cast <to = 24, saturate = 1, round_mode = "up"> (joined)
         }
