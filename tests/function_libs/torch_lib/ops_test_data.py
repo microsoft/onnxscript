@@ -784,6 +784,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isnan", core_ops.aten_isnan),
     TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
+    TorchLibOpInfo("kthvalue", core_ops.aten_kthvalue).skip(
+        dtypes=(torch.int32, torch.int64),
+        matcher=lambda sample: sample.input.numel() > 1,
+        reason="Integer samples have ties, and the index PyTorch returns for a tied value is not defined",
+    ),
     TorchLibOpInfo("lift_fresh_copy", core_ops.aten_lift_fresh_copy),
     TorchLibOpInfo("linalg.det", linalg_ops.aten_linalg_det),
     TorchLibOpInfo(
@@ -889,6 +894,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("dim") is None,
         reason="this Aten overload can accept 2 inputs:(self, dim)",
     ),
+    TorchLibOpInfo("median", core_ops.aten_median).skip(
+        matcher=lambda sample: len(sample.args) > 0 or "dim" in sample.kwargs,
+        reason="this ATen overload only supports one tensor as input by design",
+    ),
+    TorchLibOpInfo("median_dim", core_ops.aten_median_dim).skip(
+        matcher=lambda sample: len(sample.args) == 0 and "dim" not in sample.kwargs,
+        reason="this ATen overload requires dim",
+    ),
     TorchLibOpInfo("mH", core_ops.aten_mH),
     TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True),
     TorchLibOpInfo("min_dim", core_ops.aten_min_dim).xfail(
@@ -912,6 +925,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("mul", core_ops.aten_mul),
     TorchLibOpInfo("mul", core_ops.aten_mul_complex, complex=True),
     TorchLibOpInfo("mv", core_ops.aten_mv, tolerance={torch.float16: (3e-2, 1e-2)}),
+    TorchLibOpInfo("nanmedian", core_ops.aten_nanmedian).skip(
+        matcher=lambda sample: len(sample.args) > 0 or "dim" in sample.kwargs,
+        reason="this ATen overload only supports one tensor as input by design",
+    ),
+    TorchLibOpInfo("nanmedian_dim", core_ops.aten_nanmedian_dim).skip(
+        matcher=lambda sample: len(sample.args) == 0 and "dim" not in sample.kwargs,
+        reason="this ATen overload requires dim",
+    ),
     TorchLibOpInfo("narrow", core_ops.aten_narrow),
     TorchLibOpInfo("ops.aten.native_dropout", core_ops.aten_native_dropout),
     TorchLibOpInfo("ne", core_ops.aten_ne),
@@ -1949,7 +1970,9 @@ ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "median", ("median_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "nanmedian", ("nanmedian_dim",))
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.pad",
