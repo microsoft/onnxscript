@@ -17,6 +17,8 @@ import torch.ao.quantization.fx._decomposed  # noqa: F401
 import torchvision
 from torch.onnx._internal.exporter import _testing
 
+from onnxscript._internal import version_utils
+
 
 class TorchLibe2eTest(unittest.TestCase):
     def test_investigate_one_particular_model(self):
@@ -2068,6 +2070,33 @@ class TorchLibe2eTest(unittest.TestCase):
         # about 3e-9, which the 1e-7 float64 tolerance of assert_onnx_program allows.
         for actual, expected in zip(onnx_program(x), Model()(x)):
             torch.testing.assert_close(actual, expected, rtol=1e-15, atol=0)
+
+    @parameterized.parameterized.expand(
+        [
+            ("float64", torch.float64, 1e-14),
+            ("float32", torch.float32, 1e-6),
+            ("float16", torch.float16, 1e-3),
+            ("bfloat16", torch.bfloat16, 8e-3),
+        ]
+    )
+    def test_expm1_log1p_keep_precision_near_zero(
+        self, _: str, dtype: torch.dtype, rtol: float
+    ):
+        if dtype == torch.bfloat16 and version_utils.torch_older_than("2.8"):
+            self.skipTest("ONNXProgram cannot run bfloat16 inputs before torch 2.8")
+
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.expm1(x), torch.log1p(x)
+
+        near_zero = [1e-10, -1e-10, 1e-6, -3e-4, 0.01, -0.5, 0.0, -0.0]
+        others = [2.0, 50.0, -50.0, -1.0, float("inf"), float("-inf"), float("nan")]
+        x = torch.tensor([*near_zero, *others], dtype=dtype)
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        # exp(x) - 1 and log(1 + x) give 0 for |x| below the epsilon of the dtype,
+        # a relative error of 1, and lose most of the digits for |x| up to about 0.01.
+        for actual, expected in zip(onnx_program(x), Model()(x)):
+            torch.testing.assert_close(actual, expected, rtol=rtol, atol=0, equal_nan=True)
 
     def test_conv3d_without_bias_produces_1d_bias(self):
         class Model(torch.nn.Module):

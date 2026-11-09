@@ -706,9 +706,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (5e-1, 2e-4)}
     ),
-    TorchLibOpInfo(
-        "expm1", special_ops.aten_special_expm1, tolerance={torch.float16: (1e-2, 2e-4)}
-    ),
+    TorchLibOpInfo("expm1", special_ops.aten_special_expm1),
     TorchLibOpInfo("special.erfcx", special_ops.aten_special_erfcx).xfail(
         reason="fixme: The implementation is numerically unstable: https://github.com/microsoft/onnxscript/issues/1223"
     ),
