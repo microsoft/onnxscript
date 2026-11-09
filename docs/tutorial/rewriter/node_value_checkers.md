@@ -3,6 +3,11 @@
 
 The pattern matching infrastructure supports custom validation logic at both the node and value levels through checker functions. These checkers allow for more sophisticated pattern matching by enabling additional constraints beyond basic operator and structure matching.
 
+Checkers must not mutate the graph and may be called repeatedly while the matcher
+tries alternative output-node assignments. See
+[multiple outputs and candidate retries](conditional_rewrite.md#multiple-outputs-and-candidate-retries)
+for the condition/checker contract and search limits.
+
 ## Value-Level Checkers
 
 Value-level checkers validate properties of specific values in the pattern. They are particularly useful for checking constants, shapes, or other value-specific properties.

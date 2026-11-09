@@ -26,6 +26,38 @@ Existing ONNX/ORT rotary and attention fusions also recognize the resulting Spli
 repeated-trigonometry, singleton-axis, and flattened single-batch layouts, so
 canonicalization does not hide their existing fusion opportunities.
 
+## Rule names and production boundaries
+
+Upstream names in the tables are inventory identifiers, not the names emitted by
+the target matcher. Target rule names describe the actual transformation:
+`ComposeConsecutiveGathers`, `FuseConsecutiveConstantPads`,
+`MoveCastBeforeTranspose`, `FactorCommonAddFromWhere`, and
+`FuseSingleTokenLinearAttention`, for example. Parameterized variants identify
+the operation, operand, or input form rather than appending Boolean flags.
+Existing exported rule variables and aggregate rule sets remain stable.
+
+The adopted subsets deliberately retain the following boundaries:
+
+| Area | Required proof or restriction |
+|---|---|
+| Gather and partitions | Indices are in bounds before composition or conversion to Slice; partitions have distinct reads and cover the complete axis. Gather errors must not become Slice clamping. |
+| Cast and layout movement | All conversion attributes are preserved. Moving across a shared layout must not duplicate conversion work. Gather is not moved before String/unknown-input Casts because that could hide conversion errors. |
+| Padding | Constant, nonnegative pads, matching bitwise fill values (including BF16 and signed zero), valid axes, and nonoverflowing combined INT64 pads. |
+| Expand movement | Known rank and broadcasting; moving computation before a potentially empty expansion is rejected when it could introduce evaluation such as integer division by zero. |
+| Reshape | Valid one-dimensional targets, function-local `allowzero` semantics, and unambiguous element counts. Anonymous dimensions do not prove equality. |
+| Range | Scalar constant signed-integer bounds and step, scalar/rank-one offset, nonzero step, and representable shifted bounds. Rank-increasing offsets are rejected. |
+| Reduction to TopK | Integer types, matching axes and keepdims, and first-index ties only. Floating NaN/signed-zero ordering is not assumed equivalent. |
+| Matrix operations | Static layout and broadcast proofs; expensive shared products are not duplicated. Floating unit-reduction MatMul is not replaced by Mul. |
+| Rotary and attention compatibility | Positive even rotary dimensions, supported dtypes/opsets, and preserved rotary/attention attributes. Packed QKV fusion recognizes both Slice and Split partitions. |
+
+ORT cos/sin cache conversion constructs entries for the positions actually used,
+not every integer up to their maximum. Negative, sparse, and extreme INT64
+positions therefore neither index the wrong row nor trigger huge optimizer-time
+allocations. Distinct frequency inputs are not conflated, overridable frequency
+initializers remain dynamic, and empty batches/sequences retain valid cache
+shapes. Shape queries use proven equivalent dominating inputs when available so
+they do not prevent subsequent partial-rotary or attention fusion.
+
 ## Canonicalization
 
 Sources: [casts][casts], [clips][clips], [constants][constants],

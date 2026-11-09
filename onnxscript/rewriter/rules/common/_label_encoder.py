@@ -65,9 +65,18 @@ class ComposeLabelEncoders(RewriteRuleClassBase):
         if value_name.removeprefix("values_") != outer_key.removeprefix("keys_"):
             return result.fail("The intermediate mapping types do not match.")
         lookup = dict(zip(outer_keys, outer_values))
+        mapped = [lookup.get(value, outer_default) for value in values]
         self._attributes = {
-            key_name: keys,
-            outer_value: [lookup.get(value, outer_default) for value in values],
+            key_name: (
+                ir.AttrStrings(key_name, keys)
+                if key_name == "keys_strings"
+                else ir.AttrInt64s(key_name, keys)
+            ),
+            outer_value: (
+                ir.AttrStrings(outer_value, mapped)
+                if outer_value == "values_strings"
+                else ir.AttrInt64s(outer_value, mapped)
+            ),
             default_name: lookup.get(default, outer_default),
         }
         return result

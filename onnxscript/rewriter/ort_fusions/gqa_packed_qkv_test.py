@@ -5,9 +5,11 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
+import onnx.helper
 import onnx_ir as ir
 import onnx_ir.passes.common.shape_inference as shape_inference
 import onnxruntime as ort
+from parameterized import parameterized
 
 import onnxscript
 import onnxscript.optimizer
@@ -59,7 +61,7 @@ class PackedQKVforGQAFusionTest(unittest.TestCase):
             FLOAT["max_seqlen", Dh // 2],  # sin
         )
         self.output_types = (
-            FLOAT["B", "S", D],  # attention
+            FLOAT["B", "S", self.q_hidden_size],  # attention
             FLOAT["B", Hkv, "T", Dh],  # present_key
             FLOAT["B", Hkv, "T", Dh],  # present_value
         )
@@ -104,7 +106,22 @@ class PackedQKVforGQAFusionTest(unittest.TestCase):
 
         return gqa
 
-    def test_fuse_packed_qkv_for_gqa(self):
+    def test_invalid_head_counts_do_not_fuse_or_divide_by_zero(self):
+        for query_heads, kv_heads in ((0, 10), (20, 0), (19, 10)):
+            with self.subTest(query_heads=query_heads, kv_heads=kv_heads):
+                proto = self.source_model_script().to_model_proto(
+                    input_types=self.input_types, output_types=self.output_types
+                )
+                model = shape_inference.infer_shapes(ir.from_proto(proto))
+                attention = next(
+                    node for node in model.graph if node.op_type == "GroupQueryAttention"
+                )
+                attention.attributes["num_heads"] = ir.AttrInt64("num_heads", query_heads)
+                attention.attributes["kv_num_heads"] = ir.AttrInt64("kv_num_heads", kv_heads)
+                self.assertEqual(fuse_qkv_gqa(model), 0)
+
+    @parameterized.expand([("slices", False), ("split", True)])
+    def test_fuse_packed_qkv_for_gqa(self, _, canonicalize):
         """
         Test that fusion from query, key and value to a packed QKV for GQA
         is successful on source model and produces an equivalent model.
@@ -115,6 +132,9 @@ class PackedQKVforGQAFusionTest(unittest.TestCase):
             input_types=self.input_types,
             output_types=self.output_types,
         )
+        source_model.graph.node[-1].attribute.append(
+            onnx.helper.make_attribute("scale", 0.125)
+        )
         session = ort.InferenceSession(
             source_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
@@ -122,10 +142,15 @@ class PackedQKVforGQAFusionTest(unittest.TestCase):
 
         source_model_ir = ir.serde.from_proto(source_model)
         inferred_model = shape_inference.infer_shapes(source_model_ir)
-        onnxscript.optimizer.optimize(inferred_model)
+        if canonicalize:
+            onnxscript.optimizer.optimize(inferred_model)
 
         count = fuse_qkv_gqa(inferred_model, debug=True)
         self.assertEqual(count, 1)
+        attention = next(
+            node for node in inferred_model.graph if node.op_type == "GroupQueryAttention"
+        )
+        self.assertEqual(attention.attributes["scale"].as_float(), 0.125)
 
         fused_model = ir.serde.to_proto(inferred_model)
         session = ort.InferenceSession(

@@ -13,7 +13,7 @@ from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleS
 
 def _ints(value: ir.Value) -> list[int] | None:
     array = _ir_utils.get_numpy_value(value)
-    if array is None or array.ndim > 1 or array.dtype.kind not in "iu":
+    if array is None or array.ndim != 1 or array.dtype.kind not in "iu":
         return None
     return [int(v) for v in array.reshape(-1)]
 
@@ -60,6 +60,20 @@ def _broadcasts_to(source: list, target: list) -> bool:
         before == 1 or _ir_utils.same_dim(before, after)
         for before, after in zip(aligned, target)
     )
+
+
+def _expand_preserves_nonempty_evaluation(source: list, target: list) -> bool:
+    """Whether moving computation before Expand cannot evaluate discarded elements."""
+    if len(source) > len(target):
+        return False
+    aligned = [1] * (len(target) - len(source)) + source
+    for before, after in zip(aligned, target):
+        if _ir_utils.same_dim(before, after):
+            continue
+        if before == 1 and isinstance(after, int) and after > 0:
+            continue
+        return False
+    return True
 
 
 def _effective_expand_shape(input_shape: list, target: list[int]) -> list[int] | None:
@@ -124,8 +138,11 @@ class MaterializeExpandShape(RewriteRuleClassBase):
         return op.Expand(x, target)
 
 
-class UnitExpandToUnsqueeze(RewriteRuleClassBase):
+class ReplaceUnitExpandWithUnsqueeze(RewriteRuleClassBase):
     """Replace an all-one Expand that only inserts unit dimensions."""
+
+    def __init__(self):
+        super().__init__("ReplaceUnitExpandWithUnsqueeze")
 
     def pattern(self, op, x, shape):
         return op.Expand(x, shape)
@@ -165,37 +182,63 @@ class UnitExpandToUnsqueeze(RewriteRuleClassBase):
         return op.Unsqueeze(x, axes)
 
 
-class _ExpandUnary(RewriteRuleClassBase):
+class _MoveUnaryBeforeExpand(RewriteRuleClassBase):
     def __init__(self, op_type: str):
-        super().__init__(f"Expand{op_type}")
+        super().__init__(f"Move{op_type}BeforeExpand")
         self._op_type = op_type
 
     def pattern(self, op, x, shape):
         return getattr(op, self._op_type)(op.Expand(x, shape))
 
+    def check(self, context, x, shape):
+        del shape
+        result = MatchResult()
+        source = _shape(x)
+        target = _shape(context.output_values[0])
+        if (
+            source is None
+            or target is None
+            or not _expand_preserves_nonempty_evaluation(source, target)
+        ):
+            return result.fail(
+                "Expand must not turn a nonempty computation into an empty tensor."
+            )
+        return result
+
     def rewrite(self, op, x, shape):
         return op.Expand(getattr(op, self._op_type)(x), shape)
 
 
-class ExpandCast(RewriteRuleClassBase):
+class MoveCastBeforeExpand(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("ExpandCast")
+        super().__init__("MoveCastBeforeExpand")
 
     def pattern(self, op, x, shape, to):
         return op.Cast(op.Expand(x, shape), to=to)
 
     def check(self, context, x, shape, to):
-        del x, shape, to
+        del shape, to
+        source = _shape(x)
+        target = _shape(context.output_values[0])
+        result = MatchResult()
+        if (
+            source is None
+            or target is None
+            or not _expand_preserves_nonempty_evaluation(source, target)
+        ):
+            return result.fail(
+                "Expand must not turn a nonempty computation into an empty tensor."
+            )
         self._cast_attributes = dict(context.root.attributes)
-        return MatchResult()
+        return result
 
     def rewrite(self, op, x, shape, to):
         return op.Expand(op.Cast(x, **self._cast_attributes), shape)
 
 
-class SwapExpandUnsqueeze(RewriteRuleClassBase):
+class MoveUnsqueezeBeforeExpand(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("SwapExpandUnsqueeze")
+        super().__init__("MoveUnsqueezeBeforeExpand")
 
     def pattern(self, op, x, expand_shape, axes):
         return op.Unsqueeze(op.Expand(x, expand_shape), axes)
@@ -214,6 +257,8 @@ class SwapExpandUnsqueeze(RewriteRuleClassBase):
             expanded_shape = _shape(context.root.inputs[0])
         if expanded_shape is None or not all(isinstance(dim, int) for dim in expanded_shape):
             return result.fail("The effective Expand output shape must be static.")
+        if len(input_shape) != len(expanded_shape):
+            return result.fail("Expand must not prepend dimensions before Unsqueeze is moved.")
         normalized = _normalize_axes(inserted, len(expanded_shape) + len(inserted))
         if normalized is None:
             return result.fail("Unsqueeze axes are invalid.")
@@ -228,9 +273,9 @@ class SwapExpandUnsqueeze(RewriteRuleClassBase):
         return op.Expand(unsqueezed, target)
 
 
-class ExpandUnsqueezeExpand(RewriteRuleClassBase):
+class FuseExpandsAroundUnsqueeze(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("ExpandUnsqueezeExpand")
+        super().__init__("FuseExpandsAroundUnsqueeze")
 
     def pattern(self, op, x, shape1, axes, shape2):
         first = op.Expand(x, shape1)
@@ -250,6 +295,8 @@ class ExpandUnsqueezeExpand(RewriteRuleClassBase):
         expanded_first = _effective_expand_shape(input_shape, first)
         if expanded_first is None:
             return result.fail("The first Expand output shape is not statically provable.")
+        if len(input_shape) != len(expanded_first):
+            return result.fail("The first Expand must not prepend dimensions.")
         normalized = _normalize_axes(inserted, len(expanded_first) + len(inserted))
         if normalized is None:
             return result.fail("Unsqueeze axes are invalid.")
@@ -267,9 +314,9 @@ class ExpandUnsqueezeExpand(RewriteRuleClassBase):
         return op.Expand(unsqueezed, target)
 
 
-class _TwoExpandsBinary(RewriteRuleClassBase):
+class _MoveEqualExpandsAfterBinary(RewriteRuleClassBase):
     def __init__(self, op_type: str):
-        super().__init__(f"TwoExpands{op_type}")
+        super().__init__(f"MoveEqualExpandsAfter{op_type}")
         self._op_type = op_type
 
     def pattern(self, op, x, shape1, y, shape2):
@@ -290,6 +337,10 @@ class _TwoExpandsBinary(RewriteRuleClassBase):
         target = _ints(shape1)
         if target is None or target != output_shape:
             return result.fail("Constant target must equal the binary output shape.")
+        if not _expand_preserves_nonempty_evaluation(small_output, output_shape):
+            return result.fail(
+                "The final Expand must not discard an otherwise evaluated binary result."
+            )
         return result
 
     def rewrite(self, op, x, shape1, y, shape2):
@@ -297,10 +348,10 @@ class _TwoExpandsBinary(RewriteRuleClassBase):
         return op.Expand(small, shape1)
 
 
-class _OneExpandBinary(RewriteRuleClassBase):
+class _MoveExpandAfterBinary(RewriteRuleClassBase):
     def __init__(self, op_type: str, expand_left: bool):
         side = "Left" if expand_left else "Right"
-        super().__init__(f"{side}Expand{op_type}")
+        super().__init__(f"Move{side}InputExpandAfter{op_type}")
         self._op_type = op_type
         self._expand_left = expand_left
 
@@ -320,6 +371,10 @@ class _OneExpandBinary(RewriteRuleClassBase):
         smaller = _broadcast(x_shape, y_shape)
         if smaller is None or smaller == output_shape or target != output_shape:
             return result.fail("The smaller binary result cannot be restored by one Expand.")
+        if not _expand_preserves_nonempty_evaluation(smaller, output_shape):
+            return result.fail(
+                "The final Expand must not discard an otherwise evaluated binary result."
+            )
         return result
 
     def rewrite(self, op, x, expand_shape, y):
@@ -327,9 +382,9 @@ class _OneExpandBinary(RewriteRuleClassBase):
         return op.Expand(small, expand_shape)
 
 
-class SwapExpandReshape(RewriteRuleClassBase):
+class MoveReshapeBeforeExpand(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("SwapExpandReshape")
+        super().__init__("MoveReshapeBeforeExpand")
 
     def pattern(self, op, x, expand_shape, reshape_shape):
         return op.Reshape(op.Expand(x, expand_shape), reshape_shape)
@@ -360,9 +415,10 @@ class SwapExpandReshape(RewriteRuleClassBase):
         return op.Expand(reshaped, expand_shape)
 
 
-class _ExpandCastWhereSwap(RewriteRuleClassBase):
+class _MoveWhereBeforeExpand(RewriteRuleClassBase):
     def __init__(self, expanded_branch: int):
-        super().__init__(f"ExpandCastWhereSwapBranch{expanded_branch}")
+        branch = "Then" if expanded_branch == 1 else "Else"
+        super().__init__(f"MoveWhereBeforeExpand{branch}Branch")
         self._expanded_branch = expanded_branch
 
     def pattern(self, op, x, expand_shape, other, to):
@@ -386,12 +442,27 @@ class _ExpandCastWhereSwap(RewriteRuleClassBase):
         small_shape = _broadcast(x_shape, other_shape)
         if small_shape is None or not _broadcasts_to(small_shape, output_shape):
             return result.fail("The smaller Where result does not broadcast to the output.")
+        if not _expand_preserves_nonempty_evaluation(small_shape, output_shape):
+            return result.fail(
+                "The final Expand must not discard an otherwise evaluated Where result."
+            )
         target = _ints(expand_shape)
         if target is not None and target != output_shape:
             return result.fail("Constant Expand target does not equal the Where output shape.")
         expanded = context.root.inputs[0].producer().inputs[0]
-        if target is None and (expanded.shape is None or list(expanded.shape) != output_shape):
-            return result.fail("Expanded condition shape must equal the Where output shape.")
+        if target is None:
+            expanded_shape = _shape(expanded)
+            if (
+                expanded_shape is None
+                or len(expanded_shape) != len(output_shape)
+                or any(
+                    not _ir_utils.same_dim(left, right)
+                    for left, right in zip(expanded_shape, output_shape)
+                )
+            ):
+                return result.fail(
+                    "Expanded condition shape must equal the Where output shape."
+                )
         cast = context.root.inputs[0].producer()
         self._cast_attributes = dict(cast.attributes)
         return result
@@ -405,9 +476,9 @@ class _ExpandCastWhereSwap(RewriteRuleClassBase):
         return op.Expand(small, expand_shape)
 
 
-class _ConcatExpandBase(RewriteRuleClassBase):
+class _SimplifyConcatExpandShapeBase(RewriteRuleClassBase):
     def __init__(self, rank: int):
-        super().__init__(f"ConcatExpandRank{rank}", remove_nodes=False)
+        super().__init__(f"SimplifyConcatExpandShapeRank{rank}", remove_nodes=False)
         self._rank = rank
 
     def _check(self, context, x: ir.Value, parts: tuple[ir.Value, ...], axis: ir.Attr):
@@ -440,7 +511,7 @@ class _ConcatExpandBase(RewriteRuleClassBase):
         return op.Expand(x, target)
 
 
-class ConcatExpandRank2(_ConcatExpandBase):
+class SimplifyConcatExpandShapeRank2(_SimplifyConcatExpandShapeBase):
     def __init__(self):
         super().__init__(2)
 
@@ -454,7 +525,7 @@ class ConcatExpandRank2(_ConcatExpandBase):
         return self._rewrite(op, x, (p0, p1))
 
 
-class ConcatExpandRank3(_ConcatExpandBase):
+class SimplifyConcatExpandShapeRank3(_SimplifyConcatExpandShapeBase):
     def __init__(self):
         super().__init__(3)
 
@@ -468,7 +539,7 @@ class ConcatExpandRank3(_ConcatExpandBase):
         return self._rewrite(op, x, (p0, p1, p2))
 
 
-class ConcatExpandRank4(_ConcatExpandBase):
+class SimplifyConcatExpandShapeRank4(_SimplifyConcatExpandShapeBase):
     def __init__(self):
         super().__init__(4)
 
@@ -482,7 +553,7 @@ class ConcatExpandRank4(_ConcatExpandBase):
         return self._rewrite(op, x, (p0, p1, p2, p3))
 
 
-class ConcatExpandRank5(_ConcatExpandBase):
+class SimplifyConcatExpandShapeRank5(_SimplifyConcatExpandShapeBase):
     def __init__(self):
         super().__init__(5)
 
@@ -553,23 +624,23 @@ _SAFE_BINARY = (
 rules = RewriteRuleSet(
     [
         MaterializeExpandShape.rule(),
-        UnitExpandToUnsqueeze.rule(),
-        _ExpandCastWhereSwap.rule(1),
-        _ExpandCastWhereSwap.rule(2),
-        ConcatExpandRank2.rule(),
-        ConcatExpandRank3.rule(),
-        ConcatExpandRank4.rule(),
-        ConcatExpandRank5.rule(),
-        *[_ExpandUnary.rule(op_type) for op_type in _SAFE_UNARY],
-        ExpandCast.rule(),
-        SwapExpandUnsqueeze.rule(),
-        ExpandUnsqueezeExpand.rule(),
-        *[_TwoExpandsBinary.rule(op_type) for op_type in _SAFE_BINARY],
+        ReplaceUnitExpandWithUnsqueeze.rule(),
+        _MoveWhereBeforeExpand.rule(1),
+        _MoveWhereBeforeExpand.rule(2),
+        SimplifyConcatExpandShapeRank2.rule(),
+        SimplifyConcatExpandShapeRank3.rule(),
+        SimplifyConcatExpandShapeRank4.rule(),
+        SimplifyConcatExpandShapeRank5.rule(),
+        *[_MoveUnaryBeforeExpand.rule(op_type) for op_type in _SAFE_UNARY],
+        MoveCastBeforeExpand.rule(),
+        MoveUnsqueezeBeforeExpand.rule(),
+        FuseExpandsAroundUnsqueeze.rule(),
+        *[_MoveEqualExpandsAfterBinary.rule(op_type) for op_type in _SAFE_BINARY],
         *[
-            _OneExpandBinary.rule(op_type, side)
+            _MoveExpandAfterBinary.rule(op_type, side)
             for op_type in _SAFE_BINARY
             for side in (True, False)
         ],
-        SwapExpandReshape.rule(),
+        MoveReshapeBeforeExpand.rule(),
     ]
 )

@@ -160,6 +160,43 @@ class SelectionShapeOptimizationsTest(unittest.TestCase):
             count=0,
         )
 
+    def test_where_add_preserves_subgraph_captures(self):
+        self._check(
+            """
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph (bool[N] c, bool decision, float[N] common, float[N] x, float[N] y)
+                => (float[N] z, float[N] captured) {
+                a = Add(common,x)
+                b = Add(common,y)
+                z = Where(c,a,b)
+                captured = If<
+                    then_branch = then_graph () => (float[N] t) { t = Identity(a) },
+                    else_branch = else_graph () => (float[N] f) { f = Identity(b) }
+                >(decision)
+            }
+            """,
+            {
+                "c": np.array([True, False]),
+                "decision": np.array(True),
+                "common": np.array([1.0, -0.0], np.float32),
+                "x": np.array([2.0, 0.0], np.float32),
+                "y": np.array([3.0, -0.0], np.float32),
+            },
+            boolean.rules,
+            count=0,
+        )
+
+    def test_boolean_identities_preserve_empty_broadcasts(self):
+        self._check(
+            """
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph (bool[0,3] x) => (bool[0,3] y)
+            <bool[1,3] c = {1,1,1}> { y = And(x,c) }
+            """,
+            {"x": np.empty((0, 3), np.bool_)},
+            boolean.rules,
+        )
+
     def test_unsqueeze_equal(self):
         self._check(
             """
@@ -354,6 +391,59 @@ class SelectionShapeOptimizationsTest(unittest.TestCase):
             count=0,
         )
 
+    def test_gather_shape_rejects_out_of_range_indices(self):
+        for index in (-3, 2):
+            with self.subTest(index=index):
+                model = ir.from_onnx_text(
+                    f"""
+                    <ir_version: 8, opset_import: ["" : 18]>
+                    graph (float[A,B] x) => (int64 y)
+                    <int64 index = {{{index}}}> {{
+                        s = Shape(x)
+                        y = Gather(s,index)
+                    }}
+                    """
+                )
+                self.assertEqual(ir_rule_set(shape.gather_shape_rule).apply_to_model(model), 0)
+
+    def test_gather_shape_preserves_int32_scalar_and_scalar_input_shape(self):
+        self._check(
+            """
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph (float[A,B] x) => (int64 y)
+            <int32 index = {-1}> { s = Shape(x) y = Gather(s,index) }
+            """,
+            {"x": np.empty((2, 0), np.float32)},
+            ir_rule_set(shape.gather_shape_rule),
+        )
+        self._check(
+            """
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph (float x) => (int64[0] y) {
+                transposed = Transpose(x)
+                y = Shape(transposed)
+            }
+            """,
+            {"x": np.array(-0.0, np.float32)},
+            ir_rule_set(shape.shape_transpose_rule),
+        )
+
+    def test_shape_attribute_references_are_not_guessed(self):
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 10, opset_import: ["" : 18, "local" : 1]>
+            graph (float[2,3] x) => (int64[1] y) {
+                y = local.query<begin=1>(x)
+            }
+            <domain: "local", opset_import: ["" : 18]>
+            query<begin>(x) => (y) {
+                c = Cast<to=11>(x)
+                y = Shape<start: int = @begin>(c)
+            }
+            """
+        )
+        self.assertEqual(shape.rules.apply_to_model(model), 0)
+
     def test_shape_transpose_preserves_shared_data(self):
         self._check(
             """
@@ -406,6 +496,30 @@ class SelectionShapeOptimizationsTest(unittest.TestCase):
                 "second": np.array([2, 2], np.int64),
             },
             ir_rule_set(shape.same_shape_reshape_rule),
+            count=0,
+        )
+
+    @parameterized.parameterized.expand([("Expand",), ("Reshape",)])
+    def test_same_shape_reuse_rejects_anonymous_dimensions(self, op_type):
+        self._check(
+            f"""
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph (float[1] x, int64[2] first, int64[2] second)
+                => (float[?,?] a, float[?,?] b) {{
+                a = {op_type}(x,first)
+                b = {op_type}(x,second)
+            }}
+            """,
+            {
+                "x": np.ones(1, np.float32),
+                "first": np.array([1, 1], np.int64),
+                "second": np.array([1, 1], np.int64),
+            },
+            ir_rule_set(
+                shape.same_shape_expand_rule
+                if op_type == "Expand"
+                else shape.same_shape_reshape_rule
+            ),
             count=0,
         )
 
@@ -488,6 +602,33 @@ class SelectionShapeOptimizationsTest(unittest.TestCase):
             _label_encoder.rules,
             count=0,
         )
+
+    def test_label_encoder_preserves_typed_empty_mapping(self):
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 8, opset_import: ["" : 18, "ai.onnx.ml" : 4]>
+            graph (string[N] x) => (int64[N] y) {
+                t = ai.onnx.ml.LabelEncoder<
+                    keys_strings=["a"], values_int64s=[1], default_int64=7
+                >(x)
+                y = ai.onnx.ml.LabelEncoder<
+                    keys_int64s=[7], values_int64s=[9], default_int64=3
+                >(t)
+            }
+            """
+        )
+        model.graph[0].attributes["keys_strings"] = ir.AttrStrings("keys_strings", [])
+        model.graph[0].attributes["values_int64s"] = ir.AttrInt64s("values_int64s", [])
+        self.assertEqual(_label_encoder.rules.apply_to_model(model), 1)
+        rewritten = ir.to_proto(model)
+        onnx.checker.check_model(rewritten)
+        self.assertEqual(
+            model.graph[-1].attributes["keys_strings"].type, ir.AttributeType.STRINGS
+        )
+        self.assertEqual(
+            model.graph[-1].attributes["values_int64s"].type, ir.AttributeType.INTS
+        )
+        self.assertEqual(model.graph[-1].attributes["default_int64"].as_int(), 9)
 
     @parameterized.parameterized.expand(
         [

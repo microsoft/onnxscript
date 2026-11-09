@@ -15,7 +15,7 @@ from onnxscript.rewriter.rules.common._remove_expand_before_binary_op import (
 )
 
 
-class NotNot(RewriteRuleClassBase):
+class RemoveDoubleNot(RewriteRuleClassBase):
     def pattern(self, op, x):
         return op.Not(op.Not(x))
 
@@ -23,7 +23,7 @@ class NotNot(RewriteRuleClassBase):
         return op.Identity(x)
 
 
-class NotWhere(RewriteRuleClassBase):
+class SwapNegatedWhereBranches(RewriteRuleClassBase):
     def pattern(self, op, condition, x, y):
         return op.Where(op.Not(condition), x, y)
 
@@ -31,11 +31,11 @@ class NotWhere(RewriteRuleClassBase):
         return op.Where(condition, y, x)
 
 
-class BooleanIdentity(RewriteRuleClassBase):
+class RemoveBooleanIdentity(RewriteRuleClassBase):
     def __init__(self, op_type: str, neutral: bool):
         self.op_type = op_type
         self.neutral = neutral
-        super().__init__(f"{op_type}Identity")
+        super().__init__(f"Remove{op_type}Identity")
 
     def pattern(self, op, x, constant):
         return getattr(op, self.op_type)(x, constant)
@@ -58,12 +58,12 @@ class BooleanIdentity(RewriteRuleClassBase):
         return op.Identity(x)
 
 
-class WhereAdd(RewriteRuleClassBase):
+class FactorCommonAddFromWhere(RewriteRuleClassBase):
     """Factor an Add without reassociating or exchanging its operands."""
 
     def __init__(self, common_first: bool):
         self.common_first = common_first
-        super().__init__(f"WhereAddCommon{'First' if common_first else 'Second'}")
+        super().__init__(f"FactorWhereAddCommon{'First' if common_first else 'Second'}")
 
     def pattern(self, op, condition, common, x, y):
         if self.common_first:
@@ -87,7 +87,7 @@ def _axes(value: ir.Value, rank: int) -> list[int] | None:
     return sorted(result)
 
 
-class UnsqueezeEqual(RewriteRuleClassBase):
+class MoveEqualBeforeUnsqueezes(RewriteRuleClassBase):
     def pattern(self, op, x, y, axes_x, axes_y):
         return op.Equal(op.Unsqueeze(x, axes_x), op.Unsqueeze(y, axes_y))
 
@@ -108,7 +108,7 @@ class UnsqueezeEqual(RewriteRuleClassBase):
         return op.Unsqueeze(op.Equal(x, y), axes_x)
 
 
-class ReuseUnsqueezedComparison(RewriteRuleClassBase):
+class ReuseUnsqueezeForEqual(RewriteRuleClassBase):
     def pattern(self, op, x, constant, axes):
         return op.Unsqueeze(op.Equal(x, constant), axes)
 
@@ -126,21 +126,25 @@ class ReuseUnsqueezedComparison(RewriteRuleClassBase):
         normalized = _axes(axes, rank)
         if normalized is None:
             return result.fail("Unsqueeze axes are invalid.")
-        available = set()
-        for node in context.root.graph:
-            if node is context.root:
-                break
-            available.add(node)
-        for use in x.uses():
-            node = use.node
+        candidates = {
+            use.node
+            for use in x.uses()
             if (
-                node in available
+                use.idx == 0
+                and (node := use.node).graph is context.root.graph
                 and node.domain == ""
                 and node.op_type == "Unsqueeze"
                 and len(node.inputs) == 2
                 and node.inputs[1] is not None
                 and _axes(node.inputs[1], rank) == normalized
-            ):
+            )
+        }
+        if not candidates:
+            return result.fail("There is no equivalent sibling Unsqueeze of the input.")
+        for node in context.root.graph:
+            if node is context.root:
+                break
+            if node in candidates:
                 self._unsqueezed = node.outputs[0]
                 return result
         return result.fail("There is no equivalent existing Unsqueeze of the input.")
@@ -151,14 +155,14 @@ class ReuseUnsqueezedComparison(RewriteRuleClassBase):
         return op.Equal(self._unsqueezed, scalar)
 
 
-not_not_rule = NotNot.rule(remove_nodes=False)
-not_where_rule = NotWhere.rule(remove_nodes=False)
-and_identity_rule = BooleanIdentity.rule("And", True)
-or_identity_rule = BooleanIdentity.rule("Or", False)
-where_add_first_rule = WhereAdd.rule(True)
-where_add_second_rule = WhereAdd.rule(False)
-unsqueeze_equal_rule = UnsqueezeEqual.rule()
-reuse_unsqueezed_comparison_rule = ReuseUnsqueezedComparison.rule()
+not_not_rule = RemoveDoubleNot.rule(remove_nodes=False)
+not_where_rule = SwapNegatedWhereBranches.rule(remove_nodes=False)
+and_identity_rule = RemoveBooleanIdentity.rule("And", True)
+or_identity_rule = RemoveBooleanIdentity.rule("Or", False)
+where_add_first_rule = FactorCommonAddFromWhere.rule(True)
+where_add_second_rule = FactorCommonAddFromWhere.rule(False)
+unsqueeze_equal_rule = MoveEqualBeforeUnsqueezes.rule()
+reuse_unsqueezed_comparison_rule = ReuseUnsqueezeForEqual.rule()
 
 rules = RewriteRuleSet(
     [

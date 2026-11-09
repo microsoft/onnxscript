@@ -191,6 +191,12 @@ def _check_expand_removable(
     # --- Strategy 1: expand target shape is a compile-time constant ---
     expand_shape_val = get_numpy_value(shape)
     if expand_shape_val is not None:
+        if (
+            expand_shape_val.ndim != 1
+            or shape.dtype != ir.DataType.INT64
+            or any(int(dim) < 0 for dim in expand_shape_val)
+        ):
+            return check_result.fail("Expand target must be a nonnegative int64 vector.")
         expand_shape = tuple(int(v) for v in expand_shape_val.tolist())
         expand_rank = len(expand_shape)
         if expand_rank > max(x_rank, y_rank):
@@ -246,11 +252,11 @@ def _check_expand_removable(
     )
 
 
-class _ExpandFirstInput(RewriteRuleClassBase):
+class _RemoveExpandFromFirstInput(RewriteRuleClassBase):
     """Removes ``BinaryOp(Expand(x, shape), y)`` -> ``BinaryOp(x, y)``."""
 
     def __init__(self, op_type: str) -> None:
-        super().__init__(f"ExpandFirst_{op_type}", remove_nodes=False)
+        super().__init__(f"RemoveExpandFrom{op_type}FirstInput", remove_nodes=False)
         self._op_type = op_type
 
     def pattern(self, op, x, shape, y):
@@ -270,11 +276,11 @@ class _ExpandFirstInput(RewriteRuleClassBase):
         return getattr(op, self._op_type)(x, y, **self._attributes)
 
 
-class _ExpandSecondInput(RewriteRuleClassBase):
+class _RemoveExpandFromSecondInput(RewriteRuleClassBase):
     """Removes ``BinaryOp(x, Expand(y, shape))`` -> ``BinaryOp(x, y)``."""
 
     def __init__(self, op_type: str) -> None:
-        super().__init__(f"ExpandSecond_{op_type}", remove_nodes=False)
+        super().__init__(f"RemoveExpandFrom{op_type}SecondInput", remove_nodes=False)
         self._op_type = op_type
 
     def pattern(self, op, x, y, shape):
@@ -296,8 +302,8 @@ def _make_expand_before_binary_op_rules() -> list:
     """Create rewrite rules for removing Expand before each supported binary op."""
     rules = []
     for op_type in _BROADCAST_BINARY_OPS:
-        rules.append(_ExpandFirstInput.rule(op_type))
-        rules.append(_ExpandSecondInput.rule(op_type))
+        rules.append(_RemoveExpandFromFirstInput.rule(op_type))
+        rules.append(_RemoveExpandFromSecondInput.rule(op_type))
     return rules
 
 

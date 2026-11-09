@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import math
 from typing import Sequence, Union
 
 import onnx_ir as ir
@@ -114,11 +115,21 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
         if self._is_rotary:
             query_BHSDh_emb = op.RotaryEmbedding(
-                query_BHSDh, position_ids, cos, sin, _domain="com.microsoft"
+                query_BHSDh,
+                position_ids,
+                cos,
+                sin,
+                _domain="com.microsoft",
+                _outputs=["query_rotary"],
             )
             if not self._is_cross_attention:
                 key_BHSDh_emb = op.RotaryEmbedding(
-                    key, position_ids, cos, sin, _domain="com.microsoft"
+                    key,
+                    position_ids,
+                    cos,
+                    sin,
+                    _domain="com.microsoft",
+                    _outputs=["key_rotary"],
                 )
             else:
                 key_BHSDh_emb = key
@@ -180,11 +191,21 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         key_BSHDh=None,
         value_BSHDh=None,
         attention_reshaped=None,
+        query_rotary=None,
+        key_rotary=None,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
+        if query_BSD.dtype not in (ir.DataType.FLOAT, ir.DataType.FLOAT16):
+            return check_result.fail(
+                "ORT MultiHeadAttention requires FLOAT or FLOAT16 inputs."
+            )
 
         sdpa_node = sdpa_output.producer()
+        if any(attr.is_ref() for attr in sdpa_node.attributes.values()):
+            return check_result.fail("SDPA attributes must be concrete for MHA fusion.")
+        if set(sdpa_node.attributes) - {"key_format", "scale"}:
+            return check_result.fail("SDPA attributes are not supported by MHA fusion.")
 
         bindings: dict[str, Dim] = {}
         self._packed_2d = _ir_utils.has_rank(query_BSD, 2)
@@ -250,11 +271,43 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 )
                 or not _ir_utils.same_dim(output_shape[-2], query_BSD.shape[-2])
                 or not isinstance(value_head_size, int)
-                or output_shape[2] != head_count * value_head_size
+                or output_shape[-1] != head_count * value_head_size
             ):
                 return check_result.fail(
                     "Attention output does not restore the packed layout."
                 )
+        if self._is_rotary:
+            for rotary in (query_rotary, key_rotary):
+                if rotary is None:
+                    continue
+                attrs = rotary.producer().attributes
+                if any(attr.is_ref() for attr in attrs.values()) or set(attrs) - {
+                    "interleaved",
+                    "num_heads",
+                    "rotary_embedding_dim",
+                    "scale",
+                    "is_packed_batching",
+                }:
+                    return check_result.fail(
+                        "Rotary attributes are not supported by MHA fusion."
+                    )
+                dimension = attrs.get_int("rotary_embedding_dim", 0)
+                if (
+                    attrs.get_int("interleaved", 0) not in (0, 1)
+                    or attrs.get_int("num_heads", 0) not in (0, bindings["H"])
+                    or attrs.get_int("is_packed_batching", 0) != 0
+                    or (
+                        dimension != 0
+                        and not (
+                            isinstance(bindings["Dh"], int)
+                            and 0 < dimension <= bindings["Dh"]
+                            and dimension % 2 == 0
+                        )
+                    )
+                ):
+                    return check_result.fail(
+                        "MHA fusion requires compatible head counts, rotary dimensions, and unpacked batches."
+                    )
         # If cross-attention, key/value shapes are 4D
         if self._is_cross_attention:
             if no_match(key, ["B", "H", "Skv", "Dh"]):
@@ -343,6 +396,10 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             mask = sdpa_node.inputs[3]
         self.mask = mask
         if mask is not None:
+            if mask.dtype != query_BSD.dtype:
+                return check_result.fail(
+                    "ORT attention bias must have the query's floating type."
+                )
             if (mask_shape := mask.shape) is None:
                 return check_result.fail(
                     "Mask shape cannot be determined.",
@@ -379,6 +436,10 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             self._use_mask_broadcast = False
 
         self._scale = sdpa_node.attributes.get_float("scale", None)
+        if self._scale is not None and (not math.isfinite(self._scale) or self._scale == 0):
+            return check_result.fail(
+                "MHA fusion requires finite nonzero explicit scale; zero selects an automatic ORT scale."
+            )
         # TODO: verify Reshapes:
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
         # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
@@ -397,13 +458,14 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         position_ids,
         cos,
         sin,
+        query_rotary=None,
+        key_rotary=None,
         **_,
     ):
         num_heads = _ir_utils.get_dim(query_BSHDh, 1 if self._unit_layout else 2)
         if not isinstance(num_heads, int):
             return None
 
-        # TODO: forward other attributes
         if self._packed_2d:
             axes = op.Constant(value_ints=[0])
             query_BSD = op.Unsqueeze(query_BSD, axes)
@@ -412,12 +474,16 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 value = op.Unsqueeze(value, axes)
 
         if self._is_rotary:
+            query_attrs = dict(query_rotary.producer().attributes)
+            query_attrs["num_heads"] = ir.AttrInt64("num_heads", num_heads)
             query_BSD_emb = op.RotaryEmbedding(
-                query_BSD, position_ids, cos, sin, _domain="com.microsoft"
+                query_BSD, position_ids, cos, sin, **query_attrs, _domain="com.microsoft"
             )
             if not self._is_cross_attention:
+                key_attrs = dict(key_rotary.producer().attributes)
+                key_attrs["num_heads"] = ir.AttrInt64("num_heads", num_heads)
                 key_BSD_emb = op.RotaryEmbedding(
-                    key, position_ids, cos, sin, _domain="com.microsoft"
+                    key, position_ids, cos, sin, **key_attrs, _domain="com.microsoft"
                 )
             else:
                 key_BSD_emb = key
@@ -480,11 +546,11 @@ def _make_rule_set(has_past_present: bool):
     mha_rules = pattern.RewriteRuleSet(
         [
             MultiHeadAttention.rule(
-                f"MHA"
-                f"{'_Rotary' if params['is_rotary'] else ''}"
-                f"{'_Past' if params['has_past_present'] else ''}"
-                f"{'_CrossAttention' if params['is_cross_attention'] else ''}"
-                f"{'_UnitLayout' if params['unit_layout'] else ''}",
+                f"FuseMultiHeadAttention"
+                f"{'WithRotary' if params['is_rotary'] else ''}"
+                f"{'WithPast' if params['has_past_present'] else ''}"
+                f"{'ForCrossAttention' if params['is_cross_attention'] else ''}"
+                f"{'FromUnitAxisLayout' if params['unit_layout'] else ''}",
                 **params,
             )
             for params in parameter_combinations

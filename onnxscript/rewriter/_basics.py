@@ -214,6 +214,20 @@ class MatchResult:
                 return match.node_bindings[pattern_node]
         return None
 
+    def lookup_value(
+        self, pattern_value: _pattern_ir.ValuePattern
+    ) -> tuple[bool, ir.Value | None]:
+        """Look up a value binding across active partial matches."""
+        if pattern_value.name is not None:
+            for match in self._partial_matches:
+                if pattern_value.name in match.bindings:
+                    return True, match.bindings[pattern_value.name]
+            return False, None
+        for match in self._partial_matches:
+            if pattern_value in match.value_bindings:
+                return True, match.value_bindings[pattern_value]
+        return False, None
+
     def num_matched_nodes(self) -> int:
         """Returns the number of nodes matched so far."""
         return sum(len(match.node_bindings) for match in self._partial_matches)
@@ -292,6 +306,8 @@ class PartialMatchResult:
             # that the two matches are compatible. No need to check for conflicts here.
             self._bindings.update(other._bindings)
             self._matched_nodes.extend(other.nodes)
+            self._value_bindings.update(other.value_bindings)
+            self._node_bindings.update(other.node_bindings)
             # Note: outputs should be set only at end of the (top-level) match. There
             # should be no outputs in the sub-match.
             assert not other._outputs

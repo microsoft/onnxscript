@@ -76,6 +76,35 @@ class ExpandOptimizationsTest(unittest.TestCase):
             original, rewritten, {"x": np.arange(3, dtype=np.float32).reshape(1, 3)}
         )
 
+    def test_move_unary_before_expand_preserves_special_values_exactly(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[1,3] x) => (float[2,3] y)
+            <int64[2] shape = {2,3}> {
+                e = Expand(x, shape)
+                y = Neg(e)
+            }
+        """
+        original, rewritten, count = _apply(model_text)
+        self.assertEqual(count, 1)
+        feeds = {"x": np.array([[-0.0, np.inf, np.nan]], dtype=np.float32)}
+        expected = _evaluate(original, feeds)[0]
+        actual = _evaluate(rewritten, feeds)[0]
+        np.testing.assert_array_equal(actual, expected)
+        np.testing.assert_array_equal(np.signbit(actual), np.signbit(expected))
+
+    def test_move_unary_before_expand_rejects_new_empty_dimension(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[1] x) => (float[0] y)
+            <int64[1] shape = {0}> {
+                e = Expand(x, shape)
+                y = Reciprocal(e)
+            }
+        """
+        _, _, count = _apply(model_text)
+        self.assertEqual(count, 0)
+
     def test_move_cast_before_expand(self):
         model_text = """
             <ir_version: 10, opset_import: ["" : 18]>
@@ -139,6 +168,18 @@ class ExpandOptimizationsTest(unittest.TestCase):
             original, rewritten, {"x": np.arange(6, dtype=np.float32).reshape(2, 3)}
         )
 
+    def test_swap_expand_unsqueeze_rejects_rank_prepending_expand(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[3] x) => (float[2,1,3] y)
+            <int64[2] shape = {2,3}, int64[1] axes = {1}> {
+                e = Expand(x, shape)
+                y = Unsqueeze(e, axes)
+            }
+        """
+        _, _, count = _apply(model_text)
+        self.assertEqual(count, 0)
+
     def test_fuse_expand_unsqueeze_expand(self):
         model_text = """
             <ir_version: 10, opset_import: ["" : 18]>
@@ -171,6 +212,19 @@ class ExpandOptimizationsTest(unittest.TestCase):
             original, rewritten, {"x": np.arange(6, dtype=np.float32).reshape(2, 3)}
         )
 
+    def test_fuse_expand_unsqueeze_expand_rejects_rank_prepend(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[3] x) => (float[2,4,3] y)
+            <int64[2] s1 = {2,3}, int64[1] axes = {1}, int64[3] s2 = {2,4,3}> {
+                e = Expand(x, s1)
+                u = Unsqueeze(e, axes)
+                y = Expand(u, s2)
+            }
+        """
+        _, _, count = _apply(model_text)
+        self.assertEqual(count, 0)
+
     def test_unknown_symbolic_dimensions_do_not_prove_broadcast(self):
         model_text = """
             <ir_version: 10, opset_import: ["" : 18]>
@@ -192,9 +246,28 @@ class ExpandOptimizationsTest(unittest.TestCase):
                 y = Expand(x, shape)
             }
         """
-        _, rewritten, count = _apply(model_text)
+        rewritten = ir.from_onnx_text(model_text)
+        count = expand.rules.apply_to_model(rewritten)
         self.assertEqual(count, 0)
         self.assertEqual([n.op_type for n in rewritten.graph], ["Expand"])
+
+    def test_unit_expand_uses_function_local_opset(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18, "local" : 1]>
+            g (float[1] x) => (float[1,1,1] y) {
+                y = local.expand(x)
+            }
+            <domain: "local", opset_import: ["" : 12]>
+            expand (float[1] x) => (float[1,1,1] y) {
+                shape = Constant <value = int64[3] {1,1,1}> ()
+                y = Expand(x, shape)
+            }
+        """
+        rewritten = ir.from_onnx_text(model_text)
+        count = expand.rules.apply_to_model(rewritten)
+        self.assertEqual(count, 0)
+        function = rewritten.functions[("local", "expand", "")]
+        self.assertEqual([node.op_type for node in function], ["Constant", "Expand"])
 
     def test_two_expands_become_one_after_binary(self):
         model_text = """
@@ -223,6 +296,19 @@ class ExpandOptimizationsTest(unittest.TestCase):
                 a = Expand(x, s1)
                 b = Expand(z, s2)
                 y = Add(a, b)
+            }
+        """
+        _, _, count = _apply(model_text)
+        self.assertEqual(count, 0)
+
+    def test_two_expands_binary_rejects_new_empty_dimension(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (int32[1] x, int32[1] z) => (int32[0] y)
+            <int64[1] shape = {0}> {
+                a = Expand(x, shape)
+                b = Expand(z, shape)
+                y = Div(a, b)
             }
         """
         _, _, count = _apply(model_text)

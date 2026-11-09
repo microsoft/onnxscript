@@ -15,6 +15,7 @@ import numpy
 import onnx
 import onnx_ir as ir
 from packaging.version import Version
+from parameterized import parameterized
 
 import onnxscript
 import onnxscript.rewriter.testing
@@ -28,6 +29,69 @@ _INPUT_TYPES = (
     onnxscript.FLOAT["Batchsize", 32, "Sequence", 80],
 )
 _OUTPUT_TYPES = (onnxscript.FLOAT["Batchsize", 32, "Sequence", 80],)
+
+
+class RotaryEmbeddingBoundaryTest(unittest.TestCase):
+    def _model(self, *, opset=23, dtype="float", frequency_batch=1):
+        return ir.from_onnx_text(
+            f"""
+            <ir_version: 8, opset_import: ["" : {opset}]>
+            graph ({dtype}[1,2,3,4] x, {dtype}[{frequency_batch},3,2] frequencies)
+                => ({dtype}[{frequency_batch},2,3,4] y)
+            <int64[1] axis = {{1}}, int64[2] halves = {{2,2}}> {{
+                repeated = Concat<axis=-1>(frequencies,frequencies)
+                c = Cos(repeated)
+                s = Sin(repeated)
+                cos4 = Unsqueeze(c,axis)
+                sin4 = Unsqueeze(s,axis)
+                left,right = Split<axis=3>(x,halves)
+                negative = Neg(right)
+                rotated = Concat<axis=-1>(negative,left)
+                real = Mul(x,cos4)
+                imaginary = Mul(rotated,sin4)
+                y = Add(real,imaginary)
+            }}
+            """
+        )
+
+    @parameterized.expand(
+        [
+            ("old_opset", {"opset": 22}),
+            ("unsupported_double", {"dtype": "double"}),
+            ("broadcast_grows_batch", {"frequency_batch": 2}),
+        ]
+    )
+    def test_incompatible_standard_rotary_is_not_fused(self, _, options):
+        model = self._model(**options)
+        self.assertEqual(_rotary_embedding.fuse_rotary_embedding(model), 0)
+
+    def test_split_rotary_preserves_numerical_boundaries(self):
+        if not onnx.defs.has("RotaryEmbedding") or Version(onnx.__version__) < Version(
+            "1.19.1"
+        ):
+            self.skipTest(
+                "Installed ONNX does not provide the RotaryEmbedding reference evaluator."
+            )
+        model = self._model()
+        original = ir.to_proto(model)
+        self.assertEqual(_rotary_embedding.fuse_rotary_embedding(model), 1)
+        rewritten = ir.to_proto(model)
+        onnx.checker.check_model(rewritten)
+        data = numpy.resize(
+            numpy.array([-0.0, 0.0, numpy.inf, -numpy.inf, numpy.nan, 1.0], numpy.float32),
+            (1, 2, 3, 4),
+        )
+        feeds = {
+            "x": data,
+            "frequencies": numpy.arange(6, dtype=numpy.float32).reshape(1, 3, 2),
+        }
+        with numpy.errstate(invalid="ignore"):
+            expected = onnx.reference.ReferenceEvaluator(original).run(None, feeds)[0]
+            actual = onnx.reference.ReferenceEvaluator(rewritten).run(None, feeds)[0]
+        numpy.testing.assert_allclose(actual, expected, rtol=0, atol=0, equal_nan=True)
+        numpy.testing.assert_array_equal(
+            numpy.signbit(actual[expected == 0]), numpy.signbit(expected[expected == 0])
+        )
 
 
 class PartialRotaryEmbeddingExtendedTest(unittest.TestCase):

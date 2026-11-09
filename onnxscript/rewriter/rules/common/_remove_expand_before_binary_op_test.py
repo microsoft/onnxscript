@@ -56,6 +56,28 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
             ["Expand", "Add"],
         )
 
+    @parameterized.parameterized.expand(
+        [
+            ("scalar", "int64", "{2}"),
+            ("negative", "int64[1]", "{-1}"),
+            ("matrix", "int64[1,1]", "{2}"),
+            ("int32", "int32[1]", "{2}"),
+        ]
+    )
+    def test_invalid_constant_expansion_target_is_not_rewritten(self, _, dtype, value):
+        self._apply_and_check(
+            f"""
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph (float[1] x, float[2] y) => (float[2] output)
+            <{dtype} shape = {value}> {{
+                expanded = Expand(x,shape)
+                output = Add(expanded,y)
+            }}
+            """,
+            0,
+            ["Expand", "Add"],
+        )
+
     @parameterized.parameterized.expand([("Mod",), ("BitShift",)])
     def test_binary_attributes_are_preserved(self, op_type):
         dtype = "int32" if op_type == "Mod" else "uint32"

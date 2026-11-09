@@ -53,17 +53,10 @@ def _default_opset(context) -> int | None:
     return imports.get("", imports.get("ai.onnx"))
 
 
-def _cast_attributes(node: ir.Node) -> dict[str, int] | None:
-    to = node.attributes.get("to")
-    if to is None or to.is_ref():
+def _concrete_attributes(node: ir.Node) -> dict[str, ir.Attr] | None:
+    if any(attribute.is_ref() for attribute in node.attributes.values()):
         return None
-    attributes = {"to": to.as_int()}
-    saturate = node.attributes.get("saturate")
-    if saturate is not None:
-        if saturate.is_ref():
-            return None
-        attributes["saturate"] = saturate.as_int()
-    return attributes
+    return dict(node.attributes)
 
 
 def _const(op, values: Sequence[int], *, scalar: bool = False):
@@ -98,44 +91,7 @@ _ELEMENTWISE_UNARY_OPS = (
 )
 
 
-class _ConcatEmptyBase(RewriteRuleClassBase):
-    def __init__(self, count: int):
-        super().__init__(f"ConcatEmpty{count}", remove_nodes=False)
-        self._count = count
-
-    def check(self, context, axis: ir.Attr, **inputs) -> MatchResult:
-        del context
-        result = MatchResult()
-        values = [inputs[f"x{i}"] for i in range(self._count)]
-        rank = values[0].shape.rank() if values[0].shape is not None else None
-        normalized = _axis(axis, rank)
-        if normalized is None:
-            return result.fail("Concat axis cannot be normalized.")
-        self._kept = []
-        for value in values:
-            if value.shape is None or value.shape.rank() != rank:
-                self._kept.append(value)
-                continue
-            dim = value.shape[normalized]
-            if not isinstance(dim, int) or dim != 0:
-                self._kept.append(value)
-        if len(self._kept) == self._count:
-            return result.fail("No input is statically empty along the Concat axis.")
-        if not self._kept:
-            return result.fail(
-                "Removing every input would lose the output type/shape contract."
-            )
-        self._concat_axis = axis.as_int()
-        return result
-
-    def rewrite(self, op, axis: ir.Attr, **inputs):
-        del axis, inputs
-        if len(self._kept) == 1:
-            return op.Identity(self._kept[0])
-        return op.Concat(*self._kept, axis=self._concat_axis)
-
-
-class ConcatEmptyVariadic(RewriteRuleClassBase):
+class RemoveEmptyConcatInputs(RewriteRuleClassBase):
     """Remove statically empty inputs from an arbitrary-arity Concat."""
 
     def __init__(self):
@@ -178,50 +134,8 @@ class ConcatEmptyVariadic(RewriteRuleClassBase):
         return op.Concat(*self._kept, axis=self._concat_axis)
 
 
-class ConcatEmpty2(_ConcatEmptyBase):
-    def __init__(self):
-        super().__init__(2)
-
-    def pattern(self, op, x0, x1, axis):
-        return op.Concat(x0, x1, axis=axis)
-
-    def check(self, context, x0, x1, axis):
-        return super().check(context, axis, x0=x0, x1=x1)
-
-    def rewrite(self, op, x0, x1, axis):
-        return super().rewrite(op, axis, x0=x0, x1=x1)
-
-
-class ConcatEmpty3(_ConcatEmptyBase):
-    def __init__(self):
-        super().__init__(3)
-
-    def pattern(self, op, x0, x1, x2, axis):
-        return op.Concat(x0, x1, x2, axis=axis)
-
-    def check(self, context, x0, x1, x2, axis):
-        return super().check(context, axis, x0=x0, x1=x1, x2=x2)
-
-    def rewrite(self, op, x0, x1, x2, axis):
-        return super().rewrite(op, axis, x0=x0, x1=x1, x2=x2)
-
-
-class ConcatEmpty4(_ConcatEmptyBase):
-    def __init__(self):
-        super().__init__(4)
-
-    def pattern(self, op, x0, x1, x2, x3, axis):
-        return op.Concat(x0, x1, x2, x3, axis=axis)
-
-    def check(self, context, x0, x1, x2, x3, axis):
-        return super().check(context, axis, x0=x0, x1=x1, x2=x2, x3=x3)
-
-    def rewrite(self, op, x0, x1, x2, x3, axis):
-        return super().rewrite(op, axis, x0=x0, x1=x1, x2=x2, x3=x3)
-
-
-class GatherGather(RewriteRuleClassBase):
-    """Compose two axis-zero Gathers with constant indices."""
+class ComposeConsecutiveGathers(RewriteRuleClassBase):
+    """Compose same-axis Gathers when the inner indices are a constant vector."""
 
     def __init__(self):
         super().__init__(remove_nodes=False)
@@ -250,6 +164,12 @@ class GatherGather(RewriteRuleClassBase):
         outer_axis = _node_axis(outer_node, rank)
         if inner_axis is None or outer_axis is None or inner_axis != outer_axis:
             return result.fail("Consecutive Gather axes differ or cannot be normalized.")
+        if x.shape is None or not isinstance(x.shape[inner_axis], int):
+            return result.fail("The gathered input dimension must be static.")
+        input_dim = x.shape[inner_axis]
+        normalized_inner = np.where(inner < 0, inner + input_dim, inner)
+        if np.any(normalized_inner < 0) or np.any(normalized_inner >= input_dim):
+            return result.fail("Inner Gather index is out of range.")
         length = inner.size
         normalized = np.where(outer < 0, outer + length, outer)
         if np.any(normalized < 0) or np.any(normalized >= length):
@@ -263,7 +183,7 @@ class GatherGather(RewriteRuleClassBase):
         return op.Gather(x, op.Constant(value=ir.tensor(self._indices)), axis=self._axis)
 
 
-class GatherToSlice(RewriteRuleClassBase):
+class ReplaceArithmeticProgressionGatherWithSlice(RewriteRuleClassBase):
     """Replace a constant arithmetic-progression Gather by Slice."""
 
     def pattern(self, op, x, indices):
@@ -271,27 +191,25 @@ class GatherToSlice(RewriteRuleClassBase):
 
     def check(self, context, x, indices) -> MatchResult:
         result = MatchResult()
-        opset = _default_opset(context)
-        if opset is not None and opset < 13:
-            return result.fail("The rule emits input-form Slice and Squeeze (opset >= 13).")
         values = _ints(indices)
         if values is None or values.size == 0:
             return result.fail("Indices must be a non-empty constant scalar or vector.")
+        opset = _default_opset(context)
+        if opset is not None and opset < 10:
+            return result.fail("Input-form Slice requires opset 10 or later.")
+        if values.ndim == 0 and opset is not None and opset < 13:
+            return result.fail("Input-form Squeeze requires opset 13 or later.")
         rank = x.shape.rank() if x.shape is not None else None
         normalized_axis = _node_axis(context.root, rank)
         if normalized_axis is None:
             return result.fail("Gather axis cannot be normalized.")
         flat = values.reshape(-1).astype(np.int64)
-        dim = None
-        if x.shape is not None:
-            candidate = x.shape[normalized_axis]
-            if isinstance(candidate, int):
-                dim = candidate
+        if x.shape is None or not isinstance(x.shape[normalized_axis], int):
+            return result.fail("The gathered axis dimension must be static.")
+        dim = x.shape[normalized_axis]
         if np.any(flat < 0):
-            if dim is None:
-                return result.fail("Negative indices require a static axis dimension.")
             flat = np.where(flat < 0, flat + dim, flat)
-        if np.any(flat < 0) or (dim is not None and np.any(flat >= dim)):
+        if np.any(flat < 0) or np.any(flat >= dim):
             return result.fail("Gather index is out of range.")
         step = 1
         if flat.size > 1:
@@ -322,7 +240,7 @@ class GatherToSlice(RewriteRuleClassBase):
         return sliced
 
 
-class ConcatSliceElimination(RewriteRuleClassBase):
+class SelectConcatInputWithSlice(RewriteRuleClassBase):
     """Route an exact one-axis Slice of a Concat to the selected operand."""
 
     def __init__(self):
@@ -390,11 +308,11 @@ class ConcatSliceElimination(RewriteRuleClassBase):
         return op.Identity(self._selected)
 
 
-class ConcatTwiceUnary(RewriteRuleClassBase):
+class MoveUnaryBeforeDuplicateConcat(RewriteRuleClassBase):
     """Push an attribute-free elementwise unary op through Concat(x, x)."""
 
     def __init__(self, op_type: str):
-        super().__init__(f"ConcatTwice{op_type}", remove_nodes=False)
+        super().__init__(f"Move{op_type}BeforeDuplicateConcat", remove_nodes=False)
         self._op_type = op_type
 
     def pattern(self, op, x, axis):
@@ -413,7 +331,7 @@ class ConcatTwiceUnary(RewriteRuleClassBase):
         return op.Concat(transformed, transformed, axis=axis)
 
 
-class ConcatTwiceCast(RewriteRuleClassBase):
+class MoveCastBeforeDuplicateConcat(RewriteRuleClassBase):
     def __init__(self):
         super().__init__(remove_nodes=False)
 
@@ -425,9 +343,11 @@ class ConcatTwiceCast(RewriteRuleClassBase):
         result = MatchResult()
         if axis.is_ref():
             return result.fail("Reference attributes are not rewritten.")
-        attributes = _cast_attributes(context.root)
+        attributes = _concrete_attributes(context.root)
         if attributes is None:
-            return result.fail("Cast attributes are missing or reference attributes.")
+            return result.fail("Cast reference attributes cannot be moved.")
+        if "to" not in attributes:
+            return result.fail("Cast is missing its required 'to' attribute.")
         self._cast_attrs = attributes
         return result
 
@@ -436,11 +356,11 @@ class ConcatTwiceCast(RewriteRuleClassBase):
         return op.Concat(cast, cast, axis=axis)
 
 
-class ConcatTwiceScalarBinary(RewriteRuleClassBase):
+class MoveScalarBinaryBeforeDuplicateConcat(RewriteRuleClassBase):
     """Push an elementwise binary op with a scalar RHS through Concat(x, x)."""
 
     def __init__(self, op_type: str):
-        super().__init__(f"ConcatTwiceScalar{op_type}", remove_nodes=False)
+        super().__init__(f"MoveScalar{op_type}BeforeDuplicateConcat", remove_nodes=False)
         self._op_type = op_type
 
     def pattern(self, op, x, scalar, axis):
@@ -462,18 +382,18 @@ class ConcatTwiceScalarBinary(RewriteRuleClassBase):
         return op.Concat(transformed, transformed, axis=axis)
 
 
-class GatherUpstreamUnary(RewriteRuleClassBase):
-    """Move a vector Gather ahead of an expensive elementwise unary op."""
+class MoveUnaryBeforeGather(RewriteRuleClassBase):
+    """Move a constant scalar-or-vector Gather before an elementwise unary op."""
 
     def __init__(self, op_type: str):
-        super().__init__(f"GatherUpstream{op_type}")
+        super().__init__(f"Move{op_type}BeforeGather")
         self._op_type = op_type
 
-    def pattern(self, op, x, indices, axis):
+    def pattern(self, op, x, indices):
         produced = getattr(op, self._op_type)(x)
-        return op.Gather(produced, indices, axis=axis)
+        return op.Gather(produced, indices)
 
-    def check(self, context, x, indices, axis) -> MatchResult:
+    def check(self, context, x, indices) -> MatchResult:
         result = MatchResult()
         if _ints(indices, ranks=(0, 1)) is None:
             return result.fail("Gather indices must be a constant scalar or vector.")
@@ -483,53 +403,61 @@ class GatherUpstreamUnary(RewriteRuleClassBase):
         if not _exclusive_intermediate(context, produced):
             return result.fail("Producer output is shared or is a graph output.")
         rank = x.shape.rank() if x.shape is not None else None
-        if _axis(axis, rank) is None:
+        gather_axis = _node_axis(context.root, rank)
+        if gather_axis is None:
             return result.fail("Gather axis cannot be normalized.")
+        self._gather_axis = gather_axis
         return result
 
-    def rewrite(self, op, x, indices, axis):
-        gathered = op.Gather(x, indices, axis=axis)
+    def rewrite(self, op, x, indices):
+        gathered = op.Gather(x, indices, axis=self._gather_axis)
         return getattr(op, self._op_type)(gathered)
 
 
-class GatherUpstreamCast(RewriteRuleClassBase):
-    def pattern(self, op, x, indices, axis):
-        return op.Gather(op.Cast(x), indices, axis=axis)
+class MoveCastBeforeGather(RewriteRuleClassBase):
+    def pattern(self, op, x, indices):
+        return op.Gather(op.Cast(x), indices)
 
-    def check(self, context, x, indices, axis) -> MatchResult:
+    def check(self, context, x, indices) -> MatchResult:
         result = MatchResult()
-        if axis.is_ref():
-            return result.fail("Reference attributes are not rewritten.")
         if _ints(indices, ranks=(0, 1)) is None:
             return result.fail("Gather indices must be a constant scalar or vector.")
+        if x.dtype is None or x.dtype == ir.DataType.STRING:
+            return result.fail(
+                "Cast cannot move after Gather for string or unknown input types."
+            )
         cast_node = next(node for node in context.nodes if node.op_type == "Cast")
         if not _exclusive_intermediate(context, cast_node.outputs[0]):
             return result.fail("Cast output is shared or is a graph output.")
-        attributes = _cast_attributes(cast_node)
+        attributes = _concrete_attributes(cast_node)
         if attributes is None:
-            return result.fail("Cast attributes are missing or reference attributes.")
+            return result.fail("Cast reference attributes cannot be moved.")
+        if "to" not in attributes:
+            return result.fail("Cast is missing its required 'to' attribute.")
         self._cast_attrs = attributes
         rank = x.shape.rank() if x.shape is not None else None
-        if _axis(axis, rank) is None:
+        gather_axis = _node_axis(context.root, rank)
+        if gather_axis is None:
             return result.fail("Gather axis cannot be normalized.")
+        self._gather_axis = gather_axis
         return result
 
-    def rewrite(self, op, x, indices, axis):
-        return op.Cast(op.Gather(x, indices, axis=axis), **self._cast_attrs)
+    def rewrite(self, op, x, indices):
+        return op.Cast(op.Gather(x, indices, axis=self._gather_axis), **self._cast_attrs)
 
 
-class GatherUpstreamBinary(RewriteRuleClassBase):
+class MoveBroadcastBinaryBeforeGather(RewriteRuleClassBase):
     """Move a vector Gather ahead of a broadcast-compatible pointwise binary op."""
 
     def __init__(self, op_type: str):
-        super().__init__(f"GatherUpstream{op_type}")
+        super().__init__(f"MoveBroadcast{op_type}BeforeGather")
         self._op_type = op_type
 
-    def pattern(self, op, lhs, rhs, indices, axis):
+    def pattern(self, op, lhs, rhs, indices):
         produced = getattr(op, self._op_type)(lhs, rhs)
-        return op.Gather(produced, indices, axis=axis)
+        return op.Gather(produced, indices)
 
-    def check(self, context, lhs, rhs, indices, axis) -> MatchResult:
+    def check(self, context, lhs, rhs, indices) -> MatchResult:
         result = MatchResult()
         index_array = _ints(indices, ranks=(1,))
         if index_array is None:
@@ -541,7 +469,7 @@ class GatherUpstreamBinary(RewriteRuleClassBase):
         if lhs.shape is None or rhs.shape is None:
             return result.fail("Operand shapes must be known.")
         output_rank = max(lhs.shape.rank(), rhs.shape.rank())
-        normalized_axis = _axis(axis, output_rank)
+        normalized_axis = _node_axis(context.root, output_rank)
         if normalized_axis is None:
             return result.fail("Gather axis cannot be normalized.")
         aligned_dims: list[ir.SymbolicDim | int | None] = []
@@ -584,8 +512,7 @@ class GatherUpstreamBinary(RewriteRuleClassBase):
             return result.fail("No operand carries the gathered dimension.")
         return result
 
-    def rewrite(self, op, lhs, rhs, indices, axis):
-        del axis
+    def rewrite(self, op, lhs, rhs, indices):
         operands = [lhs, rhs]
         for i, local_axis in enumerate(self._operand_axes):
             if local_axis is not None:
@@ -593,7 +520,7 @@ class GatherUpstreamBinary(RewriteRuleClassBase):
         return getattr(op, self._op_type)(*operands)
 
 
-class GatherConcatVariadic(RewriteRuleClassBase):
+class SelectConcatInputWithGather(RewriteRuleClassBase):
     """Route a constant Gather into one input of an arbitrary-arity Concat."""
 
     def __init__(self):
@@ -656,7 +583,7 @@ class GatherConcatVariadic(RewriteRuleClassBase):
         return op.Gather(self._selected, local, axis=self._gather_axis)
 
 
-class SliceSlice(RewriteRuleClassBase):
+class FuseConsecutiveSlices(RewriteRuleClassBase):
     """Fuse consecutive constant Slices on disjoint axes."""
 
     def __init__(self):
@@ -734,7 +661,7 @@ class SliceSlice(RewriteRuleClassBase):
         )
 
 
-class SliceConcatToSpaceToDepthC1(RewriteRuleClassBase):
+class FuseSpatialSlicesIntoSpaceToDepth(RewriteRuleClassBase):
     """Recognize the canonical four spatial phases when the channel count is one."""
 
     def pattern(
@@ -808,79 +735,120 @@ def _partition_axis(value: ir.Value, attr: ir.Attr) -> int | None:
     return _axis(attr, rank)
 
 
-class GathersSplit2(RewriteRuleClassBase):
-    """Replace two complete sibling Gathers by one Split."""
+def _check_complete_gather_partition(
+    rule,
+    context,
+    x: ir.Value,
+    index_values: Sequence[ir.Value],
+) -> MatchResult:
+    result = MatchResult()
+    opset = _default_opset(context)
+    if opset is not None and opset < 13:
+        return result.fail("Input-form Split requires opset 13 or later.")
+    indices = [_ints(index) for index in index_values]
+    if any(index is None or index.size != 1 for index in indices):
+        return result.fail("Gather indices must be constant scalars or singleton vectors.")
+    assert all(index is not None for index in indices)
+    if any(index.ndim != indices[0].ndim for index in indices[1:]):
+        return result.fail("Gather index ranks must match.")
+    rank = x.shape.rank() if x.shape is not None else None
+    gather_nodes = [value.producer() for value in context.output_values]
+    if any(node is None for node in gather_nodes):
+        return result.fail("Matched Gather output has no producer.")
+    axes = [_node_axis(node, rank) for node in gather_nodes if node is not None]
+    axis = axes[0]
+    if axis is None or any(item != axis for item in axes[1:]):
+        return result.fail("Gather axes differ or cannot be normalized.")
+    count = len(indices)
+    if x.shape is None or x.shape[axis] != count:
+        return result.fail("Gathered axis must match the number of Gathers.")
+    slots = [int(index.item()) for index in indices]
+    slots = [slot + count if slot < 0 else slot for slot in slots]
+    if sorted(slots) != list(range(count)):
+        return result.fail("Gathers do not partition the complete axis.")
+    rule._slots = slots
+    rule._axis = axis
+    rule._scalar = indices[0].ndim == 0
+    return result
 
-    def pattern(self, op, x, i0, i1, axis0, axis1):
+
+def _replace_gather_partition_with_split(rule, op, x: ir.Value):
+    count = len(rule._slots)
+    splits = op.Split(x, _const(op, [1] * count), axis=rule._axis, _outputs=count)
+    outputs = [splits[slot] for slot in rule._slots]
+    if rule._scalar:
+        axes = _const(op, [rule._axis])
+        outputs = [op.Squeeze(output, axes) for output in outputs]
+    return tuple(outputs)
+
+
+def _gather_index_selects(expected: int):
+    def check(context, node) -> bool:
+        del context
+        index = _ints(node.inputs[1], ranks=(0, 1))
+        data = node.inputs[0]
+        if index is None or index.size != 1 or data is None or data.shape is None:
+            return False
+        axis = _node_axis(node, data.shape.rank())
+        if axis is None or not isinstance(data.shape[axis], int):
+            return False
+        value = int(index.item())
+        if value < 0:
+            value += data.shape[axis]
+        return value == expected
+
+    return check
+
+
+class ReplaceGatherPartitionWithSplit2(RewriteRuleClassBase):
+    """Replace two sibling Gathers that completely partition an axis with Split."""
+
+    def pattern(self, op, x, i0, i1):
         return (
-            op.Gather(x, i0, axis=axis0, _check=_gather_index_checker(0)),
-            op.Gather(x, i1, axis=axis1, _check=_gather_index_checker(1)),
+            op.Gather(x, i0, _check=_gather_index_selects(0)),
+            op.Gather(x, i1, _check=_gather_index_selects(1)),
         )
 
-    def _check(self, context, x, indices, axes) -> MatchResult:
-        result = MatchResult()
-        indices = [_ints(index) for index in indices]
-        if any(index is None or index.size != 1 for index in indices):
-            return result.fail("Gather indices must be constant scalars or singleton vectors.")
-        assert all(index is not None for index in indices)
-        if any(index.ndim != indices[0].ndim for index in indices[1:]):
-            return result.fail("Gather index ranks must match.")
-        axis = _partition_axis(x, axes[0])
-        if axis is None or any(axis != _partition_axis(x, item) for item in axes[1:]):
-            return result.fail("Gather axes differ or cannot be normalized.")
-        count = len(indices)
-        if x.shape is None or x.shape[axis] != count:
-            return result.fail("Gathered axis must match the number of Gathers.")
-        values = [int(index.item()) for index in indices]
-        values = [value + count if value < 0 else value for value in values]
-        if sorted(values) != list(range(count)):
-            return result.fail("Gathers do not partition the complete axis.")
-        self._slots = values
-        self._axis = axis
-        self._scalar = indices[0].ndim == 0
-        opset = _default_opset(context)
-        if self._scalar and opset is not None and opset < 13:
-            return result.fail(
-                "Scalar Gather partition requires input-form Squeeze (opset >= 13)."
-            )
-        return result
-
-    def check(self, context, x, i0, i1, axis0, axis1) -> MatchResult:
-        return self._check(context, x, (i0, i1), (axis0, axis1))
+    def check(self, context, x, i0, i1) -> MatchResult:
+        return _check_complete_gather_partition(self, context, x, (i0, i1))
 
     def rewrite(self, op, x, **_):
-        count = len(self._slots)
-        splits = op.Split(x, _const(op, [1] * count), axis=self._axis, _outputs=count)
-        outputs = [splits[slot] for slot in self._slots]
-        if self._scalar:
-            axes = _const(op, [self._axis])
-            outputs = [op.Squeeze(output, axes) for output in outputs]
-        return tuple(outputs)
+        return _replace_gather_partition_with_split(self, op, x)
 
 
-class GathersSplit3(GathersSplit2):
-    def pattern(self, op, x, i0, i1, i2, axis0, axis1, axis2):
+class ReplaceGatherPartitionWithSplit3(RewriteRuleClassBase):
+    """Replace three sibling Gathers that completely partition an axis with Split."""
+
+    def pattern(self, op, x, i0, i1, i2):
         return (
-            op.Gather(x, i0, axis=axis0, _check=_gather_index_checker(0)),
-            op.Gather(x, i1, axis=axis1, _check=_gather_index_checker(1)),
-            op.Gather(x, i2, axis=axis2, _check=_gather_index_checker(2)),
+            op.Gather(x, i0, _check=_gather_index_selects(0)),
+            op.Gather(x, i1, _check=_gather_index_selects(1)),
+            op.Gather(x, i2, _check=_gather_index_selects(2)),
         )
 
-    def check(self, context, x, i0, i1, i2, axis0, axis1, axis2):
-        return self._check(context, x, (i0, i1, i2), (axis0, axis1, axis2))
+    def check(self, context, x, i0, i1, i2) -> MatchResult:
+        return _check_complete_gather_partition(self, context, x, (i0, i1, i2))
+
+    def rewrite(self, op, x, **_):
+        return _replace_gather_partition_with_split(self, op, x)
 
 
-class GathersSplit4(GathersSplit2):
-    def pattern(self, op, x, i0, i1, i2, i3, axis0, axis1, axis2, axis3):
+class ReplaceGatherPartitionWithSplit4(RewriteRuleClassBase):
+    """Replace four sibling Gathers that completely partition an axis with Split."""
+
+    def pattern(self, op, x, i0, i1, i2, i3):
         return (
-            op.Gather(x, i0, axis=axis0, _check=_gather_index_checker(0)),
-            op.Gather(x, i1, axis=axis1, _check=_gather_index_checker(1)),
-            op.Gather(x, i2, axis=axis2, _check=_gather_index_checker(2)),
-            op.Gather(x, i3, axis=axis3, _check=_gather_index_checker(3)),
+            op.Gather(x, i0, _check=_gather_index_selects(0)),
+            op.Gather(x, i1, _check=_gather_index_selects(1)),
+            op.Gather(x, i2, _check=_gather_index_selects(2)),
+            op.Gather(x, i3, _check=_gather_index_selects(3)),
         )
 
-    def check(self, context, x, i0, i1, i2, i3, axis0, axis1, axis2, axis3):
-        return self._check(context, x, (i0, i1, i2, i3), (axis0, axis1, axis2, axis3))
+    def check(self, context, x, i0, i1, i2, i3) -> MatchResult:
+        return _check_complete_gather_partition(self, context, x, (i0, i1, i2, i3))
+
+    def rewrite(self, op, x, **_):
+        return _replace_gather_partition_with_split(self, op, x)
 
 
 def _read_slice_range(
@@ -917,17 +885,51 @@ def _read_slice_range(
     return axis, begin, finish
 
 
-def _gather_index_checker(expected: int):
-    def check(context, node):
-        del context
-        index = _ints(node.inputs[1], ranks=(0, 1))
-        return index is not None and index.size == 1 and int(index.item()) == expected
+def _check_complete_slice_partition(rule, context, x, parameters) -> MatchResult:
+    result = MatchResult()
+    opset = _default_opset(context)
+    if opset is not None and opset < 13:
+        return result.fail("Input-form Split requires opset 13 or later.")
+    ranges = [
+        _read_slice_range(x, starts, ends, axes, steps)
+        for starts, ends, axes, steps in parameters
+    ]
+    if any(item is None for item in ranges):
+        return result.fail("Slices must have valid constant singleton parameters.")
+    assert all(item is not None for item in ranges)
+    if any(item[0] != ranges[0][0] for item in ranges[1:]):
+        return result.fail("Slices use different axes.")
+    ordered = sorted(enumerate(ranges), key=lambda item: item[1][1])
+    axis = ranges[0][0]
+    dim = x.shape[axis]
+    assert isinstance(dim, int)
+    expected = 0
+    for _, item in ordered:
+        if item[1] != expected:
+            return result.fail("Slice ranges are not a contiguous partition.")
+        expected = item[2]
+    if expected != dim:
+        return result.fail("Slice ranges do not cover the complete axis.")
+    rule._sizes = [item[2] - item[1] for _, item in ordered]
+    rule._output_slots = [0] * len(ordered)
+    for split_slot, (original_slot, _) in enumerate(ordered):
+        rule._output_slots[original_slot] = split_slot
+    rule._axis = axis
+    return result
 
-    return check
+
+def _replace_slice_partition_with_split(rule, op, x):
+    outputs = op.Split(
+        x,
+        _const(op, rule._sizes),
+        axis=rule._axis,
+        _outputs=len(rule._sizes),
+    )
+    return tuple(outputs[slot] for slot in rule._output_slots)
 
 
-class SlicesSplit2(RewriteRuleClassBase):
-    """Replace two constant sibling Slices covering an axis by one Split."""
+class ReplaceSlicePartitionWithSplit2(RewriteRuleClassBase):
+    """Replace two constant sibling Slices covering an axis with Split."""
 
     def pattern(self, op, x, s0, e0, a0, st0, s1, e1, a1, st1):
         return (
@@ -935,54 +937,21 @@ class SlicesSplit2(RewriteRuleClassBase):
             op.Slice(x, s1, e1, a1, st1),
         )
 
-    def _check(self, context, x, parameters) -> MatchResult:
-        del context
-        result = MatchResult()
-        ranges = [
-            _read_slice_range(x, starts, ends, axes, steps)
-            for starts, ends, axes, steps in parameters
-        ]
-        if any(item is None for item in ranges):
-            return result.fail("Slices must have valid constant singleton parameters.")
-        assert all(item is not None for item in ranges)
-        if any(item[0] != ranges[0][0] for item in ranges[1:]):
-            return result.fail("Slices use different axes.")
-        ordered = sorted(enumerate(ranges), key=lambda item: item[1][1])
-        axis = ranges[0][0]
-        dim = x.shape[axis]
-        assert isinstance(dim, int)
-        expected = 0
-        for _, item in ordered:
-            if item[1] != expected:
-                return result.fail("Slice ranges are not a contiguous partition.")
-            expected = item[2]
-        if expected != dim:
-            return result.fail("Slice ranges do not cover the complete axis.")
-        self._sizes = [item[2] - item[1] for _, item in ordered]
-        self._output_slots = [0] * len(ordered)
-        for split_slot, (original_slot, _) in enumerate(ordered):
-            self._output_slots[original_slot] = split_slot
-        self._axis = axis
-        return result
-
     def check(self, context, x, s0, e0, a0, st0, s1, e1, a1, st1) -> MatchResult:
-        return self._check(
+        return _check_complete_slice_partition(
+            self,
             context,
             x,
             ((s0, e0, a0, st0), (s1, e1, a1, st1)),
         )
 
     def rewrite(self, op, x, **_):
-        outputs = op.Split(
-            x,
-            _const(op, self._sizes),
-            axis=self._axis,
-            _outputs=len(self._sizes),
-        )
-        return tuple(outputs[slot] for slot in self._output_slots)
+        return _replace_slice_partition_with_split(self, op, x)
 
 
-class SlicesSplit3(SlicesSplit2):
+class ReplaceSlicePartitionWithSplit3(RewriteRuleClassBase):
+    """Replace three constant sibling Slices covering an axis with Split."""
+
     def pattern(
         self,
         op,
@@ -1023,7 +992,8 @@ class SlicesSplit3(SlicesSplit2):
         a2,
         st2,
     ):
-        return self._check(
+        return _check_complete_slice_partition(
+            self,
             context,
             x,
             (
@@ -1033,8 +1003,13 @@ class SlicesSplit3(SlicesSplit2):
             ),
         )
 
+    def rewrite(self, op, x, **_):
+        return _replace_slice_partition_with_split(self, op, x)
 
-class SlicesSplit4(SlicesSplit2):
+
+class ReplaceSlicePartitionWithSplit4(RewriteRuleClassBase):
+    """Replace four constant sibling Slices covering an axis with Split."""
+
     def pattern(
         self,
         op,
@@ -1084,7 +1059,8 @@ class SlicesSplit4(SlicesSplit2):
         a3,
         st3,
     ):
-        return self._check(
+        return _check_complete_slice_partition(
+            self,
             context,
             x,
             (
@@ -1095,13 +1071,16 @@ class SlicesSplit4(SlicesSplit2):
             ),
         )
 
+    def rewrite(self, op, x, **_):
+        return _replace_slice_partition_with_split(self, op, x)
 
-class _GatherSliceToSplit2Base(RewriteRuleClassBase):
+
+class _ReplaceGatherSlicePartitionWithSplit2Base(RewriteRuleClassBase):
     def __init__(self, gather_first: bool):
         super().__init__(
-            "GatherSliceToSplit2GatherFirst"
+            "ReplaceGatherSlicePartitionWithSplit2GatherFirst"
             if gather_first
-            else "GatherSliceToSplit2SliceFirst"
+            else "ReplaceGatherSlicePartitionWithSplit2SliceFirst"
         )
         self._gather_first = gather_first
 
@@ -1110,7 +1089,6 @@ class _GatherSliceToSplit2Base(RewriteRuleClassBase):
         context,
         x,
         index,
-        gather_axis,
         starts,
         ends,
         axes,
@@ -1126,7 +1104,11 @@ class _GatherSliceToSplit2Base(RewriteRuleClassBase):
         slice_range = _read_slice_range(x, starts, ends, axes, steps)
         if index_array is None or slice_range is None or x.shape is None:
             return result.fail("Gather/Slice parameters must be constant and valid.")
-        axis = _partition_axis(x, gather_axis)
+        gather_output = context.output_values[0 if self._gather_first else 1]
+        gather_node = gather_output.producer()
+        if gather_node is None:
+            return result.fail("Matched Gather output has no producer.")
+        axis = _node_axis(gather_node, x.shape.rank())
         if axis is None or axis != slice_range[0]:
             return result.fail("Gather and Slice axes differ.")
         dim = x.shape[axis]
@@ -1164,34 +1146,38 @@ class _GatherSliceToSplit2Base(RewriteRuleClassBase):
         )
 
 
-class GatherSliceToSplit2GatherFirst(_GatherSliceToSplit2Base):
+class ReplaceGatherSlicePartitionWithSplit2GatherFirst(
+    _ReplaceGatherSlicePartitionWithSplit2Base
+):
     def __init__(self):
         super().__init__(True)
 
-    def pattern(self, op, x, index, gather_axis, starts, ends, axes, steps):
+    def pattern(self, op, x, index, starts, ends, axes, steps):
         return (
-            op.Gather(x, index, axis=gather_axis),
+            op.Gather(x, index),
             op.Slice(x, starts, ends, axes, steps),
         )
 
 
-class GatherSliceToSplit2SliceFirst(_GatherSliceToSplit2Base):
+class ReplaceGatherSlicePartitionWithSplit2SliceFirst(
+    _ReplaceGatherSlicePartitionWithSplit2Base
+):
     def __init__(self):
         super().__init__(False)
 
-    def pattern(self, op, x, index, gather_axis, starts, ends, axes, steps):
+    def pattern(self, op, x, index, starts, ends, axes, steps):
         return (
             op.Slice(x, starts, ends, axes, steps),
-            op.Gather(x, index, axis=gather_axis),
+            op.Gather(x, index),
         )
 
 
-class _GatherSliceToSplit3Base(RewriteRuleClassBase):
-    def __init__(self, gather_count: int):
-        super().__init__(f"GatherSliceToSplit3_{gather_count}Gathers")
+class _ReplaceGatherSlicePartitionWithSplit3Base(RewriteRuleClassBase):
+    def __init__(self, name: str, gather_count: int):
+        super().__init__(name)
         self._gather_count = gather_count
 
-    def _check(self, context, x, gathers, slices) -> MatchResult:
+    def _check(self, context, x, gather_indices, slices) -> MatchResult:
         result = MatchResult()
         opset = _default_opset(context)
         if opset is not None and opset < 13:
@@ -1202,9 +1188,15 @@ class _GatherSliceToSplit3Base(RewriteRuleClassBase):
             return result.fail("Partition input shape must be known.")
         ranges: list[tuple[int, int, bool]] = []
         common_axis = None
-        for index, axis_attr in gathers:
+        gather_nodes = [
+            value.producer() for value in context.output_values[: self._gather_count]
+        ]
+        if any(node is None for node in gather_nodes):
+            return result.fail("Matched Gather output has no producer.")
+        for index, gather_node in zip(gather_indices, gather_nodes):
             index_array = _ints(index, ranks=(0,))
-            axis = _partition_axis(x, axis_attr)
+            assert gather_node is not None
+            axis = _node_axis(gather_node, x.shape.rank())
             if index_array is None or axis is None or not isinstance(x.shape[axis], int):
                 return result.fail("Gather parameters and axis dimension must be static.")
             dim = x.shape[axis]
@@ -1260,16 +1252,15 @@ class _GatherSliceToSplit3Base(RewriteRuleClassBase):
         return tuple(outputs)
 
 
-class GatherSlicesToSplit3(_GatherSliceToSplit3Base):
+class ReplaceOneGatherTwoSlicesPartitionWithSplit(_ReplaceGatherSlicePartitionWithSplit3Base):
     def __init__(self):
-        super().__init__(1)
+        super().__init__("ReplaceOneGatherTwoSlicesPartitionWithSplit", 1)
 
     def pattern(
         self,
         op,
         x,
         index,
-        gather_axis,
         s0,
         e0,
         a0,
@@ -1279,7 +1270,7 @@ class GatherSlicesToSplit3(_GatherSliceToSplit3Base):
         st1,
     ):
         return (
-            op.Gather(x, index, axis=gather_axis),
+            op.Gather(x, index),
             op.Slice(x, s0, e0, a0, st0),
             op.Slice(x, e0, e1, a1, st1),
         )
@@ -1289,7 +1280,6 @@ class GatherSlicesToSplit3(_GatherSliceToSplit3Base):
         context,
         x,
         index,
-        gather_axis,
         s0,
         e0,
         a0,
@@ -1301,14 +1291,14 @@ class GatherSlicesToSplit3(_GatherSliceToSplit3Base):
         return self._check(
             context,
             x,
-            ((index, gather_axis),),
+            (index,),
             ((s0, e0, a0, st0), (e0, e1, a1, st1)),
         )
 
 
-class GathersSliceToSplit3(_GatherSliceToSplit3Base):
+class ReplaceTwoGathersOneSlicePartitionWithSplit(_ReplaceGatherSlicePartitionWithSplit3Base):
     def __init__(self):
-        super().__init__(2)
+        super().__init__("ReplaceTwoGathersOneSlicePartitionWithSplit", 2)
 
     def pattern(
         self,
@@ -1316,16 +1306,14 @@ class GathersSliceToSplit3(_GatherSliceToSplit3Base):
         x,
         i0,
         i1,
-        axis0,
-        axis1,
         starts,
         ends,
         axes,
         steps,
     ):
         return (
-            op.Gather(x, i0, axis=axis0),
-            op.Gather(x, i1, axis=axis1),
+            op.Gather(x, i0),
+            op.Gather(x, i1),
             op.Slice(x, starts, ends, axes, steps),
         )
 
@@ -1335,8 +1323,6 @@ class GathersSliceToSplit3(_GatherSliceToSplit3Base):
         x,
         i0,
         i1,
-        axis0,
-        axis1,
         starts,
         ends,
         axes,
@@ -1345,15 +1331,14 @@ class GathersSliceToSplit3(_GatherSliceToSplit3Base):
         return self._check(
             context,
             x,
-            ((i0, axis0), (i1, axis1)),
+            (i0, i1),
             ((starts, ends, axes, steps),),
         )
 
 
-class _SplitConcatBase(RewriteRuleClassBase):
+class _EliminateSplitConcatRoundTripBase(RewriteRuleClassBase):
     def __init__(self, count: int):
-        super().__init__(f"SplitConcat{count}", remove_nodes=False)
-        self._count = count
+        super().__init__(f"EliminateSplitConcatRoundTrip{count}", remove_nodes=False)
 
     def check(self, context, x, split, concat_axis) -> MatchResult:
         del split
@@ -1375,7 +1360,7 @@ class _SplitConcatBase(RewriteRuleClassBase):
         return op.Identity(x)
 
 
-class SplitConcat2(_SplitConcatBase):
+class EliminateSplitConcatRoundTrip2(_EliminateSplitConcatRoundTripBase):
     def __init__(self):
         super().__init__(2)
 
@@ -1384,7 +1369,7 @@ class SplitConcat2(_SplitConcatBase):
         return op.Concat(y0, y1, axis=concat_axis)
 
 
-class SplitConcat3(_SplitConcatBase):
+class EliminateSplitConcatRoundTrip3(_EliminateSplitConcatRoundTripBase):
     def __init__(self):
         super().__init__(3)
 
@@ -1393,7 +1378,7 @@ class SplitConcat3(_SplitConcatBase):
         return op.Concat(y0, y1, y2, axis=concat_axis)
 
 
-class SplitConcat4(_SplitConcatBase):
+class EliminateSplitConcatRoundTrip4(_EliminateSplitConcatRoundTripBase):
     def __init__(self):
         super().__init__(4)
 
@@ -1402,9 +1387,23 @@ class SplitConcat4(_SplitConcatBase):
         return op.Concat(y0, y1, y2, y3, axis=concat_axis)
 
 
-class _SequenceConstructAtBase(RewriteRuleClassBase):
+def _sequence_index_selects(expected: int, count: int):
+    def check(context, node) -> bool:
+        del context
+        index = _ints(node.inputs[1], ranks=(0,))
+        if index is None:
+            return False
+        value = int(index.item())
+        if value < 0:
+            value += count
+        return value == expected
+
+    return check
+
+
+class _EliminateSequenceConstructAtPermutationBase(RewriteRuleClassBase):
     def __init__(self, count: int):
-        super().__init__(f"SequenceConstructAt{count}", remove_nodes=False)
+        super().__init__(f"EliminateSequenceConstructAtPermutation{count}", remove_nodes=False)
         self._count = count
 
     def check(self, context, **bindings) -> MatchResult:
@@ -1437,82 +1436,88 @@ class _SequenceConstructAtBase(RewriteRuleClassBase):
         return tuple(op.Identity(inputs[index]) for index in self._order)
 
 
-class SequenceConstructAt2(_SequenceConstructAtBase):
+class EliminateSequenceConstructAtPermutation2(_EliminateSequenceConstructAtPermutationBase):
     def __init__(self):
         super().__init__(2)
 
     def pattern(self, op, x0, x1, i0, i1):
         sequence = op.SequenceConstruct(x0, x1)
-        return op.SequenceAt(sequence, i0), op.SequenceAt(sequence, i1)
+        return (
+            op.SequenceAt(sequence, i0, _check=_sequence_index_selects(0, 2)),
+            op.SequenceAt(sequence, i1, _check=_sequence_index_selects(1, 2)),
+        )
 
 
-class SequenceConstructAt3(_SequenceConstructAtBase):
+class EliminateSequenceConstructAtPermutation3(_EliminateSequenceConstructAtPermutationBase):
     def __init__(self):
         super().__init__(3)
 
     def pattern(self, op, x0, x1, x2, i0, i1, i2):
         sequence = op.SequenceConstruct(x0, x1, x2)
         return (
-            op.SequenceAt(sequence, i0),
-            op.SequenceAt(sequence, i1),
-            op.SequenceAt(sequence, i2),
+            op.SequenceAt(sequence, i0, _check=_sequence_index_selects(0, 3)),
+            op.SequenceAt(sequence, i1, _check=_sequence_index_selects(1, 3)),
+            op.SequenceAt(sequence, i2, _check=_sequence_index_selects(2, 3)),
         )
 
 
-class SequenceConstructAt4(_SequenceConstructAtBase):
+class EliminateSequenceConstructAtPermutation4(_EliminateSequenceConstructAtPermutationBase):
     def __init__(self):
         super().__init__(4)
 
     def pattern(self, op, x0, x1, x2, x3, i0, i1, i2, i3):
         sequence = op.SequenceConstruct(x0, x1, x2, x3)
         return (
-            op.SequenceAt(sequence, i0),
-            op.SequenceAt(sequence, i1),
-            op.SequenceAt(sequence, i2),
-            op.SequenceAt(sequence, i3),
+            op.SequenceAt(sequence, i0, _check=_sequence_index_selects(0, 4)),
+            op.SequenceAt(sequence, i1, _check=_sequence_index_selects(1, 4)),
+            op.SequenceAt(sequence, i2, _check=_sequence_index_selects(2, 4)),
+            op.SequenceAt(sequence, i3, _check=_sequence_index_selects(3, 4)),
         )
 
 
-_concat_twice_rules = [ConcatTwiceUnary.rule(op_type) for op_type in _ELEMENTWISE_UNARY_OPS]
-_concat_twice_rules.extend(
-    ConcatTwiceScalarBinary.rule(op_type) for op_type in ("Add", "Div", "Mul", "Sub")
+_move_before_duplicate_concat_rules = [
+    MoveUnaryBeforeDuplicateConcat.rule(op_type) for op_type in _ELEMENTWISE_UNARY_OPS
+]
+_move_before_duplicate_concat_rules.extend(
+    MoveScalarBinaryBeforeDuplicateConcat.rule(op_type)
+    for op_type in ("Add", "Div", "Mul", "Sub")
 )
 
-_gather_upstream_rules = [
-    GatherUpstreamUnary.rule(op_type) for op_type in _ELEMENTWISE_UNARY_OPS
+_move_before_gather_rules = [
+    MoveUnaryBeforeGather.rule(op_type) for op_type in _ELEMENTWISE_UNARY_OPS
 ]
-_gather_upstream_rules.extend(
-    GatherUpstreamBinary.rule(op_type) for op_type in ("Add", "Div", "Mul", "Sub")
+_move_before_gather_rules.extend(
+    MoveBroadcastBinaryBeforeGather.rule(op_type) for op_type in ("Add", "Div", "Mul", "Sub")
 )
 
 rules = RewriteRuleSet(
     [
-        ConcatEmptyVariadic.rule(),
-        *_concat_twice_rules,
-        ConcatTwiceCast.rule(),
-        GatherGather.rule(),
-        GatherConcatVariadic.rule(),
-        *_gather_upstream_rules,
-        GatherUpstreamCast.rule(),
-        GathersSplit2.rule(),
-        GathersSplit3.rule(),
-        GathersSplit4.rule(),
-        SlicesSplit2.rule(),
-        SlicesSplit3.rule(),
-        SlicesSplit4.rule(),
-        GatherSliceToSplit2GatherFirst.rule(),
-        GatherSliceToSplit2SliceFirst.rule(),
-        GatherSlicesToSplit3.rule(),
-        GathersSliceToSplit3.rule(),
-        GatherToSlice.rule(),
-        ConcatSliceElimination.rule(),
-        SliceSlice.rule(),
-        SliceConcatToSpaceToDepthC1.rule(),
-        SplitConcat2.rule(),
-        SplitConcat3.rule(),
-        SplitConcat4.rule(),
-        SequenceConstructAt2.rule(),
-        SequenceConstructAt3.rule(),
-        SequenceConstructAt4.rule(),
+        RemoveEmptyConcatInputs.rule(),
+        *_move_before_duplicate_concat_rules,
+        MoveCastBeforeDuplicateConcat.rule(),
+        ComposeConsecutiveGathers.rule(),
+        SelectConcatInputWithGather.rule(),
+        *_move_before_gather_rules,
+        MoveCastBeforeGather.rule(),
+        ReplaceGatherPartitionWithSplit2.rule(),
+        ReplaceGatherPartitionWithSplit3.rule(),
+        ReplaceGatherPartitionWithSplit4.rule(),
+        ReplaceSlicePartitionWithSplit2.rule(),
+        ReplaceSlicePartitionWithSplit3.rule(),
+        ReplaceSlicePartitionWithSplit4.rule(),
+        ReplaceGatherSlicePartitionWithSplit2GatherFirst.rule(),
+        ReplaceGatherSlicePartitionWithSplit2SliceFirst.rule(),
+        ReplaceOneGatherTwoSlicesPartitionWithSplit.rule(),
+        ReplaceTwoGathersOneSlicePartitionWithSplit.rule(),
+        ReplaceArithmeticProgressionGatherWithSlice.rule(),
+        SelectConcatInputWithSlice.rule(),
+        FuseConsecutiveSlices.rule(),
+        FuseSpatialSlicesIntoSpaceToDepth.rule(),
+        EliminateSplitConcatRoundTrip2.rule(),
+        EliminateSplitConcatRoundTrip3.rule(),
+        EliminateSplitConcatRoundTrip4.rule(),
+        EliminateSequenceConstructAtPermutation2.rule(),
+        EliminateSequenceConstructAtPermutation3.rule(),
+        EliminateSequenceConstructAtPermutation4.rule(),
     ]
 )

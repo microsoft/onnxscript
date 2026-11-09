@@ -20,7 +20,10 @@ from onnxscript.rewriter.rules.fusion._rotary_embedding import (
 class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
     def __init__(self, use_split=False):
         self._use_split = use_split
-        super().__init__(name="RotaryEmbedding", as_function=True)
+        super().__init__(
+            name=f"FuseRotaryEmbeddingFrom{'Split' if use_split else 'Slices'}",
+            as_function=True,
+        )
 
     def pattern(
         self, op, x, cos, sin, start1, end1, start2, end2, split_sizes=None, split_axis=None
@@ -51,6 +54,8 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         head_size = x.shape[3]
         if not isinstance(head_size, int):
             return check_result.fail("Head size is not an integer.", x)
+        if head_size <= 0 or head_size % 2:
+            return check_result.fail("Rotary head size must be a positive even integer.", x)
         half_head_size = head_size // 2
 
         # Check that x is being split into two equal halves of size half_head_size
@@ -78,7 +83,10 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
 
 class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
     def __init__(self, use_split=False):
-        super().__init__()
+        super().__init__(
+            f"FusePartialRotaryEmbeddingFrom{'Split' if use_split else 'Slices'}",
+            remove_nodes=False,
+        )
         self._use_split = use_split
 
     def pattern(self, op, x, end1, start2, split_sizes=None, split_axis=None):
@@ -108,6 +116,10 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
+        if x_part_1_rope.is_graph_output() or len(x_part_1_rope.uses()) != 1:
+            return check_result.fail(
+                "Partial fusion must not duplicate shared rotary computation."
+            )
         if self._use_split:
             end1_value = start2_value = _rotary_split_size(x, split_sizes, split_axis)
         else:
@@ -121,7 +133,18 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
             return check_result.fail(
                 "The end1 value of first slice and start2 value of second slice are not equal."
             )
+        if not (
+            _ir_utils.has_rank(x, 4)
+            and isinstance(x.shape[3], int)
+            and 0 < end1_value <= x.shape[3]
+            and end1_value % 2 == 0
+        ):
+            return check_result.fail(
+                "Partial rotary dimension must be positive, even, and within the input head."
+            )
         rotary_embedding_attributes = x_part_1_rope.producer().attributes
+        if any(attr.is_ref() for attr in rotary_embedding_attributes.values()):
+            return check_result.fail("Rotary attributes must be concrete for partial fusion.")
         if "rotary_embedding_dim" in rotary_embedding_attributes:
             return check_result.fail("rotary_embedding_dim attribute already specified.")
         if (

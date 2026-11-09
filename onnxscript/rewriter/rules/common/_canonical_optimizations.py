@@ -94,7 +94,7 @@ class PadPadFusion(RewriteRuleClassBase):
     """Fuses two non-negative constant-mode Pads with equal fill values."""
 
     def __init__(self):
-        super().__init__(remove_nodes=False)
+        super().__init__("FuseConsecutiveConstantPads", remove_nodes=False)
 
     def pattern(self, op, x):
         first = op.Pad(
@@ -111,8 +111,10 @@ class PadPadFusion(RewriteRuleClassBase):
         )
 
     def check(self, context, x: ir.Value, first: ir.Value, second: ir.Value) -> MatchResult:
-        del context
         result = MatchResult()
+        opset = _default_opset(context)
+        if opset is None or opset < 11:
+            return result.fail("Input-form Pad requires ONNX opset 11 or newer.")
         first_node = first.producer()
         second_node = second.producer()
         if first_node is None or second_node is None or x.shape is None:
@@ -132,6 +134,8 @@ class PadPadFusion(RewriteRuleClassBase):
         rank = x.shape.rank()
         first_axes = first_node.inputs[3] if len(first_node.inputs) > 3 else None
         second_axes = second_node.inputs[3] if len(second_node.inputs) > 3 else None
+        if (first_axes is not None or second_axes is not None) and opset < 18:
+            return result.fail("Pad axes inputs require ONNX opset 18 or newer.")
         first_pads = _normalize_pad(first_node.inputs[1], first_axes, rank)
         second_pads = _normalize_pad(second_node.inputs[1], second_axes, rank)
         if first_pads is None or second_pads is None:
@@ -221,9 +225,11 @@ class _ReduceArgTopKBase(RewriteRuleClassBase):
             return result.fail("The axes-input reduction form requires ONNX opset 18.")
         supported_types = {
             ir.DataType.INT8,
+            ir.DataType.INT16,
             ir.DataType.INT32,
             ir.DataType.INT64,
             ir.DataType.UINT8,
+            ir.DataType.UINT16,
             ir.DataType.UINT32,
             ir.DataType.UINT64,
         }
@@ -436,6 +442,18 @@ class CastTranspose(RewriteRuleClassBase):
 
 
 class _CastLayoutBase(RewriteRuleClassBase):
+    def check(
+        self,
+        context,
+        layout_output: ir.Value,
+        **_,
+    ) -> MatchResult:
+        del context
+        result = MatchResult()
+        if layout_output.is_graph_output() or len(list(layout_output.uses())) != 1:
+            return result.fail("Layout must be removable to avoid duplicating Cast work.")
+        return result
+
     def rewrite(
         self,
         op,
@@ -499,7 +517,7 @@ class SwapRangeAddScalar(RewriteRuleClassBase):
     """Moves a checked constant integer offset into Range start and limit."""
 
     def __init__(self):
-        super().__init__(remove_nodes=False)
+        super().__init__("MoveIntegerRangeOffsetIntoBounds", remove_nodes=False)
 
     def pattern(self, op, start, limit, delta, offset):
         range_output = op.Range(start, limit, delta, _outputs=["range_output"])
@@ -521,6 +539,10 @@ class SwapRangeAddScalar(RewriteRuleClassBase):
         if any(value is None or value.size != 1 for value in constants):
             return result.fail("Range parameters and offset must be scalar constants.")
         assert all(value is not None for value in constants)
+        if any(value.ndim != 0 for value in constants[:3]):
+            return result.fail("Range start, limit, and delta must be scalar tensors.")
+        if constants[3].ndim > 1:
+            return result.fail("The offset must not increase the Range output rank.")
         dtypes = {value.dtype for value in constants}
         if len(dtypes) != 1:
             return result.fail("Range parameters and offset must have the same dtype.")
@@ -567,19 +589,35 @@ class SwapRangeAddScalar(RewriteRuleClassBase):
 
 
 pad_pad_fusion_rule = PadPadFusion.rule()
-reshape_identity_rule = ReshapeIdentity.rule()
-reduce_max_argmax_topk_rule = ReduceMaxArgMaxTopK.rule(remove_nodes=False)
-reduce_min_argmin_topk_rule = ReduceMinArgMinTopK.rule(remove_nodes=False)
-add_vector_right_rule = RewriteRule(_add_vector_right, _identity, _zero_vector_check)
-add_vector_left_rule = RewriteRule(_add_vector_left, _identity, _zero_vector_check)
-sub_vector_right_rule = RewriteRule(_sub_vector_right, _identity, _zero_vector_check)
-mul_vector_right_rule = RewriteRule(_mul_vector_right, _identity, _one_vector_check)
-mul_vector_left_rule = RewriteRule(_mul_vector_left, _identity, _one_vector_check)
-div_vector_right_rule = RewriteRule(_div_vector_right, _identity, _one_vector_check)
-cast_transpose_rule = CastTranspose.rule(remove_nodes=False)
-cast_reshape_rule = CastReshape.rule(remove_nodes=False)
-cast_squeeze_rule = CastSqueeze.rule(remove_nodes=False)
-cast_unsqueeze_rule = CastUnsqueeze.rule(remove_nodes=False)
+reshape_identity_rule = ReshapeIdentity.rule(name="RemoveIdentityAllZeroReshape")
+reduce_max_argmax_topk_rule = ReduceMaxArgMaxTopK.rule(
+    name="FuseReduceMaxArgMaxIntoTopK", remove_nodes=False
+)
+reduce_min_argmin_topk_rule = ReduceMinArgMinTopK.rule(
+    name="FuseReduceMinArgMinIntoTopK", remove_nodes=False
+)
+add_vector_right_rule = RewriteRule(
+    _add_vector_right, _identity, _zero_vector_check, name="RemoveRightAddZeroVector"
+)
+add_vector_left_rule = RewriteRule(
+    _add_vector_left, _identity, _zero_vector_check, name="RemoveLeftAddZeroVector"
+)
+sub_vector_right_rule = RewriteRule(
+    _sub_vector_right, _identity, _zero_vector_check, name="RemoveRightSubZeroVector"
+)
+mul_vector_right_rule = RewriteRule(
+    _mul_vector_right, _identity, _one_vector_check, name="RemoveRightMulOneVector"
+)
+mul_vector_left_rule = RewriteRule(
+    _mul_vector_left, _identity, _one_vector_check, name="RemoveLeftMulOneVector"
+)
+div_vector_right_rule = RewriteRule(
+    _div_vector_right, _identity, _one_vector_check, name="RemoveRightDivOneVector"
+)
+cast_transpose_rule = CastTranspose.rule(name="MoveCastBeforeTranspose", remove_nodes=False)
+cast_reshape_rule = CastReshape.rule(name="MoveCastBeforeReshape", remove_nodes=False)
+cast_squeeze_rule = CastSqueeze.rule(name="MoveCastBeforeSqueeze", remove_nodes=False)
+cast_unsqueeze_rule = CastUnsqueeze.rule(name="MoveCastBeforeUnsqueeze", remove_nodes=False)
 swap_range_add_scalar_rule = SwapRangeAddScalar.rule()
 
 rules = RewriteRuleSet(

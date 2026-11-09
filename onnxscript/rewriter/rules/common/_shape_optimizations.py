@@ -24,7 +24,7 @@ def _shape_indices(node: ir.Node, rank: int) -> list[int]:
     ]
 
 
-class ShapeCast(RewriteRuleClassBase):
+class BypassCastForShape(RewriteRuleClassBase):
     def pattern(self, op, x, to):
         return op.Shape(op.Cast(x, to=to))
 
@@ -39,7 +39,7 @@ class ShapeCast(RewriteRuleClassBase):
         return op.Shape(x, **self._attributes)
 
 
-class ShapeTranspose(RewriteRuleClassBase):
+class ComputeShapeOfTranspose(RewriteRuleClassBase):
     def pattern(self, op, x):
         return op.Shape(op.Transpose(x))
 
@@ -72,7 +72,7 @@ class ShapeTranspose(RewriteRuleClassBase):
         return op.Gather(op.Shape(x), indices, axis=0)
 
 
-class GatherShape(RewriteRuleClassBase):
+class SliceShapeForGather(RewriteRuleClassBase):
     def pattern(self, op, x, indices):
         return op.Gather(op.Shape(x), indices)
 
@@ -113,7 +113,7 @@ class GatherShape(RewriteRuleClassBase):
         return shape
 
 
-class ShapeUnsqueeze(RewriteRuleClassBase):
+class ComputeShapeOfUnsqueeze(RewriteRuleClassBase):
     def pattern(self, op, x, axes):
         return op.Shape(op.Unsqueeze(x, axes))
 
@@ -163,12 +163,12 @@ class ShapeUnsqueeze(RewriteRuleClassBase):
         return op.Concat(*parts, axis=0) if len(parts) > 1 else op.Identity(parts[0])
 
 
-class SameShapeChildren(RewriteRuleClassBase):
+class ReuseSameShapeLayout(RewriteRuleClassBase):
     """Share layout results even when their shape expressions differ."""
 
     def __init__(self, op_type: str):
         self.op_type = op_type
-        super().__init__(f"SameShape{op_type}")
+        super().__init__(f"ReuseSameShape{op_type}")
 
     def pattern(self, op, x, target):
         return getattr(op, self.op_type)(x, target)
@@ -177,15 +177,22 @@ class SameShapeChildren(RewriteRuleClassBase):
         result = MatchResult()
         root = context.root
         output = root.outputs[0]
+        candidates = {
+            use.node
+            for use in x.uses()
+            if use.node is not root
+            and use.node.graph is root.graph
+            and use.node.domain == root.domain
+            and use.node.op_type == self.op_type
+            and use.idx == 0
+            and same_shape(output.shape, use.node.outputs[0].shape)
+        }
+        if not candidates:
+            return result.fail("No sibling layout result has the same proven shape.")
         for node in root.graph:
             if node is root:
                 break
-            if (
-                node.domain == root.domain
-                and node.op_type == self.op_type
-                and node.inputs[0] is x
-                and same_shape(output.shape, node.outputs[0].shape)
-            ):
+            if node in candidates:
                 self._existing = node.outputs[0]
                 return result
         return result.fail("No earlier layout result has the same proven shape.")
@@ -194,7 +201,7 @@ class SameShapeChildren(RewriteRuleClassBase):
         return op.Identity(self._existing)
 
 
-class SimplifyExpandShape(RewriteRuleClassBase):
+class SimplifyExpandTarget(RewriteRuleClassBase):
     """Avoid computing target dimensions already supplied by the data input."""
 
     def pattern(self, op, x, target):
@@ -245,13 +252,13 @@ class SimplifyExpandShape(RewriteRuleClassBase):
         return op.Expand(x, op.Concat(*parts, axis=0))
 
 
-shape_cast_rule = ShapeCast.rule(remove_nodes=False)
-shape_transpose_rule = ShapeTranspose.rule(remove_nodes=False)
-gather_shape_rule = GatherShape.rule(remove_nodes=False)
-shape_unsqueeze_rule = ShapeUnsqueeze.rule(remove_nodes=False)
-same_shape_expand_rule = SameShapeChildren.rule("Expand")
-same_shape_reshape_rule = SameShapeChildren.rule("Reshape")
-simplify_expand_shape_rule = SimplifyExpandShape.rule(remove_nodes=False)
+shape_cast_rule = BypassCastForShape.rule(remove_nodes=False)
+shape_transpose_rule = ComputeShapeOfTranspose.rule(remove_nodes=False)
+gather_shape_rule = SliceShapeForGather.rule(remove_nodes=False)
+shape_unsqueeze_rule = ComputeShapeOfUnsqueeze.rule(remove_nodes=False)
+same_shape_expand_rule = ReuseSameShapeLayout.rule("Expand")
+same_shape_reshape_rule = ReuseSameShapeLayout.rule("Reshape")
+simplify_expand_shape_rule = SimplifyExpandTarget.rule(remove_nodes=False)
 
 rules = RewriteRuleSet(
     [

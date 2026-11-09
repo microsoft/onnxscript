@@ -123,18 +123,28 @@ class Pattern:
         Returns:
             MatchResult if the pattern matches successfully and passes the condition function,
             None otherwise.
+
+        Note:
+            For multi-output patterns, node/value checkers and the condition function may
+            be called for more than one structural candidate. They must not mutate the
+            graph and should only retain candidate-specific state when returning success.
         """
         if verbose and verbose > 2:
             print(f"[match] {self}")
         verbose = verbose if verbose is not None else self._verbose
-        match = self._matcher.match(
+        last_match = None
+        found_structural_match = False
+        for match in self._matcher.iter_matches(
             model,
             graph_or_function,
             node,
             verbose=verbose,
             remove_nodes=check_nodes_are_removable,
-        )
-        if match:
+        ):
+            last_match = match
+            if not match:
+                continue
+            found_structural_match = True
             context = _basics.MatchContext(model, graph_or_function, node, match)
             for var in self._target_pattern.inputs:
                 if var.name is not None:
@@ -142,24 +152,24 @@ class Pattern:
                         match.bind(var.name, None)
 
             # Perform value/node level checks before condition function
-            def fail(check_result, default_message, failure_object=None):
+            def fail(current_match, check_result, default_message, failure_object=None):
                 """Local utility to handle check failures consistently."""
                 if isinstance(check_result, _basics.MatchResult):
-                    match.fail(
+                    current_match.fail(
                         check_result.reason,
                         check_result.failure_nodes_and_values,
                     )
                 else:
-                    match.fail(default_message, failure_object)
+                    current_match.fail(default_message, failure_object)
                 if tracer:
                     tracer.log(
                         self,  # type: ignore[arg-type]
                         graph_or_function,
                         node,
-                        match,
+                        current_match,
                         _basics.MatchStatus.CONDITION_FAILED,
                     )
-                return None
+                return False
 
             def wrap_try(f):
                 """Encapsulates try-except pattern for check functions."""
@@ -175,37 +185,55 @@ class Pattern:
                 return wrapped
 
             # Check node-level checkers
+            rejected = False
             for pattern_node, ir_node in match.node_bindings.items():
                 if pattern_node.check_method is not None:
                     check_result = wrap_try(pattern_node.check_method)(context, ir_node)
                     if not check_result:
-                        return fail(
+                        fail(
+                            match,
                             check_result,
                             f"Node-level check failed for pattern node {pattern_node}",
                             ir_node,
                         )
+                        rejected = True
+                        break
+            if rejected:
+                continue
 
             # Check value-level checkers
             for pattern_value, ir_value in match.value_bindings.items():
                 if pattern_value.check_method is not None:
                     check_result = wrap_try(pattern_value.check_method)(context, ir_value)
                     if not check_result:
-                        return fail(
+                        fail(
+                            match,
                             check_result,
                             f"Value-level check failed for pattern value {pattern_value}",
                             ir_value,
                         )
+                        rejected = True
+                        break
+            if rejected:
+                continue
 
             check_match_result = wrap_try(self._condition_function)(context, **match.bindings)
             if not check_match_result:
                 # If check function was provided, but it failed, return the reason for failure to the tracer.
-                return fail(check_match_result, "Condition function check failed")
+                fail(match, check_match_result, "Condition function check failed")
+                continue
             if tracer:
                 tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.SUCCESS)  # type: ignore[arg-type]
             return match
-        if tracer:
-            tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.NO_MATCH)  # type: ignore[arg-type]
-        return match
+        if tracer and not found_structural_match:
+            tracer.log(
+                self,
+                graph_or_function,
+                node,
+                last_match,
+                _basics.MatchStatus.NO_MATCH,
+            )
+        return None if found_structural_match else last_match
 
 
 class ReplacementPatternFunction:

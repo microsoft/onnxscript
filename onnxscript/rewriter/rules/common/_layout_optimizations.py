@@ -16,7 +16,7 @@ from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleS
 
 def _ints(value: ir.Value) -> list[int] | None:
     array = _ir_utils.get_numpy_value(value)
-    if array is None or array.ndim > 1 or array.dtype.kind not in "iu":
+    if array is None or array.ndim != 1 or array.dtype.kind not in "iu":
         return None
     return [int(v) for v in array.reshape(-1)]
 
@@ -63,7 +63,8 @@ def _int_attribute(node: ir.Node, name: str, default: int) -> int | None:
         return default
     if attribute.is_ref():
         return None
-    return int(attribute.as_int())
+    value = int(attribute.as_int())
+    return value if value in (0, 1) else None
 
 
 def _default_opset(context) -> int:
@@ -109,9 +110,29 @@ def _resolve_reshape_shape(
     return resolved
 
 
-class _SqueezeBinary(RewriteRuleClassBase):
+def _reshape_inference_has_nonzero_denominator(
+    target: Sequence[int], input_shape: Sequence, allowzero: int
+) -> bool:
+    if -1 not in target:
+        return True
+    for index, dim in enumerate(target):
+        if dim == -1:
+            continue
+        if dim == 0 and allowzero == 0:
+            if (
+                index >= len(input_shape)
+                or not isinstance(input_shape[index], int)
+                or input_shape[index] <= 0
+            ):
+                return False
+        elif dim <= 0:
+            return False
+    return True
+
+
+class _EliminateSqueezeUnsqueezeAroundBinary(RewriteRuleClassBase):
     def __init__(self, op_type: str):
-        super().__init__(f"Squeeze{op_type}Unsqueeze", remove_nodes=False)
+        super().__init__(f"EliminateSqueezeUnsqueezeAround{op_type}", remove_nodes=False)
         self._op_type = op_type
 
     def pattern(self, op, x, squeeze_axes, other, unsqueeze_axes):
@@ -122,8 +143,8 @@ class _SqueezeBinary(RewriteRuleClassBase):
     def check(self, context, x, squeeze_axes, other, unsqueeze_axes):
         del context
         result = MatchResult()
-        if x.shape is None or x.shape.rank() != 1:
-            return result.fail("The squeezed input must have rank one.")
+        if _static_shape(x) != [1]:
+            return result.fail("The squeezed input must have static shape [1].")
         if other.shape is None or other.shape.rank() != 0:
             return result.fail("The other operand must be scalar.")
         if _normalize_axes(_ints(squeeze_axes) or [], 1) != [0]:
@@ -137,9 +158,9 @@ class _SqueezeBinary(RewriteRuleClassBase):
         return getattr(op, self._op_type)(x, expanded_other)
 
 
-class SqueezeAdd(RewriteRuleClassBase):
+class MoveSqueezeAfterAdd(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("SqueezeAdd", remove_nodes=False)
+        super().__init__("MoveSqueezeAfterAdd", remove_nodes=False)
 
     def pattern(self, op, x, x_axes, y, y_axes):
         return op.Add(op.Squeeze(x, x_axes), op.Squeeze(y, y_axes))
@@ -163,9 +184,9 @@ class SqueezeAdd(RewriteRuleClassBase):
         return op.Squeeze(op.Add(x, y), x_axes)
 
 
-class UnsqueezeMul(RewriteRuleClassBase):
+class MoveUnsqueezeAfterMul(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("UnsqueezeMul", remove_nodes=False)
+        super().__init__("MoveUnsqueezeAfterMul", remove_nodes=False)
 
     def pattern(self, op, x, x_axes, y, y_axes):
         return op.Mul(op.Unsqueeze(x, x_axes), op.Unsqueeze(y, y_axes))
@@ -191,9 +212,9 @@ class UnsqueezeMul(RewriteRuleClassBase):
         return op.Unsqueeze(op.Mul(x, y), x_axes)
 
 
-class SwapUnsqueezeTranspose(RewriteRuleClassBase):
+class MoveTransposeBeforeUnsqueeze(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("SwapUnsqueezeTranspose", remove_nodes=False)
+        super().__init__("MoveTransposeBeforeUnsqueeze", remove_nodes=False)
 
     def pattern(self, op, x, axes, perm):
         return op.Transpose(op.Unsqueeze(x, axes), perm=perm)
@@ -227,9 +248,9 @@ class SwapUnsqueezeTranspose(RewriteRuleClassBase):
         return op.Unsqueeze(transposed, new_axes)
 
 
-class TransposeGather(RewriteRuleClassBase):
+class MoveScalarGatherBeforeTranspose(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("TransposeGather", remove_nodes=False)
+        super().__init__("MoveScalarGatherBeforeTranspose", remove_nodes=False)
 
     def pattern(self, op, x, indices, perm, axis):
         return op.Gather(op.Transpose(x, perm=perm), indices, axis=axis)
@@ -295,9 +316,9 @@ def _check_transpose_gather(context, indices: ir.Value, rule) -> MatchResult:
     return result
 
 
-class TransposeGatherDefaultAxis(RewriteRuleClassBase):
+class MoveScalarGatherBeforeTransposeDefaultAxis(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("TransposeGatherDefaultAxis", remove_nodes=False)
+        super().__init__("MoveScalarGatherBeforeTransposeDefaultAxis", remove_nodes=False)
 
     def pattern(self, op, x, indices, perm):
         return op.Gather(op.Transpose(x, perm=perm), indices)
@@ -313,9 +334,11 @@ class TransposeGatherDefaultAxis(RewriteRuleClassBase):
         return op.Transpose(gathered, perm=self._new_perm)
 
 
-class TransposeGatherDefaultPerm(RewriteRuleClassBase):
+class MoveScalarGatherBeforeTransposeDefaultPermutation(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("TransposeGatherDefaultPerm", remove_nodes=False)
+        super().__init__(
+            "MoveScalarGatherBeforeTransposeDefaultPermutation", remove_nodes=False
+        )
 
     def pattern(self, op, x, indices, axis):
         return op.Gather(op.Transpose(x), indices, axis=axis)
@@ -331,9 +354,12 @@ class TransposeGatherDefaultPerm(RewriteRuleClassBase):
         return op.Transpose(gathered, perm=self._new_perm)
 
 
-class TransposeGatherDefaults(RewriteRuleClassBase):
+class MoveScalarGatherBeforeTransposeDefaultAxisAndPermutation(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("TransposeGatherDefaults", remove_nodes=False)
+        super().__init__(
+            "MoveScalarGatherBeforeTransposeDefaultAxisAndPermutation",
+            remove_nodes=False,
+        )
 
     def pattern(self, op, x, indices):
         return op.Gather(op.Transpose(x), indices)
@@ -349,7 +375,10 @@ class TransposeGatherDefaults(RewriteRuleClassBase):
         return op.Transpose(gathered, perm=self._new_perm)
 
 
-class TransposeEqualReshape(RewriteRuleClassBase):
+class ReplaceUnitDimensionTransposeWithReshape(RewriteRuleClassBase):
+    def __init__(self):
+        super().__init__("ReplaceUnitDimensionTransposeWithReshape")
+
     def pattern(self, op, x, perm):
         return op.Transpose(x, perm=perm)
 
@@ -379,9 +408,9 @@ class TransposeEqualReshape(RewriteRuleClassBase):
         return op.Reshape(x, shape, allowzero=self._allowzero)
 
 
-class UnsqueezeUnsqueeze(RewriteRuleClassBase):
+class FuseConsecutiveUnsqueezes(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("UnsqueezeUnsqueezeMultiAxis", remove_nodes=False)
+        super().__init__("FuseConsecutiveUnsqueezes", remove_nodes=False)
 
     def pattern(self, op, x, axes1, axes2):
         return op.Unsqueeze(op.Unsqueeze(x, axes1), axes2)
@@ -415,9 +444,9 @@ class UnsqueezeUnsqueeze(RewriteRuleClassBase):
         return op.Unsqueeze(x, axes)
 
 
-class UnsqueezeSqueeze(RewriteRuleClassBase):
+class FuseConsecutiveUnsqueezeSqueeze(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("UnsqueezeSqueeze", remove_nodes=False)
+        super().__init__("FuseConsecutiveUnsqueezeSqueeze", remove_nodes=False)
 
     def pattern(self, op, x, unsqueeze_axes, squeeze_axes):
         return op.Squeeze(op.Unsqueeze(x, unsqueeze_axes), squeeze_axes)
@@ -428,8 +457,8 @@ class UnsqueezeSqueeze(RewriteRuleClassBase):
         first = _ints(unsqueeze_axes)
         second = _ints(squeeze_axes)
         input_rank = x.shape.rank() if x.shape is not None else None
-        if first is None or second is None or input_rank is None:
-            return result.fail("Constant axes and input rank are required.")
+        if not first or not second or input_rank is None:
+            return result.fail("Non-empty constant axes and input rank are required.")
         output_rank = input_rank + len(first)
         first = _normalize_axes(first, output_rank)
         second = _normalize_axes(second, output_rank)
@@ -450,9 +479,9 @@ class UnsqueezeSqueeze(RewriteRuleClassBase):
         return op.Squeeze(x, axes)
 
 
-class ReshapeSqueeze(RewriteRuleClassBase):
+class FuseReshapeSqueeze(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("ReshapeSqueeze", remove_nodes=False)
+        super().__init__("FuseReshapeSqueeze", remove_nodes=False)
 
     def pattern(self, op, x, shape, axes):
         return op.Squeeze(op.Reshape(x, shape), axes)
@@ -472,8 +501,10 @@ class ReshapeSqueeze(RewriteRuleClassBase):
         if allowzero != 0:
             return result.fail("allowzero=1 is not supported.")
         normalized = _normalize_axes(squeeze_axes, len(target))
-        if normalized is None or any(target[axis] != 1 for axis in normalized):
-            return result.fail("Squeeze axes must select literal unit dimensions.")
+        if not normalized or any(target[axis] != 1 for axis in normalized):
+            return result.fail(
+                "Squeeze axes must be non-empty and select literal unit dimensions."
+            )
         if any(
             target[i] == 0 for i in range(min(normalized), len(target)) if i not in normalized
         ):
@@ -486,8 +517,11 @@ class ReshapeSqueeze(RewriteRuleClassBase):
         return op.Reshape(x, new_shape)
 
 
-class NoOpReshape(RewriteRuleClassBase):
+class RemoveIdentityReshape(RewriteRuleClassBase):
     """Remove a Reshape whose inferred output shape equals its input shape."""
+
+    def __init__(self):
+        super().__init__("RemoveIdentityReshape")
 
     def pattern(self, op, x, shape):
         return op.Reshape(x, shape)
@@ -495,47 +529,80 @@ class NoOpReshape(RewriteRuleClassBase):
     def check(self, context, x: ir.Value, shape: ir.Value):
         result = MatchResult()
         target = _ints(shape)
-        input_shape = x.shape
-        output_shape = context.output_values[0].shape
+        input_shape = _known_shape(x)
+        output_shape = _known_shape(context.output_values[0])
         if target is None or input_shape is None or output_shape is None:
             return result.fail(
                 "Constant target and inferred input/output shapes are required."
             )
-        if not _ir_utils.same_shape(input_shape, output_shape):
+        if not _same_known_dims(input_shape, output_shape):
             return result.fail("Reshape changes the inferred shape.")
         allowzero = _int_attribute(context.root, "allowzero", 0)
         if allowzero is None:
-            return result.fail("allowzero is a reference attribute.")
+            return result.fail("allowzero must be a concrete zero or one.")
         if any(dim < -1 for dim in target) or target.count(-1) > 1:
             return result.fail("Reshape target is invalid.")
         if allowzero and 0 in target and -1 in target:
             return result.fail("allowzero=1 cannot combine zero and inferred dimensions.")
-        if not allowzero and any(
-            i >= input_shape.rank() for i, dim in enumerate(target) if dim == 0
-        ):
-            return result.fail("A copied dimension is out of range.")
+        if len(target) != len(input_shape):
+            return result.fail("Identity Reshape must preserve rank.")
+        inferred_axis = None
+        for i, (requested, input_dim) in enumerate(zip(target, input_shape)):
+            if requested == -1:
+                inferred_axis = i
+            elif requested == 0 and not allowzero:
+                continue
+            elif not _ir_utils.same_dim(requested, input_dim):
+                return result.fail("Reshape target does not reproduce the input shape.")
+        if inferred_axis is not None:
+            if not _reshape_inference_has_nonzero_denominator(target, input_shape, allowzero):
+                return result.fail("The inferred dimension may have a zero denominator.")
         return result
 
     def rewrite(self, op, x, shape):
         return op.Identity(x)
 
 
-class ShapeBasedReshapeToSqueezeOrUnsqueeze(RewriteRuleClassBase):
+class ReplaceUnitDimensionReshapeWithSqueezeOrUnsqueeze(RewriteRuleClassBase):
     """Replace Reshape with Squeeze/Unsqueeze when only unit axes change."""
+
+    def __init__(self):
+        super().__init__("ReplaceUnitDimensionReshapeWithSqueezeOrUnsqueeze")
 
     def pattern(self, op, x, shape):
         return op.Reshape(x, shape)
 
     def check(self, context, x: ir.Value, shape: ir.Value):
-        del shape
         result = MatchResult()
         opset = _default_opset(context)
         if opset < 13:
             return result.fail("Axes-as-input Squeeze/Unsqueeze requires opset 13 or later.")
+        target = _ints(shape)
+        allowzero = _int_attribute(context.root, "allowzero", 0)
+        if target is None or allowzero is None:
+            return result.fail("A constant valid Reshape target is required.")
+        if (
+            any(dim < -1 for dim in target)
+            or target.count(-1) > 1
+            or (allowzero == 1 and 0 in target and -1 in target)
+        ):
+            return result.fail("Reshape target is invalid.")
         before = _shape_dims(x)
         after = _shape_dims(context.output_values[0])
         if before is None or after is None or len(before) == len(after):
             return result.fail("Known shapes with different ranks are required.")
+        if len(target) != len(after):
+            return result.fail("Reshape target rank does not match the inferred output.")
+        if not _reshape_inference_has_nonzero_denominator(target, before, allowzero):
+            return result.fail("The inferred dimension may have a zero denominator.")
+        for index, (requested, inferred) in enumerate(zip(target, after)):
+            if requested == -1:
+                continue
+            if requested == 0 and allowzero == 0:
+                if index >= len(before) or not _ir_utils.same_dim(before[index], inferred):
+                    return result.fail("A copied Reshape dimension is not preserved.")
+            elif not _ir_utils.same_dim(requested, inferred):
+                return result.fail("Reshape target disagrees with the inferred output.")
         if len(before) < len(after):
             axes = _inserted_unit_axes(before, after)
             self._op_type = "Unsqueeze"
@@ -552,18 +619,31 @@ class ShapeBasedReshapeToSqueezeOrUnsqueeze(RewriteRuleClassBase):
         return getattr(op, self._op_type)(x, axes)
 
 
-class SqueezeUnsqueezeIdentity(RewriteRuleClassBase):
+class RemoveInverseSqueezeUnsqueeze(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("SqueezeUnsqueezeIdentity", remove_nodes=False)
+        super().__init__("RemoveInverseSqueezeUnsqueeze", remove_nodes=False)
 
     def pattern(self, op, x, squeeze_axes, unsqueeze_axes):
         return op.Unsqueeze(op.Squeeze(x, squeeze_axes), unsqueeze_axes)
 
     def check(self, context, x: ir.Value, squeeze_axes: ir.Value, unsqueeze_axes: ir.Value):
         result = MatchResult()
-        if _ints(squeeze_axes) is None or _ints(unsqueeze_axes) is None:
-            return result.fail("Axes must be constants.")
-        if not _ir_utils.same_shape(x.shape, context.output_values[0].shape):
+        shape = _known_shape(x)
+        squeeze = _ints(squeeze_axes)
+        unsqueeze = _ints(unsqueeze_axes)
+        output_shape = _known_shape(context.output_values[0])
+        if shape is None or squeeze is None or unsqueeze is None or output_shape is None:
+            return result.fail("Known shapes and constant axes are required.")
+        squeeze = _normalize_axes(squeeze, len(shape))
+        if not squeeze or any(shape[axis] != 1 for axis in squeeze):
+            return result.fail(
+                "Squeeze axes must be non-empty and select statically unit dimensions."
+            )
+        squeezed_rank = len(shape) - len(squeeze)
+        unsqueeze = _normalize_axes(unsqueeze, squeezed_rank + len(unsqueeze))
+        if not unsqueeze:
+            return result.fail("Unsqueeze axes must be non-empty and valid.")
+        if not _same_known_dims(shape, output_shape):
             return result.fail("The pair does not restore the original shape.")
         return result
 
@@ -588,7 +668,7 @@ class RemoveShapeOpBeforeReshape(RewriteRuleClassBase):
             return result.fail("A constant target without copied zero dimensions is required.")
         allowzero = _int_attribute(context.root, "allowzero", 0)
         if allowzero is None:
-            return result.fail("allowzero is a reference attribute.")
+            return result.fail("allowzero must be a concrete zero or one.")
         if allowzero != 0:
             return result.fail("allowzero=1 is not supported.")
         return result
@@ -597,9 +677,9 @@ class RemoveShapeOpBeforeReshape(RewriteRuleClassBase):
         return op.Reshape(x, shape)
 
 
-class UnsqueezeReshapeSpecialCase(RewriteRuleClassBase):
+class ReplaceUnsqueezeReshapeWithUnsqueeze(RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("UnsqueezeReshapeSpecialCase", remove_nodes=False)
+        super().__init__("ReplaceUnsqueezeReshapeWithUnsqueeze", remove_nodes=False)
 
     def pattern(self, op, x, axes, shape):
         return op.Reshape(op.Unsqueeze(x, axes), shape)
@@ -615,6 +695,12 @@ class UnsqueezeReshapeSpecialCase(RewriteRuleClassBase):
             return result.fail("allowzero is a reference attribute.")
         if allowzero != 0:
             return result.fail("allowzero=1 is not supported.")
+        source_shape = _known_shape(x)
+        if source_shape is None or any(
+            not isinstance(source_shape[axis], int) or source_shape[axis] <= 0
+            for axis in (0, 2)
+        ):
+            return result.fail("Copied dimensions around -1 must be statically positive.")
         return result
 
     def rewrite(self, op, x, axes, shape):
@@ -622,9 +708,9 @@ class UnsqueezeReshapeSpecialCase(RewriteRuleClassBase):
         return op.Unsqueeze(x, new_axes)
 
 
-class _EqualReshapesBinary(RewriteRuleClassBase):
+class _MoveEqualReshapesAfterBinary(RewriteRuleClassBase):
     def __init__(self, op_type: str):
-        super().__init__(f"EqualReshapes{op_type}", remove_nodes=False)
+        super().__init__(f"MoveEqualReshapesAfter{op_type}", remove_nodes=False)
         self._op_type = op_type
 
     def pattern(self, op, x, shape1, y, shape2):
@@ -634,7 +720,9 @@ class _EqualReshapesBinary(RewriteRuleClassBase):
         result = MatchResult()
         if _ints(shape1) is None or _ints(shape1) != _ints(shape2):
             return result.fail("Reshape targets must be equal constants.")
-        if not _ir_utils.same_shape(x.shape, y.shape):
+        x_shape = _known_shape(x)
+        y_shape = _known_shape(y)
+        if x_shape is None or y_shape is None or not _same_known_dims(x_shape, y_shape):
             return result.fail("Source shapes must be equal.")
         left_reshape = context.root.inputs[0].producer()
         right_reshape = context.root.inputs[1].producer()
@@ -654,10 +742,10 @@ class _EqualReshapesBinary(RewriteRuleClassBase):
         return op.Reshape(result, shape1, allowzero=self._allowzero)
 
 
-class _ReshapeBinaryReshape(RewriteRuleClassBase):
+class _RemoveIdentityReshapesAroundBinary(RewriteRuleClassBase):
     def __init__(self, op_type: str, reshape_left: bool):
         side = "Left" if reshape_left else "Right"
-        super().__init__(f"{side}Reshape{op_type}Reshape", remove_nodes=False)
+        super().__init__(f"Remove{side}IdentityReshapesAround{op_type}", remove_nodes=False)
         self._op_type = op_type
         self._reshape_left = reshape_left
 
@@ -671,14 +759,23 @@ class _ReshapeBinaryReshape(RewriteRuleClassBase):
     def check(self, context, x: ir.Value, inner_shape, y: ir.Value, outer_shape):
         del inner_shape, outer_shape
         result = MatchResult()
-        output = context.output_values[0]
-        if not _ir_utils.same_shape(x.shape, y.shape) or not _ir_utils.same_shape(
-            output.shape, x.shape
+        x_shape = _known_shape(x)
+        y_shape = _known_shape(y)
+        output_shape = _known_shape(context.output_values[0])
+        if (
+            x_shape is None
+            or y_shape is None
+            or output_shape is None
+            or not _same_known_dims(x_shape, y_shape)
+            or not _same_known_dims(output_shape, x_shape)
         ):
             return result.fail("Both source shapes and the final output shape must be equal.")
         binary = context.root.inputs[0].producer()
-        if binary is None or any(
-            not _ir_utils.same_shape(value.shape, binary.outputs[0].shape)
+        binary_shape = _known_shape(binary.outputs[0]) if binary is not None else None
+        if binary is None or binary_shape is None:
+            return result.fail("The original binary output shape must be known.")
+        if any(
+            (shape := _known_shape(value)) is None or not _same_known_dims(shape, binary_shape)
             for value in binary.inputs
         ):
             return result.fail("The original binary operation must not broadcast.")
@@ -690,7 +787,7 @@ class _ReshapeBinaryReshape(RewriteRuleClassBase):
 
 class _ReduceReshape(RewriteRuleClassBase):
     def __init__(self, op_type: str):
-        super().__init__(f"{op_type}Reshape", remove_nodes=False)
+        super().__init__(f"Fuse{op_type}Reshape", remove_nodes=False)
         self._op_type = op_type
 
     def pattern(self, op, x, axes, shape, keepdims):
@@ -722,7 +819,7 @@ class _ReduceReshape(RewriteRuleClassBase):
 
 class _ReduceReshapeAttributeAxes(RewriteRuleClassBase):
     def __init__(self, op_type: str):
-        super().__init__(f"{op_type}ReshapeAttributeAxes", remove_nodes=False)
+        super().__init__(f"Fuse{op_type}ReshapeAttributeAxes", remove_nodes=False)
         self._op_type = op_type
 
     def pattern(self, op, x, shape, axes, keepdims):
@@ -754,11 +851,11 @@ class _ReduceReshapeAttributeAxes(RewriteRuleClassBase):
         return getattr(op, self._op_type)(x, axes=list(axes.as_ints()), keepdims=0)
 
 
-class TransposeUnitReshapeTranspose(RewriteRuleClassBase):
+class RemoveTransposeBeforeUnitReshapeTranspose(RewriteRuleClassBase):
     """Remove the leading Transpose when Reshape only edits unit dimensions."""
 
     def __init__(self):
-        super().__init__("TransposeUnitReshapeTranspose", remove_nodes=False)
+        super().__init__("RemoveTransposeBeforeUnitReshapeTranspose", remove_nodes=False)
 
     def pattern(self, op, x, shape, perm1, perm2):
         first = op.Transpose(x, perm=perm1)
@@ -865,26 +962,26 @@ def _inserted_unit_axes(smaller: list, larger: list) -> list[int] | None:
     return axes if small_index == len(smaller) else None
 
 
-_squeeze_add_rule = SqueezeAdd.rule()
-_unsqueeze_mul_rule = UnsqueezeMul.rule()
-_swap_unsqueeze_transpose_rule = SwapUnsqueezeTranspose.rule()
-_transpose_gather_rule = TransposeGather.rule()
+_squeeze_add_rule = MoveSqueezeAfterAdd.rule()
+_unsqueeze_mul_rule = MoveUnsqueezeAfterMul.rule()
+_swap_unsqueeze_transpose_rule = MoveTransposeBeforeUnsqueeze.rule()
+_transpose_gather_rule = MoveScalarGatherBeforeTranspose.rule()
 _transpose_gather_default_rules = [
-    TransposeGatherDefaultAxis.rule(),
-    TransposeGatherDefaultPerm.rule(),
-    TransposeGatherDefaults.rule(),
+    MoveScalarGatherBeforeTransposeDefaultAxis.rule(),
+    MoveScalarGatherBeforeTransposeDefaultPermutation.rule(),
+    MoveScalarGatherBeforeTransposeDefaultAxisAndPermutation.rule(),
 ]
-_transpose_equal_reshape_rule = TransposeEqualReshape.rule()
-_unsqueeze_unsqueeze_rule = UnsqueezeUnsqueeze.rule()
-_unsqueeze_squeeze_rule = UnsqueezeSqueeze.rule()
-_reshape_squeeze_rule = ReshapeSqueeze.rule()
-_no_op_reshape_rule = NoOpReshape.rule()
-_shape_based_reshape_rule = ShapeBasedReshapeToSqueezeOrUnsqueeze.rule()
-_squeeze_unsqueeze_identity_rule = SqueezeUnsqueezeIdentity.rule()
+_transpose_equal_reshape_rule = ReplaceUnitDimensionTransposeWithReshape.rule()
+_unsqueeze_unsqueeze_rule = FuseConsecutiveUnsqueezes.rule()
+_unsqueeze_squeeze_rule = FuseConsecutiveUnsqueezeSqueeze.rule()
+_reshape_squeeze_rule = FuseReshapeSqueeze.rule()
+_no_op_reshape_rule = RemoveIdentityReshape.rule()
+_unit_dimension_reshape_rule = ReplaceUnitDimensionReshapeWithSqueezeOrUnsqueeze.rule()
+_squeeze_unsqueeze_identity_rule = RemoveInverseSqueezeUnsqueeze.rule()
 _remove_shape_before_reshape_rules = [
     RemoveShapeOpBeforeReshape.rule(op_type) for op_type in ("Squeeze", "Unsqueeze")
 ]
-_unsqueeze_reshape_special_rule = UnsqueezeReshapeSpecialCase.rule()
+_unsqueeze_reshape_special_rule = ReplaceUnsqueezeReshapeWithUnsqueeze.rule()
 _binary_ops = (
     "Add",
     "And",
@@ -901,9 +998,11 @@ _binary_ops = (
     "Sum",
     "Xor",
 )
-_equal_reshapes_binary_rules = [_EqualReshapesBinary.rule(op_type) for op_type in _binary_ops]
+_equal_reshapes_binary_rules = [
+    _MoveEqualReshapesAfterBinary.rule(op_type) for op_type in _binary_ops
+]
 _reshape_binary_reshape_rules = [
-    _ReshapeBinaryReshape.rule(op_type, side)
+    _RemoveIdentityReshapesAroundBinary.rule(op_type, side)
     for op_type in _binary_ops
     for side in (True, False)
 ]
@@ -937,9 +1036,10 @@ _reduce_reshape_attribute_rules = [
         "ReduceSumSquare",
     )
 ]
-_transpose_unit_reshape_transpose_rule = TransposeUnitReshapeTranspose.rule()
+_transpose_unit_reshape_transpose_rule = RemoveTransposeBeforeUnitReshapeTranspose.rule()
 _squeeze_binary_rules = [
-    _SqueezeBinary.rule(op_type) for op_type in ("Add", "Div", "Mul", "Sub")
+    _EliminateSqueezeUnsqueezeAroundBinary.rule(op_type)
+    for op_type in ("Add", "Div", "Mul", "Sub")
 ]
 
 rules = RewriteRuleSet(
@@ -962,7 +1062,7 @@ rules = RewriteRuleSet(
         *_reduce_reshape_rules,
         *_reduce_reshape_attribute_rules,
         _transpose_unit_reshape_transpose_rule,
-        _shape_based_reshape_rule,
+        _unit_dimension_reshape_rule,
         _no_op_reshape_rule,
     ]
 )

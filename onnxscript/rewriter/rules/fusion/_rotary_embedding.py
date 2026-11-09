@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import onnx_ir as ir
+
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Fusions for RotaryEmbedding:
@@ -32,6 +34,7 @@ def _rotary_split_size(x, split_sizes, split_axis):
     sizes = _ir_utils.get_numpy_value(split_sizes)
     if (
         sizes is None
+        or split_sizes.dtype != ir.DataType.INT64
         or sizes.ndim != 1
         or sizes.size != 2
         or any(size <= 0 for size in sizes)
@@ -59,7 +62,10 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
     def __init__(self, use_split=False, concat_after_trig=False):
         self._use_split = use_split
         self._concat_after_trig = concat_after_trig
-        super().__init__(name="RotaryEmbedding23", remove_nodes=False)
+        name = f"FuseRotaryEmbedding23From{'Split' if use_split else 'Slices'}"
+        if concat_after_trig:
+            name += "WithRepeatedTrig"
+        super().__init__(name=name, remove_nodes=False)
 
     def pattern(
         self,
@@ -95,6 +101,7 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         self,
         op,
         x,
+        freqs,
         one1,
         one2,
         start1=None,
@@ -106,6 +113,11 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
+        version = op.graph_or_function.opset_imports.get("", op.model.opset_imports.get("", 0))
+        if version < 23:
+            return check_result.fail(
+                "Standard RotaryEmbedding requires ONNX opset 23 or newer."
+            )
 
         if not _ir_utils.is_singleton_value(one1, 1):
             return check_result.fail("Unsqueeze axes is not [1]", one1)
@@ -115,12 +127,27 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)
         if x is None or x.shape is None or len(x.shape) != 4:
             return check_result.fail("Input is not known to be a 4D tensor.", x)
-        if not isinstance(x.shape[1], int):
+        if not isinstance(x.shape[1], int) or x.shape[1] <= 0:
             return check_result.fail("Input dimension 1 (num_heads) is not static.", x)
         head_size = x.shape[3]
         if not isinstance(head_size, int):
             return check_result.fail("Head size is not static.", x)
+        if head_size <= 0 or head_size % 2:
+            return check_result.fail("Rotary head size must be a positive even integer.", x)
+        if x.dtype not in (ir.DataType.FLOAT, ir.DataType.FLOAT16, ir.DataType.BFLOAT16):
+            return check_result.fail(
+                "Standard RotaryEmbedding does not support this input type.", x
+            )
         half_head_size = head_size // 2
+        if not (
+            _ir_utils.has_rank(freqs, 3)
+            and _ir_utils.same_dim(freqs.shape[0], x.shape[0])
+            and _ir_utils.same_dim(freqs.shape[1], x.shape[2])
+            and freqs.shape[2] == half_head_size
+        ):
+            return check_result.fail(
+                "Frequency dimensions must match the rotary batch, sequence, and half head."
+            )
 
         # Check that x is being split into two equal halves of size half_head_size
         if self._use_split:
@@ -160,7 +187,9 @@ MAX_INT64 = 9223372036854775807
 
 class PartialRotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
     def __init__(self, use_split=False):
-        super().__init__()
+        super().__init__(
+            f"FusePartialRotaryEmbedding23From{'Split' if use_split else 'Slices'}"
+        )
         self._use_split = use_split
 
     def pattern(self, op, x, end1, start2, split_sizes=None, split_axis=None):
@@ -189,6 +218,11 @@ class PartialRotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
+        version = op.graph_or_function.opset_imports.get("", op.model.opset_imports.get("", 0))
+        if version < 23:
+            return check_result.fail(
+                "Standard RotaryEmbedding requires ONNX opset 23 or newer."
+            )
         if self._use_split:
             end1_value = start2_value = _rotary_split_size(x, split_sizes, split_axis)
         else:
@@ -200,7 +234,18 @@ class PartialRotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
             return check_result.fail(
                 "The end1 value of first slice and start2 value of second slice are not equal."
             )
+        if not (
+            _ir_utils.has_rank(x, 4)
+            and isinstance(x.shape[3], int)
+            and 0 < end1_value <= x.shape[3]
+            and end1_value % 2 == 0
+        ):
+            return check_result.fail(
+                "Partial rotary dimension must be positive, even, and within the input head."
+            )
         rotary_embedding_attributes = x_part_1_rope.producer().attributes
+        if any(attr.is_ref() for attr in rotary_embedding_attributes.values()):
+            return check_result.fail("Rotary attributes must be concrete for partial fusion.")
         if "rotary_embedding_dim" in rotary_embedding_attributes:
             return check_result.fail("rotary_embedding_dim attribute already specified.")
         if (

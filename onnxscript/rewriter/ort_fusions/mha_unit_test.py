@@ -16,11 +16,14 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
+import onnx.helper
+import onnx.shape_inference
 import onnx_ir as ir
 
-from onnxscript import FLOAT, script, values
+from onnxscript import FLOAT, INT64, script, values
 from onnxscript import opset18 as op
 from onnxscript.optimizer import optimize
+from onnxscript.rewriter.ort_fusions._test_utils import ort_run
 from onnxscript.rewriter.ort_fusions.mha import fuse_mha1, fuse_mha2
 
 # Custom opsets
@@ -167,6 +170,146 @@ class MultiHeadAttentionFusionTest(unittest.TestCase):
 
     _3D = (FLOAT["B", "S", _D],) * 3
     _OUT_1 = (FLOAT["B", "S", _D],)
+
+    def test_packed_rank_two_unit_axis_layout(self):
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 8, opset_import: ["" : 18, "ai.onnxruntime._fusion" : 1]>
+            graph (float[1,16] q, float[1,16] k, float[1,16] v) => (float[1,16] y)
+            <int64[4] heads = {1,4,1,4}, int64[2] packed = {1,16}> {
+                q4 = Reshape(q,heads)
+                k4 = Reshape(k,heads)
+                v4 = Reshape(v,heads)
+                attention = ai.onnxruntime._fusion.SDPA<key_format="BHSd">(q4,k4,v4)
+                y = Reshape(attention,packed)
+            }
+            """
+        )
+        model = ir.from_proto(onnx.shape_inference.infer_shapes(ir.to_proto(model)))
+        # Custom SDPA shape inference does not populate this intermediate.
+        model.graph[-2].outputs[0].shape = ir.Shape([1, 4, 1, 4])
+        self.assertEqual(self._apply(model), 1)
+        self.assertIsNotNone(self._get_mha_node(model))
+
+    def test_rotary_attributes_are_not_dropped(self):
+        for attribute, value in (
+            ("interleaved", 2),
+            ("rotary_embedding_dim", 3),
+            ("rotary_embedding_dim", 6),
+            ("num_heads", 2),
+            ("is_packed_batching", 1),
+        ):
+            with self.subTest(attribute=attribute):
+                model = self._build(
+                    _mha_with_rotary,
+                    (
+                        *self._3D,
+                        INT64["B", "S"],
+                        FLOAT[32, _Dh // 2],
+                        FLOAT[32, _Dh // 2],
+                    ),
+                    self._OUT_1,
+                )
+                rotary = next(
+                    node for node in model.graph if node.op_type == "RotaryEmbedding"
+                )
+                rotary.attributes[attribute] = ir.AttrInt64(attribute, value)
+                self.assertEqual(self._apply(model), 0)
+
+    def test_explicit_zero_or_nonfinite_scale_is_not_fused(self):
+        for scale in (0.0, -0.0, float("nan"), float("inf")):
+            with self.subTest(scale=scale):
+                model = self._build(_mha_basic_key_transposed, self._3D, self._OUT_1)
+                sdpa = next(node for node in model.graph if node.op_type == "SDPA")
+                sdpa.attributes["scale"] = ir.AttrFloat32("scale", scale)
+                self.assertEqual(self._apply(model), 0)
+
+    def test_partial_rotary_mha_preserves_past_caches_numerically(self):
+        for interleaved in (0, 1):
+            with self.subTest(interleaved=interleaved):
+                model = ir.from_onnx_text(
+                    f"""
+                    <ir_version: 8, opset_import: ["" : 18, "com.microsoft" : 1,
+                        "ai.onnxruntime._fusion" : 1]>
+                    graph (float[1,2,16] q, float[1,2,16] k, float[1,2,16] v,
+                        float[1,4,3,4] past_key, float[1,4,3,4] past_value,
+                        int64[1,2] positions, float[5,1] cosine, float[5,1] sine)
+                        => (float[1,2,16] y, float[1,4,5,4] present_key,
+                            float[1,4,5,4] present_value)
+                    <int64[4] heads = {{1,2,4,4}}, int64[3] packed = {{1,2,16}}> {{
+                        qr = Reshape(q,heads)
+                        kr = Reshape(k,heads)
+                        vr = Reshape(v,heads)
+                        q4 = Transpose<perm=[0,2,1,3]>(qr)
+                        k4 = Transpose<perm=[0,2,1,3]>(kr)
+                        v4 = Transpose<perm=[0,2,1,3]>(vr)
+                        rotary_q = com.microsoft.RotaryEmbedding<num_heads=4,
+                            rotary_embedding_dim=2, interleaved={interleaved}>
+                            (q4,positions,cosine,sine)
+                        rotary_k = com.microsoft.RotaryEmbedding<num_heads=4,
+                            rotary_embedding_dim=2, interleaved={interleaved}>
+                            (k4,positions,cosine,sine)
+                        present_key = Concat<axis=-2>(past_key,rotary_k)
+                        present_value = Concat<axis=-2>(past_value,v4)
+                        attention = ai.onnxruntime._fusion.SDPA<key_format="BHSd">
+                            (rotary_q,present_key,present_value)
+                        transposed = Transpose<perm=[0,2,1,3]>(attention)
+                        y = Reshape(transposed,packed)
+                    }}
+                    """
+                )
+                proto = ir.to_proto(model)
+                proto.functions.append(
+                    onnx.helper.make_function(
+                        "ai.onnxruntime._fusion",
+                        "SDPA",
+                        ["q", "k", "v"],
+                        ["y"],
+                        [
+                            onnx.helper.make_node(
+                                "Transpose", ["k"], ["kt"], perm=[0, 1, 3, 2]
+                            ),
+                            onnx.helper.make_node("MatMul", ["q", "kt"], ["scores"]),
+                            onnx.helper.make_node("Constant", [], ["scale"], value_float=0.5),
+                            onnx.helper.make_node("Mul", ["scores", "scale"], ["scaled"]),
+                            onnx.helper.make_node(
+                                "Softmax", ["scaled"], ["probabilities"], axis=-1
+                            ),
+                            onnx.helper.make_node("MatMul", ["probabilities", "v"], ["y"]),
+                        ],
+                        [onnx.helper.make_opsetid("", 18)],
+                        attributes=["key_format"],
+                    )
+                )
+                model = ir.from_proto(onnx.shape_inference.infer_shapes(proto))
+                rng = np.random.default_rng(42)
+                feeds = {
+                    name: rng.normal(size=shape).astype(np.float32)
+                    for name, shape in (
+                        ("q", (1, 2, 16)),
+                        ("k", (1, 2, 16)),
+                        ("v", (1, 2, 16)),
+                        ("past_key", (1, 4, 3, 4)),
+                        ("past_value", (1, 4, 3, 4)),
+                    )
+                }
+                angles = np.arange(5, dtype=np.float32).reshape(5, 1)
+                feeds.update(
+                    positions=np.array([[3, 4]], np.int64),
+                    cosine=np.cos(angles),
+                    sine=np.sin(angles),
+                )
+                expected = ort_run("partial_rotary_with_past", model, feeds)
+                self.assertEqual(self._apply(model), 1)
+                self.assertEqual(len(self._get_mha_node(model).inputs), 8)
+                actual = ort_run("fused_partial_rotary_with_past", model, feeds)
+                for left, right in zip(expected, actual, strict=True):
+                    np.testing.assert_allclose(left, right, rtol=1e-5, atol=1e-5)
+                for node in model.graph:
+                    if node.op_type == "RotaryEmbedding":
+                        self.assertEqual(node.attributes["num_heads"].as_int(), 4)
+                        self.assertEqual(node.attributes["rotary_embedding_dim"].as_int(), 2)
+                        self.assertEqual(node.attributes["interleaved"].as_int(), interleaved)
 
     # --- Positive tests ---
 

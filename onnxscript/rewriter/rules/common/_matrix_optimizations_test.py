@@ -197,6 +197,34 @@ class MatrixOptimizationsTest(unittest.TestCase):
         )
         testing.assert_numerically_equal(model, rewritten, inputs)
 
+    def test_gemm_input_transpose_preserves_special_float_results_exactly(self):
+        model = _model(
+            [
+                onnx.helper.make_node("Transpose", ["A"], ["AT"], perm=[1, 0]),
+                onnx.helper.make_node(
+                    "Gemm",
+                    ["AT", "B", "C"],
+                    ["Y"],
+                    alpha=-0.0,
+                    beta=1.0,
+                ),
+            ],
+            [_value("A", [1, 1]), _value("B", [1, 3]), _value("C", [3])],
+            [_value("Y", [1, 3])],
+        )
+        rewritten = ir.from_proto(ir.to_proto(model))
+        self.assertEqual(_matrix_optimizations.rules.apply_to_model(rewritten), 1)
+        feeds = {
+            "A": np.array([[np.inf]], dtype=np.float32),
+            "B": np.array([[1.0, np.nan, -np.inf]], dtype=np.float32),
+            "C": np.array([-0.0, np.nan, np.inf], dtype=np.float32),
+        }
+        with np.errstate(invalid="ignore"):
+            expected = ReferenceEvaluator(ir.to_proto(model)).run(None, feeds)[0]
+            actual = ReferenceEvaluator(ir.to_proto(rewritten)).run(None, feeds)[0]
+        np.testing.assert_array_equal(actual, expected)
+        self.assertEqual(actual.tobytes(), expected.tobytes())
+
     def test_gemm_output_transpose(self):
         model = _model(
             [
@@ -575,8 +603,11 @@ class MatrixOptimizationsTest(unittest.TestCase):
                 self.assertEqual(
                     [node.op_type for node in rewritten.graph], ["LinearAttention"]
                 )
-                expected = ReferenceEvaluator(ir.to_proto(model)).run(None, inputs)
-                actual = ReferenceEvaluator(ir.to_proto(rewritten)).run(None, inputs)
+                try:
+                    expected = ReferenceEvaluator(ir.to_proto(model)).run(None, inputs)
+                    actual = ReferenceEvaluator(ir.to_proto(rewritten)).run(None, inputs)
+                except NotImplementedError as error:
+                    self.skipTest(f"LinearAttention evaluator is unavailable: {error}")
                 for expected_value, actual_value in zip(expected, actual):
                     np.testing.assert_array_equal(actual_value, expected_value)
                     self.assertEqual(actual_value.tobytes(), expected_value.tobytes())
@@ -743,6 +774,46 @@ class MatrixOptimizationsTest(unittest.TestCase):
             opset=20,
         )
         self.assertEqual(_matrix_optimizations.rules.apply_to_model(model), 0)
+
+    @unittest.skipUnless(onnx.defs.has("GroupedMatMul"), "Requires ONNX opset 29 schemas.")
+    def test_grouped_matmul_accepts_default_gather_axes_and_rejects_other_axes(self):
+        axes12 = onnx.numpy_helper.from_array(np.array([1, 2], dtype=np.int64), "axes12")
+        axis2 = onnx.numpy_helper.from_array(np.array([2], dtype=np.int64), "axis2")
+        for axis_attribute, expected_count in (({}, 2), ({"axis": 1}, 0)):
+            with self.subTest(axis_attribute=axis_attribute):
+                model = _model(
+                    [
+                        onnx.helper.make_node("Unsqueeze", ["X", "axes12"], ["X4"]),
+                        onnx.helper.make_node("Gather", ["W", "I"], ["WI"], **axis_attribute),
+                        onnx.helper.make_node("MatMul", ["X4", "WI"], ["MM"]),
+                        onnx.helper.make_node("Squeeze", ["MM", "axis2"], ["S"]),
+                        onnx.helper.make_node("Gather", ["B", "I"], ["BI"], **axis_attribute),
+                        onnx.helper.make_node("Add", ["S", "BI"], ["Y"]),
+                    ],
+                    [
+                        _value("X", [3, 2]),
+                        _value("W", [4, 2, 5]),
+                        _value("I", [3, 2], onnx.TensorProto.INT64),
+                        _value("B", [4, 5]),
+                    ],
+                    [_value("Y", [3, 2, 5])],
+                    [axes12, axis2],
+                    opset=29,
+                )
+                self.assertEqual(
+                    _matrix_optimizations.rules.apply_to_model(model), expected_count
+                )
+
+    def test_registered_rule_names_describe_the_transformations(self):
+        names = [rule.name for rule in _matrix_optimizations.rules.rules]
+        self.assertEqual(len(names), len(set(names)))
+        self.assertIn("FoldTransposeAMatMulIntoGemm", names)
+        self.assertIn("RemoveRedundantReshapesFromMatMulInputs", names)
+        self.assertIn("FuseSingleTokenLinearAttention", names)
+        self.assertIn("FuseGroupedMatMulBiasDecomposition", names)
+        self.assertIn("MoveLeakyReluBeforeReshape", names)
+        self.assertNotIn("LinearAttentionT1", names)
+        self.assertNotIn("SwitchReshapeLeakyRelu", names)
 
 
 if __name__ == "__main__":

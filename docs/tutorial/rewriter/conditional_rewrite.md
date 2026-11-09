@@ -51,6 +51,37 @@ The final graph with the applied rewrite looks as follows:
 
 ![broadcast_rewrite](examples/img/broadcast_02.png){align=center}
 
+## Multiple outputs and candidate retries
+
+For a pattern with several output nodes, `SimplePatternMatcher` anchors the
+first output at the candidate graph node and searches combinations for the
+remaining output nodes. If a node checker, value checker, or `match_condition`
+rejects one structurally valid combination, matching continues with the next
+combination. A rejected first combination does not rule out a later valid one.
+
+Distinct pattern output nodes must bind to distinct graph nodes. Several outputs
+of one pattern node still bind to that same graph node. Inputs and internal
+producers may be shared, including common subexpressions already merged by CSE.
+Every candidate retains the normal graph-output and removability checks.
+
+Checkers and conditions can therefore run more than once for an anchored node.
+They must not mutate the graph or depend on being called exactly once.
+Rule implementations that save replacement data on an instance must overwrite
+that data for each accepted candidate. The replacement is constructed only
+after a candidate passes all checks.
+
+This is finite enumeration of output-node assignments, not unrestricted
+backtracking through arbitrary internal choices or every `OrValue` alternative.
+For a fixed anchor and `K` output nodes, the Cartesian upper bound is
+`N2 * ... * NK`, where each `Ni` is the candidate count for that output node.
+Candidate pools are filtered by operator and by every input position already
+bound by the anchored output, so unrelated same-operator nodes do not multiply
+the search. Inputs first bound by later outputs do not constrain these initial
+pools. Distinct relevant siblings can still produce a combinatorial search;
+there is no arbitrary attempt cap.
+Prefer selective patterns with few output nodes over large unconstrained
+multi-output searches.
+
 # Using MatchContext for Advanced Condition Checking
 
 The `context` parameter passed to condition functions is an instance of {py:class}`onnxscript.rewriter.MatchContext`, which provides access to additional information about the pattern match that can be useful for sophisticated condition checking.

@@ -73,7 +73,8 @@ class _TransposeMatMulToGemm(RewriteRuleClassBase):
     position: ClassVar[int] = 0
 
     def __init__(self) -> None:
-        super().__init__(remove_nodes=False)
+        input_name = "A" if self.position == 0 else "B"
+        super().__init__(f"FoldTranspose{input_name}MatMulIntoGemm", remove_nodes=False)
 
     def pattern(self, op, x, y):
         if self.position == 0:
@@ -114,7 +115,8 @@ class _TransposeGemmInput(RewriteRuleClassBase):
     position: ClassVar[int] = 0
 
     def __init__(self) -> None:
-        super().__init__(remove_nodes=False)
+        input_name = "A" if self.position == 0 else "B"
+        super().__init__(f"FoldTransposeIntoGemmInput{input_name}", remove_nodes=False)
 
     def pattern(self, op, x, y):
         if self.position == 0:
@@ -171,7 +173,7 @@ class GemmOutputTranspose(RewriteRuleClassBase):
     """Fold a matrix transpose after an unbiased Gemm."""
 
     def __init__(self) -> None:
-        super().__init__(remove_nodes=True)
+        super().__init__("FoldGemmOutputTranspose", remove_nodes=True)
 
     def pattern(self, op, x, y):
         gemm = op.Gemm(
@@ -217,7 +219,8 @@ class _GemmSumBias(RewriteRuleClassBase):
     gemm_first: ClassVar[bool] = True
 
     def __init__(self) -> None:
-        super().__init__(remove_nodes=True)
+        order = "GemmSum" if self.gemm_first else "SumGemm"
+        super().__init__(f"Fuse{order}Bias", remove_nodes=True)
 
     def pattern(self, op, x, y, bias):
         gemm = op.Gemm(
@@ -304,7 +307,8 @@ class _ExpandBroadcastMatMul(RewriteRuleClassBase):
     expand_b: ClassVar[bool] = False
 
     def __init__(self) -> None:
-        super().__init__(remove_nodes=False)
+        inputs = ("A" if self.expand_a else "") + ("B" if self.expand_b else "")
+        super().__init__(f"RemoveRedundantExpandFromMatMulInput{inputs}", remove_nodes=False)
 
     def pattern(self, op, x, y, shape_a=None, shape_b=None):
         left = op.Expand(x, shape_a) if self.expand_a else x
@@ -352,7 +356,7 @@ class ReshapeABMatMul(RewriteRuleClassBase):
     """Remove two pre-MatMul reshapes when they preserve the direct MatMul result."""
 
     def __init__(self) -> None:
-        super().__init__(remove_nodes=False)
+        super().__init__("RemoveRedundantReshapesFromMatMulInputs", remove_nodes=False)
 
     def pattern(self, op, x, y, shape_a, shape_b):
         return op.MatMul(op.Reshape(x, shape_a), op.Reshape(y, shape_b))
@@ -491,6 +495,9 @@ def _concrete_perm(value: ir.Value, expected: tuple[int, ...]) -> bool:
 
 class LinearAttentionT1(RewriteRuleClassBase):
     """Fuse the exact float32, equal-head, single-token linear recurrence."""
+
+    def __init__(self) -> None:
+        super().__init__("FuseSingleTokenLinearAttention")
 
     def pattern(
         self,
@@ -699,7 +706,7 @@ class SwitchLayoutActivation(RewriteRuleClassBase):
     def __init__(self, activation: str, layout: str):
         self.activation = activation
         self.layout = layout
-        super().__init__(f"Switch{layout}{activation}", remove_nodes=False)
+        super().__init__(f"Move{activation}Before{layout}", remove_nodes=False)
 
     def pattern(self, op, product, shape=None):
         if self.layout == "Reshape":
@@ -753,10 +760,21 @@ class _GroupedMatMulBase(RewriteRuleClassBase):
     add_reversed: ClassVar[bool] = False
 
     def __init__(self) -> None:
-        super().__init__(remove_nodes=False)
+        if not self.with_bias:
+            name = "FuseGroupedMatMulDecomposition"
+        elif self.add_reversed:
+            name = "FuseReversedBiasGroupedMatMulDecomposition"
+        else:
+            name = "FuseGroupedMatMulBiasDecomposition"
+        super().__init__(name, remove_nodes=False)
 
     def _product(self, op, x, weights, indices, unsqueeze_axes):
-        selected = op.Gather(weights, indices, axis=0, _outputs=["selected"])
+        selected = op.Gather(
+            weights,
+            indices,
+            _allow_other_attributes=True,
+            _outputs=["selected"],
+        )
         rows = op.Unsqueeze(x, unsqueeze_axes, _outputs=["rows"])
         return op.MatMul(rows, selected, _outputs=["product"])
 
@@ -769,6 +787,8 @@ class _GroupedMatMulBase(RewriteRuleClassBase):
         unsqueeze_axes,
         squeeze_axes,
         bias=None,
+        selected=None,
+        selected_bias=None,
         **_,
     ) -> MatchResult:
         result = MatchResult()
@@ -785,6 +805,15 @@ class _GroupedMatMulBase(RewriteRuleClassBase):
             return result.fail("The row input must be unsqueezed on axes [1, 2].")
         if not _ir_utils.is_1d_value(squeeze_axes, [2]):
             return result.fail("The MatMul result must be squeezed on axis [2].")
+        for gathered in (selected, selected_bias):
+            if gathered is None:
+                continue
+            gather = gathered.producer()
+            assert gather is not None
+            if _has_reference_attribute(gather, {"axis"}):
+                return result.fail("Gather axis attributes must be concrete.")
+            if gather.attributes.get_int("axis", 0) != 0:
+                return result.fail("GroupedMatMul gathers must select on axis zero.")
         if x.shape is None or weights.shape is None or indices.shape is None:
             return result.fail("GroupedMatMul input shapes must be known.")
         if x.shape.rank() != 2 or weights.shape.rank() != 3 or indices.shape.rank() != 2:
@@ -798,6 +827,8 @@ class _GroupedMatMulBase(RewriteRuleClassBase):
             return result.fail("The number of groups must be a positive static dimension.")
         if indices.dtype not in (ir.DataType.INT32, ir.DataType.INT64):
             return result.fail("Group indices must be INT32 or INT64.")
+        if indices.dtype == ir.DataType.INT32 and weights.shape[0] > np.iinfo(np.int32).max:
+            return result.fail("The number of groups is not representable by INT32 indices.")
         if x.dtype != weights.dtype or x.dtype not in _GEMM_TYPES:
             return result.fail(
                 "GroupedMatMul data and weight types must match and be floating."
@@ -846,7 +877,13 @@ class GroupedMatMulBias(_GroupedMatMulBase):
             self._product(op, x, weights, indices, unsqueeze_axes),
             squeeze_axes,
         )
-        return op.Add(output, op.Gather(bias, indices, axis=0))
+        selected_bias = op.Gather(
+            bias,
+            indices,
+            _allow_other_attributes=True,
+            _outputs=["selected_bias"],
+        )
+        return op.Add(output, selected_bias)
 
 
 class GroupedMatMulBiasReversed(GroupedMatMulBias):
@@ -859,14 +896,21 @@ class GroupedMatMulBiasReversed(GroupedMatMulBias):
             self._product(op, x, weights, indices, unsqueeze_axes),
             squeeze_axes,
         )
-        return op.Add(op.Gather(bias, indices, axis=0), output)
+        selected_bias = op.Gather(
+            bias,
+            indices,
+            _allow_other_attributes=True,
+            _outputs=["selected_bias"],
+        )
+        return op.Add(selected_bias, output)
 
 
 class _GroupedMatMulGatherBias(RewriteRuleClassBase):
     add_reversed: ClassVar[bool] = False
 
     def __init__(self) -> None:
-        super().__init__(remove_nodes=False)
+        order = "ReversedGatheredBias" if self.add_reversed else "GatheredBias"
+        super().__init__(f"Fuse{order}IntoGroupedMatMul", remove_nodes=False)
 
     def pattern(self, op, x, weights, indices, zero, groups, bias):
         normalized = op.Where(
@@ -876,13 +920,28 @@ class _GroupedMatMulGatherBias(RewriteRuleClassBase):
             _outputs=["normalized"],
         )
         grouped = op.GroupedMatMul(x, weights, normalized, _outputs=["grouped"])
-        selected_bias = op.Gather(bias, indices, axis=0)
+        selected_bias = op.Gather(
+            bias,
+            indices,
+            _allow_other_attributes=True,
+            _outputs=["selected_bias"],
+        )
         if self.add_reversed:
             return op.Add(selected_bias, grouped)
         return op.Add(grouped, selected_bias)
 
     def check(
-        self, context, x, weights, indices, bias, zero, groups, grouped, **_
+        self,
+        context,
+        x,
+        weights,
+        indices,
+        bias,
+        zero,
+        groups,
+        grouped,
+        selected_bias,
+        **_,
     ) -> MatchResult:
         result = MatchResult()
         if (_main_opset(context) or 0) < 29:
@@ -891,6 +950,12 @@ class _GroupedMatMulGatherBias(RewriteRuleClassBase):
             return result.fail("GroupedMatMul weight and bias shapes must be known.")
         if not _is_private_intermediate(context, grouped):
             return result.fail("The unbiased GroupedMatMul result must not be shared.")
+        gather = selected_bias.producer()
+        assert gather is not None
+        if _has_reference_attribute(gather, {"axis"}):
+            return result.fail("Gather axis attributes must be concrete.")
+        if gather.attributes.get_int("axis", 0) != 0:
+            return result.fail("The bias Gather must select on axis zero.")
         if (
             weights.shape.rank() != 3
             or bias.shape.rank() != 2
@@ -902,6 +967,9 @@ class _GroupedMatMulGatherBias(RewriteRuleClassBase):
         if not (
             isinstance(weights.shape[0], int)
             and weights.shape[0] > 0
+            and indices.dtype in (ir.DataType.INT32, ir.DataType.INT64)
+            and zero.dtype == indices.dtype
+            and groups.dtype == indices.dtype
             and _ir_utils.is_singleton_value(zero, 0)
             and _ir_utils.is_singleton_value(groups, weights.shape[0])
         ):
@@ -926,26 +994,26 @@ class GroupedMatMulGatherBiasReversed(_GroupedMatMulGatherBias):
 
 rules = RewriteRuleSet(
     [
-        ExpandABMatMul().rule(),
-        ExpandAMatMul().rule(),
-        ExpandBMatMul().rule(),
-        ReshapeABMatMul().rule(),
-        GroupedMatMulBias().rule(),
-        GroupedMatMulBiasReversed().rule(),
-        GroupedMatMul().rule(),
-        GroupedMatMulGatherBias().rule(),
-        GroupedMatMulGatherBiasReversed().rule(),
-        GemmOutputTranspose().rule(),
-        TransposeAGemmInput().rule(),
-        TransposeBGemmInput().rule(),
-        TransposeAMatMulToGemm().rule(),
-        TransposeBMatMulToGemm().rule(),
-        GemmSumBias().rule(),
-        SumBiasGemm().rule(),
-        MatMulUnitReductionToMul().rule(),
-        MaxToRelu().rule(),
-        WhereToLeakyRelu().rule(),
-        LinearAttentionT1().rule(),
+        ExpandABMatMul.rule(),
+        ExpandAMatMul.rule(),
+        ExpandBMatMul.rule(),
+        ReshapeABMatMul.rule(),
+        GroupedMatMulBias.rule(),
+        GroupedMatMulBiasReversed.rule(),
+        GroupedMatMul.rule(),
+        GroupedMatMulGatherBias.rule(),
+        GroupedMatMulGatherBiasReversed.rule(),
+        GemmOutputTranspose.rule(),
+        TransposeAGemmInput.rule(),
+        TransposeBGemmInput.rule(),
+        TransposeAMatMulToGemm.rule(),
+        TransposeBMatMulToGemm.rule(),
+        GemmSumBias.rule(),
+        SumBiasGemm.rule(),
+        MatMulUnitReductionToMul.rule(name="ReplaceUnitReductionMatMulWithMul"),
+        MaxToRelu.rule(name="ReplaceMaxWithRelu"),
+        WhereToLeakyRelu.rule(name="FuseWhereMulIntoLeakyRelu"),
+        LinearAttentionT1.rule(),
         *(
             SwitchLayoutActivation.rule(activation, layout)
             for activation in _LAYOUT_MOVABLE_ACTIVATIONS

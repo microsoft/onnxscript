@@ -24,7 +24,7 @@ def _assert_multi_output_equal(
     actual = ReferenceEvaluator(ir.serde.serialize_model(optimized)).run(None, feeds)
     assert len(expected) == len(actual)
     for expected_value, actual_value in zip(expected, actual):
-        np.testing.assert_allclose(expected_value, actual_value)
+        np.testing.assert_allclose(expected_value, actual_value, equal_nan=True)
 
 
 def test_concat_empty_removes_zero_axis_input():
@@ -57,6 +57,19 @@ def test_concat_empty_rejects_unknown_dimension():
         <ir_version: 10, opset_import: ["" : 18]>
         graph (float[2, N] a, float[2, 3] b) => (float[2, M] y) {
           y = Concat <axis = -1> (a, b)
+        }
+        """
+    )
+    assert count == 0
+    assert optimized.graph[0].op_type == "Concat"
+
+
+def test_concat_empty_rejects_removing_every_input():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[2, 0] a, float[2, 0] b) => (float[2, 0] y) {
+          y = Concat <axis = 1> (a, b)
         }
         """
     )
@@ -103,6 +116,44 @@ def test_gather_gather_matches_default_axis_attributes():
     testing.assert_numerically_equal(original, optimized, (np.arange(5, dtype=np.float32),))
 
 
+def test_gather_gather_rejects_out_of_bounds_unselected_inner_index():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[4] x) => (float[1] y) {
+          inner_indices = Constant <value = int64[2] {0, 9}> ()
+          inner = Gather (x, inner_indices)
+          outer_indices = Constant <value = int64[1] {0}> ()
+          y = Gather (inner, outer_indices)
+        }
+        """
+    )
+    assert count == 0
+    assert len([node for node in optimized.graph if node.op_type == "Gather"]) == 2
+    inner = next(
+        node
+        for node in optimized.graph
+        if node.op_type == "Gather" and node.inputs[0].name == "x"
+    )
+    np.testing.assert_array_equal(inner.inputs[1].const_value.numpy(), np.array([0, 9]))
+
+
+def test_gather_gather_rejects_symbolic_input_dimension():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[N] x) => (float[1] y) {
+          inner_indices = Constant <value = int64[2] {0, 1}> ()
+          inner = Gather (x, inner_indices)
+          outer_indices = Constant <value = int64[1] {0}> ()
+          y = Gather (inner, outer_indices)
+        }
+        """
+    )
+    assert count == 0
+    assert len([node for node in optimized.graph if node.op_type == "Gather"]) == 2
+
+
 def test_gather_to_slice_vector_progression():
     original, optimized, count = _rewrite(
         """
@@ -118,6 +169,49 @@ def test_gather_to_slice_vector_progression():
     testing.assert_numerically_equal(
         original, optimized, (np.arange(16, dtype=np.float32).reshape(2, 8),)
     )
+
+
+def test_gather_to_slice_rejects_out_of_bounds_positive_index():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[4] x) => (float[2] y) {
+          indices = Constant <value = int64[2] {3, 5}> ()
+          y = Gather (x, indices)
+        }
+        """
+    )
+    assert count == 0
+    assert optimized.graph[-1].op_type == "Gather"
+
+
+def test_gather_to_slice_vector_supports_opset_10():
+    original, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 10]>
+        graph (float[5] x) => (float[2] y) {
+          indices = Constant <value = int64[2] {1, 3}> ()
+          y = Gather (x, indices)
+        }
+        """
+    )
+    assert count >= 1
+    assert optimized.graph[-1].op_type == "Slice"
+    testing.assert_numerically_equal(original, optimized, (np.arange(5, dtype=np.float32),))
+
+
+def test_gather_to_slice_scalar_rejects_opset_12():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 12]>
+        graph (float[5] x) => (float y) {
+          index = Constant <value = int64 {1}> ()
+          y = Gather (x, index)
+        }
+        """
+    )
+    assert count == 0
+    assert optimized.graph[-1].op_type == "Gather"
 
 
 def test_gather_concat_routes_vector_indices_to_one_input():
@@ -156,7 +250,7 @@ def test_gather_concat_rejects_indices_spanning_inputs():
         }
         """
     )
-    assert count == 1
+    assert count == 0
     assert any(node.op_type == "Concat" for node in optimized.graph)
 
 
@@ -235,8 +329,26 @@ def test_concat_twice_relu_moves_expensive_work_before_concat():
     )
 
 
-def test_concat_twice_cast_preserves_saturate_attribute():
+def test_concat_twice_reciprocal_preserves_signed_zero_nan_and_inf():
     original, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[4] x) => (float[8] y) {
+          joined = Concat <axis = 0> (x, x)
+          y = Reciprocal (joined)
+        }
+        """
+    )
+    assert count == 1
+    feeds = {"x": np.array([-0.0, 0.0, np.inf, np.nan], dtype=np.float32)}
+    _assert_multi_output_equal(original, optimized, feeds)
+    expected = ReferenceEvaluator(ir.serde.serialize_model(original)).run(None, feeds)[0]
+    actual = ReferenceEvaluator(ir.serde.serialize_model(optimized)).run(None, feeds)[0]
+    np.testing.assert_array_equal(np.signbit(actual), np.signbit(expected))
+
+
+def test_concat_twice_cast_preserves_saturate_attribute():
+    _, optimized, count = _rewrite(
         """
         <ir_version: 10, opset_import: ["" : 19]>
         graph (float[2] x) => (float16[4] y) {
@@ -249,7 +361,23 @@ def test_concat_twice_cast_preserves_saturate_attribute():
     cast = next(node for node in optimized.graph if node.op_type == "Cast")
     assert cast.attributes["to"].as_int() == 10
     assert cast.attributes["saturate"].as_int() == 0
-    del original
+
+
+def test_concat_twice_cast_preserves_round_mode_attribute():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 29]>
+        graph (float[2] x) => (float8e8m0[4] y) {
+          joined = Concat <axis = 0> (x, x)
+          y = Cast <to = 24, saturate = 1, round_mode = "up"> (joined)
+        }
+        """
+    )
+    assert count == 1
+    cast = next(node for node in optimized.graph if node.op_type == "Cast")
+    assert cast.attributes["to"].as_int() == 24
+    assert cast.attributes["saturate"].as_int() == 1
+    assert cast.attributes["round_mode"].as_string() == "up"
 
 
 def test_gather_upstream_add_handles_right_aligned_broadcast():
@@ -287,13 +415,13 @@ def test_gather_upstream_rejects_shared_producer():
         }
         """
     )
-    # GatherToSlice may still simplify the Gather, but Exp must remain before it.
+    # The Gather may still become a Slice, but Exp must remain before it.
     assert count >= 1
     assert optimized.graph[0].op_type == "Exp"
 
 
 def test_gather_upstream_cast_supports_scalar_and_preserves_saturate():
-    original, optimized, count = _rewrite(
+    _, optimized, count = _rewrite(
         """
         <ir_version: 10, opset_import: ["" : 19]>
         graph (float[3, 2] x) => (float16[2] y) {
@@ -308,7 +436,24 @@ def test_gather_upstream_cast_supports_scalar_and_preserves_saturate():
     assert op_types.index("Slice") < op_types.index("Cast")
     cast = next(node for node in optimized.graph if node.op_type == "Cast")
     assert cast.attributes["saturate"].as_int() == 0
-    del original
+
+
+def test_gather_upstream_cast_rejects_string_input_that_may_fail_conversion():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (string[2] x) => (float[1] y) {
+          cast = Cast <to = 1> (x)
+          index = Constant <value = int64[1] {0}> ()
+          y = Gather <axis = 0> (cast, index)
+        }
+        """
+    )
+    assert count == 0
+    assert [node.op_type for node in optimized.graph if node.op_type != "Constant"] == [
+        "Cast",
+        "Gather",
+    ]
 
 
 def test_gather_upstream_unary_supports_scalar_indices():
@@ -332,12 +477,32 @@ def test_gather_upstream_unary_supports_scalar_indices():
     )
 
 
+def test_gather_upstream_unary_supports_default_axis():
+    original, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[3, 2] x) => (float[2, 2] y) {
+          transformed = Tanh (x)
+          indices = Constant <value = int64[2] {2, 0}> ()
+          y = Gather (transformed, indices)
+        }
+        """
+    )
+    assert count == 1
+    assert [node.op_type for node in optimized.graph][-2:] == ["Gather", "Tanh"]
+    testing.assert_numerically_equal(
+        original,
+        optimized,
+        (np.arange(-3, 3, dtype=np.float32).reshape(3, 2),),
+    )
+
+
 def test_gathers_split_scalar_partition():
     original, optimized, count = _rewrite(
         """
         <ir_version: 10, opset_import: ["" : 18]>
         graph (float[2, 3] x) => (float[3] y0, float[3] y1) {
-          i1 = Constant <value = int64 {1}> ()
+          i1 = Constant <value = int64 {-1}> ()
           y0 = Gather <axis = 0> (x, i1)
           i0 = Constant <value = int32 {0}> ()
           y1 = Gather <axis = 0> (x, i0)
@@ -352,6 +517,81 @@ def test_gathers_split_scalar_partition():
         optimized,
         {"x": np.arange(6, dtype=np.float32).reshape(2, 3)},
     )
+
+
+def test_gathers_split_rejects_opset_12_input_form_split():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 12]>
+        graph (float[2] x) => (float[1] y0, float[1] y1) {
+          i0 = Constant <value = int64[1] {0}> ()
+          y0 = Gather <axis = 0> (x, i0)
+          i1 = Constant <value = int64[1] {1}> ()
+          y1 = Gather <axis = 0> (x, i1)
+        }
+        """
+    )
+    assert count == 2
+    assert all(node.op_type != "Split" for node in optimized.graph)
+
+
+def test_gathers_split_three_way_permuted_partition():
+    original, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[3, 2] x) => (float[1, 2] y0, float[1, 2] y1, float[1, 2] y2) {
+          i2 = Constant <value = int64[1] {-1}> ()
+          y0 = Gather (x, i2)
+          i0 = Constant <value = int32[1] {0}> ()
+          y1 = Gather (x, i0)
+          i1 = Constant <value = int64[1] {1}> ()
+          y2 = Gather (x, i1)
+        }
+        """
+    )
+    assert count >= 1
+    assert len([node for node in optimized.graph if node.op_type == "Split"]) == 1
+    _assert_multi_output_equal(
+        original, optimized, {"x": np.arange(6, dtype=np.float32).reshape(3, 2)}
+    )
+
+
+def test_gathers_split_four_way_partition():
+    original, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[4] x) => (float y0, float y1, float y2, float y3) {
+          i0 = Constant <value = int64 {0}> ()
+          y0 = Gather <axis = 0> (x, i0)
+          i1 = Constant <value = int64 {1}> ()
+          y1 = Gather <axis = 0> (x, i1)
+          i2 = Constant <value = int64 {2}> ()
+          y2 = Gather <axis = 0> (x, i2)
+          i3 = Constant <value = int64 {-1}> ()
+          y3 = Gather <axis = 0> (x, i3)
+        }
+        """
+    )
+    assert count == 1
+    assert len([node for node in optimized.graph if node.op_type == "Squeeze"]) == 4
+    _assert_multi_output_equal(original, optimized, {"x": np.arange(4, dtype=np.float32)})
+
+
+def test_gathers_split_three_rejects_duplicate_index():
+    _, optimized, _ = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[3] x) => (float[1] y0, float[1] y1, float[1] y2) {
+          i0 = Constant <value = int64[1] {0}> ()
+          y0 = Gather <axis = 0> (x, i0)
+          i1 = Constant <value = int64[1] {1}> ()
+          y1 = Gather <axis = 0> (x, i1)
+          duplicate = Constant <value = int64[1] {1}> ()
+          y2 = Gather <axis = 0> (x, duplicate)
+        }
+        """
+    )
+    assert all(node.op_type != "Split" for node in optimized.graph)
 
 
 def test_slices_split_complete_partition():
@@ -376,6 +616,92 @@ def test_slices_split_complete_partition():
         optimized,
         {"x": np.arange(5, dtype=np.float32)},
     )
+
+
+def test_slices_split_rejects_opset_12_input_form_split():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 12]>
+        graph (float[4] x) => (float[2] y0, float[2] y1) {
+          axis = Constant <value = int64[1] {0}> ()
+          step = Constant <value = int64[1] {1}> ()
+          zero = Constant <value = int64[1] {0}> ()
+          two = Constant <value = int64[1] {2}> ()
+          four = Constant <value = int64[1] {4}> ()
+          y0 = Slice (x, zero, two, axis, step)
+          y1 = Slice (x, two, four, axis, step)
+        }
+        """
+    )
+    assert count == 0
+    assert len([node for node in optimized.graph if node.op_type == "Slice"]) == 2
+
+
+def test_slices_split_three_way_permuted_partition():
+    original, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[6] x) => (float[2] y0, float[2] y1, float[2] y2) {
+          axis = Constant <value = int64[1] {0}> ()
+          step = Constant <value = int64[1] {1}> ()
+          zero = Constant <value = int64[1] {0}> ()
+          two = Constant <value = int64[1] {2}> ()
+          four = Constant <value = int64[1] {4}> ()
+          six = Constant <value = int64[1] {6}> ()
+          y0 = Slice (x, four, six, axis, step)
+          y1 = Slice (x, zero, two, axis, step)
+          y2 = Slice (x, two, four, axis, step)
+        }
+        """
+    )
+    assert count == 1
+    assert len([node for node in optimized.graph if node.op_type == "Split"]) == 1
+    _assert_multi_output_equal(original, optimized, {"x": np.arange(6, dtype=np.float32)})
+
+
+def test_slices_split_four_way_partition():
+    original, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[8] x) => (float[2] y0, float[2] y1, float[2] y2, float[2] y3) {
+          axis = Constant <value = int64[1] {0}> ()
+          step = Constant <value = int64[1] {1}> ()
+          zero = Constant <value = int64[1] {0}> ()
+          two = Constant <value = int64[1] {2}> ()
+          four = Constant <value = int64[1] {4}> ()
+          six = Constant <value = int64[1] {6}> ()
+          eight = Constant <value = int64[1] {8}> ()
+          y0 = Slice (x, zero, two, axis, step)
+          y1 = Slice (x, two, four, axis, step)
+          y2 = Slice (x, four, six, axis, step)
+          y3 = Slice (x, six, eight, axis, step)
+        }
+        """
+    )
+    assert count == 1
+    assert len([node for node in optimized.graph if node.op_type == "Split"]) == 1
+    _assert_multi_output_equal(original, optimized, {"x": np.arange(8, dtype=np.float32)})
+
+
+def test_slices_split_three_rejects_overlap():
+    _, optimized, _ = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[6] x) => (float[3] y0, float[3] y1, float[1] y2) {
+          axis = Constant <value = int64[1] {0}> ()
+          step = Constant <value = int64[1] {1}> ()
+          zero = Constant <value = int64[1] {0}> ()
+          three = Constant <value = int64[1] {3}> ()
+          two = Constant <value = int64[1] {2}> ()
+          five = Constant <value = int64[1] {5}> ()
+          six = Constant <value = int64[1] {6}> ()
+          y0 = Slice (x, zero, three, axis, step)
+          y1 = Slice (x, two, five, axis, step)
+          y2 = Slice (x, five, six, axis, step)
+        }
+        """
+    )
+    assert all(node.op_type != "Split" for node in optimized.graph)
 
 
 def test_gather_slice_to_split_complete_partition():
@@ -670,3 +996,102 @@ def test_sequence_construct_at_rejects_partial_reads():
     )
     assert count == 0
     assert any(node.op_type == "SequenceConstruct" for node in optimized.graph)
+
+
+def test_sequence_construct_at_eliminates_three_way_permutation():
+    original, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[1] a, float[1] b, float[1] c)
+            => (float[1] y0, float[1] y1, float[1] y2) {
+          sequence = SequenceConstruct (a, b, c)
+          i2 = Constant <value = int64 {-1}> ()
+          y0 = SequenceAt (sequence, i2)
+          i0 = Constant <value = int64 {0}> ()
+          y1 = SequenceAt (sequence, i0)
+          i1 = Constant <value = int64 {1}> ()
+          y2 = SequenceAt (sequence, i1)
+        }
+        """
+    )
+    assert count == 1
+    assert all(
+        node.op_type not in {"SequenceConstruct", "SequenceAt"} for node in optimized.graph
+    )
+    _assert_multi_output_equal(
+        original,
+        optimized,
+        {
+            "a": np.array([1], dtype=np.float32),
+            "b": np.array([2], dtype=np.float32),
+            "c": np.array([3], dtype=np.float32),
+        },
+    )
+
+
+def test_sequence_construct_at_eliminates_four_way_reads():
+    original, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[1] a, float[1] b, float[1] c, float[1] d)
+            => (float[1] y0, float[1] y1, float[1] y2, float[1] y3) {
+          sequence = SequenceConstruct (a, b, c, d)
+          i0 = Constant <value = int64 {0}> ()
+          y0 = SequenceAt (sequence, i0)
+          i1 = Constant <value = int64 {1}> ()
+          y1 = SequenceAt (sequence, i1)
+          i2 = Constant <value = int64 {2}> ()
+          y2 = SequenceAt (sequence, i2)
+          i3 = Constant <value = int64 {3}> ()
+          y3 = SequenceAt (sequence, i3)
+        }
+        """
+    )
+    assert count == 1
+    assert all(
+        node.op_type not in {"SequenceConstruct", "SequenceAt"} for node in optimized.graph
+    )
+    _assert_multi_output_equal(
+        original,
+        optimized,
+        {
+            "a": np.array([1], dtype=np.float32),
+            "b": np.array([2], dtype=np.float32),
+            "c": np.array([3], dtype=np.float32),
+            "d": np.array([4], dtype=np.float32),
+        },
+    )
+
+
+def test_sequence_construct_at_three_rejects_duplicate_reads():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[1] a, float[1] b, float[1] c)
+            => (float[1] y0, float[1] y1, float[1] y2) {
+          sequence = SequenceConstruct (a, b, c)
+          i0 = Constant <value = int64 {0}> ()
+          y0 = SequenceAt (sequence, i0)
+          i1 = Constant <value = int64 {1}> ()
+          y1 = SequenceAt (sequence, i1)
+          duplicate = Constant <value = int64 {1}> ()
+          y2 = SequenceAt (sequence, duplicate)
+        }
+        """
+    )
+    assert count == 0
+    assert any(node.op_type == "SequenceConstruct" for node in optimized.graph)
+
+
+def test_rules_reach_fixed_point_without_reapplying():
+    _, optimized, count = _rewrite(
+        """
+        <ir_version: 10, opset_import: ["" : 18]>
+        graph (float[2, 3] x) => (float[2, 6] y) {
+          joined = Concat <axis = 1> (x, x)
+          y = Tanh (joined)
+        }
+        """
+    )
+    assert count == 1
+    assert _collection_optimizations.rules.apply_to_model(optimized) == 0

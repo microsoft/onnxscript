@@ -292,6 +292,29 @@ class CanonicalOptimizationsTest(unittest.TestCase):
                 )
                 self.assertEqual(count, 0)
 
+    def test_reduce_arg_topk_supports_int16_and_default_axis(self):
+        original, rewritten, count = self._apply(
+            """
+            <ir_version: 9, opset_import: ["" : 18]>
+            graph (int16[3,2] x) =>
+                (int16[1,2] values, int64[1,2] indices)
+            <int64[1] axes = {0}>
+            {
+                values = ReduceMax<keepdims=1>(x, axes)
+                indices = ArgMax<keepdims=1>(x)
+            }
+            """
+        )
+        self.assertEqual(count, 1)
+        testing.assert_numerically_equal(
+            original,
+            rewritten,
+            {"x": np.array([[5, 1], [5, 7], [3, 7]], dtype=np.int16)},
+            rtol=0,
+            atol=0,
+            use_reference=True,
+        )
+
     def test_reduce_arg_topk_uses_function_local_opset(self):
         model = ir.from_onnx_text(
             """
@@ -364,6 +387,21 @@ class CanonicalOptimizationsTest(unittest.TestCase):
                 _, _, count = self._apply(model_text)
                 self.assertEqual(count, 0)
 
+    def test_range_offset_rejects_rank_growth(self):
+        _, _, count = self._apply(
+            """
+            <ir_version: 9, opset_import: ["" : 18]>
+            graph () => (int32[1,3] y)
+            <int32 start = {0}, int32 limit = {3}, int32 delta = {1},
+             int32[1,1] offset = {2}>
+            {
+                r = Range(start, limit, delta)
+                y = Add(r, offset)
+            }
+            """
+        )
+        self.assertEqual(count, 0)
+
     def test_cast_moves_before_transpose_and_preserves_attributes(self):
         original, rewritten, count = self._apply(
             """
@@ -401,6 +439,41 @@ class CanonicalOptimizationsTest(unittest.TestCase):
         )
         self.assertEqual(count, 0)
         self.assertEqual([node.op_type for node in rewritten.graph], ["Transpose", "Cast"])
+
+    def test_cast_does_not_duplicate_other_shared_layouts(self):
+        cases = [
+            (
+                "int64[2] parameter = {3, 2}",
+                "saved = Reshape(x, parameter)",
+                "float[3,2]",
+            ),
+            (
+                "int64[1] parameter = {0}",
+                "saved = Squeeze(x, parameter)",
+                "float[2,3]",
+            ),
+            (
+                "int64[1] parameter = {0}",
+                "saved = Unsqueeze(x, parameter)",
+                "float[1,2,3]",
+            ),
+        ]
+        for initializer, expression, saved_type in cases:
+            with self.subTest(expression=expression):
+                input_shape = "[1,2,3]" if "Squeeze" in expression else "[2,3]"
+                _, rewritten, count = self._apply(
+                    f"""
+                    <ir_version: 9, opset_import: ["" : 18]>
+                    graph (float{input_shape} x) => (int32 y, {saved_type} saved)
+                    <{initializer}>
+                    {{
+                        {expression}
+                        y = Cast<to=6>(saved)
+                    }}
+                    """
+                )
+                self.assertEqual(count, 0)
+                self.assertEqual(rewritten.graph[-1].op_type, "Cast")
 
     def test_cast_moves_before_other_layout_ops(self):
         cases = [
@@ -446,6 +519,28 @@ class CanonicalOptimizationsTest(unittest.TestCase):
                 self.assertEqual([node.op_type for node in rewritten.graph], ["Cast", op_type])
                 if attribute is not None:
                     self.assertIn(attribute, rewritten.graph[1].attributes)
+
+    def test_registered_rule_names_describe_the_transformations(self):
+        self.assertEqual(
+            [rule.name for rule in _canonical_optimizations.rules.rules],
+            [
+                "FuseConsecutiveConstantPads",
+                "RemoveIdentityAllZeroReshape",
+                "FuseReduceMaxArgMaxIntoTopK",
+                "FuseReduceMinArgMinIntoTopK",
+                "RemoveRightAddZeroVector",
+                "RemoveLeftAddZeroVector",
+                "RemoveRightSubZeroVector",
+                "RemoveRightMulOneVector",
+                "RemoveLeftMulOneVector",
+                "RemoveRightDivOneVector",
+                "MoveCastBeforeTranspose",
+                "MoveCastBeforeReshape",
+                "MoveCastBeforeSqueeze",
+                "MoveCastBeforeUnsqueeze",
+                "MoveIntegerRangeOffsetIntoBounds",
+            ],
+        )
 
 
 if __name__ == "__main__":

@@ -82,6 +82,19 @@ class LayoutOptimizationsTest(unittest.TestCase):
                 actual = _evaluate(rewritten, feeds)
                 np.testing.assert_array_equal(actual[0], expected[0])
 
+    def test_squeeze_binary_requires_proven_unit_dimension(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[N] x) => (float[1] z)
+            <int64[1] axes = {0}, float y = {2.0}> {
+                a = Squeeze(x, axes)
+                b = Div(a, y)
+                z = Unsqueeze(b, axes)
+            }
+        """
+        _, _, count = _apply(model_text)
+        self.assertEqual(count, 0)
+
     def test_squeeze_add_rank_mismatch_rejected(self):
         model_text = """
             <ir_version: 10, opset_import: ["" : 18]>
@@ -257,6 +270,18 @@ class LayoutOptimizationsTest(unittest.TestCase):
         _, _, count = _apply(rejected)
         self.assertEqual(count, 0)
 
+    def test_reshape_squeeze_empty_axes_is_not_fused(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[1,2] x) => (float[2,1] y)
+            <int64[2] shape = {2,1}, int64[0] axes = {}> {
+                r = Reshape(x, shape)
+                y = Squeeze(r, axes)
+            }
+        """
+        _, _, count = _apply(model_text)
+        self.assertEqual(count, 0)
+
     def test_no_op_reshape_symbolic_and_zero_sized(self):
         model_text = """
             <ir_version: 10, opset_import: ["" : 18]>
@@ -283,6 +308,50 @@ class LayoutOptimizationsTest(unittest.TestCase):
         """
         _, _, count = _apply(model_text)
         self.assertEqual(count, 0)
+
+    def test_no_op_reshape_accepts_unambiguous_symbolic_inferred_dimension(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[N,3] x) => (float[N,3] y)
+            <int64[2] shape = {-1,3}> {
+                y = Reshape(x, shape)
+            }
+        """
+        original, rewritten, count = _apply(model_text)
+        self.assertEqual(count, 1)
+        self.assertEqual([node.op_type for node in rewritten.graph], ["Identity"])
+        for leading in (0, 2):
+            feeds = {"x": np.arange(leading * 3, dtype=np.float32).reshape(leading, 3)}
+            np.testing.assert_array_equal(
+                _evaluate(rewritten, feeds)[0], _evaluate(original, feeds)[0]
+            )
+
+    def test_no_op_reshape_rejects_ambiguous_symbolic_inference(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[N,3] x) => (float[N,3] y)
+            <int64[2] shape = {0,-1}> {
+                y = Reshape(x, shape)
+            }
+        """
+        _, _, count = _apply(model_text)
+        self.assertEqual(count, 0)
+
+    def test_no_op_reshape_allowzero_literal_zero(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[0,3] x) => (float[0,3] y)
+            <int64[2] shape = {0,3}> {
+                y = Reshape(x, shape) <allowzero = 1>
+            }
+        """
+        original, rewritten, count = _apply(model_text)
+        self.assertEqual(count, 1)
+        self.assertEqual([node.op_type for node in rewritten.graph], ["Identity"])
+        feeds = {"x": np.empty((0, 3), dtype=np.float32)}
+        np.testing.assert_array_equal(
+            _evaluate(rewritten, feeds)[0], _evaluate(original, feeds)[0]
+        )
 
     def test_shape_based_reshape_becomes_unsqueeze(self):
         model_text = """
@@ -436,6 +505,18 @@ class LayoutOptimizationsTest(unittest.TestCase):
         np.testing.assert_array_equal(
             _evaluate(rewritten, feeds)[0], _evaluate(original, feeds)[0]
         )
+
+    def test_unsqueeze_reshape_special_case_rejects_ambiguous_empty_inference(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[N,1,3] x) => (float[N,1,3,1] y)
+            <int64[1] axes = {2}, int64[4] shape = {0,1,-1,0}> {
+                u = Unsqueeze(x, axes)
+                y = Reshape(u, shape)
+            }
+        """
+        _, _, count = _apply(model_text)
+        self.assertEqual(count, 0)
 
     def test_transpose_unit_reshape_transpose_removes_data_transpose(self):
         model_text = """
