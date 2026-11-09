@@ -19,7 +19,6 @@ from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
 logger = logging.getLogger(__name__)
 
 
-SUPPORTED_MAX_ONNX_OPSET = 25
 SUPPORTED_MIN_ONNX_OPSET = 18
 
 
@@ -68,12 +67,7 @@ def version_supported(model: ir.Model, target_version: int) -> bool:
         current_version = model.graph.opset_imports[""]
     else:
         return True
-    return (
-        SUPPORTED_MIN_ONNX_OPSET
-        <= current_version
-        <= target_version
-        <= SUPPORTED_MAX_ONNX_OPSET
-    )
+    return SUPPORTED_MIN_ONNX_OPSET <= current_version <= target_version
 
 
 class AdapterRegistry:
@@ -356,12 +350,10 @@ class _VersionConverter:
 
 def convert_version(model: ir.Model, target_version: int) -> None:
     """Convert the model to the specified ONNX opset version."""
-    if (target_version > SUPPORTED_MAX_ONNX_OPSET) or (
-        target_version < SUPPORTED_MIN_ONNX_OPSET
-    ):
+    if target_version < SUPPORTED_MIN_ONNX_OPSET:
         raise ValueError(
             f"Target opset version {target_version} is not supported. "
-            f"Supported range: {SUPPORTED_MIN_ONNX_OPSET} to {SUPPORTED_MAX_ONNX_OPSET}."
+            f"The minimum supported target opset version is {SUPPORTED_MIN_ONNX_OPSET}."
         )
     version_converter = _VersionConverter(target_version=target_version)
     version_converter.visit_model(model)

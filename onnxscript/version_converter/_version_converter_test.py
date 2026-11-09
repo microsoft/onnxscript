@@ -540,7 +540,6 @@ class VersionConverterMetadataMergeTest(unittest.TestCase):
 
 
 class VersionConverter25to26Test(unittest.TestCase):
-    @pytest.mark.xfail(strict=True, reason="Version upgrade beyond 25 not yet supported.")
     def test_version_convert_compatible(self):
         model = ir.from_onnx_text(
             """
@@ -559,6 +558,45 @@ class VersionConverter25to26Test(unittest.TestCase):
         )
         target_version = 26
         version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
+        self.assertTrue(all(node.version == target_version for node in model.graph))
+
+    def test_version_convert_without_adapter_has_no_upper_limit(self):
+        for source_version, target_version in ((25, 99), (98, 99)):
+            for fallback in (False, True):
+                with self.subTest(
+                    source_version=source_version,
+                    target_version=target_version,
+                    fallback=fallback,
+                ):
+                    model = ir.from_onnx_text(
+                        f"""
+                        <ir_version: 7, opset_import: [ "" : {source_version}]>
+                        agraph (float[1] x) => (float[1] y) {{
+                            y = Identity(x)
+                        }}
+                        """
+                    )
+                    original_node = model.graph.node(0)
+                    version_converter.convert_version(
+                        model, target_version=target_version, fallback=fallback
+                    )
+                    self.assertEqual(model.opset_imports[""], target_version)
+                    self.assertEqual(len(model.graph), 1)
+                    self.assertIs(model.graph.node(0), original_node)
+                    self.assertEqual(original_node.version, target_version)
+
+    def test_version_convert_rejects_target_below_minimum(self):
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[1] x) => (float[1] y) {
+                y = Identity(x)
+            }
+            """
+        )
+        with self.assertRaisesRegex(ValueError, "minimum supported target opset version is 18"):
+            version_converter.convert_version(model, target_version=17)
 
 
 def _all_value_names_unique(model: ir.Model) -> bool:

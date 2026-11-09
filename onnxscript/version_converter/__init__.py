@@ -167,6 +167,10 @@ def convert_version(
 ) -> None:
     """Convert the model to the specified ONNX opset version.
 
+    Native upward conversion has no maximum target opset version. When no
+    up-conversion adapter is registered, the operator is left unchanged apart
+    from its version.
+
     Args:
         model: The model to convert.
         target_version: The target ONNX opset version.
