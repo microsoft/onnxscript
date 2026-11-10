@@ -1058,6 +1058,18 @@ class NameClashAfterRewriteTest(unittest.TestCase):
 
 class MultiOutputPatternTest(unittest.TestCase):
     @staticmethod
+    def _model(inputs, nodes):
+        return ir.Model(
+            ir.Graph(
+                inputs,
+                [output for node in nodes for output in node.outputs],
+                nodes=nodes,
+                opset_imports={"": 18},
+            ),
+            ir_version=10,
+        )
+
+    @staticmethod
     def _rule() -> pattern.RewriteRule:
         def relu_neg_pattern(op, x):
             return op.Relu(x), op.Neg(x)
@@ -1151,6 +1163,111 @@ class MultiOutputPatternTest(unittest.TestCase):
 
         self.assertFalse(match)
         self.assertEqual(rule.apply_to_model(model), 0)
+
+    def test_no_match_when_later_output_node_has_too_few_outputs(self):
+        def target(op, x):
+            output, mask = op.Dropout(x, _outputs=2)
+            return op.Neg(x), output, mask
+
+        x = ir.Value(name="x")
+        neg = ir.node("Neg", [x])
+        dropout = ir.node("Dropout", [x])
+        model = self._model([x], [neg, dropout])
+        match = pattern.Pattern(target).match(model, model.graph, neg)
+        self.assertFalse(match)
+
+    def test_disconnected_outputs_and_unbound_inputs(self):
+        def target(op, x, y, z):
+            return op.Relu(x), op.Neg(y), op.Abs(z)
+
+        x, y, z = (ir.Value(name=name) for name in ("x", "y", "z"))
+        nodes = [ir.node("Relu", [x]), ir.node("Neg", [y]), ir.node("Abs", [z])]
+        model = self._model([x, y, z], nodes)
+        match = pattern.Pattern(target).match(model, model.graph, nodes[0])
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), list(model.graph.outputs))
+        self.assertEqual(match.bindings, {"x": x, "y": y, "z": z})
+
+    def test_multiple_unbound_wildcard_outputs_and_attribute_constraints(self):
+        def target(op, x, y, z):
+            return (
+                op.Relu(x),
+                op.submodule("")(y, to=1),
+                op.submodule("")(z, to=6),
+            )
+
+        x, y, z = (ir.Value(name=name) for name in ("x", "y", "z"))
+        nodes = [
+            ir.node("Relu", [x]),
+            ir.node("Cast", [y], {"to": 1}),
+            ir.node("Cast", [z], {"to": 6}),
+        ]
+        model = self._model([x, y, z], nodes)
+        match = pattern.Pattern(target).match(model, model.graph, nodes[0])
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), list(model.graph.outputs))
+
+    def test_bound_input_candidates_still_check_literal_attributes(self):
+        def target(op, x):
+            return op.Relu(x), op.Cast(x, to=1)
+
+        x = ir.Value(name="x")
+        relu = ir.node("Relu", [x])
+        wrong = ir.node("Cast", [x], {"to": 6})
+        missing = ir.node("Cast", [x])
+        right = ir.node("Cast", [x], {"to": 1})
+        model = self._model([x], [relu, wrong, missing, right])
+        matcher = pattern.Pattern(target)
+        match = matcher.match(model, model.graph, relu)
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), [relu.outputs[0], right.outputs[0]])
+        right.attributes["to"] = ir.AttrInt64("to", 6)
+        self.assertFalse(matcher.match(model, model.graph, relu))
+
+    def test_unnamed_shared_intermediate(self):
+        def target(op, x):
+            shared = op.Relu(x)
+            return op.Abs(shared), op.Neg(shared)
+
+        x = ir.Value(name="x")
+        relu = ir.node("Relu", [x])
+        absolute = ir.node("Abs", [relu.outputs[0]])
+        wrong = ir.node("Neg", [x])
+        right = ir.node("Neg", [relu.outputs[0]])
+        model = self._model([x], [relu, absolute, wrong, right])
+        model.graph.outputs.remove(relu.outputs[0])
+        match = pattern.Pattern(target).match(model, model.graph, absolute)
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), [absolute.outputs[0], right.outputs[0]])
+
+    def test_consumer_at_wrong_input_position_is_not_a_candidate(self):
+        def target(op, x, y):
+            return op.Relu(x), op.Sub(y, x)
+
+        x, y = ir.Value(name="x"), ir.Value(name="y")
+        relu = ir.node("Relu", [x])
+        wrong = ir.node("Sub", [x, y])
+        right = ir.node("Sub", [y, x])
+        model = self._model([x, y], [relu, wrong, right])
+        match = pattern.Pattern(target).match(model, model.graph, relu)
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), [relu.outputs[0], right.outputs[0]])
+
+    def test_captured_input_does_not_match_consumers_in_another_graph(self):
+        def target(op, x):
+            return op.Relu(x), op.Neg(x)
+
+        x = ir.Value(name="x")
+        relu = ir.node("Relu", [x])
+        neg = ir.node("Neg", [x])
+        other_graph = ir.Graph([], [neg.outputs[0]], nodes=[neg])
+        model = self._model([x], [relu])
+        matcher = pattern.Pattern(target)
+        self.assertFalse(matcher.match(model, model.graph, relu))
+        self.assertIs(neg.graph, other_graph)
+        local_neg = ir.node("Neg", [x])
+        model.graph.append(local_neg)
+        self.assertTrue(matcher.match(model, model.graph, relu))
 
 
 if __name__ == "__main__":

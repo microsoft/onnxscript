@@ -181,7 +181,9 @@ class SimplePatternMatcher(PatternMatcher):
             # actual outputs of the candidate node, reject the node before even
             # trying to index into the list of node outputs.
             if i >= len(node.outputs):
-                return False
+                return self.fail(
+                    f"Number of outputs ({len(node.outputs)}) is less than expected ({len(pattern_node.outputs)})."
+                )
 
             if not self._match.bind_value(output_value_pattern, node.outputs[i]):
                 return False
@@ -360,8 +362,8 @@ class SimplePatternMatcher(PatternMatcher):
         For patterns with multiple output nodes, the given node is matched
         against the first output node in the pattern. For the remaining
         output nodes in the pattern, we use a brute-force algorithm that
-        enumerates all possible combinations of nodes from the graph (with
-        a filter based on op-type).
+        enumerates combinations of nodes filtered by bound inputs and op-type.
+        Disconnected outputs with no bound inputs fall back to a graph scan.
 
         TODO: Consider omitting parameters model and graph_or_function. With
         the new IR, the graph can be obtained from the node, and the model is
@@ -398,14 +400,10 @@ class SimplePatternMatcher(PatternMatcher):
             # candidates for the other output nodes.
             self._init_match(verbose)
             if not self._match_node(pattern_output_nodes[0], node):
-                # Some failure paths in _match_node return False without marking the
-                # match as failed, so mark it here.
-                if self._match:
-                    self._match.fail("First output node does not match.", node)
                 return self._match
             first_match = self._match
 
-            def bound_value(pattern_value) -> ir.Value | None:
+            def bound_value(pattern_value: _pattern_ir.ValuePattern) -> ir.Value | None:
                 # Named pattern variables are bound by name, the others by the pattern value.
                 if pattern_value.name is not None:
                     value = first_match.bindings.get(pattern_value.name)
@@ -413,11 +411,11 @@ class SimplePatternMatcher(PatternMatcher):
                     value = first_match.value_bindings.get(pattern_value)
                 return value if isinstance(value, ir.Value) else None
 
-            op_to_nodes: dict[tuple[str, str, str], list[ir.Node]] | None = None
+            op_to_nodes: dict[ir.OperatorIdentifier, list[ir.Node]] | None = None
 
-            def get_nodes(pattern_node):
+            def get_nodes(pattern_node: _pattern_ir.NodePattern) -> list[ir.Node]:
                 nonlocal op_to_nodes
-                id = pattern_node.op_identifier()
+                op_id = pattern_node.op_identifier()
                 # A graph node can only match if each of its inputs equals the value
                 # already bound to the corresponding pattern input, so it must be a
                 # consumer of that value.
@@ -433,16 +431,16 @@ class SimplePatternMatcher(PatternMatcher):
                         for user, user_index in bound.uses()
                         if user_index == index
                         and user.graph is self._graph
-                        and (id is None or user.op_identifier() == id)
+                        and (op_id is None or user.op_identifier() == op_id)
                     }
                     return list(consumers)
-                if id is None:
+                if op_id is None:
                     return list(graph_or_function)
                 if op_to_nodes is None:
                     op_to_nodes = {}
                     for n in graph_or_function:
                         op_to_nodes.setdefault(n.op_identifier(), []).append(n)
-                return op_to_nodes.get(id, [])
+                return op_to_nodes.get(op_id, [])
 
             candidates = [[node]] + [get_nodes(pn) for pn in pattern_output_nodes[1:]]
             match = None

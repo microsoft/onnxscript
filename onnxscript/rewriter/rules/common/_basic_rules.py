@@ -15,8 +15,9 @@ import numpy as np
 import onnx_ir as ir
 
 from onnxscript.rewriter import _ir_utils as ir_utils
-from onnxscript.rewriter._basics import MatchResult
-from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
+from onnxscript.rewriter import _matcher, _pattern_ir
+from onnxscript.rewriter._basics import MatchingTracer, MatchResult
+from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleClassBase, RewriteRuleSet
 
 
 class SqueezeReshape(RewriteRuleClassBase):
@@ -160,57 +161,132 @@ class ReshapeReshape(RewriteRuleClassBase):
         return check_result
 
 
+def _slice_half(node: ir.Node) -> tuple[ir.Value, int, int] | None:
+    """Identify a Slice of the first or second half of a known even last dimension."""
+    if (
+        node.op_identifier() != ("", "Slice", "")
+        or len(node.inputs) != 4
+        or len(node.outputs) != 1
+    ):
+        return None
+    x, begin, end, axes = node.inputs
+    if x is None or x.shape is None or len(x.shape) == 0:
+        return None
+    last_dim = x.shape[-1]
+    if not isinstance(last_dim, int) or last_dim <= 0 or last_dim % 2:
+        return None
+    axis = ir_utils.get_singleton_value(axes, rank=1)
+    if not isinstance(axis, int) or axis not in (-1, len(x.shape) - 1):
+        return None
+    start = ir_utils.get_singleton_value(begin, rank=1)
+    stop = ir_utils.get_singleton_value(end, rank=1)
+    if (start, stop) == (0, last_dim // 2):
+        return x, axis, 0
+    if (start, stop) == (last_dim // 2, last_dim):
+        return x, axis, 1
+    return None
+
+
+class _SlicesSplitMatcher(_matcher.SimplePatternMatcher):
+    def __init__(self, pattern: _pattern_ir.GraphPattern) -> None:
+        super().__init__(pattern)
+        self._indices: list[
+            dict[tuple[ir.Value, int], tuple[list[ir.Node], list[ir.Node]]]
+        ] = []
+
+    def setup(self) -> None:
+        # A stack preserves the enclosing graph's index while rewriting subgraphs.
+        self._indices.append({})
+
+    def cleanup(self) -> None:
+        self._indices.pop()
+
+    def match(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+        *,
+        verbose: int = 0,
+        remove_nodes: bool = True,
+        tracer: MatchingTracer | None = None,
+    ) -> MatchResult:
+        del model, tracer
+        self._graph = (
+            graph_or_function.graph
+            if isinstance(graph_or_function, ir.Function)
+            else graph_or_function
+        )
+        self._init_match(verbose)
+        key = _slice_half(node)
+        if key is None:
+            return self._match.fail(
+                "Expected a Slice of one half of a known, positive, even last dimension.", node
+            )
+        x, axis, half = key
+        # Direct match calls outside a rewrite pass must not retain an index.
+        index = self._indices[-1] if self._indices else {}
+        if (x, axis) not in index:
+            halves: tuple[list[ir.Node], list[ir.Node]] = ([], [])
+            for user, input_index in x.uses():
+                if input_index == 0 and user.graph is self._graph:
+                    user_key = _slice_half(user)
+                    if user_key is not None and user_key[1] == axis:
+                        halves[user_key[2]].append(user)
+            index[x, axis] = halves
+        halves = index[x, axis]
+        # Include Slice nodes introduced by earlier rewrites in the same pass.
+        halves[half].append(node)
+        partners = halves[1 - half]
+        while partners:
+            partner = partners[-1]
+            if partner.graph is not self._graph or _slice_half(partner) != (x, axis, 1 - half):
+                # Removed or modified candidates are discarded once, not rescanned.
+                partners.pop()
+                continue
+            pair = (node, partner) if half == 0 else (partner, node)
+            return self._multi_match(pair, check_removable=remove_nodes)
+        return self._match.fail("No complementary Slice of the same input and axis.", node)
+
+
 class SlicesSplit(RewriteRuleClassBase):
-    """Replaces ``Slice(x, ...), Slice(x, ...)``
-    by ``Split(x, ...)`` if possible.
+    """Replace complementary last-axis half Slices with a two-output Split (opset 18+).
+
+    Index the eligible consumers once per input/axis and graph pass, rather than
+    enumerating pairs of all Slice consumers of a shared input.
     """
+
+    @classmethod
+    def rule(cls, *args, **kwargs):
+        instance = cls(*args, **kwargs)
+        matcher = _SlicesSplitMatcher(_pattern_ir._to_graph_pattern(instance.pattern))
+        return RewriteRule(
+            matcher.pattern,
+            instance.rewrite,
+            instance.check,
+            matcher=matcher,
+            name=instance.name,
+            remove_nodes=instance.remove_nodes,
+            graph_pre_visitor=matcher.setup,
+            graph_post_visitor=matcher.cleanup,
+            as_function=instance.as_function,
+        )
 
     def pattern(self, op, x, begin0, end0, axes0, begin1, end1, axes1):
         return op.Slice(x, begin0, end0, axes0), op.Slice(x, begin1, end1, axes1)
 
-    def check(self, context, x, begin0, end0, axes0, begin1, end1, axes1) -> MatchResult:
+    def check(self, context, **_) -> MatchResult:
         check_result = MatchResult()
-        if (
-            axes0.const_value is None
-            or axes1.const_value is None
-            or axes0.const_value.numpy().tolist() != axes1.const_value.numpy().tolist()
-        ):
-            return check_result.fail("Axes are not equal or not constant.")
-        axes = axes0.const_value.numpy().tolist()
-        if len(axes) != 1:
-            return check_result.fail("Axes has more than one dimension.")
-        if x.shape is not None:
-            rank = len(x.shape)
-        else:
-            return check_result.fail("Input rank is not known.")
-        if axes[0] != -1 and axes[0] != rank - 1:
-            return check_result.fail("Axes is not -1 or last dimension.")
-        if (
-            begin0.const_value is None
-            or end0.const_value is None
-            or begin1.const_value is None
-            or end1.const_value is None
-        ):
-            return check_result.fail("Begin or end are not constant values.")
-        if begin0.const_value.numpy().tolist() != [0]:
-            return check_result.fail("First begin value is not 0.")
-        e0, b1, e1 = (
-            end0.const_value.numpy().tolist(),
-            begin1.const_value.numpy().tolist(),
-            end1.const_value.numpy().tolist(),
+        opset = context.graph_or_function.opset_imports.get(
+            "", context.model.graph.opset_imports.get("", 0)
         )
-        if e0[0] != b1[0]:
-            return check_result.fail("End0 is not equal to Begin1.")
-        shape = x.shape
-        if shape is None:
-            return check_result.fail("Shape is not known.")
-        last_dim = shape[-1]
-        if not isinstance(last_dim, int):
-            return check_result.fail("Last dimension is not known.")
-        if last_dim != e1[0]:
-            return check_result.fail("Last dimension is not equal to End1.")
-        if last_dim // 2 != b1[0]:
-            return check_result.fail("Last dimension is not equal to Begin1.")
+        if opset < 18:
+            return check_result.fail("Split with num_outputs requires ONNX opset 18 or newer.")
+        first, second = (_slice_half(node) for node in context.nodes)
+        if first is None or second is None or first[2] != 0 or second != (*first[:2], 1):
+            return check_result.fail(
+                "Expected complementary half Slices of the same input and axis."
+            )
         return check_result
 
     def rewrite(self, op, x, begin0, end0, axes0, begin1, end1, axes1):
