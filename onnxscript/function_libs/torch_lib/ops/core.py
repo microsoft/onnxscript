@@ -6535,16 +6535,22 @@ def aten_max(self: TReal) -> TReal:
 
 
 @torch_op("aten::max.dim", trace_only=True)
-def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, INT64]:
+def aten_max_dim(self: TTensor, dim: int, keepdim: bool = False) -> Tuple[TTensor, INT64]:
     """max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
 
     if len(self.shape) == 0:
         result = self
         indices = op.Constant(value_int=0)
     else:
+        is_bool = self.dtype == ir.DataType.BOOL
+        if is_bool:
+            # ReduceMax and ArgMax do not take BOOL
+            self = op.Cast(self, to=INT32.dtype)
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result = op.ReduceMax(self, dims, keepdims=keepdim)
         indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
+        if is_bool:
+            result = op.Cast(result, to=BOOL.dtype)
     return result, indices
 
 
@@ -6647,15 +6653,21 @@ def aten_min(self: TReal) -> TReal:
 
 
 @torch_op("aten::min.dim", trace_only=True)
-def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
+def aten_min_dim(self: TTensor, dim: int, keepdim: bool = False) -> Tuple[TTensor, TInt]:
     """min.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
     if len(self.shape) == 0:
         result = self
         indices = op.Constant(value_int=0)
     else:
+        is_bool = self.dtype == ir.DataType.BOOL
+        if is_bool:
+            # ReduceMin and ArgMin do not take BOOL
+            self = op.Cast(self, to=INT32.dtype)
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result = op.ReduceMin(self, dims, keepdims=keepdim)
         indices = op.ArgMin(self, axis=dim, keepdims=keepdim)
+        if is_bool:
+            result = op.Cast(result, to=BOOL.dtype)
 
     return result, indices
 
