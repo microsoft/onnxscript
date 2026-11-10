@@ -12,8 +12,8 @@ from __future__ import annotations
 from typing import ClassVar, Sequence
 
 import numpy as np
+import onnx_ir as ir
 
-from onnxscript import ir
 from onnxscript.rewriter import _ir_utils as ir_utils
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
@@ -356,10 +356,10 @@ class Flatten2Reshape(RewriteRuleClassBase):
 cast_cast_rule = CastCast.rule()
 no_op_cast_rule = CastIdentity.rule()
 no_op_expand_rule = ExpandIdentity.rule()
-reshape_reshape_rule = ReshapeReshape.rule()
+reshape_reshape_rule = ReshapeReshape.rule(remove_nodes=False)
 slice_split_rule = SlicesSplit.rule()
 no_op_transpose_rule = TransposeIdentity.rule()
-transpose_transpose_rule = TransposeTranspose.rule()
+transpose_transpose_rule = TransposeTranspose.rule(remove_nodes=False)
 unsqueeze_unsqueeze_rule = UnsqueezeUnsqueeze.rule()
 squeeze_reshape_1d_rule = SqueezeReshape.rule()
 flatten_to_reshape_rule = Flatten2Reshape.rule()

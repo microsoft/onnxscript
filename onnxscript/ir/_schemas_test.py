@@ -5,10 +5,11 @@ from __future__ import annotations
 import unittest
 from typing import Any, Optional, Sequence, TypeVar, Union
 
+import onnx_ir as ir
 import parameterized
 
 import onnxscript
-from onnxscript import FLOAT, INT64, ir
+from onnxscript import FLOAT, INT64
 from onnxscript.ir import _schemas
 
 _TestTypeVarConstraints = TypeVar("_TestTypeVarConstraints", INT64, FLOAT)

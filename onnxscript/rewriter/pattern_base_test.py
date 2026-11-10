@@ -4,7 +4,8 @@
 
 import unittest
 
-from onnxscript import ir
+import onnx_ir as ir
+
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchFailureError
 

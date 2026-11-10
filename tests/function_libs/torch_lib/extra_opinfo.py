@@ -23,6 +23,27 @@ S = 5
 M = 10
 
 
+def sample_inputs_grouped_mm(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    # Native grouped_mm requires 16-byte-aligned strides, including on CPU.
+    for shape_a, shape_b in (((2, 3, 8), (2, 8, 8)), ((1, 2, 8), (1, 8, 8))):
+        yield opinfo_core.SampleInput(make_arg(shape_a), args=(make_arg(shape_b),))
+
+    for shape_a, shape_b in (
+        ((24, 8), (3, 8, 8)),
+        ((3, 8, 8), (8, 24)),
+        ((8, 24), (24, 8)),
+    ):
+        for boundaries in ([4, 12, 24], [8, 8, 24]):
+            offsets = torch.tensor(boundaries, dtype=torch.int32, device=device)
+            yield opinfo_core.SampleInput(make_arg(shape_a), args=(make_arg(shape_b), offsets))
+
+
 def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -35,6 +56,31 @@ def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs)
 
     for item in vals:
         yield opinfo_core.SampleInput(item, dtype=dtype)
+
+
+def sample_inputs_linear_1d_weight(op_info, device, dtype, requires_grad, **kwargs):
+    """Sample inputs for linear with a 1D weight (in_features,), no out_features dim.
+
+    Regression coverage for https://github.com/microsoft/onnxscript/issues/2982:
+    the upstream `sample_inputs_linear` in
+    torch/testing/_internal/common_methods_invocations.py never generates a
+    1D-weight case, so this branch of aten_linear went untested.
+
+    Note: aten::linear does not accept a bias together with a 1D weight
+    ("mat2 must be a matrix, got 1-D tensor"), so no bias samples are
+    generated here.
+    """
+    del op_info
+    del kwargs
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    for in_features, batch_shape in itertools.product([3, 8], [(), (2,), (2, 3)]):
+        input_tensor = make_arg((*batch_shape, in_features))
+        weight = make_arg((in_features,))
+        yield opinfo_core.SampleInput(input_tensor, args=(weight, None))
 
 
 def sample_inputs_bilinear(op_info, device, dtype, requires_grad, **kwargs):
@@ -1181,6 +1227,27 @@ def sample_inputs_max_pool3d_with_indices(op_info, device, dtype, requires_grad,
         yield opinfo_core.SampleInput(arg, kwargs=kwargs)
 
 
+def sample_inputs_mean_dtype(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    for shape in ((S, S), (S,), ()):
+        yield opinfo_core.SampleInput(make_arg(shape), kwargs={"dtype": torch.float64})
+
+    # Precision sensitive values: accumulating in float32 gives 0.0 while accumulating
+    # in float64 gives 1/3, so an implementation that casts only the reduced result
+    # cannot pass this sample.
+    yield opinfo_core.SampleInput(
+        torch.tensor(
+            [[1e8, 1.0, -1e8]], dtype=dtype, device=device, requires_grad=requires_grad
+        ),
+        kwargs={"dtype": torch.float64},
+    )
+
+
 def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
@@ -1540,6 +1607,13 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         ((L, L, L), (L, L // 2, L), (1, L // 2, L * 2, 1)),  # end > L
         ((L, L, L), (L, L, L), (-2, 0, L, 1)),  # negative dim
         ((L, L, L), (L, L, L // 4), (-1, L // 2, L * 2, 2)),  # end > L and negative dim
+        # start/end = None (regression for #2372)
+        ((L, L, L), (L, L, L), (0, None, None, 1)),  # full replace, dim 0
+        ((L, L, L), (L // 2, L, L), (0, None, L // 2, 1)),  # None start
+        ((L, L, L), (L // 2, L, L), (0, L // 2, None, 1)),  # None end
+        ((L, L, L), (L, L, L), (1, None, None, 1)),  # None start & end, dim 1
+        ((L, L, L), (L // 2, L, L), (0, None, None, 2)),  # None start & end, step 2
+        ((L, L, L), (L, L, L // 2), (-1, None, L // 2, 1)),  # None start, negative dim
     )
 
     for input_shape, src_shape, args in cases:
@@ -2010,6 +2084,49 @@ def sample_inputs_upsample_linear1d(op_info, device, dtype, requires_grad, **kwa
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)), shape(L, rank, False), align_corners, scales=4.2
         )
+
+
+def sample_inputs_upsample_linear1d_vec(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    N, C = 2, 3
+    D = 4
+    SS = 3
+    L = 5
+
+    align_corners_options = (True, False)
+    rank = 1
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        low=-1,
+        high=1,
+    )
+
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True, None)
+
+    for align_corners in align_corners_options:
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(1, rank, False), align_corners, None
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(L, rank, False), align_corners, None
+        )
+        for scale_factors in ([1.7], [0.6], [4.2]):
+            yield opinfo_core.SampleInput(
+                make_arg(shape(D, rank)),
+                args=(None, align_corners),  # output_size must be None with scale_factors
+                kwargs=dict(scale_factors=scale_factors),
+            )
 
 
 def sample_inputs_upsample_nearest1d(op_info, device, dtype, requires_grad, **kwargs):
@@ -2507,6 +2624,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten.linear.1d_weight",
+        op=torch.nn.functional.linear,
+        aten_name="linear",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_linear_1d_weight,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten.bernoulli.p",
         aten_name="bernoulli.p",
         # dtypes can be a tuple of (torch.float, torch.double).
@@ -2704,6 +2829,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="max_pool3d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool_empty_strides,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.mean.dtype",
+        op=torch.ops.aten.mean,
+        aten_name="mean",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_mean_dtype,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -3010,6 +3143,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten.upsample_linear1d.vec",
+        aten_name="upsample_linear1d.vec",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_linear1d_vec,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten.upsample_nearest1d",
         aten_name="upsample_nearest1d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
@@ -3140,6 +3280,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torch.ops.aten.masked_scatter.default,
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_masked_scatter,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._grouped_mm",
+        aten_name="_grouped_mm",
+        op=getattr(torch.ops.aten, "_grouped_mm", lambda *args, **kwargs: None),
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_grouped_mm,
         supports_out=False,
     ),
 ]

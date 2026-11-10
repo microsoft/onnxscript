@@ -16,6 +16,7 @@ import dataclasses
 import logging
 import math
 import typing
+from types import MappingProxyType
 from typing import Any, Callable, Iterable, Sequence, Union
 
 import numpy as np
@@ -26,6 +27,10 @@ import onnx_ir.passes.common as ir_passes_common
 
 import onnxscript.utils.utils as utils
 from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
+from onnxscript.optimizer._constant_evaluation import (
+    ConstantEvaluationContext,
+    ConstantEvaluatorRegistry,
+)
 
 OptimizerContext = BuilderBase
 
@@ -48,6 +53,7 @@ FOLDED_FROM_KEY = "pkg.onnxscript.optimizer.folded_from"
 
 _NON_DETERMINISTIC_OPS = frozenset(
     {
+        "Dropout",
         "RandomUniform",
         "RandomNormal",
         "RandomUniformLike",
@@ -113,9 +119,14 @@ def _process_constant_node(node: ir.Node) -> None:
         )
     elif attr_name in {"value_int", "value_ints"}:
         const_value = ir.Tensor(np.array(attr_value.value, dtype=np.int64), name=ir_value.name)
-    elif attr_name in {"value_string", "value_strings"}:
+    elif attr_name == "value_string":
         const_value = ir.StringTensor(
-            np.array(attr_value.value, dtype=np.bytes_), name=ir_value.name
+            [attr_value.as_string().encode("utf-8")], shape=ir.Shape([]), name=ir_value.name
+        )
+    elif attr_name == "value_strings":
+        strings = [value.encode("utf-8") for value in attr_value.as_strings()]
+        const_value = ir.StringTensor(
+            strings, shape=ir.Shape([len(strings)]), name=ir_value.name
         )
     elif attr_name == "value":
         const_value = typing.cast(ir.TensorProtocol, attr_value.value)
@@ -258,32 +269,6 @@ class PartialEvaluatorRegistry:
     def register(
         self, opname: str, domain: str = "", version=None
     ) -> Callable[[PartialEvaluatorFunction], PartialEvaluatorFunction]:
-        """Register a custom constant folding rule for an operator.
-
-        The decorated function must have the signature:
-        `(node: ir.Node, op: OptimizerContext, state: OptimizerState) -> ReturnValue`
-
-        Args:
-            opname: The name of the operator to fold (e.g., "Add").
-            domain: The domain of the operator. Defaults to "" (standard ONNX).
-            version: The opset version or version range for which this rule is valid.
-                Can be an integer (e.g., 13) or a tuple of (min_version, max_version)
-                where None indicates no limit (e.g., (13, None)).
-
-        Returns:
-            A decorator that registers the function as a constant folder for the op.
-
-        Example:
-
-            .. code-block:: python
-                
-                from onnxscript.optimizer import register_constant_folder
-
-                @register_constant_folder("CustomOp", domain="my.domain")
-                def fold_custom_op(node: ir.Node, op: OptimizerContext, state: OptimizerState) -> ReturnValue:
-                    # custom folding logic
-                    return op.Constant(value_int=42)
-        """
         if (domain, opname) in self.op_evaluators:
             evaluator_list = self.op_evaluators[(domain, opname)]
         else:
@@ -552,7 +537,8 @@ def cast_like(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return None
     if source_element_type == target_element_type:
         return op.Identity(input0)
-    return op.Cast(input0, to=target_element_type)
+    # Keep saturate, which is what ONNX's CastLike function body passes on to Cast.
+    return op.Cast(input0, to=target_element_type, saturate=node.attributes.get("saturate"))
 
 
 @register("Shape")
@@ -854,10 +840,13 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     This allows downstream `SequenceAt` users to be replaced by `split_x` accordingly.
     """
     input = node.inputs[0]
-    if len(node.inputs) == 1:
-        # split is not provided
-        return None
-    split = node.inputs[1]
+    split = node.inputs[1] if len(node.inputs) > 1 else None
+    if split is None:
+        # The omitted input defaults to scalar 1. The scalar lowering below
+        # uses Split's num_outputs attribute, which requires opset 18.
+        if node.graph is None or node.graph.opset_imports.get(node.domain, 0) < 18:
+            return None
+        split = ir.Value(const_value=ir.Tensor(np.array(1, dtype=np.int64)))
     output = node.outputs[0]
 
     if input is None or split is None or output is None:
@@ -898,6 +887,9 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         num_outputs = split_dimension_size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
         split_values = op.Split(input, split, axis=axis, _outputs=split_outputs)
+    elif split_value is None:
+        # A dynamic scalar split: the number of chunks depends on its value.
+        return None
     elif split_value.ndim == 1:
         # split into 'size(split)' chunks
         num_outputs = split_value.size
@@ -907,6 +899,9 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         # split into chunks all of size 'split' if possible.
         split_dimension_size = shape[axis]
         if not isinstance(split_dimension_size, int):
+            return None
+        if split_dimension_size == 0:
+            # Split cannot represent a sequence with no outputs.
             return None
         split_size = int(split_value.item())
         if split_size <= 0:
@@ -946,7 +941,8 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     keepdims = _get_int_attribute(node, "keepdims", 1)
     if keepdims is None:
         return None
-    if keepdims == 0:
+    # keepdims is ignored when split is a list of sizes.
+    if keepdims == 0 and split_value is not None and split_value.ndim == 0:
         # squeeze the split dimension if keepdims is 0
         axis_val = op.Constant(value_ints=[axis], _outputs=[f"{output.name}_axis"])
         squeezed_values = []
@@ -1053,11 +1049,14 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         input_size_limit: int,
         output_size_limit: int,
         should_fold: Callable[[ir.Node], bool | None] = lambda node: None,
+        evaluators: ConstantEvaluatorRegistry | None = None,
     ) -> None:
         self.shape_inference = shape_inference
         self.input_size_limit = input_size_limit
         self.output_size_limit = output_size_limit
         self.should_fold = should_fold
+        self._evaluators = evaluators
+        self._active_evaluators: ConstantEvaluatorRegistry | None = None
 
         self._opset_imports: dict[str, int] = {}
         self._counts: dict[str, int] = {}
@@ -1351,6 +1350,32 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 node.name,
             )
 
+        evaluator = (
+            self._active_evaluators._lookup(node.domain, node.op_type, version)
+            if self._active_evaluators is not None
+            else None
+        )
+        if evaluator is not None and not any(
+            attr.is_ref() for attr in node.attributes.values()
+        ):
+            evaluation_context = ConstantEvaluationContext(
+                node.domain, node.op_type, version, len(node.outputs)
+            )
+            try:
+                tensors = evaluator(
+                    tuple(x.const_value if x is not None else None for x in node.inputs),
+                    MappingProxyType(dict(node.attributes)),
+                    evaluation_context,
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    f"Custom evaluator failed for node {node.name!r} "
+                    f"({node.domain}::{node.op_type}, opset {version}); "
+                    "fix the registered callback or return None to decline evaluation."
+                ) from e
+            if tensors is not None:
+                return self._custom_replacement(node, tensors, is_function)
+
         input_values = [_get_numpy_value(x) for x in node.inputs]
 
         def convert(av):
@@ -1385,6 +1410,88 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 "Skipping constant folding for op %s with multiple outputs.", node.op_type
             )
         return None
+
+    def _custom_replacement(
+        self, node: ir.Node, tensors: Sequence[ir.TensorProtocol], is_function: bool
+    ) -> Replacement | None:
+        description = f"Custom evaluator for {node.domain}::{node.op_type} ({node.name!r})"
+        if not isinstance(tensors, Sequence) or len(tensors) != len(node.outputs):
+            raise ValueError(
+                f"{description} must return a sequence of {len(node.outputs)} tensors, "
+                "one per output, or None to decline evaluation."
+            )
+        shapes = []
+        for output, tensor in zip(node.outputs, tensors):
+            if not isinstance(tensor, ir.TensorProtocol):
+                raise TypeError(
+                    f"{description} returned {type(tensor).__name__} for {output.name!r}; "
+                    "return ir.TensorProtocol objects, for example ir.tensor(array)."
+                )
+            dimensions = []
+            for dim in tensor.shape:
+                if not isinstance(dim, int) or dim < 0:
+                    raise ValueError(
+                        f"{description} returned a nonconcrete shape {tensor.shape}; "
+                        "return tensors with nonnegative integer dimensions."
+                    )
+                dimensions.append(dim)
+            shapes.append(ir.Shape(dimensions))
+            if output.type is not None and (
+                not isinstance(output.type, ir.TensorType) or output.dtype != tensor.dtype
+            ):
+                raise ValueError(
+                    f"{description} returned dtype {tensor.dtype} for {output.name!r}, "
+                    f"expected {output.type}; return a tensor matching the declared output."
+                )
+            if output.shape is not None and (
+                len(output.shape) != len(tensor.shape)
+                or any(
+                    isinstance(expected, int) and expected != actual
+                    for expected, actual in zip(output.shape, tensor.shape)
+                )
+            ):
+                raise ValueError(
+                    f"{description} returned shape {tensor.shape} for {output.name!r}, "
+                    f"expected {output.shape}; return a tensor matching the declared output."
+                )
+        if any(tensor.size > self.output_size_limit for tensor in tensors):
+            removed_size = sum(
+                value.const_value.size
+                for value in set(node.inputs)
+                if value is not None
+                and value.const_value is not None
+                and len(value.uses()) == 1
+                and not value.is_graph_output()
+            )
+            if sum(tensor.size for tensor in tensors) > removed_size:
+                logger.info(
+                    "Skipping %s because its outputs exceed the size limit.", description
+                )
+                return None
+
+        new_outputs = []
+        new_nodes = []
+        for output, tensor, shape in zip(node.outputs, tensors, shapes):
+            value = ir.Value(
+                name=output.name,
+                type=ir.TensorType(tensor.dtype),
+                shape=shape,
+                const_value=tensor,
+            )
+            if is_function:
+                new_nodes.append(
+                    ir.Node(
+                        "", "Constant", [], [ir.AttrTensor("value", tensor)], outputs=[value]
+                    )
+                )
+            new_outputs.append(value)
+        if is_function:
+            self._opset_imports.setdefault("", onnx.defs.onnx_opset_version())
+        else:
+            assert node.graph is not None
+            for value in new_outputs:
+                node.graph.register_initializer(value)
+        return Replacement(new_outputs, new_nodes)
 
     def replace_node(
         self, node: ir.Node, replacement: Replacement, root: ir.Graph | ir.Function
@@ -1453,11 +1560,19 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             self._modified = True
 
     def visit_function(self, function: ir.Function) -> None:
-        for node in function:
-            self.visit_node(node, function)
+        previous_opsets = self._opset_imports
+        self._opset_imports = function.opset_imports
+        try:
+            for node in function:
+                self.visit_node(node, function)
+        finally:
+            self._opset_imports = previous_opsets
 
     def call(self, model: ir.Model) -> FoldConstantsResult:
         self._reset()
+        self._active_evaluators = (
+            self._evaluators._snapshot() if self._evaluators is not None else None
+        )
         self._opset_imports = model.opset_imports
         self.visit_graph(model.graph)
         for function in model.functions.values():
@@ -1519,6 +1634,7 @@ def fold_constants(
     input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
     should_fold: Callable[[ir.Node], bool | None] = lambda node: None,
+    evaluators: ConstantEvaluatorRegistry | None = None,
 ) -> FoldConstantsResult:
     """
     Applies constant folding optimization to the model.
@@ -1536,6 +1652,9 @@ def fold_constants(
         should_fold: An optional function that takes a node and returns True if
             the node should be considered for folding, False if it should not be folded,
             or None to use the default rules. Defaults to a function that always returns None.
+        evaluators: An explicit registry of custom concrete evaluators. Custom callbacks
+            run only for constant inputs, after folding policy checks, and before
+            reference evaluation. Built-in partial simplifications retain precedence.
 
     Returns:
         An instance of `FoldConstantsResult`.
@@ -1546,5 +1665,6 @@ def fold_constants(
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
         should_fold=should_fold,
+        evaluators=evaluators,
     )
     return folder_pass(model)  # type: ignore[return-value]

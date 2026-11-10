@@ -13,6 +13,7 @@ from typing import (
     TypeVar,
 )
 
+import onnx_ir as ir
 import onnx_ir.passes.common as ir_passes_common
 
 import onnxscript.optimizer
@@ -22,7 +23,6 @@ import onnxscript.rewriter._ir_utils as _ir_utils
 import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
 import onnxscript.utils.metadata_merger as metadata_merger
-from onnxscript import ir
 from onnxscript.ir import convenience
 
 T = TypeVar("T")
