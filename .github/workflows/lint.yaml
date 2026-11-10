@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: misspell # Check spelling
-        uses: reviewdog/action-misspell@d6429416b12b09b4e2768307d53bef58d172e962 # v1.27.0
+        uses: reviewdog/action-misspell@ce198e1db0d029be165f2d3e809c1a42353446b0 # v1.30.2
         with:
           github_token: ${{ secrets.github_token }}
           locale: "US"
@@ -79,7 +79,7 @@ jobs:
         # To toggle linter comments in the files page, press `i` on the keyboard
         if: always()
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: lintrunner.sarif

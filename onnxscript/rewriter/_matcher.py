@@ -12,9 +12,10 @@ from typing import (
     Sequence,
 )
 
+import onnx_ir as ir
+
 import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._pattern_ir as _pattern_ir
-from onnxscript import ir
 
 
 def _valid_to_replace(

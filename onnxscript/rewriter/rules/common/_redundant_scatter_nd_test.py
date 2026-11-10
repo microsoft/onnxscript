@@ -8,11 +8,13 @@ import numpy as np
 import onnx.parser
 import onnx_ir as ir
 import onnxruntime
+import parameterized
 from onnx_ir.passes.common import CheckerPass, ShapeInferencePass
 
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
+from onnxscript.rewriter import testing
 from onnxscript.rewriter.rules.common import _redundant_scatter_nd
 
 shape_inference = ShapeInferencePass()
@@ -119,6 +121,284 @@ class RedundantScatterNdTest(unittest.TestCase):
         # Compare outputs
         for original_output, optimized_output in zip(original_outputs, optimized_outputs):
             np.testing.assert_allclose(original_output, optimized_output, rtol=1e-6, atol=1e-6)
+
+    @parameterized.parameterized.expand(
+        [
+            ("add",),
+            ("mul",),
+            ("max",),
+            ("min",),
+        ]
+    )
+    def test_static_indices_with_reduction_is_not_redundant(self, reduction: str):
+        """A reducing ScatterND combines data with updates, so it is not an Identity."""
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[8, 16] data, float[8, 16] updates) => (float[8, 16] output)
+            {{
+                output = ScatterND <reduction = "{reduction}"> (data, indices, updates)
+            }}
+        """
+        )
+        indices = np.arange(8).reshape(8, 1).astype(np.int64)
+        model = ir.serde.deserialize_model(model_proto)
+        indices_value = model.graph[0].inputs[1]
+        indices_value.const_value = ir.Tensor(name="indices", value=indices)
+        model.graph.initializers["indices"] = indices_value
+        original_model_proto = ir.serde.serialize_model(model)
+
+        _redundant_scatter_nd.rules.apply_to_model(model)
+        optimized_model_proto = ir.serde.serialize_model(model)
+
+        # Test numerical equivalence
+        inputs = {
+            "data": np.random.rand(8, 16).astype(np.float32),
+            "updates": np.random.rand(8, 16).astype(np.float32),
+        }
+        session = onnxruntime.InferenceSession(
+            original_model_proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        original_outputs = session.run(None, inputs)
+        optimized_session = onnxruntime.InferenceSession(
+            optimized_model_proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        optimized_outputs = optimized_session.run(None, inputs)
+
+        for original_output, optimized_output in zip(original_outputs, optimized_outputs):
+            np.testing.assert_allclose(original_output, optimized_output, rtol=1e-6, atol=1e-6)
+        self.assertIn("ScatterND", [node.op_type for node in model.graph])
+
+    @parameterized.parameterized.expand(
+        [
+            ("static_first_dim", "2", 1),
+            ("symbolic_first_dim", "N", 0),
+        ]
+    )
+    def test_static_indices_with_first_dim(self, _: str, first_dim: str, expected_count: int):
+        """Static indices only prove full coverage against a known first dimension."""
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[{first_dim}, 3] data, float[{first_dim}, 3] updates)
+                => (float[{first_dim}, 3] output)
+            <int64[2, 1] indices = {{0, 1}}>
+            {{
+                output = ScatterND (data, indices, updates)
+            }}
+        """
+        )
+        onnx.checker.check_model(model_proto, full_check=True)
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+
+        self.assertEqual(count, expected_count)
+        inputs = {
+            "data": np.random.rand(2, 3).astype(np.float32),
+            "updates": np.random.rand(2, 3).astype(np.float32),
+        }
+        session = onnxruntime.InferenceSession(
+            model_proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        optimized_session = onnxruntime.InferenceSession(
+            ir.serde.serialize_model(model).SerializeToString(),
+            providers=["CPUExecutionProvider"],
+        )
+        np.testing.assert_allclose(
+            session.run(None, inputs)[0], optimized_session.run(None, inputs)[0]
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("dynamic_indices", False),
+            ("static_indices", True),
+        ]
+    )
+    def test_reduction_from_reference_attribute_is_not_rewritten(
+        self, _: str, static_indices: bool
+    ):
+        """A reduction forwarded from a function attribute is unknown, so the rule declines."""
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 18, "local" : 1]>
+            agraph (float[2, 3] data, int64[2, 1] indices, float[2, 3] updates)
+                => (float[2, 3] output)
+            {
+                output = local.Scatter <mode = "add"> (data, indices, updates)
+            }
+            <domain: "local", opset_import: [ "" : 18]>
+            Scatter <mode> (data, indices, updates) => (output)
+            {
+                output = ScatterND <reduction: string = @mode> (data, indices, updates)
+            }
+        """
+        )
+        onnx.checker.check_model(model_proto, full_check=True)
+        model = ir.serde.deserialize_model(model_proto)
+        function = next(iter(model.functions.values()))
+        scatter = function[0]
+        if static_indices:
+            data, indices, updates = scatter.inputs
+            data.shape = ir.Shape([2, 3])
+            updates.shape = ir.Shape([2, 3])
+            indices.const_value = ir.Tensor(np.arange(2).reshape(2, 1).astype(np.int64))
+
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+
+        self.assertEqual(count, 0)
+        self.assertEqual([node.op_type for node in function], ["ScatterND"])
+
+    def test_dynamic_indices_out_of_bounds_axis_rejected(self):
+        """Out of bounds axis should be safely rejected without IndexError."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 14]>
+            test (float[4, 8] data, float[4, 8] transposed_data, float[4, 8] updates) => (float[4, 8] out)
+            <
+                int64 axis = {10},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_negative_out_of_bounds_axis_rejected(self):
+        """Negative out of bounds axis should be safely rejected without IndexError."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 14]>
+            test (float[4, 8] data, float[4, 8] transposed_data, float[4, 8] updates) => (float[4, 8] out)
+            <
+                int64 axis = {-5},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_valid_negative_axis_supported(self):
+        """Valid negative axis (-1 referring to axis 1 of rank 2) should be supported."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {-1},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(transposed_data, full_range_2d, updates)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (
+                np.random.rand(4, 8).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+            ),
+        )
+
+    def test_dynamic_indices_scalar_transposed_data_rejected(self):
+        """Scalar transposed_data shape should be safely rejected without IndexError."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 14]>
+            test (float[4, 8] data, float updates) => (float out)
+            <
+                int64 axis = {0},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(updates, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_missing_data_shape_rejected(self):
+        """Unranked/missing data shape should be safely rejected without crashing."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 14]>
+            test (float[] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {0},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        model.graph.inputs[0].shape = None
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_missing_transposed_data_shape_rejected(self):
+        """Unranked/missing transposed_data shape should be safely rejected without crashing."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 14]>
+            test (float[4, 8] data, float[] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {0},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 0>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "none">(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        model.graph.inputs[1].shape = None
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
 
 
 if __name__ == "__main__":

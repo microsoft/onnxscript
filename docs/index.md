@@ -29,10 +29,10 @@ ONNX models and functions:
   ONNX graph, accomplished by traversing the Python Abstract Syntax Tree
   to build an ONNX graph equivalent of the function.
 - A runtime shim that allows such functions to be evaluated
-  (in an "eager mode"). This functionality currently relies on
-  ONNX Runtime for executing ONNX ops
-  and there is a Python-only reference runtime for ONNX underway that
-  will also be supported.
+  (in an "eager mode"). This functionality relies on
+  ONNX Runtime for executing ONNX ops by default; a Python-only
+  reference runtime is also available as
+  `onnxscript.evaluator.OnnxReferenceRuntimeEvaluator`.
 - A converter that translates ONNX models and functions into {{ onnxscript }}.
   This capability can be used to fully round-trip ONNX Script ↔ ONNX graph.
 

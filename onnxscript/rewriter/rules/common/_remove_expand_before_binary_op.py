@@ -13,7 +13,8 @@ the same output shape as first expanding the input and then applying the op.
 
 from __future__ import annotations
 
-from onnxscript import ir
+import onnx_ir as ir
+
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._ir_utils import get_numpy_value
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet

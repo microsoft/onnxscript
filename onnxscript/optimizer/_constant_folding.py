@@ -48,6 +48,7 @@ FOLDED_FROM_KEY = "pkg.onnxscript.optimizer.folded_from"
 
 _NON_DETERMINISTIC_OPS = frozenset(
     {
+        "Dropout",
         "RandomUniform",
         "RandomNormal",
         "RandomUniformLike",
@@ -113,9 +114,14 @@ def _process_constant_node(node: ir.Node) -> None:
         )
     elif attr_name in {"value_int", "value_ints"}:
         const_value = ir.Tensor(np.array(attr_value.value, dtype=np.int64), name=ir_value.name)
-    elif attr_name in {"value_string", "value_strings"}:
+    elif attr_name == "value_string":
         const_value = ir.StringTensor(
-            np.array(attr_value.value, dtype=np.bytes_), name=ir_value.name
+            [attr_value.as_string().encode("utf-8")], shape=ir.Shape([]), name=ir_value.name
+        )
+    elif attr_name == "value_strings":
+        strings = [value.encode("utf-8") for value in attr_value.as_strings()]
+        const_value = ir.StringTensor(
+            strings, shape=ir.Shape([len(strings)]), name=ir_value.name
         )
     elif attr_name == "value":
         const_value = typing.cast(ir.TensorProtocol, attr_value.value)
@@ -526,7 +532,8 @@ def cast_like(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return None
     if source_element_type == target_element_type:
         return op.Identity(input0)
-    return op.Cast(input0, to=target_element_type)
+    # Keep saturate, which is what ONNX's CastLike function body passes on to Cast.
+    return op.Cast(input0, to=target_element_type, saturate=node.attributes.get("saturate"))
 
 
 @register("Shape")
@@ -828,10 +835,13 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     This allows downstream `SequenceAt` users to be replaced by `split_x` accordingly.
     """
     input = node.inputs[0]
-    if len(node.inputs) == 1:
-        # split is not provided
-        return None
-    split = node.inputs[1]
+    split = node.inputs[1] if len(node.inputs) > 1 else None
+    if split is None:
+        # The omitted input defaults to scalar 1. The scalar lowering below
+        # uses Split's num_outputs attribute, which requires opset 18.
+        if node.graph is None or node.graph.opset_imports.get(node.domain, 0) < 18:
+            return None
+        split = ir.Value(const_value=ir.Tensor(np.array(1, dtype=np.int64)))
     output = node.outputs[0]
 
     if input is None or split is None or output is None:
@@ -872,6 +882,9 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         num_outputs = split_dimension_size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
         split_values = op.Split(input, split, axis=axis, _outputs=split_outputs)
+    elif split_value is None:
+        # A dynamic scalar split: the number of chunks depends on its value.
+        return None
     elif split_value.ndim == 1:
         # split into 'size(split)' chunks
         num_outputs = split_value.size
@@ -881,6 +894,9 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         # split into chunks all of size 'split' if possible.
         split_dimension_size = shape[axis]
         if not isinstance(split_dimension_size, int):
+            return None
+        if split_dimension_size == 0:
+            # Split cannot represent a sequence with no outputs.
             return None
         split_size = int(split_value.item())
         if split_size <= 0:
@@ -920,7 +936,8 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     keepdims = _get_int_attribute(node, "keepdims", 1)
     if keepdims is None:
         return None
-    if keepdims == 0:
+    # keepdims is ignored when split is a list of sizes.
+    if keepdims == 0 and split_value is not None and split_value.ndim == 0:
         # squeeze the split dimension if keepdims is 0
         axis_val = op.Constant(value_ints=[axis], _outputs=[f"{output.name}_axis"])
         squeezed_values = []

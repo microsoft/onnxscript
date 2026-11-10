@@ -17,7 +17,9 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence, Tuple, TypeVar, Union
 
-from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64, ir
+import onnx_ir as ir
+
+from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -2578,6 +2580,32 @@ def aten_upsample_linear1d(
     """upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor"""
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
     # scales is ignored in PyTorch
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        mode="linear",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+    )
+
+
+@torch_op("aten::upsample_linear1d.vec", trace_only=True)
+def aten_upsample_linear1d_vec(
+    self: TReal,
+    output_size: Optional[INT64],
+    align_corners: bool,
+    scale_factors: Optional[Sequence[float]],
+) -> TReal:
+    """upsample_linear1d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
+
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    if scale_factors is not None:
+        return _aten_upsample_scales(
+            self,
+            scale_factors,
+            mode="linear",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+    assert output_size is not None
     return _aten_upsample_output_size(
         self,
         output_size,

@@ -14,7 +14,8 @@ be removed by unused-node elimination.
 
 from __future__ import annotations
 
-from onnxscript import ir
+import onnx_ir as ir
+
 from onnxscript.rewriter import _ir_utils as ir_utils
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
@@ -46,6 +47,10 @@ class MaterializeReshapeShape(RewriteRuleClassBase):
             return check_result.fail(
                 f"Output shape has {sym_count} symbolic dims, cannot materialize."
             )
+
+        # The rewrite uses allowzero=1, which does not allow both 0 and -1 in the shape.
+        if sym_count and 0 in self._new_dims:
+            return check_result.fail("Cannot combine a 0 dim with -1 when allowzero=1.")
 
         return check_result
 
