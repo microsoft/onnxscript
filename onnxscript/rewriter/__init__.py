@@ -43,6 +43,7 @@ from onnxscript.rewriter.rules.common import (
     _fuse_batchnorm,
     _fuse_pad_into_conv,
     _fuse_relus_clips,
+    _group_normalization,
     _materialize_reshape_shape,
     _min_max_to_clip,
     _no_op,
@@ -65,6 +66,7 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *_redundant_scatter_nd.rules,
     *_fuse_pad_into_conv.rules,
     *_fuse_batchnorm.rules,
+    *_group_normalization.rules,
     *_remove_optional_bias.rules,
 )
 

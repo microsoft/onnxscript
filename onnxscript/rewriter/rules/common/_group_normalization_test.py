@@ -1,0 +1,92 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+import unittest
+
+import numpy as np
+import onnx.parser
+import onnx_ir as ir
+import parameterized
+
+from onnxscript import optimizer, rewriter
+from onnxscript.rewriter.ort_fusions import optimize_for_ort
+from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
+
+
+class OptimizeGroupNormalizationTest(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        [
+            (optimize, opset, groups, channels, dtype, affine_channels)
+            for optimize in (optimizer.optimize, rewriter.rewrite, optimize_for_ort)
+            for opset in (17, 20, 21, 23)
+            for groups, channels in ((32, 320), (32, 32), (8, 40))
+            for dtype in ("float", "float16")
+            for affine_channels in (channels, 1)
+        ]
+    )
+    def test_optimization_uses_supported_group_normalization(
+        self, optimize, opset, groups, channels, dtype, affine_channels
+    ):
+        model_proto = onnx.parser.parse_model(
+            f"""
+                <ir_version: 9, opset_import: [ "" : {opset}]>
+                agraph ({dtype}[2, {channels}, 4, 4] image)
+                    => ({dtype}[2, {channels}, 4, 4] output)
+                {{
+                    adjusted_input_shape = Constant<value: tensor = int64[3] {{0, {groups}, -1}}>()
+                    image_reshape = Reshape (image, adjusted_input_shape)
+                    instance_norm = InstanceNormalization <epsilon=0.000001>(image_reshape, weight_for_norm, bias_for_norm)
+                    original_input_shape = Constant<value: tensor = int64[4] {{2, {channels}, 4, 4}}>()
+                    instance_norm_reshape = Reshape (instance_norm, original_input_shape)
+                    mul_output = Mul (instance_norm_reshape, weight_full)
+                    output = Add (mul_output, bias_full)
+                }}
+                """
+        )
+        np_dtype = np.float32 if dtype == "float" else np.float16
+        rng = np.random.default_rng(0)
+        initializers = {
+            "weight_for_norm": np.ones(groups, dtype=np_dtype),
+            "bias_for_norm": np.zeros(groups, dtype=np_dtype),
+            "weight_full": rng.random((affine_channels, 1, 1)).astype(np_dtype),
+            "bias_full": rng.random((affine_channels, 1, 1)).astype(np_dtype),
+        }
+        for name, value in initializers.items():
+            model_proto.graph.initializer.append(
+                ir.serde.serialize_tensor(ir.tensor(value, name=name))
+            )
+        model_proto = onnx.shape_inference.infer_shapes(model_proto)
+        model = ir.from_proto(model_proto)
+        inputs = {"image": rng.standard_normal((2, channels, 4, 4)).astype(np_dtype)}
+        expected = ort_run("original_group_norm", model, inputs)
+
+        optimize(model)
+
+        self.assertEqual(model.opset_imports[""], opset)
+        self.assertNotIn(
+            ("com.microsoft", "GroupNorm"),
+            {(node.domain, node.op_type) for node in model.graph},
+        )
+        group_norms = [node for node in model.graph if node.op_type == "GroupNormalization"]
+        if opset >= 21 and affine_channels == channels:
+            self.assertEqual(len(group_norms), 1)
+            group_norm = group_norms[0]
+            self.assertEqual(group_norm.domain, "")
+            self.assertEqual(group_norm.attributes["num_groups"].as_int(), groups)
+            self.assertAlmostEqual(group_norm.attributes["epsilon"].as_float(), 1e-6)
+            inferred_model = ir.from_proto(
+                onnx.shape_inference.infer_shapes(ir.to_proto(model), strict_mode=True)
+            )
+            inferred_group_norm = next(
+                node for node in inferred_model.graph if node.op_type == "GroupNormalization"
+            )
+            self.assertEqual(inferred_group_norm.inputs[1].shape, ir.Shape([channels]))
+            self.assertEqual(inferred_group_norm.inputs[2].shape, ir.Shape([channels]))
+        else:
+            self.assertEqual(len(group_norms), 0)
+            self.assertIn("InstanceNormalization", {node.op_type for node in model.graph})
+        onnx.checker.check_model(ir.to_proto(model), full_check=True)
+        assert_allclose(ort_run("optimized_group_norm", model, inputs), expected)
+
+
+if __name__ == "__main__":
+    unittest.main()

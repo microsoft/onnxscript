@@ -25,6 +25,7 @@ __all__ = [
     "min_max_rule",
     "max_min_rule",
     "gemm_to_matmul_add_rule",
+    "instance_norm_to_onnx_group_norm_rule",
     "matmul_add_to_gemm_rule",
     "materialize_reshape_shape_rule",
     "mul_by_1_rule",
@@ -103,6 +104,9 @@ from onnxscript.rewriter.rules.common._fuse_relus_clips import (
     successive_relu_rule,
 )
 from onnxscript.rewriter.rules.common._gemm_to_matmul_add import gemm_to_matmul_add_rule
+from onnxscript.rewriter.rules.common._group_normalization import (
+    instance_norm_to_onnx_group_norm_rule,
+)
 from onnxscript.rewriter.rules.common._materialize_reshape_shape import (
     materialize_reshape_shape_rule,
 )
