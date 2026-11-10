@@ -18,6 +18,19 @@ from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
 
+def _get_opset_version(context) -> int | None:
+    """Extract ONNX default domain opset version from MatchContext."""
+    if context.model is not None and context.model.opset_imports:
+        return context.model.opset_imports.get("") or context.model.opset_imports.get("ai.onnx")
+    if context.graph_or_function is not None and hasattr(
+        context.graph_or_function, "opset_imports"
+    ):
+        return context.graph_or_function.opset_imports.get(
+            ""
+        ) or context.graph_or_function.opset_imports.get("ai.onnx")
+    return None
+
+
 class FuseSuccessiveRelu(RewriteRuleClassBase):
     """Replaces ``Relu(Relu(X))`` with ``Relu(X)``."""
 
