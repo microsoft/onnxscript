@@ -17,7 +17,7 @@ Dim = Union[int, ir.SymbolicDim]
 # op defined in the ai.onnxruntime._fusion domain. Subsequent fusion rules will map it into one
 # of the various ops defined in ORT: MHA, GQA, or Attention depending on the input patterns.
 # The SDPA is a standard scalar dot-product attention with an optional mask input and scaling factor.
-# Currently, it is restricted to query, key, and values of rank 4 with shapes:
+# Currently, it requires a positive static head count and query, key, and values of rank 4:
 #   Query: [batch_size, num_heads, seq_len, head_size_qk]
 #   Key:   [batch_size, num_heads, seq_len_kv, head_size_qk]
 #          or [batch_size, seq_len_kv, num_heads, head_size_qk])
@@ -133,6 +133,12 @@ class SDPA(pattern.RewriteRuleClassBase):
             assert key_format == "BSHd", f"Unexpected key format: {key_format}"
             _fusion_utils.check_shape(bindings, key, ["B", "Skv", "H", "Dh"])
         _fusion_utils.check_shape(bindings, value, ["B", "H", "Skv", "Dv"])
+
+        # All ORT lowerings require a static head count. Keep the original attention
+        # when they cannot consume the temporary SDPA op.
+        num_heads = bindings["H"]
+        if not isinstance(num_heads, int) or num_heads <= 0:
+            return check_result.fail("A positive static number of heads is required.", query)
 
         def get_scale_value(tag_name: str, scale_name: str) -> float:
             scaling_type = match_bindings.get(tag_name, "None")

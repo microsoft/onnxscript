@@ -16,6 +16,7 @@ import onnxscript.optimizer
 from onnxscript import script
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import FLOAT
+from onnxscript.rewriter.ort_fusions import optimize_for_ort
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
 from onnxscript.rewriter.ort_fusions.sdpa_via_mha import replace_sdpa_by_mha
@@ -375,6 +376,38 @@ class InvalidSDPATestCase:
 
 
 class TestSDPAFusion(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        [
+            ("dynamic_heads", "heads", _unmasked_post_mul_sdpa_script, False),
+            ("unknown_heads", None, _unmasked_post_mul_sdpa_script, False),
+            ("dynamic_heads_masked", "heads", _masked_post_mul_sdpa_script, True),
+            ("static_heads", N, _unmasked_post_mul_sdpa_script, False),
+            ("static_heads_masked", N, _masked_post_mul_sdpa_script, True),
+            ("dynamic_heads_BSHd", "heads", _unmasked_pre_div_sdpa_BSHd_key_script, False),
+            ("static_heads_BSHd", N, _unmasked_pre_div_sdpa_BSHd_key_script, False),
+        ]
+    )
+    def test_optimize_for_ort_head_count(self, _, heads, script_func, with_mask):
+        tensor_type = FLOAT["batch", heads, "length", H]
+        bshd_key = script_func is _unmasked_pre_div_sdpa_BSHd_key_script
+        key_type = FLOAT["batch", "length", heads, H] if bshd_key else tensor_type
+        input_types = [tensor_type, key_type, tensor_type]
+        if with_mask:
+            input_types.append(FLOAT["batch", heads, "length", "length"])
+        model = ir.from_proto(
+            script_func.to_model_proto(input_types=input_types, output_types=[tensor_type])
+        )
+        inputs = SDPATestCase(
+            script_func, with_mask=with_mask, BSHd_key=bshd_key
+        ).get_ort_inputs()
+        original_outputs = ort_run("original", model, inputs)
+
+        model, counts = optimize_for_ort(model)
+
+        self.assertEqual(counts["sdpa"], int(isinstance(heads, int)))
+        self.assertFalse(any(n.domain == "ai.onnxruntime._fusion" for n in model.graph))
+        assert_allclose(ort_run("optimized", model, inputs), original_outputs)
+
     @parameterized.parameterized.expand(
         [
             ("pre_div", _unmasked_pre_div_sdpa_script),
