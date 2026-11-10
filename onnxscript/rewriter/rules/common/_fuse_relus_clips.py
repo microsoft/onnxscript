@@ -112,8 +112,13 @@ class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
             MatchResult:
                 Success if we need to replace the pattern, Failure otherwise.
         """
-        del context  # Unused
         check_result = MatchResult()
+
+        opset_version = _get_opset_version(context)
+        if opset_version is not None and opset_version < 11:
+            return check_result.fail(
+                f"Clip min and max became inputs only in opset 11, but model opset is {opset_version}."
+            )
 
         # Check if Clip min/max are not graph inputs and are constant values
         clip_min_max = []
