@@ -44,6 +44,7 @@ The adopted subsets deliberately retain the following boundaries:
 | Cast and layout movement | All conversion attributes are preserved. Moving across a shared layout must not duplicate conversion work. Gather is not moved before String/unknown-input Casts because that could hide conversion errors. |
 | Padding | Constant, nonnegative pads, matching bitwise fill values (including BF16 and signed zero), valid axes, and nonoverflowing combined INT64 pads. |
 | Expand movement | Known rank and broadcasting; moving computation before a potentially empty expansion is rejected when it could introduce evaluation such as integer division by zero. |
+| Binary movement | Preserve concrete operator attributes, including `BitShift.direction` and `Mod.fmod`; do not move reference attributes whose values are not known. |
 | Reshape | Valid one-dimensional targets, function-local `allowzero` semantics, and unambiguous element counts. Anonymous dimensions do not prove equality. |
 | Range | Scalar constant signed-integer bounds and step, scalar/rank-one offset, nonzero step, and representable shifted bounds. Rank-increasing offsets are rejected. |
 | Reduction to TopK | Integer types, matching axes and keepdims, and first-index ties only. Floating NaN/signed-zero ordering is not assumed equivalent. |
@@ -57,6 +58,30 @@ allocations. Distinct frequency inputs are not conflated, overridable frequency
 initializers remain dynamic, and empty batches/sequences retain valid cache
 shapes. Shape queries use proven equivalent dominating inputs when available so
 they do not prevent subsequent partial-rotary or attention fusion.
+
+## Regression coverage
+
+The corresponding `*_test.py` modules check rule application as well as output
+equivalence. Generated operator families are parameterized over their registered
+operators and operand/layout variants, rather than assuming that one successful
+`Add` or `Relu` case exercises every registration.
+
+| Surface | Positive and safety coverage |
+|---|---|
+| Collections | Unary and scalar/broadcast binary movement, negative/scalar/vector Gather indices, partition arities 2–4 and permutations, reverse Slice strides, shared consumers and graph outputs, and preservation of out-of-range Gather errors. |
+| Layout and Expand | Generated unary/binary/reduction variants, both operand sides and Where branches, operator attributes, broadcasting/rank proofs, empty dimensions, axes normalization, local opsets, and fixed-point behavior. |
+| Canonicalization | All six neutral-vector variants, padding fills/axes/overflow, Reshape rank and `allowzero`, integer TopK ties and axes, Range dtype/rank/step bounds, and shared layout producers. |
+| Matrix | Activation/layout variants with numerical comparisons, Gemm attributes/bias/sharing, reshape/broadcast constraints, integer-only unit reductions, GroupedMatMul index normalization/bias, and LinearAttention eligibility. |
+| Boolean, shape, and labels | Broadcast and signed-zero/NaN preservation, dynamic axes, symbolic/anonymous dimensions, dominating reuse, overridable initializers, and string/integer mapping/default composition. |
+| Core matcher | Rejected conditions, node and named/anonymous value checkers, fresh candidate bindings, distinct roots, shared internal producers, permutations, bound-input pruning, removability, and legacy single-result matcher compatibility. |
+| Rotary and attention compatibility | Actual negative/sparse/extreme positions, FLOAT/FLOAT16 cache variants and Cast attributes, frequency expansion, empty caches, packed rank-two numerical equivalence, and partial/interleaved rotary with all eight MHA inputs and present KV outputs retained. |
+
+Schema-dependent GroupedMatMul, LinearAttention, and standard RotaryEmbedding
+cases are skipped only when the installed ONNX version lacks the required
+schema or reference evaluator. Structural safety cases remain applicable to
+older versions. The complete `onnxscript/rewriter` and `onnxscript/optimizer`
+suites are the regression gate; branch instrumentation complements, rather
+than replaces, numerical and nonapplication assertions.
 
 ## Canonicalization
 

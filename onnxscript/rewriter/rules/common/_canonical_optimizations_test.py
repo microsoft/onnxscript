@@ -47,6 +47,30 @@ class CanonicalOptimizationsTest(unittest.TestCase):
             use_reference=True,
         )
 
+    def test_pad_pad_fuses_default_fill_values(self):
+        original, rewritten, count = self._apply(
+            """
+            <ir_version: 9, opset_import: ["" : 18]>
+            graph (float[2,3] x) => (float[5,7] y)
+            <int64[4] p1 = {1, 2, 0, 0}, int64[4] p2 = {0, 1, 2, 1}>
+            {
+                a = Pad(x, p1)
+                y = Pad(a, p2)
+            }
+            """
+        )
+        self.assertEqual(count, 1)
+        self.assertEqual([node.op_type for node in rewritten.graph], ["Pad"])
+        self.assertEqual(len(rewritten.graph[0].inputs), 2)
+        testing.assert_numerically_equal(
+            original,
+            rewritten,
+            {"x": np.arange(6, dtype=np.float32).reshape(2, 3)},
+            rtol=0,
+            atol=0,
+            use_reference=True,
+        )
+
     def test_pad_pad_rejects_shared_first_pad(self):
         _, rewritten, count = self._apply(
             """
@@ -83,6 +107,45 @@ class CanonicalOptimizationsTest(unittest.TestCase):
                 )
                 self.assertEqual(count, 0)
                 self.assertEqual(len(rewritten.graph), 2)
+
+    def test_pad_pad_rejects_unsupported_modes_axes_and_overflow(self):
+        cases = [
+            (
+                18,
+                'mode="reflect"',
+                "",
+                "int64[2] p1 = {1, 0}, int64[2] p2 = {0, 1}",
+            ),
+            (
+                17,
+                'mode="constant"',
+                ", zero, axes",
+                (
+                    "int64[2] p1 = {1, 0}, int64[2] p2 = {0, 1}, "
+                    "int64[1] axes = {0}, float zero = {0.0}"
+                ),
+            ),
+            (
+                18,
+                'mode="constant"',
+                "",
+                "int64[2] p1 = {9223372036854775807, 0}, int64[2] p2 = {1, 0}",
+            ),
+        ]
+        for opset, mode, second_extra, initializers in cases:
+            with self.subTest(opset=opset, mode=mode, second_extra=second_extra):
+                _, _, count = self._apply(
+                    f"""
+                    <ir_version: 9, opset_import: ["" : {opset}]>
+                    graph (float[2] x) => (float[] y)
+                    <{initializers}>
+                    {{
+                        a = Pad<{mode}>(x, p1)
+                        y = Pad(a, p2{second_extra})
+                    }}
+                    """
+                )
+                self.assertEqual(count, 0)
 
     def test_pad_pad_rejects_explicit_negative_zero_against_default(self):
         for first_inputs, second_inputs in [
@@ -162,6 +225,19 @@ class CanonicalOptimizationsTest(unittest.TestCase):
         )
         self.assertEqual(count, 0)
 
+    def test_all_zero_reshape_rejects_rank_change(self):
+        _, _, count = self._apply(
+            """
+            <ir_version: 9, opset_import: ["" : 18]>
+            graph (float[2,3] x) => (float[2,3,1] y)
+            <int64[3] shape = {0, 0, 0}>
+            {
+                y = Reshape(x, shape)
+            }
+            """
+        )
+        self.assertEqual(count, 0)
+
     def test_semantically_inspected_reference_attributes_are_rejected(self):
         model = ir.from_onnx_text(
             """
@@ -185,8 +261,10 @@ class CanonicalOptimizationsTest(unittest.TestCase):
 
     def test_neutral_vectors_are_removed_without_losing_broadcast_shape(self):
         cases = [
+            ("int32", "Add", "x, zero", "int32[3] zero = {0, 0, 0}"),
             ("int32", "Add", "zero, x", "int32[3] zero = {0, 0, 0}"),
             ("int32", "Sub", "x, zero", "int32[3] zero = {0, 0, 0}"),
+            ("float", "Mul", "x, one", "float[3] one = {1, 1, 1}"),
             ("float", "Mul", "one, x", "float[3] one = {1, 1, 1}"),
             ("float", "Div", "x, one", "float[3] one = {1, 1, 1}"),
         ]
@@ -315,6 +393,52 @@ class CanonicalOptimizationsTest(unittest.TestCase):
             use_reference=True,
         )
 
+    def test_reduce_arg_topk_normalizes_matching_negative_axes(self):
+        original, rewritten, count = self._apply(
+            """
+            <ir_version: 9, opset_import: ["" : 18]>
+            graph (uint32[2,4] x) =>
+                (uint32[2] values, int64[2] indices)
+            <int64[1] axes = {-1}>
+            {
+                values = ReduceMin<keepdims=0>(x, axes)
+                indices = ArgMin<axis=-1, keepdims=0>(x)
+            }
+            """
+        )
+        self.assertEqual(count, 1)
+        testing.assert_numerically_equal(
+            original,
+            rewritten,
+            {"x": np.array([[5, 1, 1, 3], [4, 9, 2, 2]], dtype=np.uint32)},
+            rtol=0,
+            atol=0,
+            use_reference=True,
+        )
+
+    def test_reduce_arg_topk_rejects_axis_and_attribute_mismatches(self):
+        cases = [
+            ("{1}", "axis=0, keepdims=1", "keepdims=1"),
+            ("{2}", "axis=2, keepdims=1", "keepdims=1"),
+            ("{1}", "axis=1, keepdims=0", "keepdims=1"),
+            ("{1}", "axis=1, keepdims=1", "keepdims=1, noop_with_empty_axes=1"),
+        ]
+        for axes, arg_attributes, reduce_attributes in cases:
+            with self.subTest(axes=axes, arg_attributes=arg_attributes):
+                _, _, count = self._apply(
+                    f"""
+                    <ir_version: 9, opset_import: ["" : 18]>
+                    graph (int32[2,4] x) =>
+                        (int32[2,1] values, int64[2,1] indices)
+                    <int64[1] axes = {axes}>
+                    {{
+                        values = ReduceMax<{reduce_attributes}>(x, axes)
+                        indices = ArgMax<{arg_attributes}>(x)
+                    }}
+                    """
+                )
+                self.assertEqual(count, 0)
+
     def test_reduce_arg_topk_uses_function_local_opset(self):
         model = ir.from_onnx_text(
             """
@@ -401,6 +525,48 @@ class CanonicalOptimizationsTest(unittest.TestCase):
             """
         )
         self.assertEqual(count, 0)
+
+    def test_range_offset_rejects_zero_delta_and_floating_range(self):
+        cases = [
+            ("int32", "0", "3", "0", "2"),
+            ("float", "0.0", "3.0", "1.0", "2.0"),
+        ]
+        for dtype, start, limit, delta, offset in cases:
+            with self.subTest(dtype=dtype, delta=delta):
+                _, _, count = self._apply(
+                    f"""
+                    <ir_version: 9, opset_import: ["" : 18]>
+                    graph () => ({dtype}[3] y)
+                    <{dtype} start = {{{start}}}, {dtype} limit = {{{limit}}},
+                     {dtype} delta = {{{delta}}}, {dtype} offset = {{{offset}}}>
+                    {{
+                        r = Range(start, limit, delta)
+                        y = Add(r, offset)
+                    }}
+                    """
+                )
+                self.assertEqual(count, 0)
+
+    def test_range_offset_rejects_old_opset_and_non_scalar_bounds(self):
+        cases = [
+            (10, "int32 start = {0}", "start"),
+            (18, "int32[1] start = {0}", "start"),
+        ]
+        for opset, start_initializer, start_name in cases:
+            with self.subTest(opset=opset, start_initializer=start_initializer):
+                _, _, count = self._apply(
+                    f"""
+                    <ir_version: 9, opset_import: ["" : {opset}]>
+                    graph () => (int32[3] y)
+                    <{start_initializer}, int32 limit = {{3}},
+                     int32 delta = {{1}}, int32 offset = {{2}}>
+                    {{
+                        r = Range({start_name}, limit, delta)
+                        y = Add(r, offset)
+                    }}
+                    """
+                )
+                self.assertEqual(count, 0)
 
     def test_cast_moves_before_transpose_and_preserves_attributes(self):
         original, rewritten, count = self._apply(

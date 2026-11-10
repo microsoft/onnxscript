@@ -133,6 +133,47 @@ class MatrixOptimizationsTest(unittest.TestCase):
         )
         testing.assert_numerically_equal(model, rewritten, inputs)
 
+    def test_default_matrix_transpose_folds_to_gemm(self):
+        model = _model(
+            [
+                onnx.helper.make_node("Transpose", ["A"], ["AT"]),
+                onnx.helper.make_node("MatMul", ["AT", "B"], ["Y"]),
+            ],
+            [_value("A", [3, 2]), _value("B", [3, 4])],
+            [_value("Y", [2, 4])],
+        )
+        rewritten = ir.from_proto(ir.to_proto(model))
+        self.assertEqual(_matrix_optimizations.rules.apply_to_model(rewritten), 1)
+        self.assertEqual([node.op_type for node in rewritten.graph], ["Gemm"])
+        testing.assert_numerically_equal(
+            model,
+            rewritten,
+            (
+                self.rng.normal(size=(3, 2)).astype(np.float32),
+                self.rng.normal(size=(3, 4)).astype(np.float32),
+            ),
+        )
+
+    def test_matmul_input_transpose_rejects_old_opset_rank_and_permutation(self):
+        cases = [
+            (10, [3, 2], [3, 4], None),
+            (20, [1, 3, 2], [2, 4], [0, 2, 1]),
+            (20, [2, 3], [2, 4], [0, 1]),
+        ]
+        for opset, a_shape, b_shape, perm in cases:
+            with self.subTest(opset=opset, a_shape=a_shape, perm=perm):
+                attributes = {} if perm is None else {"perm": perm}
+                model = _model(
+                    [
+                        onnx.helper.make_node("Transpose", ["A"], ["AT"], **attributes),
+                        onnx.helper.make_node("MatMul", ["AT", "B"], ["Y"]),
+                    ],
+                    [_value("A", a_shape), _value("B", b_shape)],
+                    [_value("Y", None)],
+                    opset=opset,
+                )
+                self.assertEqual(_matrix_optimizations.rules.apply_to_model(model), 0)
+
     def test_matmul_input_transpose_rejects_integer_dtype(self):
         model = _model(
             [
@@ -225,6 +266,23 @@ class MatrixOptimizationsTest(unittest.TestCase):
         np.testing.assert_array_equal(actual, expected)
         self.assertEqual(actual.tobytes(), expected.tobytes())
 
+    def test_gemm_input_transpose_rejects_nonmatrix_and_wrong_permutation(self):
+        cases = [
+            ([1, 2, 3], [3, 4], [0, 2, 1]),
+            ([2, 3], [2, 4], [0, 1]),
+        ]
+        for a_shape, b_shape, perm in cases:
+            with self.subTest(a_shape=a_shape, perm=perm):
+                model = _model(
+                    [
+                        onnx.helper.make_node("Transpose", ["A"], ["AT"], perm=perm),
+                        onnx.helper.make_node("Gemm", ["AT", "B"], ["Y"]),
+                    ],
+                    [_value("A", a_shape), _value("B", b_shape)],
+                    [_value("Y", None)],
+                )
+                self.assertEqual(_matrix_optimizations.rules.apply_to_model(model), 0)
+
     def test_gemm_output_transpose(self):
         model = _model(
             [
@@ -271,6 +329,23 @@ class MatrixOptimizationsTest(unittest.TestCase):
             [_value("AB", [2, 4]), _value("Y", [4, 2])],
         )
         self.assertEqual(_matrix_optimizations.rules.apply_to_model(model), 0)
+
+    def test_gemm_output_transpose_rejects_nonmatrix_and_wrong_permutation(self):
+        cases = [
+            ([1, 2, 3], [3, 4], [0, 2, 1]),
+            ([2, 3], [3, 4], [0, 1]),
+        ]
+        for a_shape, b_shape, perm in cases:
+            with self.subTest(a_shape=a_shape, perm=perm):
+                model = _model(
+                    [
+                        onnx.helper.make_node("Gemm", ["A", "B"], ["AB"]),
+                        onnx.helper.make_node("Transpose", ["AB"], ["Y"], perm=perm),
+                    ],
+                    [_value("A", a_shape), _value("B", b_shape)],
+                    [_value("Y", None)],
+                )
+                self.assertEqual(_matrix_optimizations.rules.apply_to_model(model), 0)
 
     def test_gemm_sum_bias_both_orders(self):
         for reverse in (False, True):
@@ -356,6 +431,27 @@ class MatrixOptimizationsTest(unittest.TestCase):
             [_value("Y", [2, 4]), _value("Shared", [2, 4])],
         )
         self.assertEqual(_matrix_optimizations.rules.apply_to_model(model), 0)
+
+    def test_gemm_sum_rejects_nonmatrix_and_rank_three_bias(self):
+        cases = [
+            ([1, 2, 3], [3, 4], [4]),
+            ([2, 3], [3, 4], [1, 1, 4]),
+        ]
+        for a_shape, b_shape, bias_shape in cases:
+            with self.subTest(a_shape=a_shape, bias_shape=bias_shape):
+                model = _model(
+                    [
+                        onnx.helper.make_node("Gemm", ["A", "B"], ["AB"]),
+                        onnx.helper.make_node("Sum", ["AB", "C"], ["Y"]),
+                    ],
+                    [
+                        _value("A", a_shape),
+                        _value("B", b_shape),
+                        _value("C", bias_shape),
+                    ],
+                    [_value("Y", None)],
+                )
+                self.assertEqual(_matrix_optimizations.rules.apply_to_model(model), 0)
 
     def test_reference_transpose_attribute_is_rejected_without_throwing(self):
         x = ir.Value(name="x", shape=ir.Shape([2, 3]))
@@ -476,6 +572,14 @@ class MatrixOptimizationsTest(unittest.TestCase):
         rewritten = ir.from_proto(ir.to_proto(model))
         self.assertEqual(_matrix_optimizations.rules.apply_to_model(rewritten), 1)
         self.assertEqual([node.op_type for node in rewritten.graph], ["MatMul"])
+        testing.assert_numerically_equal(
+            model,
+            rewritten,
+            (
+                self.rng.normal(size=(2, 3, 4)).astype(np.float32),
+                self.rng.normal(size=(1, 4, 5)).astype(np.float32),
+            ),
+        )
 
     def test_existing_broadcast_to_matmul_covers_pre_and_post_reshapes(self):
         shape_a = onnx.numpy_helper.from_array(np.array([2, 3, 4], np.int64), "shape_a")
@@ -587,6 +691,40 @@ class MatrixOptimizationsTest(unittest.TestCase):
                 )
                 self.assertEqual(_matrix_optimizations.rules.apply_to_model(model), 0)
 
+    def test_where_to_leaky_relu_rejects_opset_dtype_and_non_scalar_constants(self):
+        cases = [
+            (5, onnx.TensorProto.FLOAT, np.array(0, np.float32), np.array(0.25, np.float32)),
+            (20, onnx.TensorProto.INT32, np.array(0, np.int32), np.array(1, np.int32)),
+            (
+                20,
+                onnx.TensorProto.FLOAT,
+                np.array([0], np.float32),
+                np.array(0.25, np.float32),
+            ),
+            (
+                20,
+                onnx.TensorProto.FLOAT,
+                np.array(0, np.float32),
+                np.array([0.25], np.float32),
+            ),
+        ]
+        for opset, dtype, zero_value, slope_value in cases:
+            with self.subTest(opset=opset, dtype=dtype, zero_shape=zero_value.shape):
+                zero = onnx.numpy_helper.from_array(zero_value, "zero")
+                slope = onnx.numpy_helper.from_array(slope_value, "slope")
+                model = _model(
+                    [
+                        onnx.helper.make_node("Greater", ["X", "zero"], ["positive"]),
+                        onnx.helper.make_node("Mul", ["X", "slope"], ["scaled"]),
+                        onnx.helper.make_node("Where", ["positive", "X", "scaled"], ["Y"]),
+                    ],
+                    [_value("X", [2], dtype)],
+                    [_value("Y", None, dtype)],
+                    [zero, slope],
+                    opset=opset,
+                )
+                self.assertEqual(_matrix_optimizations.rules.apply_to_model(model), 0)
+
     @unittest.skipUnless(onnx.defs.has("LinearAttention"), "Requires ONNX opset 27 schemas.")
     def test_linear_attention_t1_equal_heads(self):
         inputs = {
@@ -647,6 +785,58 @@ class MatrixOptimizationsTest(unittest.TestCase):
         )
         testing.assert_numerically_equal(model, rewritten, inputs)
 
+    def test_all_registered_activations_move_across_both_layouts(self):
+        activations_with_attributes = {
+            "Elu": {"alpha": 0.7},
+            "LeakyRelu": {"alpha": 0.2},
+            "Selu": {"alpha": 1.5, "gamma": 1.1},
+        }
+        inputs = (
+            self.rng.uniform(-0.75, 0.75, size=(2, 3)).astype(np.float32),
+            self.rng.uniform(-0.75, 0.75, size=(3, 4)).astype(np.float32),
+        )
+        for activation in _matrix_optimizations._LAYOUT_MOVABLE_ACTIVATIONS:
+            for layout in ("Reshape", "Transpose"):
+                with self.subTest(activation=activation, layout=layout):
+                    nodes = [onnx.helper.make_node("MatMul", ["A", "B"], ["AB"])]
+                    initializers = []
+                    if layout == "Reshape":
+                        initializers.append(
+                            onnx.numpy_helper.from_array(
+                                np.array([1, 2, 4], np.int64), "shape"
+                            )
+                        )
+                        nodes.append(
+                            onnx.helper.make_node("Reshape", ["AB", "shape"], ["layout"])
+                        )
+                        output_shape = [1, 2, 4]
+                    else:
+                        nodes.append(
+                            onnx.helper.make_node("Transpose", ["AB"], ["layout"], perm=[1, 0])
+                        )
+                        output_shape = [4, 2]
+                    nodes.append(
+                        onnx.helper.make_node(
+                            activation,
+                            ["layout"],
+                            ["Y"],
+                            **activations_with_attributes.get(activation, {}),
+                        )
+                    )
+                    model = _model(
+                        nodes,
+                        [_value("A", [2, 3]), _value("B", [3, 4])],
+                        [_value("Y", output_shape)],
+                        initializers,
+                    )
+                    rewritten = ir.from_proto(ir.to_proto(model))
+                    self.assertEqual(_matrix_optimizations.rules.apply_to_model(rewritten), 1)
+                    self.assertEqual(
+                        [node.op_type for node in rewritten.graph],
+                        ["MatMul", activation, layout],
+                    )
+                    testing.assert_numerically_equal(model, rewritten, inputs)
+
     def test_switch_transpose_activation_rejects_shared_layout(self):
         model = _model(
             [
@@ -702,6 +892,57 @@ class MatrixOptimizationsTest(unittest.TestCase):
         actual = ReferenceEvaluator(ir.to_proto(rewritten)).run(None, feeds)[0]
         np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-6)
         onnx.checker.check_model(ir.to_proto(rewritten), full_check=True)
+
+    @unittest.skipUnless(onnx.defs.has("GroupedMatMul"), "Requires ONNX opset 29 schemas.")
+    def test_grouped_matmul_unbiased_and_reversed_bias_decompositions(self):
+        axes12 = onnx.numpy_helper.from_array(np.array([1, 2], np.int64), "axes12")
+        axis2 = onnx.numpy_helper.from_array(np.array([2], np.int64), "axis2")
+        feeds = {
+            "X": self.rng.normal(size=(3, 2)).astype(np.float32),
+            "W": self.rng.normal(size=(4, 2, 5)).astype(np.float32),
+            "I": np.array([[0, -1], [1, 2], [-2, 3]], dtype=np.int64),
+            "B": self.rng.normal(size=(4, 5)).astype(np.float32),
+        }
+        for with_bias in (False, True):
+            with self.subTest(with_bias=with_bias):
+                nodes = [
+                    onnx.helper.make_node("Unsqueeze", ["X", "axes12"], ["X4"]),
+                    onnx.helper.make_node("Gather", ["W", "I"], ["WI"]),
+                    onnx.helper.make_node("MatMul", ["X4", "WI"], ["MM"]),
+                    onnx.helper.make_node("Squeeze", ["MM", "axis2"], ["S"]),
+                ]
+                inputs = [
+                    _value("X", [3, 2]),
+                    _value("W", [4, 2, 5]),
+                    _value("I", [3, 2], onnx.TensorProto.INT64),
+                ]
+                output_name = "S"
+                if with_bias:
+                    nodes.extend(
+                        [
+                            onnx.helper.make_node("Gather", ["B", "I"], ["BI"]),
+                            onnx.helper.make_node("Add", ["BI", "S"], ["Y"]),
+                        ]
+                    )
+                    inputs.append(_value("B", [4, 5]))
+                    output_name = "Y"
+                model = _model(
+                    nodes,
+                    inputs,
+                    [_value(output_name, [3, 2, 5])],
+                    [axes12, axis2],
+                    opset=29,
+                )
+                rewritten = ir.from_proto(ir.to_proto(model))
+                self.assertGreaterEqual(
+                    _matrix_optimizations.rules.apply_to_model(rewritten), 1
+                )
+                self.assertEqual(rewritten.graph[-1].op_type, "GroupedMatMul")
+                active_feeds = {value.name: feeds[value.name] for value in inputs}
+                expected = ReferenceEvaluator(ir.to_proto(model)).run(None, active_feeds)[0]
+                actual = ReferenceEvaluator(ir.to_proto(rewritten)).run(None, active_feeds)[0]
+                np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-6)
+                onnx.checker.check_model(ir.to_proto(rewritten), full_check=True)
 
     def test_grouped_matmul_preserves_shared_product_and_overridable_axes(self):
         for shared_product in (False, True):
@@ -774,6 +1015,92 @@ class MatrixOptimizationsTest(unittest.TestCase):
             opset=20,
         )
         self.assertEqual(_matrix_optimizations.rules.apply_to_model(model), 0)
+
+    @unittest.skipUnless(onnx.defs.has("GroupedMatMul"), "Requires ONNX opset 29 schemas.")
+    def test_grouped_matmul_rejects_invalid_shapes_types_and_bias(self):
+        axes12 = onnx.numpy_helper.from_array(np.array([1, 2], np.int64), "axes12")
+        axis2 = onnx.numpy_helper.from_array(np.array([2], np.int64), "axis2")
+        cases = [
+            (
+                [3, 3],
+                [4, 2, 5],
+                [3, 2],
+                onnx.TensorProto.INT64,
+                onnx.TensorProto.FLOAT,
+                [4, 5],
+                0,
+            ),
+            (
+                [3, 2],
+                [4, 2, 5],
+                [3, 2],
+                onnx.TensorProto.FLOAT,
+                onnx.TensorProto.FLOAT,
+                [4, 5],
+                0,
+            ),
+            (
+                [3, 2],
+                [4, 2, 5],
+                [3, 2],
+                onnx.TensorProto.INT64,
+                onnx.TensorProto.DOUBLE,
+                [4, 5],
+                0,
+            ),
+            (
+                [3, 2],
+                [4, 2, 5],
+                [3, 2],
+                onnx.TensorProto.INT64,
+                onnx.TensorProto.FLOAT,
+                [4, 4],
+                1,
+            ),
+        ]
+        for (
+            x_shape,
+            weight_shape,
+            index_shape,
+            index_dtype,
+            weight_dtype,
+            bias_shape,
+            expected_count,
+        ) in cases:
+            with self.subTest(
+                x_shape=x_shape,
+                index_dtype=index_dtype,
+                weight_dtype=weight_dtype,
+                bias_shape=bias_shape,
+            ):
+                model = _model(
+                    [
+                        onnx.helper.make_node("Unsqueeze", ["X", "axes12"], ["X4"]),
+                        onnx.helper.make_node("Gather", ["W", "I"], ["WI"]),
+                        onnx.helper.make_node("MatMul", ["X4", "WI"], ["MM"]),
+                        onnx.helper.make_node("Squeeze", ["MM", "axis2"], ["S"]),
+                        onnx.helper.make_node("Gather", ["B", "I"], ["BI"]),
+                        onnx.helper.make_node("Add", ["S", "BI"], ["Y"]),
+                    ],
+                    [
+                        _value("X", x_shape),
+                        _value("W", weight_shape, weight_dtype),
+                        _value("I", index_shape, index_dtype),
+                        _value("B", bias_shape),
+                    ],
+                    [_value("Y", None)],
+                    [axes12, axis2],
+                    opset=29,
+                )
+                self.assertEqual(
+                    _matrix_optimizations.rules.apply_to_model(model), expected_count
+                )
+                if expected_count:
+                    self.assertEqual(model.graph[-1].op_type, "Add")
+                    grouped = next(
+                        node for node in model.graph if node.op_type == "GroupedMatMul"
+                    )
+                    self.assertEqual(len(grouped.inputs), 3)
 
     @unittest.skipUnless(onnx.defs.has("GroupedMatMul"), "Requires ONNX opset 29 schemas.")
     def test_grouped_matmul_accepts_default_gather_axes_and_rejects_other_axes(self):

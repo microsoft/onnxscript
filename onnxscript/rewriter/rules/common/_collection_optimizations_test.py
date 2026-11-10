@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import numpy as np
+import onnx
 import onnx_ir as ir
+import pytest
 from onnx.reference import ReferenceEvaluator
 
 from onnxscript.rewriter import testing
@@ -25,6 +27,238 @@ def _assert_multi_output_equal(
     assert len(expected) == len(actual)
     for expected_value, actual_value in zip(expected, actual):
         np.testing.assert_allclose(expected_value, actual_value, equal_nan=True)
+        if expected_value.dtype.kind == "f":
+            np.testing.assert_array_equal(np.signbit(expected_value), np.signbit(actual_value))
+
+
+@pytest.mark.parametrize("op_type", _collection_optimizations._ELEMENTWISE_UNARY_OPS)
+@pytest.mark.parametrize("placement", ["concat", "gather"])
+def test_generated_unary_movement_has_numerical_coverage(op_type, placement):
+    if placement == "concat":
+        body = f"joined = Concat<axis=-1>(x,x) y = {op_type}(joined)"
+        output = "float[2,6]"
+        rule = _collection_optimizations.MoveUnaryBeforeDuplicateConcat.rule(op_type)
+    else:
+        body = f"produced = {op_type}(x) y = Gather<axis=-1>(produced,indices)"
+        output = "float[2,2]"
+        rule = _collection_optimizations.MoveUnaryBeforeGather.rule(op_type)
+    original = ir.from_onnx_text(
+        f"""
+        <ir_version:10,opset_import:["":18]>
+        graph(float[2,3] x) => ({output} y)
+        <int64[2] indices={{-1,0}}> {{ {body} }}
+        """
+    )
+    optimized = original.clone()
+    assert rule.apply_to_model(optimized) == 1
+    onnx.checker.check_model(ir.to_proto(optimized), full_check=True)
+    assert [node.op_type for node in optimized.graph] == (
+        [op_type, "Concat"] if placement == "concat" else ["Gather", op_type]
+    )
+    _assert_multi_output_equal(
+        original,
+        optimized,
+        {"x": np.array([[0.25, 0.5, 0.75], [1.0, 1.25, 1.5]], np.float32)},
+    )
+
+
+@pytest.mark.parametrize("op_type", ["Add", "Div", "Mul", "Sub"])
+@pytest.mark.parametrize("placement", ["concat", "gather"])
+def test_generated_binary_movement_preserves_order_and_broadcast(op_type, placement):
+    if placement == "concat":
+        expression = f"joined = Concat<axis=0>(x,x) y = {op_type}(joined,rhs)"
+        rhs_type, rhs_literal, output = "float", "2.0", "float[4,3]"
+        rule = _collection_optimizations.MoveScalarBinaryBeforeDuplicateConcat.rule(op_type)
+    else:
+        expression = f"produced = {op_type}(x,rhs) y = Gather<axis=1>(produced,indices)"
+        rhs_type, rhs_literal, output = "float[3]", "2.0,3.0,4.0", "float[2,2]"
+        rule = _collection_optimizations.MoveBroadcastBinaryBeforeGather.rule(op_type)
+    original = ir.from_onnx_text(
+        f"""
+        <ir_version:10,opset_import:["":18]>
+        graph(float[2,3] x) => ({output} y)
+        <{rhs_type} rhs={{{rhs_literal}}}, int64[2] indices={{-1,0}}> {{
+            {expression}
+        }}
+        """
+    )
+    optimized = original.clone()
+    assert rule.apply_to_model(optimized) == 1
+    onnx.checker.check_model(ir.to_proto(optimized), full_check=True)
+    _assert_multi_output_equal(
+        original,
+        optimized,
+        {"x": np.array([[-0.0, 2.0, -4.0], [np.inf, -np.inf, np.nan]], np.float32)},
+    )
+
+
+@pytest.mark.parametrize("arity", [2, 3, 4])
+def test_split_concat_every_registered_arity_is_numerically_identity(arity):
+    names = [f"part{i}" for i in range(arity)]
+    original = ir.from_onnx_text(
+        f"""
+        <ir_version:10,opset_import:["":18]>
+        graph(float[0,{arity}] x) => (float[0,{arity}] y)
+        <int64[{arity}] sizes={{{",".join("1" for _ in names)}}}> {{
+            {",".join(names)} = Split<axis=-1>(x,sizes)
+            y = Concat<axis=1>({",".join(names)})
+        }}
+        """
+    )
+    optimized = original.clone()
+    rule = getattr(_collection_optimizations, f"EliminateSplitConcatRoundTrip{arity}").rule()
+    assert rule.apply_to_model(optimized) == 1
+    assert [node.op_type for node in optimized.graph] == ["Identity"]
+    _assert_multi_output_equal(original, optimized, {"x": np.empty((0, arity), np.float32)})
+
+
+@pytest.mark.parametrize("arity", [2, 3, 4])
+@pytest.mark.parametrize("scalar", [False, True])
+def test_gather_partition_every_arity_preserves_permuted_negative_indices(arity, scalar):
+    shape = "" if scalar else "[1]"
+    output = "float[2]" if scalar else "float[2,1]"
+    order = list(reversed(range(arity)))
+    body = " ".join(f"y{i}=Gather<axis=-1>(x,i{i})" for i in range(arity))
+    constants = ",".join(
+        f"int64{shape} i{i}={{{slot - arity}}}" for i, slot in enumerate(order)
+    )
+    outputs = ",".join(f"{output} y{i}" for i in range(arity))
+    original = ir.from_onnx_text(
+        f"""
+        <ir_version:10,opset_import:["":18]>
+        graph(float[2,{arity}] x) => ({outputs}) <{constants}> {{ {body} }}
+        """
+    )
+    optimized = original.clone()
+    rule = getattr(_collection_optimizations, f"ReplaceGatherPartitionWithSplit{arity}").rule()
+    assert rule.apply_to_model(optimized) == 1
+    onnx.checker.check_model(ir.to_proto(optimized), full_check=True)
+    assert sum(node.op_type == "Split" for node in optimized.graph) == 1
+    assert sum(node.op_type == "Squeeze" for node in optimized.graph) == arity * scalar
+    _assert_multi_output_equal(
+        original,
+        optimized,
+        {"x": np.arange(2 * arity, dtype=np.float32).reshape(2, arity)},
+    )
+
+
+@pytest.mark.parametrize("index", [4, -5])
+def test_gather_error_is_preserved_instead_of_slice_clamping(index):
+    original, optimized, count = _rewrite(
+        f"""
+        <ir_version:10,opset_import:["":18]>
+        graph(float[4] x) => (float y)
+        <int64 index={{{index}}}> {{ y=Gather(x,index) }}
+        """
+    )
+    assert count == 0
+    for model in (original, optimized):
+        with pytest.raises(IndexError):
+            ReferenceEvaluator(ir.to_proto(model)).run(
+                None, {"x": np.arange(4, dtype=np.float32)}
+            )
+
+
+@pytest.mark.parametrize("op_type", ["Neg", "Cast", "Add"])
+@pytest.mark.parametrize("sharing", ["output", "consumer"])
+def test_gather_movement_does_not_duplicate_shared_producers(op_type, sharing):
+    producer = {
+        "Neg": "produced=Neg(x)",
+        "Cast": "produced=Cast<to=1>(x)",
+        "Add": "produced=Add(x,x)",
+    }[op_type]
+    extra = "saved=Identity(produced)" if sharing == "consumer" else ""
+    saved = "saved" if sharing == "consumer" else "produced"
+    original = ir.from_onnx_text(
+        f"""
+        <ir_version:10,opset_import:["":18]>
+        graph(float[4] x) => (float[2] y, float[4] {saved})
+        <int64[2] indices={{3,0}}> {{
+            {producer}
+            y=Gather(produced,indices)
+            {extra}
+        }}
+        """
+    )
+    optimized = original.clone()
+    rule = (
+        _collection_optimizations.MoveUnaryBeforeGather.rule("Neg")
+        if op_type == "Neg"
+        else _collection_optimizations.MoveCastBeforeGather.rule()
+        if op_type == "Cast"
+        else _collection_optimizations.MoveBroadcastBinaryBeforeGather.rule("Add")
+    )
+    assert rule.apply_to_model(optimized) == 0
+    _assert_multi_output_equal(original, optimized, {"x": np.arange(4, dtype=np.float32)})
+
+
+def test_gather_composition_does_not_confuse_different_axes():
+    original = ir.from_onnx_text(
+        """
+        <ir_version:10,opset_import:["":18]>
+        graph(float[4,3] x) => (float[2,2] y)
+        <int64[2] rows={3,1},int64[2] columns={2,0}> {
+            inner=Gather<axis=0>(x,rows)
+            y=Gather<axis=1>(inner,columns)
+        }
+        """
+    )
+    optimized = original.clone()
+    assert (
+        _collection_optimizations.ComposeConsecutiveGathers.rule().apply_to_model(optimized)
+        == 0
+    )
+    _assert_multi_output_equal(
+        original, optimized, {"x": np.arange(12, dtype=np.float32).reshape(4, 3)}
+    )
+
+
+@pytest.mark.parametrize("metadata", ["distinct_symbols", "missing_rhs"])
+def test_broadcast_gather_requires_proven_aligned_dimensions(metadata):
+    original = ir.from_onnx_text(
+        """
+        <ir_version:10,opset_import:["":18]>
+        graph(float[N,3] lhs,float[M,3] rhs) => (float[2,3] y)
+        <int64[2] indices={1,0}> {
+            sum=Add(lhs,rhs)
+            y=Gather(sum,indices)
+        }
+        """
+    )
+    optimized = original.clone()
+    if metadata == "missing_rhs":
+        optimized.graph.inputs[1].shape = None
+    assert (
+        _collection_optimizations.MoveBroadcastBinaryBeforeGather.rule("Add").apply_to_model(
+            optimized
+        )
+        == 0
+    )
+    feeds = {
+        "lhs": np.arange(6, dtype=np.float32).reshape(2, 3),
+        "rhs": np.ones((2, 3), np.float32),
+    }
+    _assert_multi_output_equal(original, optimized, feeds)
+
+
+def test_disjoint_slice_fusion_preserves_reverse_strides_and_shared_intermediate():
+    original, optimized, count = _rewrite(
+        """
+        <ir_version:10,opset_import:["":18]>
+        graph(float[4,6] x) => (float[4,3] y,float[4,6] shared)
+        <int64[1] s0={3},int64[1] e0={-9223372036854775808},
+         int64[1] a0={0},int64[1] st0={-1},int64[1] s1={5},
+         int64[1] a1={-1},int64[1] st1={-2}> {
+            shared=Slice(x,s0,e0,a0,st0)
+            y=Slice(shared,s1,e0,a1,st1)
+        }
+        """
+    )
+    assert count == 1
+    assert sum(node.op_type == "Slice" for node in optimized.graph) == 2
+    _assert_multi_output_equal(
+        original, optimized, {"x": np.arange(24, dtype=np.float32).reshape(4, 6)}
+    )
 
 
 def test_concat_empty_removes_zero_axis_input():

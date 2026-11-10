@@ -24,7 +24,26 @@ def _apply(model_text: str) -> tuple[ir.Model, ir.Model, int]:
     return original, rewritten, count
 
 
+def _apply_inferred_rule(model_text: str, rule) -> tuple[ir.Model, ir.Model, int]:
+    parsed = ir.from_onnx_text(model_text)
+    inferred_proto = onnx.shape_inference.infer_shapes(ir.to_proto(parsed))
+    original = ir.from_proto(inferred_proto)
+    rewritten = ir.from_proto(inferred_proto)
+    count = rule.apply_to_model(rewritten)
+    onnx.checker.check_model(ir.to_proto(rewritten))
+    return original, rewritten, count
+
+
 class LayoutOptimizationsTest(unittest.TestCase):
+    def assert_equivalent(self, original, rewritten, feeds):
+        expected = _evaluate(original, feeds)
+        actual = _evaluate(rewritten, feeds)
+        self.assertEqual(len(actual), len(expected))
+        for got, want in zip(actual, expected):
+            np.testing.assert_allclose(got, want, rtol=0, atol=0, equal_nan=True)
+            if np.issubdtype(got.dtype, np.floating):
+                np.testing.assert_array_equal(np.signbit(got), np.signbit(want))
+
     def test_move_shape_op_across_elementwise(self):
         cases = [
             (
@@ -94,6 +113,33 @@ class LayoutOptimizationsTest(unittest.TestCase):
         """
         _, _, count = _apply(model_text)
         self.assertEqual(count, 0)
+
+    def test_generated_squeeze_binary_rules(self):
+        for op_type in ("Add", "Div", "Mul", "Sub"):
+            model_text = f"""
+                <ir_version: 10, opset_import: ["" : 18]>
+                g (float[1] x, float other) => (float[1] y)
+                <int64[1] axes = {{0}}> {{
+                    squeezed = Squeeze(x, axes)
+                    result = {op_type}(squeezed, other)
+                    y = Unsqueeze(result, axes)
+                }}
+            """
+            with self.subTest(op_type=op_type):
+                original, rewritten, count = _apply(model_text)
+                self.assertEqual(count, 1)
+                self.assertEqual(
+                    [node.op_type for node in rewritten.graph],
+                    ["Unsqueeze", op_type],
+                )
+                self.assert_equivalent(
+                    original,
+                    rewritten,
+                    {
+                        "x": np.array([3.0], dtype=np.float32),
+                        "other": np.array(2.0, dtype=np.float32),
+                    },
+                )
 
     def test_squeeze_add_rank_mismatch_rejected(self):
         model_text = """
@@ -173,6 +219,39 @@ class LayoutOptimizationsTest(unittest.TestCase):
         np.testing.assert_array_equal(
             _evaluate(rewritten, feeds)[0], _evaluate(original, feeds)[0]
         )
+
+    def test_transpose_gather_default_attribute_variants(self):
+        cases = [
+            (
+                "default_axis",
+                "t = Transpose(x) <perm = [1,2,0]>\n                y = Gather(t, index)",
+                "float[4,2]",
+            ),
+            (
+                "default_permutation",
+                "t = Transpose(x)\n                y = Gather(t, index) <axis = -2>",
+                "float[4,2]",
+            ),
+        ]
+        for name, body, output_type in cases:
+            with self.subTest(name=name):
+                model_text = f"""
+                    <ir_version: 10, opset_import: ["" : 18]>
+                    g (float[2,3,4] x) => ({output_type} y)
+                    <int64 index = {{1}}> {{
+                        {body}
+                    }}
+                """
+                original, rewritten, count = _apply(model_text)
+                self.assertEqual(count, 1)
+                self.assertEqual(
+                    [node.op_type for node in rewritten.graph], ["Gather", "Transpose"]
+                )
+                self.assert_equivalent(
+                    original,
+                    rewritten,
+                    {"x": np.arange(24, dtype=np.float32).reshape(2, 3, 4)},
+                )
 
     def test_transpose_of_unit_axes_becomes_reshape_with_zero_dim(self):
         model_text = """
@@ -369,6 +448,41 @@ class LayoutOptimizationsTest(unittest.TestCase):
             _evaluate(rewritten, feeds)[0], _evaluate(original, feeds)[0]
         )
 
+    def test_shape_based_reshape_becomes_squeeze(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[1,2,1,3] x) => (float[2,3] y)
+            <int64[2] shape = {2,3}> {
+                y = Reshape(x, shape)
+            }
+        """
+        original, rewritten, count = _apply(model_text)
+        self.assertEqual(count, 1)
+        self.assertEqual([n.op_type for n in rewritten.graph], ["Constant", "Squeeze"])
+        self.assert_equivalent(
+            original,
+            rewritten,
+            {"x": np.arange(6, dtype=np.float32).reshape(1, 2, 1, 3)},
+        )
+
+    def test_inverse_squeeze_unsqueeze_becomes_identity(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[2,1,3] x) => (float[2,1,3] y)
+            <int64[1] squeeze_axes = {-2}, int64[1] unsqueeze_axes = {1}> {
+                squeezed = Squeeze(x, squeeze_axes)
+                y = Unsqueeze(squeezed, unsqueeze_axes)
+            }
+        """
+        original, rewritten, count = _apply(model_text)
+        self.assertEqual(count, 1)
+        self.assertEqual([n.op_type for n in rewritten.graph], ["Identity"])
+        self.assert_equivalent(
+            original,
+            rewritten,
+            {"x": np.arange(6, dtype=np.float32).reshape(2, 1, 3)},
+        )
+
     def test_remove_unsqueeze_before_reshape_without_zero_copy(self):
         model_text = """
             <ir_version: 10, opset_import: ["" : 18]>
@@ -397,6 +511,24 @@ class LayoutOptimizationsTest(unittest.TestCase):
         """
         _, _, count = _apply(model_text)
         self.assertEqual(count, 0)
+
+    def test_remove_squeeze_before_reshape(self):
+        model_text = """
+            <ir_version: 10, opset_import: ["" : 18]>
+            g (float[1,2,3] x) => (float[3,2] y)
+            <int64[1] axes = {0}, int64[2] shape = {3,2}> {
+                squeezed = Squeeze(x, axes)
+                y = Reshape(squeezed, shape)
+            }
+        """
+        original, rewritten, count = _apply(model_text)
+        self.assertEqual(count, 1)
+        self.assertEqual([n.op_type for n in rewritten.graph], ["Reshape"])
+        self.assert_equivalent(
+            original,
+            rewritten,
+            {"x": np.arange(6, dtype=np.float32).reshape(1, 2, 3)},
+        )
 
     def test_equal_input_reshapes_move_after_binary(self):
         model_text = """
@@ -455,6 +587,90 @@ class LayoutOptimizationsTest(unittest.TestCase):
             _evaluate(rewritten, feeds)[0], _evaluate(original, feeds)[0]
         )
 
+    def test_generated_binary_reshape_families(self):
+        bool_ops = {"And", "Or", "Xor"}
+        integer_ops = {"BitwiseAnd", "BitwiseOr", "BitwiseXor"}
+        ops = (
+            "Add",
+            "And",
+            "BitwiseAnd",
+            "BitwiseOr",
+            "BitwiseXor",
+            "Div",
+            "Max",
+            "Mean",
+            "Min",
+            "Mul",
+            "Or",
+            "Sub",
+            "Sum",
+            "Xor",
+        )
+        for op_type in ops:
+            if op_type in bool_ops:
+                tensor_type = "bool"
+                x = np.array([[True, False], [False, True]])
+                y = np.array([[True, True], [False, False]])
+            elif op_type in integer_ops:
+                tensor_type = "int32"
+                x = np.array([[1, 2], [4, 8]], dtype=np.int32)
+                y = np.array([[3, 1], [6, 2]], dtype=np.int32)
+            else:
+                tensor_type = "float"
+                x = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+                y = np.array([[2.0, 1.0], [4.0, 2.0]], dtype=np.float32)
+
+            equal_reshapes = f"""
+                <ir_version: 10, opset_import: ["" : 18]>
+                g ({tensor_type}[2,2] x, {tensor_type}[2,2] y)
+                    => ({tensor_type}[4] z)
+                <int64[1] shape = {{4}}> {{
+                    left = Reshape(x, shape)
+                    right = Reshape(y, shape)
+                    z = {op_type}(left, right)
+                }}
+            """
+            with self.subTest(family="equal_reshapes", op_type=op_type):
+                original, rewritten, count = _apply(equal_reshapes)
+                self.assertEqual(count, 1)
+                self.assertEqual(
+                    [node.op_type for node in rewritten.graph], [op_type, "Reshape"]
+                )
+                self.assert_equivalent(original, rewritten, {"x": x, "y": y})
+
+            for side in ("left", "right"):
+                if side == "left":
+                    body = (
+                        "reshaped = Reshape(x, shape)\n"
+                        f"                        inner = {op_type}(reshaped, y)"
+                    )
+                else:
+                    body = (
+                        "reshaped = Reshape(y, shape)\n"
+                        f"                        inner = {op_type}(x, reshaped)"
+                    )
+                around_binary = f"""
+                    <ir_version: 10, opset_import: ["" : 18]>
+                    g ({tensor_type}[2,2] x, {tensor_type}[2,2] y)
+                        => ({tensor_type}[2,2] z)
+                    <int64[2] shape = {{2,2}}> {{
+                        {body}
+                        z = Reshape(inner, shape)
+                    }}
+                """
+                with self.subTest(
+                    family="identity_reshapes_around_binary",
+                    op_type=op_type,
+                    side=side,
+                ):
+                    rule = layout._RemoveIdentityReshapesAroundBinary.rule(
+                        op_type, side == "left"
+                    )
+                    original, rewritten, count = _apply_inferred_rule(around_binary, rule)
+                    self.assertEqual(count, 1)
+                    self.assertEqual([node.op_type for node in rewritten.graph], [op_type])
+                    self.assert_equivalent(original, rewritten, {"x": x, "y": y})
+
     def test_reduce_reshape_becomes_keepdims_zero(self):
         model_text = """
             <ir_version: 10, opset_import: ["" : 18]>
@@ -488,6 +704,43 @@ class LayoutOptimizationsTest(unittest.TestCase):
         np.testing.assert_array_equal(
             _evaluate(rewritten, feeds)[0], _evaluate(original, feeds)[0]
         )
+
+    def test_generated_reduce_reshape_families(self):
+        ops = (
+            "ReduceL1",
+            "ReduceL2",
+            "ReduceLogSum",
+            "ReduceLogSumExp",
+            "ReduceMax",
+            "ReduceMean",
+            "ReduceMin",
+            "ReduceProd",
+            "ReduceSum",
+            "ReduceSumSquare",
+        )
+        feeds = {"x": np.arange(1, 25, dtype=np.float32).reshape(2, 3, 4)}
+        for op_type in ops:
+            for axes_as_input in (True, False):
+                opset = 18 if axes_as_input else (12 if op_type == "ReduceSum" else 17)
+                if axes_as_input:
+                    reduction = f"reduced = {op_type}(x, axes) <keepdims = 1>"
+                    initializers = "<int64[1] axes = {1}, int64[2] shape = {2,4}>"
+                else:
+                    reduction = f"reduced = {op_type}(x) <axes = [1], keepdims = 1>"
+                    initializers = "<int64[2] shape = {2,4}>"
+                model_text = f"""
+                    <ir_version: 10, opset_import: ["" : {opset}]>
+                    g (float[2,3,4] x) => (float[2,4] y)
+                    {initializers} {{
+                        {reduction}
+                        y = Reshape(reduced, shape)
+                    }}
+                """
+                with self.subTest(op_type=op_type, axes_as_input=axes_as_input):
+                    original, rewritten, count = _apply(model_text)
+                    self.assertEqual(count, 1)
+                    self.assertEqual([node.op_type for node in rewritten.graph], [op_type])
+                    self.assert_equivalent(original, rewritten, feeds)
 
     def test_unsqueeze_reshape_zero_copy_special_case(self):
         model_text = """

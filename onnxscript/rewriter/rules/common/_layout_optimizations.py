@@ -141,8 +141,12 @@ class _EliminateSqueezeUnsqueezeAroundBinary(RewriteRuleClassBase):
         return op.Unsqueeze(result, unsqueeze_axes)
 
     def check(self, context, x, squeeze_axes, other, unsqueeze_axes):
-        del context
         result = MatchResult()
+        binary = context.root.inputs[0].producer()
+        if binary is None or any(
+            attribute.is_ref() for attribute in binary.attributes.values()
+        ):
+            return result.fail("Binary attributes must be concrete.")
         if _static_shape(x) != [1]:
             return result.fail("The squeezed input must have static shape [1].")
         if other.shape is None or other.shape.rank() != 0:
@@ -151,11 +155,12 @@ class _EliminateSqueezeUnsqueezeAroundBinary(RewriteRuleClassBase):
             return result.fail("Squeeze must remove axis zero.")
         if _normalize_axes(_ints(unsqueeze_axes) or [], 1) != [0]:
             return result.fail("Unsqueeze must restore axis zero.")
+        self._attributes = dict(binary.attributes)
         return result
 
     def rewrite(self, op, x, squeeze_axes, other, unsqueeze_axes):
         expanded_other = op.Unsqueeze(other, unsqueeze_axes)
-        return getattr(op, self._op_type)(x, expanded_other)
+        return getattr(op, self._op_type)(x, expanded_other, **self._attributes)
 
 
 class MoveSqueezeAfterAdd(RewriteRuleClassBase):
@@ -718,6 +723,8 @@ class _MoveEqualReshapesAfterBinary(RewriteRuleClassBase):
 
     def check(self, context, x: ir.Value, shape1: ir.Value, y: ir.Value, shape2: ir.Value):
         result = MatchResult()
+        if any(attribute.is_ref() for attribute in context.root.attributes.values()):
+            return result.fail("Binary attributes must be concrete.")
         if _ints(shape1) is None or _ints(shape1) != _ints(shape2):
             return result.fail("Reshape targets must be equal constants.")
         x_shape = _known_shape(x)
@@ -735,10 +742,11 @@ class _MoveEqualReshapesAfterBinary(RewriteRuleClassBase):
         if left_allowzero != right_allowzero:
             return result.fail("Reshape allowzero settings must be equal.")
         self._allowzero = left_allowzero or None
+        self._attributes = dict(context.root.attributes)
         return result
 
     def rewrite(self, op, x, shape1, y, shape2):
-        result = getattr(op, self._op_type)(x, y)
+        result = getattr(op, self._op_type)(x, y, **self._attributes)
         return op.Reshape(result, shape1, allowzero=self._allowzero)
 
 
@@ -779,10 +787,13 @@ class _RemoveIdentityReshapesAroundBinary(RewriteRuleClassBase):
             for value in binary.inputs
         ):
             return result.fail("The original binary operation must not broadcast.")
+        if any(attribute.is_ref() for attribute in binary.attributes.values()):
+            return result.fail("Binary attributes must be concrete.")
+        self._attributes = dict(binary.attributes)
         return result
 
     def rewrite(self, op, x, inner_shape, y, outer_shape):
-        return getattr(op, self._op_type)(x, y)
+        return getattr(op, self._op_type)(x, y, **self._attributes)
 
 
 class _ReduceReshape(RewriteRuleClassBase):

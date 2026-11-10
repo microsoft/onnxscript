@@ -24,7 +24,17 @@ msft_op = values.Opset("com.microsoft", 1)
 class CosSinCacheExtendedTest(unittest.TestCase):
     """Extended tests for cos_sin_cache fusion."""
 
-    def _cache_model(self, *, batch=2, sequence=3, constant_frequencies=False, count=1):
+    def _cache_model(
+        self,
+        *,
+        batch=2,
+        sequence=3,
+        constant_frequencies=False,
+        count=1,
+        half=False,
+        concat_after_trig=False,
+        expand_frequency=False,
+    ):
         declarations = [
             "int64[1] axis = {1}",
             "int64[2] halves = {2,2}",
@@ -41,21 +51,47 @@ class CosSinCacheExtendedTest(unittest.TestCase):
                     f"float[1,2,1] inverse{index} = {{{index + 1}.0,{index + 2}.0}}"
                 )
                 frequency = f"frequency{index}"
+                inverse = f"inverse{index}"
+                if expand_frequency:
+                    declarations.append(f"int64[3] expanded_shape{index} = {{{batch},2,1}}")
+                    body.append(f"expanded{index}=Expand({inverse},expanded_shape{index})")
+                    inverse = f"expanded{index}"
                 body.append(
                     f"""
                     p{index} = Unsqueeze(position_ids,axis)
                     fp{index} = Cast<to=1>(p{index})
-                    {frequency} = MatMul(inverse{index},fp{index})
+                    {frequency} = MatMul({inverse},fp{index})
                     """
                 )
+            cosine, sine = f"c{index}", f"s{index}"
+            angles = f"f{index}" if concat_after_trig else f"repeated{index}"
+            trig = [
+                f"{cosine}=Cos({angles})",
+                f"{sine}=Sin({angles})",
+            ]
+            if half:
+                trig.extend(
+                    [
+                        f"half_cosine{index}=Cast<to=10>({cosine})",
+                        f"half_sine{index}=Cast<to=10>({sine})",
+                    ]
+                )
+                cosine, sine = f"half_cosine{index}", f"half_sine{index}"
+            if concat_after_trig:
+                trig.extend(
+                    [
+                        f"joined_cosine{index}=Concat<axis=-1>({cosine},{cosine})",
+                        f"joined_sine{index}=Concat<axis=-1>({sine},{sine})",
+                    ]
+                )
+                cosine, sine = f"joined_cosine{index}", f"joined_sine{index}"
             body.append(
                 f"""
                 f{index} = Transpose<perm=[0,2,1]>({frequency})
                 repeated{index} = Concat<axis=-1>(f{index},f{index})
-                c{index} = Cos(repeated{index})
-                s{index} = Sin(repeated{index})
-                cosine{index} = Unsqueeze(c{index},axis)
-                sine{index} = Unsqueeze(s{index},axis)
+                {" ".join(trig)}
+                cosine{index} = Unsqueeze({cosine},axis)
+                sine{index} = Unsqueeze({sine},axis)
                 left{index},right{index} = Split<axis=3>(x,halves)
                 negative{index} = Neg(right{index})
                 rotated{index} = Concat<axis=-1>(negative{index},left{index})
@@ -64,11 +100,12 @@ class CosSinCacheExtendedTest(unittest.TestCase):
                 output{index} = Add(real{index},imaginary{index})
                 """
             )
-        inputs = f"float[{batch},2,{sequence},4] x"
+        dtype = "float16" if half else "float"
+        inputs = f"{dtype}[{batch},2,{sequence},4] x"
         if not constant_frequencies:
             inputs += f", int64[1,{sequence}] position_ids"
         outputs = ",".join(
-            f"float[{batch},2,{sequence},4] output{index}" for index in range(count)
+            f"{dtype}[{batch},2,{sequence},4] output{index}" for index in range(count)
         )
         model = ir.from_onnx_text(
             f"""
@@ -79,6 +116,39 @@ class CosSinCacheExtendedTest(unittest.TestCase):
             """
         )
         return ir.from_proto(onnx.shape_inference.infer_shapes(ir.to_proto(model)))
+
+    @parameterized.expand(
+        [
+            (half, concat, expand)
+            for half in (False, True)
+            for concat in (False, True)
+            for expand in (False, True)
+        ]
+    )
+    def test_cache_cast_concat_and_frequency_expansion_variants(self, half, concat, expand):
+        model = self._cache_model(half=half, concat_after_trig=concat, expand_frequency=expand)
+        feeds = {
+            "x": numpy.random.default_rng(42)
+            .normal(size=(2, 2, 3, 4))
+            .astype(numpy.float16 if half else numpy.float32),
+            "position_ids": numpy.array([[-3, 0, 7]], numpy.int64),
+        }
+        expected = ort_run("original_cache_variant", model, feeds)
+        self.assertEqual(fuse_rotary_embedding(model), 1)
+        self.assertEqual(fuse_cos_sin_cache(model), 1)
+        actual = ort_run("fused_cache_variant", model, feeds)
+        numpy.testing.assert_allclose(
+            actual[0],
+            expected[0],
+            rtol=2e-3 if half else 1e-5,
+            atol=2e-3 if half else 1e-5,
+        )
+        inferred = ir.from_proto(onnx.shape_inference.infer_shapes(ir.to_proto(model)))
+        rotary = next(node for node in inferred.graph if node.op_type == "RotaryEmbedding")
+        self.assertEqual(rotary.domain, "com.microsoft")
+        self.assertEqual(
+            rotary.inputs[2].dtype, ir.DataType.FLOAT16 if half else ir.DataType.FLOAT
+        )
 
     @parameterized.expand(
         [
@@ -116,6 +186,27 @@ class CosSinCacheExtendedTest(unittest.TestCase):
         model = self._cache_model()
         model.graph.inputs.append(model.graph.initializers["inverse0"])
         self.assertEqual(fuse_rotary_embedding(model), 1)
+        self.assertEqual(fuse_cos_sin_cache(model), 0)
+
+    def test_constant_frequency_defaults_are_not_treated_as_immutable(self):
+        model = self._cache_model(constant_frequencies=True)
+        model.graph.inputs.append(model.graph.initializers["frequency0"])
+        self.assertEqual(fuse_rotary_embedding(model), 1)
+        self.assertEqual(fuse_cos_sin_cache(model), 0)
+
+    def test_cache_casts_must_preserve_matching_attributes(self):
+        model = self._cache_model(half=True)
+        model.opset_imports[""] = 19
+        self.assertEqual(fuse_rotary_embedding(model), 1)
+        for node in model.graph:
+            if node.op_type == "Cast" and node.inputs[0].producer().op_type == "Sin":
+                node.attributes["saturate"] = ir.AttrInt64("saturate", 0)
+        self.assertEqual(fuse_cos_sin_cache(model), 0)
+
+    def test_cache_conversion_requires_bounded_shape_opset(self):
+        model = self._cache_model()
+        self.assertEqual(fuse_rotary_embedding(model), 1)
+        model.opset_imports[""] = 14
         self.assertEqual(fuse_cos_sin_cache(model), 0)
 
     def test_positions_must_not_grow_rotary_data_batch(self):

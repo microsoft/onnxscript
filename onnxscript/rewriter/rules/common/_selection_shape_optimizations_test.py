@@ -32,6 +32,7 @@ class SelectionShapeOptimizationsTest(unittest.TestCase):
         onnx.checker.check_model(rewritten)
         expected = onnx.reference.ReferenceEvaluator(original).run(None, feeds)
         outputs = onnx.reference.ReferenceEvaluator(rewritten).run(None, feeds)
+        self.assertEqual(len(expected), len(outputs))
         for before, after in zip(expected, outputs):
             np.testing.assert_array_equal(before, after)
             if before.dtype.kind == "f":
@@ -259,6 +260,69 @@ class SelectionShapeOptimizationsTest(unittest.TestCase):
             """,
             {"x": np.array([0, 1], np.float32), "y": np.array([[0, 1]], np.float32)},
             ir_rule_set(boolean.unsqueeze_equal_rule),
+            count=0,
+        )
+
+    def test_unsqueeze_equal_rejects_different_inserted_axes(self):
+        self._check(
+            """
+            <ir_version:8,opset_import:["":18]>
+            graph(float[2] x,float[2] y) => (bool[2,2] z)
+            <int64[1] a={0},int64[1] b={1}> {
+                u=Unsqueeze(x,a)
+                v=Unsqueeze(y,b)
+                z=Equal(u,v)
+            }
+            """,
+            {"x": np.array([0, 1], np.float32), "y": np.array([1, 0], np.float32)},
+            ir_rule_set(boolean.unsqueeze_equal_rule),
+            count=0,
+        )
+
+    def test_unsqueeze_equal_requires_compile_time_axes(self):
+        self._check(
+            """
+            <ir_version:8,opset_import:["":18]>
+            graph(float[2] x,float[2] y,int64[1] axes) => (bool[1,2] z) {
+                u=Unsqueeze(x,axes)
+                v=Unsqueeze(y,axes)
+                z=Equal(u,v)
+            }
+            """,
+            {
+                "x": np.array([0, 1], np.float32),
+                "y": np.array([1, 0], np.float32),
+                "axes": np.array([0], np.int64),
+            },
+            ir_rule_set(boolean.unsqueeze_equal_rule),
+            count=0,
+        )
+
+    def test_reuse_unsqueeze_rejects_nonsingleton_comparison(self):
+        self._check(
+            """
+            <ir_version:8,opset_import:["":18]>
+            graph(float[2] x) => (bool[1,2] z,float[1,2] u)
+            <int64[1] axes={0},float[2] c={0.0,1.0}> {
+                u=Unsqueeze(x,axes)
+                e=Equal(x,c)
+                z=Unsqueeze(e,axes)
+            }
+            """,
+            {"x": np.array([0, 1], np.float32)},
+            ir_rule_set(boolean.reuse_unsqueezed_comparison_rule),
+            count=0,
+        )
+
+    def test_boolean_nonidentity_values_are_not_removed(self):
+        self._check(
+            """
+            <ir_version:8,opset_import:["":18]>
+            graph(bool[2] x) => (bool[2] y)
+            <bool[2] c={1,0}> {y=And(x,c)}
+            """,
+            {"x": np.array([False, True])},
+            boolean.rules,
             count=0,
         )
 
@@ -601,6 +665,37 @@ class SelectionShapeOptimizationsTest(unittest.TestCase):
             {"x": np.array([1.0, np.nan], np.float32)},
             _label_encoder.rules,
             count=0,
+        )
+
+    def test_label_encoder_integer_string_integer_default_chain(self):
+        model = self._check(
+            """
+            <ir_version:8,opset_import:["":18,"ai.onnx.ml":4]>
+            graph(int64[N] x) => (int64[N] y) {
+                t=ai.onnx.ml.LabelEncoder<keys_int64s=[1,2],
+                    values_strings=["a","b"],default_string="c">(x)
+                y=ai.onnx.ml.LabelEncoder<keys_strings=["a","c"],
+                    values_int64s=[4,9]>(t)
+            }
+            """,
+            {"x": np.array([1, 2, 3], np.int64)},
+            _label_encoder.rules,
+        )
+        self.assertEqual(model.graph[-1].attributes["default_int64"].as_int(), 9)
+
+    def test_label_encoder_duplicate_keys_do_not_get_silently_composed(self):
+        model = ir.from_onnx_text(
+            """
+            <ir_version:8,opset_import:["":18,"ai.onnx.ml":4]>
+            graph(int64[N] x) => (int64[N] y) {
+                t=ai.onnx.ml.LabelEncoder<keys_int64s=[1,1],values_int64s=[2,3]>(x)
+                y=ai.onnx.ml.LabelEncoder<keys_int64s=[2,3],values_int64s=[4,5]>(t)
+            }
+            """
+        )
+        self.assertEqual(_label_encoder.rules.apply_to_model(model), 0)
+        self.assertEqual(
+            [node.op_type for node in model.graph], ["LabelEncoder", "LabelEncoder"]
         )
 
     def test_label_encoder_preserves_typed_empty_mapping(self):

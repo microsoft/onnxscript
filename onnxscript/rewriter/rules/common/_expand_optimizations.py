@@ -324,8 +324,13 @@ class _MoveEqualExpandsAfterBinary(RewriteRuleClassBase):
 
     def check(self, context, x, shape1, y, shape2):
         result = MatchResult()
-        if shape1 is not shape2 and _ints(shape1) != _ints(shape2):
-            return result.fail("Expand targets must be equal constants.")
+        if any(attribute.is_ref() for attribute in context.root.attributes.values()):
+            return result.fail("Binary attributes must be concrete.")
+        if shape1 is not shape2:
+            left_target = _ints(shape1)
+            right_target = _ints(shape2)
+            if left_target is None or right_target is None or left_target != right_target:
+                return result.fail("Expand targets must be equal constants.")
         x_shape = _shape(x)
         y_shape = _shape(y)
         output_shape = _shape(context.output_values[0])
@@ -341,10 +346,11 @@ class _MoveEqualExpandsAfterBinary(RewriteRuleClassBase):
             return result.fail(
                 "The final Expand must not discard an otherwise evaluated binary result."
             )
+        self._attributes = dict(context.root.attributes)
         return result
 
     def rewrite(self, op, x, shape1, y, shape2):
-        small = getattr(op, self._op_type)(x, y)
+        small = getattr(op, self._op_type)(x, y, **self._attributes)
         return op.Expand(small, shape1)
 
 
@@ -362,6 +368,8 @@ class _MoveExpandAfterBinary(RewriteRuleClassBase):
 
     def check(self, context, x: ir.Value, expand_shape: ir.Value, y: ir.Value):
         result = MatchResult()
+        if any(attribute.is_ref() for attribute in context.root.attributes.values()):
+            return result.fail("Binary attributes must be concrete.")
         x_shape = _shape(x)
         y_shape = _shape(y)
         output_shape = _shape(context.output_values[0])
@@ -375,10 +383,11 @@ class _MoveExpandAfterBinary(RewriteRuleClassBase):
             return result.fail(
                 "The final Expand must not discard an otherwise evaluated binary result."
             )
+        self._attributes = dict(context.root.attributes)
         return result
 
     def rewrite(self, op, x, expand_shape, y):
-        small = getattr(op, self._op_type)(x, y)
+        small = getattr(op, self._op_type)(x, y, **self._attributes)
         return op.Expand(small, expand_shape)
 
 
@@ -501,6 +510,10 @@ class _SimplifyConcatExpandShapeBase(RewriteRuleClassBase):
             if part.shape is None or list(part.shape) != [1]:
                 return result.fail("Each Concat input must be a one-element vector.")
         self._changed = changed[0]
+        if all(
+            _ints(part) == [1] for index, part in enumerate(parts) if index != self._changed
+        ):
+            return result.fail("Unchanged dimensions are already canonical unit constants.")
         return result
 
     def _rewrite(self, op, x, parts: tuple[ir.Value, ...]):

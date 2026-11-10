@@ -730,11 +730,6 @@ class FuseSpatialSlicesIntoSpaceToDepth(RewriteRuleClassBase):
         return op.SpaceToDepth(x, blocksize=2)
 
 
-def _partition_axis(value: ir.Value, attr: ir.Attr) -> int | None:
-    rank = value.shape.rank() if value.shape is not None else None
-    return _axis(attr, rank)
-
-
 def _check_complete_gather_partition(
     rule,
     context,

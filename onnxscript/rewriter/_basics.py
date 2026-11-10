@@ -157,7 +157,10 @@ class MatchResult:
                     return False
             self._current_match.value_bindings[pattern_value] = value
             return True
-        return self.bind(var_name, value)
+        if not self.bind(var_name, value):
+            return False
+        self._current_match.value_bindings[pattern_value] = value
+        return True
 
     def bind(self, var: str, value: Any) -> bool:
         for match in self._partial_matches:

@@ -42,6 +42,19 @@ def add_pattern(op, x, y):
 
 This pattern will only match `Add` operations where the first input is a positive constant value.
 
+A named variable can carry the same checker while remaining available to the
+replacement and condition:
+
+```python
+def add_pattern(op, y):
+    positive = pattern.Var("positive", check=is_positive_constant)
+    return op.Add(positive, y)
+```
+
+Named and anonymous value checkers have the same rejection and retry behavior.
+Each candidate receives fresh bindings; rejecting one candidate does not bind
+the variable for a later candidate.
+
 ### Example Usage
 
 ```python

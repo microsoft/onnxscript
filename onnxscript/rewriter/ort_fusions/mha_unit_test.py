@@ -7,8 +7,8 @@ The MHA rule matches the pattern:
     Q/K/V → Reshape → Transpose → [RotaryEmbedding] → [Concat past] → SDPA → Transpose → Reshape
 and fuses it into a single MultiHeadAttention contrib op.
 
-These are structural tests (no ORT run) because the pattern requires internal
-SDPA nodes (ai.onnxruntime._fusion domain) which ORT cannot execute directly.
+Numerical cases provide an executable SDPA reference function because ORT does
+not implement the internal ai.onnxruntime._fusion domain directly.
 """
 
 from __future__ import annotations
@@ -168,6 +168,29 @@ class MultiHeadAttentionFusionTest(unittest.TestCase):
                 return node
         return None
 
+    @staticmethod
+    def _executable_sdpa_model(model: ir.Model) -> ir.Model:
+        proto = ir.to_proto(model)
+        proto.functions.append(
+            onnx.helper.make_function(
+                "ai.onnxruntime._fusion",
+                "SDPA",
+                ["q", "k", "v"],
+                ["y"],
+                [
+                    onnx.helper.make_node("Transpose", ["k"], ["kt"], perm=[0, 1, 3, 2]),
+                    onnx.helper.make_node("MatMul", ["q", "kt"], ["scores"]),
+                    onnx.helper.make_node("Constant", [], ["scale"], value_float=0.5),
+                    onnx.helper.make_node("Mul", ["scores", "scale"], ["scaled"]),
+                    onnx.helper.make_node("Softmax", ["scaled"], ["probabilities"], axis=-1),
+                    onnx.helper.make_node("MatMul", ["probabilities", "v"], ["y"]),
+                ],
+                [onnx.helper.make_opsetid("", 18)],
+                attributes=["key_format"],
+            )
+        )
+        return ir.from_proto(onnx.shape_inference.infer_shapes(proto))
+
     _3D = (FLOAT["B", "S", _D],) * 3
     _OUT_1 = (FLOAT["B", "S", _D],)
 
@@ -190,6 +213,40 @@ class MultiHeadAttentionFusionTest(unittest.TestCase):
         model.graph[-2].outputs[0].shape = ir.Shape([1, 4, 1, 4])
         self.assertEqual(self._apply(model), 1)
         self.assertIsNotNone(self._get_mha_node(model))
+
+    def test_packed_rank_two_preserves_attention_numerically(self):
+        for sequence, heads in ((1, 4), (3, 1)):
+            with self.subTest(sequence=sequence, heads=heads):
+                width = heads * 4
+                model = ir.from_onnx_text(
+                    f"""
+                    <ir_version:8,opset_import:["":18,"ai.onnxruntime._fusion":1]>
+                    graph(float[{sequence},{width}] q,float[{sequence},{width}] k,
+                          float[{sequence},{width}] v) => (float[{sequence},{width}] y)
+                    <int64[4] heads={{1,{heads},{sequence},4}},
+                     int64[2] packed={{{sequence},{width}}}> {{
+                        q4=Reshape(q,heads)
+                        k4=Reshape(k,heads)
+                        v4=Reshape(v,heads)
+                        attention=ai.onnxruntime._fusion.SDPA<key_format="BHSd">(q4,k4,v4)
+                        y=Reshape(attention,packed)
+                    }}
+                    """
+                )
+                model = self._executable_sdpa_model(model)
+                rng = np.random.default_rng(42)
+                feeds = {
+                    name: rng.normal(size=(sequence, width)).astype(np.float32)
+                    for name in ("q", "k", "v")
+                }
+                expected = ort_run("packed_rank_two_attention", model, feeds)
+                self.assertEqual(self._apply(model), 1)
+                self.assertEqual(
+                    self._get_mha_node(model).attributes.get_int("num_heads"), heads
+                )
+                actual = ort_run("fused_packed_rank_two_attention", model, feeds)
+                self.assertEqual(actual[0].shape, (sequence, width))
+                np.testing.assert_allclose(actual[0], expected[0], rtol=1e-5, atol=1e-5)
 
     def test_rotary_attributes_are_not_dropped(self):
         for attribute, value in (
@@ -258,30 +315,7 @@ class MultiHeadAttentionFusionTest(unittest.TestCase):
                     }}
                     """
                 )
-                proto = ir.to_proto(model)
-                proto.functions.append(
-                    onnx.helper.make_function(
-                        "ai.onnxruntime._fusion",
-                        "SDPA",
-                        ["q", "k", "v"],
-                        ["y"],
-                        [
-                            onnx.helper.make_node(
-                                "Transpose", ["k"], ["kt"], perm=[0, 1, 3, 2]
-                            ),
-                            onnx.helper.make_node("MatMul", ["q", "kt"], ["scores"]),
-                            onnx.helper.make_node("Constant", [], ["scale"], value_float=0.5),
-                            onnx.helper.make_node("Mul", ["scores", "scale"], ["scaled"]),
-                            onnx.helper.make_node(
-                                "Softmax", ["scaled"], ["probabilities"], axis=-1
-                            ),
-                            onnx.helper.make_node("MatMul", ["probabilities", "v"], ["y"]),
-                        ],
-                        [onnx.helper.make_opsetid("", 18)],
-                        attributes=["key_format"],
-                    )
-                )
-                model = ir.from_proto(onnx.shape_inference.infer_shapes(proto))
+                model = self._executable_sdpa_model(model)
                 rng = np.random.default_rng(42)
                 feeds = {
                     name: rng.normal(size=shape).astype(np.float32)

@@ -14,7 +14,7 @@ import onnxscript.optimizer
 import onnxscript.rewriter
 from onnxscript import FLOAT, script
 from onnxscript import opset17 as op
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _matcher, pattern
 from onnxscript.rewriter.rules.common import _cast_constant_of_shape
 
 logger = logging.getLogger(__name__)
@@ -997,6 +997,98 @@ class MultiOutputBacktrackingTest(unittest.TestCase):
     @staticmethod
     def _two_identity_replacement(op, x):
         return op.Identity(x), op.Identity(x)
+
+    def test_value_checker_rejection_retries_without_stale_bindings(self):
+        model = self._identity_model(
+            "first=Identity(x) rejected=Identity(x) accepted=Identity(y)",
+            "float[2] first, float[2] rejected, float[2] accepted",
+        )
+        attempts = []
+
+        def is_y(context, value):
+            del context
+            attempts.append(value.name)
+            return value.name == "y"
+
+        def target(op, x):
+            return op.Identity(x), op.Identity(pattern.Var("other", check=is_y))
+
+        def replacement(op, x, other):
+            return op.Identity(x), op.Identity(other)
+
+        rule = pattern.RewriteRule(target, replacement)
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "accepted"])
+        self.assertEqual(attempts, ["x", "y"])
+        self.assertIs(match.bindings["other"], model.graph.inputs[1])
+
+    def test_legacy_matcher_keeps_single_result_contract(self):
+        class LegacyMatcher(_matcher.PatternMatcher):
+            def match(self, model, graph_or_function, node, **kwargs):
+                return _matcher.SimplePatternMatcher(self.pattern).match(
+                    model, graph_or_function, node, **kwargs
+                )
+
+        model = self._identity_model(
+            "first=Identity(x) second=Identity(x)",
+            "float[2] first, float[2] second",
+        )
+        rule = pattern.RewriteRule(
+            self._two_identity_pattern,
+            self._two_identity_replacement,
+            matcher=LegacyMatcher,
+        )
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "second"])
+
+    def test_no_candidate_for_remaining_root_returns_no_match(self):
+        model = self._identity_model("first=Identity(x)", "float[2] first")
+
+        def target(op, x):
+            return op.Identity(x), op.Neg(x)
+
+        rule = pattern.RewriteRule(target, self._two_identity_replacement)
+        self.assertFalse(rule.match(model, model.graph, model.graph[0]))
+
+    def test_multiple_outputs_of_one_root_do_not_require_distinct_producers(self):
+        model = self._identity_model(
+            "first,second=Split<axis=0,num_outputs=2>(x)",
+            "float[1] first, float[1] second",
+        )
+
+        def target(op, x):
+            return op.Split(x, axis=0, num_outputs=2, _outputs=2)
+
+        def replacement(op, x):
+            return op.Split(x, axis=0, num_outputs=2, _outputs=2)
+
+        rule = pattern.RewriteRule(target, replacement)
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "second"])
+
+    def test_candidate_pruning_preserves_omitted_optional_inputs(self):
+        model = self._identity_model(
+            "first=Clip(x) second=Clip(x)",
+            "float[2] first, float[2] second",
+        )
+
+        def target(op, x):
+            return op.Clip(x, None, None), op.Clip(x, None, None)
+
+        def replacement(op, x):
+            return op.Clip(x), op.Clip(x)
+
+        rule = pattern.RewriteRule(target, replacement)
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "second"])
 
     def test_condition_failure_backtracks_to_valid_alternative(self):
         model = self._identity_model(
