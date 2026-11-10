@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import unittest
 
+import onnx
+import onnx_ir
 import onnxscript.optimizer
 from onnxscript.rewriter.models._bart_encoder import bart_encoder_test
 from onnxscript.rewriter.models._smollm_1 import smollm_test_1
@@ -18,6 +20,47 @@ from onnxscript.rewriter.ort_fusions.skip_normalization import (
 
 
 class TestSkipNormalization(unittest.TestCase):
+    def test_skip_rms_norm_dtype_mismatch(self):
+        def make_model(gamma_dtype):
+            graph = onnx.helper.make_graph(
+                [
+                    onnx.helper.make_node("Add", ["input", "skip"], ["skip_sum"]),
+                    onnx.helper.make_node(
+                        "SimplifiedLayerNormalization",
+                        ["skip_sum", "gamma"],
+                        ["output"],
+                        axis=-1,
+                        stash_type=1,
+                    ),
+                ],
+                "skip_rms_norm",
+                [
+                    onnx.helper.make_tensor_value_info(
+                        "input", onnx.TensorProto.FLOAT16, [2, 8, 64]
+                    ),
+                    onnx.helper.make_tensor_value_info(
+                        "skip", onnx.TensorProto.FLOAT16, [2, 8, 64]
+                    ),
+                    onnx.helper.make_tensor_value_info("gamma", gamma_dtype, [64]),
+                ],
+                [
+                    onnx.helper.make_tensor_value_info(
+                        "output", onnx.TensorProto.FLOAT16, [2, 8, 64]
+                    )
+                ],
+            )
+            return onnx_ir.from_proto(onnx.helper.make_model(graph))
+
+        mixed_dtype_model = make_model(onnx.TensorProto.FLOAT)
+        fuse_skip_rms_normalization(mixed_dtype_model)
+        mixed_dtype_op_types = [node.op_type for node in mixed_dtype_model.graph]
+        self.assertNotIn("SkipSimplifiedLayerNormalization", mixed_dtype_op_types)
+
+        matching_dtype_model = make_model(onnx.TensorProto.FLOAT16)
+        fuse_skip_rms_normalization(matching_dtype_model)
+        matching_dtype_op_types = [node.op_type for node in matching_dtype_model.graph]
+        self.assertIn("SkipSimplifiedLayerNormalization", matching_dtype_op_types)
+
     def test_smollm(self):
         smollm_test = smollm_test_1()
         model = smollm_test.get_onnx_model()
