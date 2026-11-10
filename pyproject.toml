@@ -28,7 +28,7 @@ classifiers = [
 dependencies = [
   "ml_dtypes",
   "numpy",
-  "onnx_ir>=0.1.16,<2",  # Expect onnx_ir to have a breaking change in 2.0. If not, extend this range.
+  "onnx_ir>=1.1.0,<2",  # FLOAT6E2M3 and FLOAT6E3M2 require onnx_ir 1.1.
   "onnx>=1.17",
   "packaging",
   "typing_extensions>=4.10",
@@ -145,6 +145,7 @@ ignore = [
     "D212",
     "D400",
     "D401", # First line of docstring should be in imperative mood
+    "D420", # Generated opset files do not follow this docstring rule.
     "D415", # D415 Not yet enforced. "First line should end with a period, question mark, or exclamation point"
     "E1", "E2", "E3", # Pycodestyle formatting rules that conflicts with the formatter
     "E501", # Line length. Not enforced because black will handle formatting

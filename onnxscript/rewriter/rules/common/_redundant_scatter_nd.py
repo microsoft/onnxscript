@@ -47,13 +47,19 @@ class ScatterAllDynamic(RewriteRuleClassBase):
         shape: ir.Shape | None = data.shape
         if shape is None:
             return result.fail("Data shape is not statically known.", data)
-        updated_dim_value = shape[axis_value]
+        updated_dim_value = _ir_utils.get_dim(data, axis_value)
+        if updated_dim_value is None:
+            return result.fail("Axis value is out of bounds for data shape.", axis)
         transposed_data_shape: ir.Shape | None = transposed_data.shape
         if transposed_data_shape is None:
             return result.fail(
                 "Transposed data shape is not statically known.", transposed_data
             )
-        actual_dim_value = transposed_data_shape[0]
+        actual_dim_value = _ir_utils.get_dim(transposed_data, 0)
+        if actual_dim_value is None:
+            return result.fail(
+                "Transposed data shape must have at least rank 1.", transposed_data
+            )
         if not _ir_utils.same_dim(updated_dim_value, actual_dim_value):
             # The first dimension of the transposed data does not match the updated dimension,
             # so we cannot apply this rule.
@@ -80,9 +86,22 @@ class ScatterAllStatic(RewriteRuleClassBase):
 
     def check(self, context, data, indices, updates, **_):
         """Check if the ScatterND is redundant due to static indices covering entire tensor."""
-        # To validate data can be replaced directly by updates, we need to check the following:
-        # 1. they have the same shape
         result = onnxscript.rewriter.MatchResult()
+        # To validate data can be replaced directly by updates, we need to check the following:
+        # 1. the scatter-update is an assignment, not a reduction combining data and updates
+        reduction = context.root.attributes.get("reduction")
+        if reduction is not None:
+            if reduction.is_ref():
+                return result.fail(
+                    f"The 'reduction' refers to attribute {reduction.ref_attr_name!r}, "
+                    "so it is not known to be 'none'."
+                )
+            if reduction.as_string() != "none":
+                return result.fail(
+                    f"The 'reduction' is {reduction.as_string()!r}, "
+                    "so 'data' still contributes to the result."
+                )
+        # 2. they have the same shape
         if data.shape is None:
             return result.fail("The value 'data' shape is not statically known.", data)
         if updates.shape is None:
@@ -92,10 +111,13 @@ class ScatterAllStatic(RewriteRuleClassBase):
                 "The shape of 'data' and 'updates' are different.", [data, updates]
             )
 
-        # 2. the indices is referring to the whole data, which is from 0 to data.shape[0]
+        # 3. the indices is referring to the whole data, which is from 0 to data.shape[0]
         if indices.const_value is None:
             return result.fail("The value 'indices' is not statically known.", indices)
-        expected_indices = [[i] for i in range(data.shape[0])]
+        first_dim = data.shape[0]
+        if not isinstance(first_dim, int):
+            return result.fail("The first dimension of 'data' is not statically known.", data)
+        expected_indices = [[i] for i in range(first_dim)]
         actual_indices = indices.const_value.numpy().tolist()
         if actual_indices != expected_indices:
             return result.fail("The 'indices' is not referring to the whole data.", indices)

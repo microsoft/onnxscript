@@ -7,9 +7,8 @@ from typing import Any
 import numpy as np
 import onnx
 import onnx.reference
+import onnx_ir as ir
 import onnxruntime as ort
-
-from onnxscript import ir
 
 
 def generate_random_inputs(model: onnx.ModelProto) -> dict[str, Any]:

@@ -5,7 +5,9 @@ from __future__ import annotations
 import pathlib
 import unittest
 
-from onnxscript import ir, version_converter
+import onnx_ir as ir
+
+from onnxscript import version_converter
 
 model_folder_path = pathlib.Path(__file__).resolve().parent.parent.parent / "testdata"
 

@@ -50,6 +50,9 @@ def read_conv_attributes(ir_conv: ir.Node) -> dict[str, Sequence[int] | str]:
     attributes["strides"] = ir_attributes.get_ints(
         "strides", [1] * len(ir_conv.inputs[0].shape[2:])
     )
+    attributes["dilations"] = ir_attributes.get_ints(
+        "dilations", [1] * len(attributes["kernel_shape"])
+    )
     attributes["auto_pad"] = ir_attributes.get_string("auto_pad", "NOTSET")
     if "pads" in ir_attributes:
         attributes["pads"] = ir_attributes.get_ints("pads")
@@ -187,6 +190,22 @@ class FuseConvIntegerPad(FuseConvPad):
             _outputs=["conv"],
         )
 
+    def check(self, context, x: ir.Value, pad: ir.Value, conv: ir.Value) -> orp.MatchResult:
+        check_result = super().check(context, x, pad, conv)
+        if not check_result:
+            return check_result
+
+        # ConvInteger subtracts x_zero_point before convolving, so its own padding behaves
+        # like padding x with x_zero_point. The Pad was checked to pad with 0, so the two
+        # only agree when x_zero_point is absent or zero.
+        conv_node = conv.producer()
+        if len(conv_node.inputs) > 2 and (x_zero_point := conv_node.inputs[2]) is not None:
+            if x_zero_point.const_value is None:
+                return check_result.fail(f"{x_zero_point.name} is not a constant/initializer.")
+            if np.any(x_zero_point.const_value.numpy() != 0):
+                return check_result.fail(f"{x_zero_point.name} must be equal to 0.")
+        return check_result
+
 
 class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
     """Interface to normalize pad attributes in conv nodes."""
@@ -302,8 +321,12 @@ class NormalizePadFormatConv(_NormalizePadFormatBase):
 
         bottom_pads, top_pads = [], []
         kernel_shape, strides = attributes["kernel_shape"], attributes["strides"]
-        assert len(kernel_shape) == len(strides) == len(input_shape) == len(output_shape)
-        for x, y, k, s in zip(input_shape, output_shape, kernel_shape, strides):
+        # A kernel dilated by d spans (k - 1) * d + 1 elements along a spatial axis
+        dilated_kernel = [
+            (k - 1) * d + 1 for k, d in zip(kernel_shape, attributes["dilations"])
+        ]
+        assert len(dilated_kernel) == len(strides) == len(input_shape) == len(output_shape)
+        for x, y, k, s in zip(input_shape, output_shape, dilated_kernel, strides):
             # Compute the output shape and the total padding to apply
             total_pads = max(0, (y - 1) * s + k - x)
 

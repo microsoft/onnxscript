@@ -6,8 +6,8 @@ import unittest
 
 import numpy as np
 import onnx.parser
+import onnx_ir as ir
 
-from onnxscript import ir
 from onnxscript.rewriter import testing
 from onnxscript.rewriter.rules.common import _collapse_slices
 
@@ -118,4 +118,243 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = _collapse_slices.rules.apply_to_model(model)
         # Should not change the output shape if we did not use the default step of 1
+        self.assertEqual(count, 0)
+
+    def test_multi_element_steps_all_ones_collapses(self):
+        """Slice with multi-axis steps=[1,1] and matching shapes should collapse."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[L, M] data) => (float[L, M] output)
+            {
+                starts = Constant<value: tensor = int64[2] {0, 0}>()
+                ends = Constant<value: tensor = int64[2] {9999, 9999}>()
+                axes = Constant<value: tensor = int64[2] {0, 1}>()
+                steps = Constant<value: tensor = int64[2] {1, 1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        )
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+
+    def test_multi_element_steps_with_non_one_does_not_collapse(self):
+        """Slice with steps containing a non-1 element should not collapse."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[10, 20] data) => (float[10, 10] output)
+            {
+                starts = Constant<value: tensor = int64[2] {0, 0}>()
+                ends = Constant<value: tensor = int64[2] {10, 20}>()
+                axes = Constant<value: tensor = int64[2] {0, 1}>()
+                steps = Constant<value: tensor = int64[2] {1, 2}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        )
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_multi_element_steps_numerical_correctness(self):
+        """Verify numerical correctness of multi-axis collapse."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 5] data) => (float[4, 5] output)
+            {
+                starts = Constant<value: tensor = int64[2] {0, 0}>()
+                ends = Constant<value: tensor = int64[2] {100, 100}>()
+                axes = Constant<value: tensor = int64[2] {0, 1}>()
+                steps = Constant<value: tensor = int64[2] {1, 1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        _collapse_slices.rules.apply_to_model(model)
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (np.random.rand(4, 5).astype(np.float32),),
+        )
+
+    def test_slice_out_of_bounds_axis_does_not_crash_or_collapse(self):
+        """Slice with out-of-bounds axis should be rejected without IndexError."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[1] {0}>()
+                ends = Constant<value: tensor = int64[1] {10}>()
+                axes = Constant<value: tensor = int64[1] {5}>()
+                steps = Constant<value: tensor = int64[1] {1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        )
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_slice_negative_out_of_bounds_axis_does_not_crash_or_collapse(self):
+        """Slice with negative out-of-bounds axis should be rejected without IndexError."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[1] {0}>()
+                ends = Constant<value: tensor = int64[1] {10}>()
+                axes = Constant<value: tensor = int64[1] {-5}>()
+                steps = Constant<value: tensor = int64[1] {1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        )
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_slice_out_of_bounds_axis_with_int64_max_ends_does_not_collapse(self):
+        """Slice with out-of-bounds axis must not collapse even if ends reaches int64_max."""
+        model = ir.from_onnx_text(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {{
+                starts = Constant<value: tensor = int64[1] {{0}}>()
+                ends = Constant<value: tensor = int64[1] {{{_INT64_MAX}}}>()
+                axes = Constant<value: tensor = int64[1] {{5}}>()
+                steps = Constant<value: tensor = int64[1] {{1}}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }}
+        """
+        )
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_slice_valid_negative_axis_collapses(self):
+        """Slice with a valid negative axis (e.g. -1 for rank 2) should collapse."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[1] {0}>()
+                ends = Constant<value: tensor = int64[1] {10}>()
+                axes = Constant<value: tensor = int64[1] {-1}>()
+                steps = Constant<value: tensor = int64[1] {1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (np.random.rand(4, 8).astype(np.float32),),
+        )
+
+    def test_slice_negative_normalized_start_collapses(self):
+        """Slice with negative start normalizing to 0 (e.g., -8 on dim 8) should collapse."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[1] {-8}>()
+                ends = Constant<value: tensor = int64[1] {8}>()
+                axes = Constant<value: tensor = int64[1] {1}>()
+                steps = Constant<value: tensor = int64[1] {1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (np.random.rand(4, 8).astype(np.float32),),
+        )
+
+    def test_slice_negative_clamped_start_collapses(self):
+        """Slice with negative start clamping to 0 (e.g., -10 on dim 8) should collapse."""
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[1] {-10}>()
+                ends = Constant<value: tensor = int64[1] {8}>()
+                axes = Constant<value: tensor = int64[1] {1}>()
+                steps = Constant<value: tensor = int64[1] {1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (np.random.rand(4, 8).astype(np.float32),),
+        )
+
+    def test_slice_multi_axis_nonzero_start_does_not_collapse(self):
+        """Slice with matching shapes, unit steps, valid axes, but nonzero start should not collapse."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[2] {0, 1}>()
+                ends = Constant<value: tensor = int64[2] {4, 8}>()
+                axes = Constant<value: tensor = int64[2] {0, 1}>()
+                steps = Constant<value: tensor = int64[2] {1, 1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        )
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_slice_single_axis_nonzero_start_does_not_collapse(self):
+        """Slice with matching shapes, unit steps, valid axis, but nonzero start should not collapse."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[1] {1}>()
+                ends = Constant<value: tensor = int64[1] {8}>()
+                axes = Constant<value: tensor = int64[1] {1}>()
+                steps = Constant<value: tensor = int64[1] {1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        )
+        count = _collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_slice_multi_axis_out_of_bounds_axis_does_not_collapse(self):
+        """Multi-axis slice containing an out-of-bounds axis should not collapse."""
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[4, 8] data) => (float[4, 8] output)
+            {
+                starts = Constant<value: tensor = int64[2] {0, 0}>()
+                ends = Constant<value: tensor = int64[2] {4, 8}>()
+                axes = Constant<value: tensor = int64[2] {0, 5}>()
+                steps = Constant<value: tensor = int64[2] {1, 1}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }
+        """
+        )
+        count = _collapse_slices.rules.apply_to_model(model)
         self.assertEqual(count, 0)

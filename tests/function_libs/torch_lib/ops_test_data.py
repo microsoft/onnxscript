@@ -676,16 +676,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("true_divide", core_ops.aten_div),
     TorchLibOpInfo("true_divide", core_ops.aten_div_complex, complex=True),
-    TorchLibOpInfo("div_mode", core_ops.aten_div_mode)
-    .skip(
+    TorchLibOpInfo("div_mode", core_ops.aten_div_mode).skip(
         variant_name="no_rounding_mode",
         reason="this variation requires the rounding_mode argument",
-    )
-    .skip(
-        variant_name="trunc_rounding",
-        dtypes=(torch.float16,),
-        # Numbers match sometimes but not other times
-        reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
     ),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
@@ -750,6 +743,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT does not support empty tensors as input",
     ),
     TorchLibOpInfo("ge", core_ops.aten_ge),
+    TorchLibOpInfo(
+        "ops.aten._grouped_mm",
+        core_ops.aten_grouped_mm,
+        tolerance={torch.float32: (1e-5, 1e-5)},
+    ).skip(
+        enabled_if=not hasattr(torch.ops.aten, "_grouped_mm"),
+        reason="torch.ops.aten._grouped_mm is not available in this version of PyTorch",
+    ),
     TorchLibOpInfo("gt", core_ops.aten_gt),
     TorchLibOpInfo("histc", core_ops.aten_histc)
     .skip(
@@ -872,6 +873,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("dim") is not None,
         reason="this Aten overload only accept 1 inputs: self",
     ),
+    TorchLibOpInfo("ops.aten.mean.dtype", core_ops.aten_mean),
     TorchLibOpInfo(
         "mean_dim", core_ops.aten_mean_dim, input_wrangler=_mean_input_wrangler
     ).skip(
@@ -1303,6 +1305,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("unfold", core_ops.aten_unfold),
     TorchLibOpInfo("ops.aten.unfold", core_ops.aten_unfold),
     TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
+    TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze_complex, complex=True),
     TorchLibOpInfo("view", core_ops.aten_view),
     TorchLibOpInfo("view", core_ops.aten_view_complex, complex=True),
     TorchLibOpInfo("view_as", core_ops.aten_view_as),
@@ -1653,6 +1656,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.linear", nn_ops.aten_linear, tolerance={torch.float16: (1e-2, 1e-3)}
     ),
     TorchLibOpInfo(
+        "ops.aten.linear.1d_weight",
+        nn_ops.aten_linear,
+        tolerance={torch.float16: (1e-2, 1e-3)},
+    ),
+    TorchLibOpInfo(
         "nn.functional.unfold",
         nn_ops.aten_im2col,
         input_wrangler=_im2col_input_wrangler,
@@ -1822,6 +1830,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
         reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
+    TorchLibOpInfo("ops.aten.upsample_linear1d.vec", nn_ops.aten_upsample_linear1d_vec),
     TorchLibOpInfo("ops.aten.upsample_nearest1d", nn_ops.aten_upsample_nearest1d),
     TorchLibOpInfo("ops.aten.upsample_nearest1d.vec", nn_ops.aten_upsample_nearestnd_vec),
     TorchLibOpInfo("ops.aten.upsample_nearest2d", nn_ops.aten_upsample_nearest2d),

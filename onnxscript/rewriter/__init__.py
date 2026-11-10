@@ -22,9 +22,9 @@ __all__ = [
 ]
 
 import onnx
+import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
 
-from onnxscript import ir
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchContext, MatchingTracer, MatchResult, MatchStatus
 from onnxscript.rewriter._rewrite_rule import (
@@ -43,6 +43,7 @@ from onnxscript.rewriter.rules.common import (
     _fuse_batchnorm,
     _fuse_pad_into_conv,
     _fuse_relus_clips,
+    _materialize_reshape_shape,
     _min_max_to_clip,
     _no_op,
     _redundant_scatter_nd,
@@ -57,6 +58,7 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *_broadcast_to_matmul.rules,
     *_cast_constant_of_shape.rules,
     *_collapse_slices.rules,
+    *_materialize_reshape_shape.rules,
     *_min_max_to_clip.rules,
     *_fuse_relus_clips.rules,
     *_basic_rules.basic_optimization_rules(),

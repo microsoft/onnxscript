@@ -18,7 +18,9 @@ import os
 import pathlib
 from typing import Callable
 
-from onnxscript import ir, optimizer, version_converter
+import onnx_ir as ir
+
+from onnxscript import optimizer, version_converter
 from onnxscript.function_libs.torch_lib import registration
 
 
@@ -59,9 +61,13 @@ def convert_version(model: ir.Model, target_version: int) -> ir.Model:
 
 
 def check_model(model: ir.Model) -> None:
-    """Check the model."""
+    """No-op retained for API compatibility.
 
-    del model  # Unused yet
+    This intentionally performs no validation. Running the ONNX checker here was
+    dropped because it can report false positives and adds overhead to export.
+    """
+
+    del model  # Intentionally unused: this function performs no validation.
 
 
 def save_model_with_external_data(
