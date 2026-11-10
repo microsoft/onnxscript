@@ -9161,6 +9161,12 @@ def aten_scatter_reduce(
         index = op.Reshape(index, neg_1)
         src = op.Reshape(src, neg_1)
 
+    if reduce == "mean":
+        result = _scatter_reduce_mean(self, dim, index, src, include_self, dtype)
+        if self_is_scalar:
+            result = op.Squeeze(result)
+        return result
+
     if not include_self:
         # onnx standard always assume the value from self is part of the reduction.
         # A first step is added to replace the impacted value by another one
@@ -9214,6 +9220,25 @@ def aten_scatter_reduce(
     if self_is_scalar:
         result = op.Squeeze(result)
     return result
+
+
+def _scatter_reduce_mean(
+    self: TReal, dim: int, index: TInt, src: TReal, include_self: bool, dtype: ir.DataType
+) -> TReal:
+    """ScatterElements has no mean reduction, so divide the sum by the count."""
+    ones = op.ConstantOfShape(op.Shape(src), value=ir.tensor([1], dtype=dtype))
+    count = op.ConstantOfShape(op.Shape(self), value=ir.tensor([1], dtype=dtype))
+    if not include_self:
+        # Zero the scattered positions so only src contributes there.
+        zeros = op.ConstantOfShape(op.Shape(src), value=ir.tensor([0], dtype=dtype))
+        self = op.ScatterElements(self, index, zeros, axis=dim, reduction="none")
+        count = op.ScatterElements(count, index, zeros, axis=dim, reduction="none")
+    total = op.ScatterElements(self, index, src, axis=dim, reduction="add")
+    count = op.ScatterElements(count, index, ones, axis=dim, reduction="add")
+    if dtype.is_integer():
+        # torch floors integer means; ONNX Div truncates toward zero.
+        return op.Div(op.Sub(total, op.Mod(total, count)), count)
+    return op.Div(total, count)
 
 
 def aten_searchsorted(
