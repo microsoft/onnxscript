@@ -4238,16 +4238,38 @@ def operator_floordiv(self: INT64, other: INT64) -> INT64:
     return op.Div(self, other)
 
 
-def aten_fmax(self: TensorType, other: TensorType) -> TensorType:
+@torch_op(("aten::fmax", "prims::fmax"), trace_only=True)
+def aten_fmax(self: TTensor, other: TTensor) -> TTensor:
     """fmax(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    if self.dtype == ir.DataType.BOOL:
+        return op.Or(self, other)
+
+    result = op.Max(self, other)
+    if not self.dtype.is_floating_point():
+        return result
+
+    # Max returns NaN if either input is NaN. fmax returns the other input instead,
+    # and NaN only when both are NaN.
+    result = op.Where(op.IsNaN(self), other, result)
+    return op.Where(op.IsNaN(other), self, result)
 
 
-def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
+@torch_op(("aten::fmin", "prims::fmin"), trace_only=True)
+def aten_fmin(self: TTensor, other: TTensor) -> TTensor:
     """fmin(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    if self.dtype == ir.DataType.BOOL:
+        return op.And(self, other)
+
+    result = op.Min(self, other)
+    if not self.dtype.is_floating_point():
+        return result
+
+    # Min returns NaN if either input is NaN. fmin returns the other input instead,
+    # and NaN only when both are NaN.
+    result = op.Where(op.IsNaN(self), other, result)
+    return op.Where(op.IsNaN(other), self, result)
 
 
 @torch_op(("aten::fmod.Tensor", "aten::fmod.Scalar"), trace_only=True)
@@ -4982,10 +5004,42 @@ def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     return result
 
 
-def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
+@torch_op(("aten::hypot", "prims::hypot"), trace_only=True)
+def aten_hypot(self: TFloat, other: TFloat) -> TFloat:
     """hypot(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    dtype = self.dtype
+    if dtype in {ir.DataType.FLOAT16, ir.DataType.BFLOAT16}:
+        # Compute in float32 so the intermediate steps keep full precision near the
+        # top of the half precision range. onnxruntime also lacks bfloat16 kernels
+        # for some of the ops below, e.g. Abs.
+        self = op.Cast(self, to=FLOAT.dtype)
+        other = op.Cast(other, to=FLOAT.dtype)
+        return op.Cast(_hypot(self, other, ir.DataType.FLOAT), to=dtype)
+
+    return _hypot(self, other, dtype)
+
+
+def _hypot(self: TFloat, other: TFloat, dtype: ir.DataType) -> TFloat:
+    zero = common_ops.constant(0.0, dtype=dtype)
+    one = common_ops.constant(1.0, dtype=dtype)
+    inf = common_ops.constant(math.inf, dtype=dtype)
+
+    # Squaring the inputs directly overflows or underflows long before the result
+    # does, e.g. hypot(1e30, 1e30) in float32. Scale by the larger magnitude instead:
+    # hypot(x, y) = big * sqrt(1 + (small / big) ** 2)
+    abs_self = op.Abs(self)
+    abs_other = op.Abs(other)
+    big = op.Max(abs_self, abs_other)
+    small = op.Min(abs_self, abs_other)
+    ratio = op.Div(small, big)
+    result = op.Mul(big, op.Sqrt(op.Add(one, op.Mul(ratio, ratio))))
+
+    # 0 / 0 and inf / inf give NaN above. hypot is 0 when both inputs are 0, and
+    # inf when either input is inf, even if the other one is NaN.
+    result = op.Where(op.Equal(big, zero), zero, result)
+    either_inf = op.Or(op.IsInf(self), op.IsInf(other))
+    return op.Where(either_inf, inf, result)
 
 
 def aten_i0(self: TensorType) -> TensorType:
