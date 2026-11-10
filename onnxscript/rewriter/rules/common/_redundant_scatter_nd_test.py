@@ -400,6 +400,40 @@ class RedundantScatterNdTest(unittest.TestCase):
         count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
+    def test_dynamic_indices_with_default_shape_and_scatter_nd_attributes(self):
+        """ScatterAllDynamic matches when Shape start and ScatterND reduction default attributes are omitted."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {1},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND(transposed_data, full_range_2d, updates)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (
+                np.random.rand(4, 8).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
