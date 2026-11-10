@@ -337,16 +337,22 @@ class RewriteRule(Pattern):
         tracer: _basics.MatchingTracer | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
-        # Use the inherited match method from Pattern
+        # A pattern success is provisional until replacement construction succeeds.
+        match_tracer = _basics.MatchingTracer() if tracer is not None else None
         match = self.match(
             model,
             graph_or_function,
             node,
             verbose=verbose,
             check_nodes_are_removable=self.remove_nodes,
-            tracer=tracer,
+            tracer=match_tracer,
         )
         if not match:
+            if tracer is not None and match_tracer is not None:
+                for info in match_tracer.best_matches_map.get(self, ()):
+                    tracer.log(
+                        self, info.container, info.root_node, info.match_result, info.status
+                    )
             return None
 
         replacement_subgraph = self._replacement_pattern.get_replacement(match)
@@ -368,6 +374,8 @@ class RewriteRule(Pattern):
         # TODO(rama): Remove the opset imports from deleted nodes?
         _update_opset_imports(graph_or_function, replacement_subgraph)
         _update_opset_imports(model.graph, replacement_subgraph)
+        if tracer is not None:
+            tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.SUCCESS)
         return replacement_subgraph
 
     def apply_to_model(

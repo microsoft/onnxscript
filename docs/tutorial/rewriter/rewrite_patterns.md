@@ -94,6 +94,9 @@ tracer.report()
 ```
 
 `rule.match` checks the pattern and its conditions, but does not invoke the
-replacement function. Whole-model tracing can invoke replacement functions and
-rule visitors and perform analysis/cleanup, so use `model.clone()` when the
-original model must be preserved exactly.
+replacement function. Its `SUCCESS` status means only those checks passed.
+Whole-model tracing also constructs replacements, reporting `REPLACEMENT_FAILED`
+with any recorded reason if construction fails. Only attempts with a successfully
+constructed replacement are reported as `SUCCESS` in this mode. Tracing can
+invoke rule visitors and perform analysis/cleanup, so use `model.clone()` when
+the original model must be preserved exactly.
