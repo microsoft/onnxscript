@@ -21,17 +21,21 @@ from typing import Any, Callable, Iterable, Sequence, Union
 import numpy as np
 import onnx
 import onnx.reference.ops
-
-try:
-    from onnx.reference.ops_optimized import optimized_operators as _optimized_operators
-except ImportError:
-    _optimized_operators = None
-
 import onnx_ir as ir
 import onnx_ir.passes.common as ir_passes_common
 
 import onnxscript.utils.utils as utils
 from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
+
+try:
+    from onnx.reference.ops_optimized import optimized_operators
+except ModuleNotFoundError as e:
+    if e.name != "onnx.reference.ops_optimized":
+        raise
+    # Newer ONNX versions vectorize the plain ops and remove this module.
+    optimized_operators = []
+
+_OPTIMIZED_OPS = {(cls.op_domain, cls.__name__): cls for cls in optimized_operators}
 
 OptimizerContext = BuilderBase
 
@@ -150,14 +154,8 @@ def basic_constant_propagation(nodes: Iterable[ir.Node]) -> None:
 
 class ReferenceEvaluator:
     def get_evaluator(self, domain: str, op: str, version: int) -> Callable | None:
-        # Try optimized operators first (e.g., Conv uses im2col+GEMM instead of
-        # a slow Python loop nest). This matches what onnx's own ReferenceEvaluator
-        # does when optimized=True (the default).
-        if _optimized_operators is not None:
-            op_key = (domain, op)
-            if op_key in _optimized_operators:
-                return _optimized_operators[op_key].eval
-        # Fall back to the plain reference implementation.
+        if (domain, op) in _OPTIMIZED_OPS:
+            return _OPTIMIZED_OPS[domain, op].eval
         try:
             op_impl_class = onnx.reference.ops.load_op(domain, op, version)
             return op_impl_class.eval  # noqa: TRY300
@@ -171,6 +169,21 @@ class ReferenceEvaluator:
             return None
         try:
             return evaluator(*args, **kwargs)
+        except Exception as e:
+            if (domain, op) not in _OPTIMIZED_OPS:
+                logger.warning("Evaluation failed: %s", e)
+                return None
+            # Older optimized Conv implementations cannot handle empty inputs.
+            logger.debug(
+                "Optimized evaluation of %s::%s (opset %s) failed: %s; "
+                "retrying with the plain reference implementation.",
+                domain,
+                op,
+                version,
+                e,
+            )
+        try:
+            return onnx.reference.ops.load_op(domain, op, version).eval(*args, **kwargs)
         except Exception as e:
             logger.warning("Evaluation failed: %s", e)
             return None

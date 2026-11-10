@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 
 import numpy as np
 import onnx
@@ -1158,34 +1159,141 @@ class ReferenceEvaluatorOptimizedOpsTest(unittest.TestCase):
         """Verify that get_evaluator returns optimized op implementations when available."""
         evaluator = _constant_folding.ReferenceEvaluator()
 
-        try:
-            from onnx.reference.ops_optimized import optimized_operators
-        except ImportError:
+        if not _constant_folding._OPTIMIZED_OPS:
             self.skipTest("onnx.reference.ops_optimized not available")
 
-        for (domain, op_name), optimized_cls in optimized_operators.items():
-            with self.subTest(domain=domain, op=op_name):
-                result = evaluator.get_evaluator(domain, op_name, version=1)
-                self.assertIsNotNone(result, f"Expected evaluator for {domain}::{op_name}")
-                self.assertIs(
-                    result,
-                    optimized_cls.eval,
-                    f"Expected optimized implementation for {domain}::{op_name}, "
-                    f"got {result} instead of {optimized_cls.eval}",
-                )
+        for (domain, op_name), optimized_cls in _constant_folding._OPTIMIZED_OPS.items():
+            for version in (1, 11, 21):
+                with self.subTest(domain=domain, op=op_name, version=version):
+                    result = evaluator.get_evaluator(domain, op_name, version)
+                    self.assertEqual(result, optimized_cls.eval)
+
+    def test_get_evaluator_without_optimized_ops(self):
+        evaluator = _constant_folding.ReferenceEvaluator()
+        with mock.patch.dict(_constant_folding._OPTIMIZED_OPS, clear=True):
+            self.assertEqual(
+                evaluator.get_evaluator("", "Conv", 21),
+                onnx.reference.ops.load_op("", "Conv", 21).eval,
+            )
 
     def test_get_evaluator_falls_back_to_plain_ops(self):
         """Verify fallback to plain ops still works for non-optimized ops."""
         evaluator = _constant_folding.ReferenceEvaluator()
-        # Relu is a simple op that is unlikely to have an optimized variant
-        result = evaluator.get_evaluator("", "Relu", version=14)
-        self.assertIsNotNone(result, "Expected evaluator for Relu")
+        for version in (11, 13):
+            with self.subTest(version=version):
+                self.assertEqual(
+                    evaluator.get_evaluator("", "ReduceSum", version),
+                    onnx.reference.ops.load_op("", "ReduceSum", version).eval,
+                )
+
+    def test_get_evaluator_does_not_override_custom_domains(self):
+        evaluator = _constant_folding.ReferenceEvaluator()
+        self.assertIsNone(evaluator.get_evaluator("custom.domain", "Conv", 21))
 
     def test_get_evaluator_returns_none_for_unknown_op(self):
         """Verify None is returned for ops that don't exist."""
         evaluator = _constant_folding.ReferenceEvaluator()
         result = evaluator.get_evaluator("", "NonExistentOp12345", version=1)
         self.assertIsNone(result)
+
+    def test_evaluate_falls_back_when_optimized_op_fails(self):
+        evaluator = _constant_folding.ReferenceEvaluator()
+        optimized_cls = mock.Mock()
+        optimized_cls.eval.side_effect = ValueError("Unsupported input shape")
+        x = np.array([-1.0, 0.0, 1.0], dtype=np.float32)
+        with mock.patch.dict(_constant_folding._OPTIMIZED_OPS, {("", "Relu"): optimized_cls}):
+            actual = evaluator.evaluate("", "Relu", 14, x)
+
+        optimized_cls.eval.assert_called_once_with(x)
+        np.testing.assert_array_equal(actual, [0.0, 0.0, 1.0])
+
+    @parameterized.parameterized.expand(
+        [
+            ("1d", (2, 2, 7), (3, 2, 3), {}),
+            ("2d", (2, 2, 6, 7), (3, 2, 3, 2), {}),
+            ("3d", (1, 2, 5, 6, 7), (3, 2, 2, 3, 2), {}),
+            ("groups", (2, 4, 6, 7), (6, 2, 3, 2), {"group": 2}),
+            (
+                "pads_strides",
+                (1, 2, 6, 7),
+                (3, 2, 3, 2),
+                {"pads": [1, 2, 0, 1], "strides": [2, 1]},
+            ),
+            ("dilations", (1, 2, 7, 8), (3, 2, 2, 3), {"dilations": [2, 1]}),
+            (
+                "same_upper",
+                (1, 2, 6, 7),
+                (3, 2, 3, 2),
+                {"auto_pad": "SAME_UPPER", "strides": [2, 2]},
+            ),
+            (
+                "same_lower",
+                (1, 2, 6, 7),
+                (3, 2, 3, 2),
+                {"auto_pad": "SAME_LOWER", "strides": [2, 2]},
+            ),
+            ("valid", (1, 2, 6, 7), (3, 2, 3, 2), {"auto_pad": "VALID"}),
+            ("empty_batch", (0, 2, 6, 7), (3, 2, 3, 2), {}),
+            ("empty_channels", (1, 0, 6, 7), (3, 0, 3, 2), {}),
+        ]
+    )
+    def test_evaluate_conv(self, _, x_shape, w_shape, attributes):
+        rng = np.random.default_rng(42)
+        evaluator = _constant_folding.ReferenceEvaluator()
+        for dtype in (np.float16, np.float32, np.float64):
+            for use_bias in (False, True):
+                with self.subTest(dtype=dtype, use_bias=use_bias):
+                    inputs = [
+                        rng.normal(size=x_shape).astype(dtype),
+                        rng.normal(size=w_shape).astype(dtype),
+                    ]
+                    if use_bias:
+                        inputs.append(rng.normal(size=w_shape[0]).astype(dtype))
+                    expected = onnx.reference.ops.load_op("", "Conv", 21).eval(
+                        *inputs, **attributes
+                    )
+
+                    actual = evaluator.evaluate("", "Conv", 21, *inputs, **attributes)
+
+                    self.assertIsNotNone(actual)
+                    self.assertEqual(actual.dtype, dtype)
+                    tolerance = 1e-2 if dtype == np.float16 else 1e-5
+                    np.testing.assert_allclose(
+                        actual, expected, rtol=tolerance, atol=tolerance
+                    )
+
+    def test_fold_conv_uses_selected_evaluator(self):
+        rng = np.random.default_rng(42)
+        x = rng.normal(size=(1, 2, 6, 7)).astype(np.float32)
+        w = rng.normal(size=(3, 2, 3, 2)).astype(np.float32)
+        expected = onnx.reference.ops.load_op("", "Conv", 21).eval(x, w)
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 10, opset_import: [ "" : 21]>
+            agraph () => (float[1, 3, 4, 6] y)
+            <float[1] x = {0.0}, float[1] w = {0.0}>
+            {
+                y = Conv(x, w)
+            }
+            """
+        )
+        for name, array in (("x", x), ("w", w)):
+            value = model.graph.initializers[name]
+            value.shape = ir.Shape(array.shape)
+            value.const_value = ir.tensor(array)
+        selected = _constant_folding._reference_evaluator.get_evaluator("", "Conv", 21)
+        with mock.patch.object(
+            _constant_folding._reference_evaluator, "get_evaluator", return_value=selected
+        ) as get_evaluator:
+            _constant_folding.fold_constants(model)
+
+        get_evaluator.assert_called_once_with("", "Conv", 21)
+        self.assertEqual(len(model.graph), 0)
+        self.assertEqual(model.graph.outputs[0].dtype, ir.DataType.FLOAT)
+        np.testing.assert_allclose(
+            model.graph.outputs[0].const_value.numpy(), expected, rtol=1e-5, atol=1e-5
+        )
+        onnx.checker.check_model(ir.serde.serialize_model(model))
 
 
 if __name__ == "__main__":
