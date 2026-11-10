@@ -2069,6 +2069,30 @@ class TorchLibe2eTest(unittest.TestCase):
         for actual, expected in zip(onnx_program(x), Model()(x)):
             torch.testing.assert_close(actual, expected, rtol=1e-15, atol=0)
 
+    @parameterized.parameterized.expand(
+        [
+            (name, dtype)
+            for name in ("ceil", "floor", "trunc", "round", "fix", "isnan", "isfinite")
+            for dtype in ("int64", "int32", "uint8")
+        ]
+        + [("isnan", "bool"), ("isfinite", "bool"), ("nansum", "int64")]
+    )
+    def test_integer_input_exports_a_valid_model(self, name: str, dtype: str):
+        # ONNX Ceil, Floor, Round, IsNaN and IsInf only take floats, but PyTorch
+        # accepts integers (and booleans for isnan/isfinite) here.
+        torch_op = getattr(torch, name)
+
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch_op(x)
+
+        if dtype == "bool":
+            x = torch.tensor([[True, False, True], [False, False, True]])
+        else:
+            x = torch.tensor([[3, 7, 0], [100, 5, 1]], dtype=getattr(torch, dtype))
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        _testing.assert_onnx_program(onnx_program)
+
     def test_conv3d_without_bias_produces_1d_bias(self):
         class Model(torch.nn.Module):
             def __init__(self):

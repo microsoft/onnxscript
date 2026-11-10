@@ -1513,7 +1513,7 @@ def aten_bitwise_not(self: TTensor) -> TTensor:
 
     if self.dtype == ir.DataType.BOOL:
         return op.Not(self)
-    if self.dtype.is_integer():
+    if _is_integer(self):
         return op.BitwiseNot(self)
     raise NotImplementedError(f"Not implemented for type {self.dtype}")
 
@@ -1761,10 +1761,18 @@ def aten_cdist(
     raise NotImplementedError()
 
 
+def _is_integer(self: TensorType) -> bool:
+    """Whether the traced value has a known integer dtype."""
+    return self.dtype is not None and self.dtype.is_integer()
+
+
 @torch_op("aten::ceil", trace_only=True)
-def aten_ceil(self: TFloat) -> TFloat:
+def aten_ceil(self: TReal) -> TReal:
     """ceil(Tensor self) -> Tensor"""
 
+    if _is_integer(self):
+        # PyTorch returns integer inputs unchanged; ONNX Ceil only takes floats.
+        return op.Identity(self)
     return op.Ceil(self)
 
 
@@ -3264,7 +3272,7 @@ def aten_div_mode(self: TReal, other: TReal, rounding_mode: Optional[str] = None
 
     assert rounding_mode in {"trunc", "floor", None}
 
-    if self.dtype.is_integer():
+    if _is_integer(self):
         quotient = op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
         if rounding_mode == "trunc":
@@ -4190,9 +4198,12 @@ def aten_flipud(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::floor", trace_only=True)
-def aten_floor(self: TFloat) -> TFloat:
+def aten_floor(self: TReal) -> TReal:
     """floor(Tensor self) -> Tensor"""
 
+    if _is_integer(self):
+        # PyTorch returns integer inputs unchanged; ONNX Floor only takes floats.
+        return op.Identity(self)
     return op.Floor(self)
 
 
@@ -5688,11 +5699,17 @@ def aten_isclose(
     return op.Or(result, within_tolerance)
 
 
-@torch_op("aten::isfinite")
-def aten_isfinite(self: TFloatHighPrecision) -> BOOL:
+@torch_op("aten::isfinite", trace_only=True)
+def aten_isfinite(self: TTensor) -> BOOL:
     """isfinite(Tensor self) -> Tensor"""
 
+    if self.dtype == ir.DataType.BOOL or _is_integer(self):
+        # Integers and booleans are always finite. IsInf and IsNaN only take floats.
+        return op.ConstantOfShape(op.Shape(self), value=ir.tensor([True]))
+
     # IsInf only supports FLOAT and DOUBLE
+    if self.dtype not in (ir.DataType.FLOAT, ir.DataType.DOUBLE):
+        self = op.Cast(self, to=FLOAT.dtype)
     not_inf = op.Not(op.IsInf(self))
     not_nan = op.Not(op.IsNaN(self))  # TODO: The test case doesnt cover this condition
     return op.And(not_inf, not_nan)
@@ -5707,10 +5724,13 @@ def aten_isinf(self: TFloat) -> BOOL:
     return op.IsInf(self)
 
 
-@torch_op("aten::isnan")
-def aten_isnan(self: TFloat) -> BOOL:
+@torch_op("aten::isnan", trace_only=True)
+def aten_isnan(self: TTensor) -> BOOL:
     """isnan(Tensor self) -> Tensor"""
 
+    if self.dtype == ir.DataType.BOOL or _is_integer(self):
+        # Integers and booleans are never NaN. IsNaN only takes floats.
+        return op.ConstantOfShape(op.Shape(self), value=ir.tensor([False]))
     return op.IsNaN(self)
 
 
@@ -8984,9 +9004,12 @@ def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> Te
 
 
 @torch_op("aten::round", trace_only=True)
-def aten_round(self: TFloat) -> TFloat:
+def aten_round(self: TReal) -> TReal:
     """round(Tensor self) -> Tensor"""
 
+    if _is_integer(self):
+        # PyTorch returns integer inputs unchanged; ONNX Round only takes floats.
+        return op.Identity(self)
     return op.Round(self)
 
 
@@ -10278,8 +10301,11 @@ def aten_triu_indices(row: int, col: int, offset: int = 0) -> TensorType:
 
 
 @torch_op("aten::trunc", trace_only=True)
-def aten_trunc(self: TFloat) -> TFloat:
+def aten_trunc(self: TReal) -> TReal:
     """trunc(Tensor self) -> Tensor"""
+    if _is_integer(self):
+        # PyTorch returns integer inputs unchanged; ONNX Floor only takes floats.
+        return op.Identity(self)
     # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-2658170591
     return op.Floor(op.Abs(self)) * op.Sign(self)
 
