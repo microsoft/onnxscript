@@ -65,6 +65,20 @@ class ScatterAllDynamic(RewriteRuleClassBase):
                     shape_out,
                 )
 
+        # Validate that the scatter-update is an assignment, not a reduction
+        reduction = context.root.attributes.get("reduction")
+        if reduction is not None:
+            if reduction.is_ref():
+                return result.fail(
+                    f"The 'reduction' refers to attribute {reduction.ref_attr_name!r}, "
+                    "so it is not known to be 'none'."
+                )
+            if reduction.as_string() != "none":
+                return result.fail(
+                    f"The 'reduction' is {reduction.as_string()!r}, "
+                    "so 'data' still contributes to the result."
+                )
+
         axis_value = _ir_utils.get_singleton_value(axis)
         if not isinstance(axis_value, int):
             return result.fail("Axis value must be a constant integer.", axis)
