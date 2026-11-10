@@ -113,7 +113,12 @@ class RemoveOptionalBiasFromQLinearConv(_RemoveOptionalBias):
 
 
 class RemoveOptionalBiasFromGemm(_RemoveOptionalBias):
-    """Remove zero bias from Gemm operation."""
+    """Remove zero bias from Gemm operation.
+
+    In ONNX opset 1 through 10, Gemm requires exactly 3 inputs: A, B, and C.
+    Input C became optional starting from opset 11. Removing C on opset < 11
+    yields an invalid ONNX model that fails onnx.checker validation.
+    """
 
     op_type: ClassVar[str] = "Gemm"
 
