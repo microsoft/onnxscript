@@ -140,6 +140,31 @@ def _mha_with_rotary(query_BSD, key_BSD, value_BSD, position_ids, cos, sin):
     return op.Reshape(att_transposed, out_shape)
 
 
+_RESHAPE_OUT_2D = ir.tensor(np.array([-1, _D], dtype=np.int64))
+
+
+@script()
+def _mha_output_reshaped_to_2d(query_BSD, key_BSD, value_BSD):
+    """As _mha_basic_key_transposed, but the output is reshaped to (B*S, D), as GPT-2 does."""
+    q_shape = op.Constant(value=_RESHAPE_Q)
+    q_4d = op.Reshape(query_BSD, q_shape)
+    q_BHSDh = op.Transpose(q_4d, perm=[0, 2, 1, 3])
+
+    k_shape = op.Constant(value=_RESHAPE_K)
+    k_4d = op.Reshape(key_BSD, k_shape)
+    k_BHSDh = op.Transpose(k_4d, perm=[0, 2, 1, 3])
+
+    v_shape = op.Constant(value=_RESHAPE_V)
+    v_4d = op.Reshape(value_BSD, v_shape)
+    v_BHSDh = op.Transpose(v_4d, perm=[0, 2, 1, 3])
+
+    sdpa_out = fusion_op.SDPA(q_BHSDh, k_BHSDh, v_BHSDh, key_format="BHSd")
+
+    att_transposed = op.Transpose(sdpa_out, perm=[0, 2, 1, 3])
+    out_shape = op.Constant(value=_RESHAPE_OUT_2D)
+    return op.Reshape(att_transposed, out_shape)
+
+
 class MultiHeadAttentionFusionTest(unittest.TestCase):
     """Structural unit tests for MultiHeadAttention fusion rules."""
 
@@ -236,7 +261,7 @@ class MultiHeadAttentionFusionTest(unittest.TestCase):
         rotary_count = self._count_op(model, "RotaryEmbedding", "com.microsoft")
         self.assertGreater(rotary_count, 0)
 
-    # --- Negative test ---
+    # --- Output reshaped to 2D, and negative tests ---
 
     def test_rank2_query_no_fusion(self):
         """Query with rank 2 [S, D] instead of [B, S, D] → shape check rejects."""
@@ -251,6 +276,24 @@ class MultiHeadAttentionFusionTest(unittest.TestCase):
         )
         count = self._apply(model)
         self.assertEqual(count, 0)
+
+    def test_output_reshaped_to_2d_keeps_reshape(self):
+        """Final Reshape to (B*S, D) → fuses, and the 2D shape is restored after MHA."""
+        model = self._build(
+            _mha_output_reshaped_to_2d,
+            input_types=[FLOAT[2, 8, _D]] * 3,
+            output_types=[FLOAT[16, _D]],
+        )
+        count = self._apply(model)
+        self.assertEqual(count, 1)
+        mha = self._get_mha_node(model)
+        self.assertIsNotNone(mha)
+        # The graph output must still come from a Reshape of the MHA output, so its consumers
+        # keep seeing (B*S, D) rather than MHA's (B, S, D).
+        out_node = model.graph.outputs[0].producer()
+        self.assertEqual(out_node.op_type, "Reshape")
+        self.assertIs(out_node.inputs[0], mha.outputs[0])
+        self.assertIn(out_node.inputs[1].const_value.numpy().tolist(), ([-1, _D], [16, _D]))
 
     def test_wrong_query_transpose_perm_no_fusion(self):
         """Corrupted query Transpose perm → pattern should not match."""
