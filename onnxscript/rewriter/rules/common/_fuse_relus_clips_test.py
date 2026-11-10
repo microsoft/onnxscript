@@ -95,6 +95,18 @@ class FuseSuccessiveReluTest(_FuseReluClipTestBase):
         """)
         self.run_test(model, expected_op_types=["Relu"])
 
+    def test_successful_fuse_successive_relus_opset_10(self):
+        model = ir.from_onnx_text("""
+            < ir_version: 6, opset_import: ["" : 10] >
+            test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
+            {
+                x1 = Relu(X)
+                x2 = Relu(x1)
+                Y = Relu(x2)
+            }
+        """)
+        self.run_test(model, expected_op_types=["Relu"])
+
 
 class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
     @parameterized.parameterized.expand(
@@ -512,6 +524,22 @@ class FuseReluClipIntegrationTest(_FuseReluClipTestBase):
             }
         """)
         self.run_test(model, expected_op_types=["Clip"])
+
+    def test_opset_10_clip_models_preserved_and_valid(self):
+        model = ir.from_onnx_text("""
+            < ir_version: 6, opset_import: ["" : 10] >
+            test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
+            {
+                x1 = Clip<min = 0.0, max = 6.0>(X)
+                Y = Relu(x1)
+            }
+        """)
+        onnx_checker.CheckerPass(True)(model)
+        count = _fuse_relus_clips.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual([node.op_type for node in model.graph], ["Clip", "Relu"])
+        proto = ir.serde.serialize_model(model)
+        onnx.checker.check_model(proto, full_check=True)
 
 
 if __name__ == "__main__":
