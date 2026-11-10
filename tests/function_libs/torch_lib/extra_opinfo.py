@@ -2442,6 +2442,52 @@ def sample_inputs_unique_dim(op_info, device, dtype, requires_grad, **kwargs):
             yield sample
 
 
+def sample_inputs_unique_consecutive(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    # Basic 1D tensor with consecutive duplicates
+    yield opinfo_core.SampleInput(
+        torch.tensor([1, 1, 2, 2, 3, 3, 1, 1], device=device, dtype=dtype),
+        kwargs=dict(return_inverse=False, return_counts=False, dim=None),
+    )
+    # 1D tensor with return_inverse=True
+    yield opinfo_core.SampleInput(
+        torch.tensor([1, 1, 2, 2, 3, 3, 1, 1], device=device, dtype=dtype),
+        kwargs=dict(return_inverse=True, return_counts=False, dim=None),
+    )
+    # 1D tensor with return_counts=True
+    yield opinfo_core.SampleInput(
+        torch.tensor([1, 1, 2, 2, 3, 3, 1, 1], device=device, dtype=dtype),
+        kwargs=dict(return_inverse=False, return_counts=True, dim=None),
+    )
+    # 1D tensor with both return_inverse and return_counts
+    yield opinfo_core.SampleInput(
+        torch.tensor([0, 1, 2, 2, 3, 3, 3, 0, 0], device=device, dtype=dtype),
+        kwargs=dict(return_inverse=True, return_counts=True, dim=None),
+    )
+    # 1D tensor with dim=0
+    yield opinfo_core.SampleInput(
+        torch.tensor([1, 1, 2, 2, 3, 3, 1, 1], device=device, dtype=dtype),
+        kwargs=dict(return_inverse=False, return_counts=False, dim=0),
+    )
+    # Single element tensor
+    yield opinfo_core.SampleInput(
+        torch.tensor([42], device=device, dtype=dtype),
+        kwargs=dict(return_inverse=False, return_counts=False, dim=None),
+    )
+    # All same elements
+    yield opinfo_core.SampleInput(
+        torch.tensor([5, 5, 5, 5], device=device, dtype=dtype),
+        kwargs=dict(return_inverse=True, return_counts=True, dim=None),
+    )
+    # No consecutive duplicates
+    yield opinfo_core.SampleInput(
+        torch.tensor([1, 2, 3, 4, 5], device=device, dtype=dtype),
+        kwargs=dict(return_inverse=True, return_counts=True, dim=None),
+    )
+
+
 def sample_inputs_upsample_trilinear3d_vec(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -3090,6 +3136,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="unique_dim.default",
         dtypes=common_dtype.floating_types_and(torch.float16, torch.int64, torch.int8),
         sample_inputs_func=sample_inputs_unique_dim,
+        supports_out=False,
+        supports_autograd=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.unique_consecutive.default",
+        aten_name="unique_consecutive.default",
+        dtypes=(torch.int32, torch.int64),
+        sample_inputs_func=sample_inputs_unique_consecutive,
         supports_out=False,
         supports_autograd=False,
     ),
