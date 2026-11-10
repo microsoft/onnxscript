@@ -53,6 +53,8 @@ class CastIdentity(RewriteRuleClassBase):
 
     def check(self, context, x, to) -> MatchResult:
         check_result = MatchResult()
+        if to.is_ref():
+            return check_result.fail("Cast target type is a reference attribute.")
         if x.dtype != to.as_int():
             return check_result.fail("Input and output types are not the same")
         return check_result
@@ -130,6 +132,9 @@ class ReshapeReshape(RewriteRuleClassBase):
 
     def check(self, context, x, shape_ignored, shape) -> MatchResult:
         check_result = MatchResult()
+        allowzero = context.root.attributes.get("allowzero")
+        if allowzero is not None and allowzero.is_ref():
+            return check_result.fail("Reshape allowzero is a reference attribute.")
 
         # Shape must be a constant.
         if (np_shape := ir_utils.get_numpy_value(shape)) is None:
@@ -315,6 +320,9 @@ class Flatten2Reshape(RewriteRuleClassBase):
 
     def check(self, context, x: ir.Value) -> MatchResult:
         check_result = MatchResult()
+        axis_attr = context.root.attributes.get("axis")
+        if axis_attr is not None and axis_attr.is_ref():
+            return check_result.fail("Flatten axis is a reference attribute.")
         self._new_shape = np.array([-1, -1], "int64")
 
         # Convert axis in a positive value if possible.

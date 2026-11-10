@@ -38,6 +38,65 @@ def clone_model(model: ir.Model) -> ir.Model:
 
 
 class BasicRulesTest(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        [
+            ("cast_unknown_type", "Cast", "to", None, _basic_rules.no_op_cast_rule),
+            ("cast_known_type", "Cast", "to", ir.DataType.FLOAT, _basic_rules.no_op_cast_rule),
+            (
+                "flatten",
+                "Flatten",
+                "axis",
+                ir.DataType.FLOAT,
+                _basic_rules.flatten_to_reshape_rule,
+            ),
+            (
+                "reshape",
+                "Reshape",
+                "allowzero",
+                ir.DataType.FLOAT,
+                _basic_rules.reshape_reshape_rule,
+            ),
+        ]
+    )
+    def test_reference_attributes_in_function(self, _, op_type, attribute_name, dtype, rule):
+        x = ir.Value(
+            name="x",
+            type=ir.TensorType(dtype) if dtype is not None else None,
+            shape=ir.Shape([2, 3]),
+        )
+        ref_attr = ir.RefAttr(attribute_name, "parameter", ir.AttributeType.INT)
+        nodes = []
+        if op_type == "Reshape":
+            shape = ir.Node(
+                "",
+                "Constant",
+                [],
+                [ir.AttrTensor("value", ir.tensor(np.array([0, 3], dtype=np.int64)))],
+            )
+            first = ir.Node("", "Reshape", [x, shape.outputs[0]])
+            root = ir.Node("", "Reshape", [first.outputs[0], shape.outputs[0]], [ref_attr])
+            nodes.extend([shape, first])
+        else:
+            root = ir.Node("", op_type, [x], [ref_attr])
+        nodes.append(root)
+        function = ir.Function(
+            "local",
+            "function",
+            graph=ir.Graph([x], root.outputs, nodes=nodes, opset_imports={"": 18}),
+            attributes=[ir.Attr("parameter", ir.AttributeType.INT, None)],
+        )
+        model = ir.Model(
+            ir.Graph([], [], nodes=[], opset_imports={"": 18}, name="main"),
+            ir_version=10,
+            functions=[function],
+        )
+        onnxscript.optimizer.basic_constant_propagation(function)
+        before = ir.to_proto(model).SerializeToString()
+        self.assertIsNone(rule.try_rewrite(model, function, root))
+        self.assertEqual(rule.apply_to_model(model), 0)
+        self.assertEqual(ir.to_proto(model).SerializeToString(), before)
+        onnx.checker.check_model(ir.to_proto(model))
+
     def _get_random_inputs(self, model: onnx.ModelProto) -> dict[str, Any]:
         feeds: dict[str, Any] = {}
         for i in model.graph.input:
@@ -478,6 +537,26 @@ class BasicRulesTest(unittest.TestCase):
 
 
 class ReshapeReshapeTest(unittest.TestCase):
+    def test_failed_match_does_not_contaminate_later_rewrites(self):
+        rule = _basic_rules.ReshapeReshape.rule(remove_nodes=False)
+        models = [
+            self.create_model(
+                (2, 3, 4),
+                np.array([3, 8], dtype=np.int64),
+                np.array(shape, dtype=np.int64),
+            )
+            for shape in ([6, 4], [0, -1], [4, 6])
+        ]
+        feeds = {"X": np.arange(24, dtype=np.float32).reshape(2, 3, 4)}
+        for model, expected_count in zip(models, (1, 0, 1)):
+            original = clone_model(model)
+            self.assertEqual(rule.apply_to_model(model), expected_count)
+            testing.assert_numerically_equal(
+                original, model, feeds, atol=0, rtol=0, use_reference=True
+            )
+        self.assertEqual(models[0].graph[-1].inputs[1].const_value.numpy().tolist(), [6, 4])
+        self.assertEqual(models[-1].graph[-1].inputs[1].const_value.numpy().tolist(), [4, 6])
+
     @staticmethod
     def create_model(
         input_shape, shape1, shape2, allowzero1=0, allowzero2=0, infer_shape=False

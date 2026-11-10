@@ -227,6 +227,123 @@ class ConcatTest(unittest.TestCase):
 
 
 class RewriteRuleTest(unittest.TestCase):
+    def test_literal_attribute_constraints_reject_references(self):
+        def make_target(expected, multi_output):
+            def target(op, x):
+                constrained = op.Custom(x, attr=expected, _domain="local")
+                return (op.Identity(x), constrained) if multi_output else constrained
+
+            return target
+
+        for expected, attribute_type in (
+            (1, ir.AttributeType.INT),
+            (1.0, ir.AttributeType.FLOAT),
+            ("value", ir.AttributeType.STRING),
+            ([0, 1], ir.AttributeType.INTS),
+            ([0.0, 1.0], ir.AttributeType.FLOATS),
+            (["a", "b"], ir.AttributeType.STRINGS),
+        ):
+            for multi_output in (False, True):
+                with self.subTest(expected=expected, multi_output=multi_output):
+                    target = make_target(expected, multi_output)
+                    x = ir.Value(name="x")
+                    identity = ir.Node("", "Identity", [x])
+                    constrained = ir.Node(
+                        "local",
+                        "Custom",
+                        [x],
+                        [ir.RefAttr("attr", "parameter", attribute_type)],
+                    )
+                    graph = ir.Graph(
+                        [x],
+                        [identity.outputs[0], constrained.outputs[0]],
+                        nodes=[identity, constrained],
+                        opset_imports={"": 18, "local": 1},
+                    )
+                    function = ir.Function(
+                        "local",
+                        "function",
+                        graph=graph,
+                        attributes=[ir.Attr("parameter", attribute_type, None)],
+                    )
+                    model = ir.Model(
+                        ir.Graph([], [], nodes=[], opset_imports={"": 18}, name="main"),
+                        ir_version=10,
+                        functions=[function],
+                    )
+                    root = identity if multi_output else constrained
+                    self.assertFalse(pattern.Pattern(target).match(model, function, root))
+
+    def test_attribute_variable_preserves_reference(self):
+        def target(op, x, perm):
+            return op.Transpose(op.Identity(x), perm=perm)
+
+        def replacement(op, x, perm):
+            return op.Transpose(x, perm=perm)
+
+        x = ir.Value(name="x")
+        identity = ir.Node("", "Identity", [x])
+        transpose = ir.Node(
+            "",
+            "Transpose",
+            identity.outputs,
+            [ir.RefAttr("perm", "permutation", ir.AttributeType.INTS)],
+        )
+        function = ir.Function(
+            "local",
+            "function",
+            graph=ir.Graph(
+                [x], transpose.outputs, nodes=[identity, transpose], opset_imports={"": 18}
+            ),
+            attributes=[ir.Attr("permutation", ir.AttributeType.INTS, None)],
+        )
+        model = ir.Model(
+            ir.Graph([], [], nodes=[], opset_imports={"": 18}, name="main"),
+            ir_version=10,
+            functions=[function],
+        )
+        self.assertEqual(pattern.RewriteRule(target, replacement).apply_to_model(model), 1)
+        perm = function.graph[-1].attributes["perm"]
+        self.assertTrue(perm.is_ref())
+        self.assertEqual(perm.ref_attr_name, "permutation")
+        onnx.checker.check_model(ir.to_proto(model))
+
+    def test_multi_output_literal_attribute_search_skips_references(self):
+        def target(op, x):
+            return op.Identity(x), op.Transpose(x, perm=[1, 0])
+
+        x = ir.Value(name="x")
+        root = ir.Node("", "Identity", [x])
+        reference = ir.Node(
+            "", "Transpose", [x], [ir.RefAttr("perm", "permutation", ir.AttributeType.INTS)]
+        )
+        wrong = ir.Node("", "Transpose", [x], [ir.AttrInt64s("perm", [0, 1])])
+        correct = ir.Node("", "Transpose", [x], [ir.AttrInt64s("perm", [1, 0])])
+        function = ir.Function(
+            "local",
+            "function",
+            graph=ir.Graph(
+                [x],
+                [root.outputs[0], correct.outputs[0]],
+                nodes=[root, reference, wrong, correct],
+                opset_imports={"": 18},
+            ),
+            attributes=[ir.Attr("permutation", ir.AttributeType.INTS, None)],
+        )
+        model = ir.Model(
+            ir.Graph([], [], nodes=[], opset_imports={"": 18}, name="main"),
+            ir_version=10,
+            functions=[function],
+        )
+        matcher = pattern.Pattern(target)
+        match = matcher.match(model, function, root)
+        self.assertIsNotNone(match)
+        self.assertEqual(list(match.outputs), list(function.outputs))
+        correct.attributes["perm"] = ir.AttrInt64s("perm", [0, 1])
+        self.assertFalse(matcher.match(model, function, root))
+        correct.attributes["perm"] = ir.AttrInt64s("perm", [1, 0])
+        self.assertIsNotNone(matcher.match(model, function, root))
+
     def test_commute(self):
         def add_0(op, x):
             return x + 0

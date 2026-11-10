@@ -101,3 +101,21 @@ def advanced_condition_check(context, x, y, **_):
 ```
 
 This context information enables condition functions to make decisions based on the broader graph structure, the specific nodes involved in the match, and relationships between matched patterns and the rest of the model.
+
+## Attribute references in functions
+
+Attributes inside an ONNX function can reference a function parameter rather than
+hold a concrete value. Literal pattern constraints such as `perm=[1, 0]` do not
+match these references. Attribute variables can still match references and pass
+them unchanged to a replacement operator.
+
+When a condition needs an attribute's concrete value, check `attr.is_ref()` before
+calling accessors such as `as_int()` or `as_ints()`. A reference is not an omitted
+attribute: do not replace it with the operator's default.
+
+```python
+def check_cast(context, x, to):
+    if to.is_ref():
+        return False
+    return x.dtype == to.as_int()
+```
