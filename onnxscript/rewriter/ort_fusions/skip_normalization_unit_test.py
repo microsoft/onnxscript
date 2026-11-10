@@ -14,6 +14,7 @@ Covers: no bias, post-add bias, pre-add bias variants; negative tests.
 
 from __future__ import annotations
 
+import tempfile
 import unittest
 
 import numpy as np
@@ -72,12 +73,13 @@ def _skip_rms_pre_bias(input, skip, gamma, bias):
 
 
 @script()
-def _gemma_skip_rms(input, skip, gamma):
+def _gemma_skip_rms(input, skip, weight):
     residual = op.Add(input, skip)
     states = op.Cast(residual, to=ir.DataType.FLOAT)
     mean_square = op.ReduceMean(op.Pow(states, 2.0), [-1], keepdims=1, noop_with_empty_axes=0)
     normalized = states * op.Reciprocal(op.Sqrt(mean_square + 1e-6))
-    return op.Cast(normalized * gamma, to=ir.DataType.FLOAT16), residual
+    scaled = normalized * (1.0 + op.Cast(weight, to=ir.DataType.FLOAT))
+    return op.Cast(scaled, to=ir.DataType.FLOAT16), residual, scaled
 
 
 # ========== Skip Layer Norm patterns ==========
@@ -237,6 +239,8 @@ class SkipNormalizationTest(unittest.TestCase):
     def test_skip_rms_exact_float32_scale(self, _name, script_fn):
         scale = np.linspace(0.5, 2.0, _D).astype(np.float16).astype(np.float32)
         model, _ = self._mixed_precision_rms(script_fn, scale)
+        gamma = model.graph.initializers["gamma"]
+        model.graph.outputs.append(gamma)
         names = ["input", "skip"]
         if script_fn in (_skip_rms_post_bias, _skip_rms_pre_bias):
             names.append("bias")
@@ -249,12 +253,12 @@ class SkipNormalizationTest(unittest.TestCase):
         np.testing.assert_array_equal(fused.inputs[2].const_value.numpy(), scale)
         self.assertEqual(self._count_op(model, "Cast"), 0)
         self.assertEqual(model.graph.outputs[1].dtype, ir.DataType.FLOAT16)
+        self.assertEqual(model.graph.outputs[2].dtype, ir.DataType.FLOAT)
+        np.testing.assert_array_equal(gamma.const_value.numpy(), scale)
 
     def test_skip_rms_overridable_float32_scale(self):
         scale = np.ones((_D,), dtype=np.float32)
-        model, _ = self._mixed_precision_rms(
-            _skip_rms_no_bias, scale, keep_gamma_input=True
-        )
+        model, _ = self._mixed_precision_rms(_skip_rms_no_bias, scale, keep_gamma_input=True)
         inputs = {
             k: v.astype(np.float16) for k, v in self._make_inputs("input", "skip").items()
         }
@@ -265,21 +269,54 @@ class SkipNormalizationTest(unittest.TestCase):
             test_utils.ort_run("Unfused", model, inputs), original_output
         )
 
+    def test_skip_rms_missing_external_scale(self):
+        model, _ = self._mixed_precision_rms(
+            _skip_rms_no_bias, np.ones((_D,), dtype=np.float32)
+        )
+        gamma = model.graph.initializers["gamma"]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            gamma.const_value = ir.ExternalTensor(
+                "missing.bin",
+                offset=0,
+                length=_D * 4,
+                dtype=ir.DataType.FLOAT,
+                shape=ir.Shape([_D]),
+                name="gamma",
+                base_dir=temp_dir,
+            )
+            original_nodes = list(model.graph)
+            self.assertEqual(fuse_skip_rms_normalization(model), 0)
+            self.assertEqual(list(model.graph), original_nodes)
+
     @parameterized.expand(
         [
-            ("dynamic_scale", None, ir.DataType.FLOAT16, None),
-            ("inexact_scale", 1.0001, ir.DataType.FLOAT16, None),
-            ("overflow_scale", 1e10, ir.DataType.FLOAT16, None),
-            ("no_cast_back", 1.0, None, None),
-            ("wrong_cast_dtype", 1.0, ir.DataType.DOUBLE, None),
-            ("float32_graph_output", 1.0, ir.DataType.FLOAT16, "output"),
-            ("float32_consumer", 1.0, ir.DataType.FLOAT16, "consumer"),
+            (f"{variant}_{name}", script_fn, scale, cast_dtype, extra_use)
+            for variant, script_fn in [
+                ("no_bias", _skip_rms_no_bias),
+                ("reversed", _skip_rms_no_bias_reversed),
+                ("post_bias", _skip_rms_post_bias),
+                ("pre_bias", _skip_rms_pre_bias),
+            ]
+            for name, scale, cast_dtype, extra_use in [
+                ("dynamic_scale", None, ir.DataType.FLOAT16, None),
+                ("inexact_scale", 1.0001, ir.DataType.FLOAT16, None),
+                ("overflow_scale", 1e10, ir.DataType.FLOAT16, None),
+                ("underflow_scale", 1e-10, ir.DataType.FLOAT16, None),
+                ("nan_scale", np.nan, ir.DataType.FLOAT16, None),
+                ("no_cast_back", 1.0, None, None),
+                ("wrong_cast_dtype", 1.0, ir.DataType.DOUBLE, None),
+                ("float32_graph_output", 1.0, ir.DataType.FLOAT16, "output"),
+                ("float32_consumer", 1.0, ir.DataType.FLOAT16, "consumer"),
+                ("second_cast", 1.0, ir.DataType.FLOAT16, "cast"),
+            ]
         ]
     )
-    def test_skip_rms_unsafe_float32_scale(self, _name, scale, cast_dtype, extra_use):
+    def test_skip_rms_unsafe_float32_scale(
+        self, _name, script_fn, scale, cast_dtype, extra_use
+    ):
         scale = None if scale is None else np.full((_D,), scale, dtype=np.float32)
         model, normalized = self._mixed_precision_rms(
-            _skip_rms_no_bias, scale, cast_dtype or ir.DataType.FLOAT16
+            script_fn, scale, cast_dtype or ir.DataType.FLOAT16
         )
         if cast_dtype is None:
             model.graph.outputs[0] = normalized
@@ -295,9 +332,20 @@ class SkipNormalizationTest(unittest.TestCase):
             )
             model.graph.append(consumer)
             model.graph.outputs.append(consumer.outputs[0])
-        inputs = {
-            k: v.astype(np.float16) for k, v in self._make_inputs("input", "skip").items()
-        }
+        elif extra_use == "cast":
+            consumer = ir.Node(
+                "",
+                "Cast",
+                [normalized],
+                attributes=[ir.AttrInt64("to", ir.DataType.FLOAT16)],
+                outputs=[ir.Value(type=ir.TensorType(ir.DataType.FLOAT16))],
+            )
+            model.graph.append(consumer)
+            model.graph.outputs.append(consumer.outputs[0])
+        names = ["input", "skip"]
+        if script_fn in (_skip_rms_post_bias, _skip_rms_pre_bias):
+            names.append("bias")
+        inputs = {k: v.astype(np.float16) for k, v in self._make_inputs(*names).items()}
         if scale is None:
             inputs["gamma"] = np.ones((_D,), dtype=np.float32)
         original_output = test_utils.ort_run("Original", model, inputs)
@@ -306,52 +354,146 @@ class SkipNormalizationTest(unittest.TestCase):
             test_utils.ort_run("Unfused", model, inputs), original_output
         )
 
-    @parameterized.expand(["input", "skip", "gamma", "bias"])
-    def test_skip_rms_mismatched_dtype(self, name):
+    @parameterized.expand(
+        [
+            (f"{name}_{label}", name, dtype)
+            for name in ["input", "skip", "gamma", "bias"]
+            for label, dtype in [("float16", ir.DataType.FLOAT16), ("unknown", None)]
+        ]
+    )
+    def test_skip_rms_mismatched_dtype(self, _name, name, dtype):
         model = self._build(
             _skip_rms_post_bias,
             input_types=[self._3D, self._3D, self._1D, self._1D],
             output_types=[self._3D],
         )
         value = next(v for v in model.graph.inputs if v.name == name)
-        value.type = ir.TensorType(ir.DataType.FLOAT16)
+        value.type = None if dtype is None else ir.TensorType(dtype)
         self.assertEqual(fuse_skip_rms_normalization(model), 0)
 
-    def test_skip_rms_float16_scale(self):
+    @parameterized.expand(
+        [
+            ("double", ir.DataType.DOUBLE),
+            ("bfloat16", ir.DataType.BFLOAT16),
+            ("unknown", None),
+        ]
+    )
+    def test_skip_rms_unsupported_dtype(self, _name, dtype):
         model = self._build(
             _skip_rms_no_bias,
-            input_types=[FLOAT16[_B, _S, _D], FLOAT16[_B, _S, _D], FLOAT16[_D]],
-            output_types=[FLOAT16[_B, _S, _D]],
+            input_types=[self._3D, self._3D, self._1D],
+            output_types=[self._3D],
         )
+        for value in model.graph.inputs:
+            value.type = None if dtype is None else ir.TensorType(dtype)
+        self.assertEqual(fuse_skip_rms_normalization(model), 0)
+
+    @parameterized.expand(
+        [
+            ("post_bias", _skip_rms_post_bias, 0),
+            ("pre_bias", _skip_rms_pre_bias, 1),
+        ]
+    )
+    def test_skip_rms_shared_bias_intermediate(self, _name, script_fn, expected_count):
+        model, _ = self._mixed_precision_rms(script_fn, np.ones((_D,), dtype=np.float32))
+        first_add = next(n for n in model.graph if n.op_type == "Add")
+        model.graph.outputs.append(first_add.outputs[0])
         inputs = {
             k: v.astype(np.float16)
-            for k, v in self._make_inputs("input", "skip", "gamma").items()
+            for k, v in self._make_inputs("input", "skip", "bias").items()
         }
+        original_output = test_utils.ort_run("Original", model, inputs)
+        self.assertEqual(fuse_skip_rms_normalization(model), expected_count)
+        self.assertEqual(self._count_op(model, "Add"), 2 - expected_count)
+        test_utils.assert_allclose(test_utils.ort_run("Fused", model, inputs), original_output)
+
+    @parameterized.expand(
+        [
+            ("no_bias", _skip_rms_no_bias),
+            ("reversed", _skip_rms_no_bias_reversed),
+            ("post_bias", _skip_rms_post_bias),
+            ("pre_bias", _skip_rms_pre_bias),
+        ]
+    )
+    def test_skip_rms_float16_scale(self, _name, script_fn):
+        names = ["input", "skip", "gamma"]
+        input_types = [FLOAT16[_B, _S, _D], FLOAT16[_B, _S, _D], FLOAT16[_D]]
+        if script_fn in (_skip_rms_post_bias, _skip_rms_pre_bias):
+            names.append("bias")
+            input_types.append(FLOAT16[_D])
+        model = self._build(
+            script_fn,
+            input_types=input_types,
+            output_types=[FLOAT16[_B, _S, _D]],
+        )
+        inputs = {k: v.astype(np.float16) for k, v in self._make_inputs(*names).items()}
         self._check_numerical_equivalence(
             model, inputs, fuse_skip_rms_normalization, expected_count=1
         )
 
-    def test_optimize_for_ort_gemma_skip_rms(self):
+    @parameterized.expand(
+        [
+            ("exact_scale", "exact", None, 1),
+            ("inexact_scale", "inexact", None, 0),
+            ("dynamic_scale", "dynamic", None, 0),
+            ("float32_graph_output", "exact", "output", 0),
+            ("float32_consumer", "exact", "consumer", 0),
+        ]
+    )
+    def test_optimize_for_ort_gemma_skip_rms(
+        self, _name, scale_kind, extra_use, expected_count
+    ):
         model = self._build(
             _gemma_skip_rms,
-            input_types=[FLOAT16[_B, _S, _D], FLOAT16[_B, _S, _D], FLOAT[_D]],
-            output_types=[FLOAT16[_B, _S, _D], FLOAT16[_B, _S, _D]],
+            input_types=[FLOAT16[_B, _S, _D], FLOAT16[_B, _S, _D], FLOAT16[_D]],
+            output_types=[FLOAT16[_B, _S, _D], FLOAT16[_B, _S, _D], FLOAT[_B, _S, _D]],
         )
-        gamma = model.graph.inputs[2]
-        gamma.const_value = ir.tensor(np.ones((_D,), dtype=np.float32))
-        model.graph.inputs.remove(gamma)
-        model.graph.register_initializer(gamma)
+        scaled = model.graph.outputs.pop()
+        if extra_use == "output":
+            model.graph.outputs.append(scaled)
+        elif extra_use == "consumer":
+            consumer = ir.Node(
+                "",
+                "Neg",
+                [scaled],
+                outputs=[ir.Value(type=ir.TensorType(ir.DataType.FLOAT))],
+            )
+            model.graph.append(consumer)
+            model.graph.outputs.append(consumer.outputs[0])
+        weight_data = (
+            np.full((_D,), 0.0001, dtype=np.float16)
+            if scale_kind == "inexact"
+            else np.linspace(-0.5, 0.4375, _D).astype(np.float16)
+        )
+        weight = model.graph.inputs[2]
+        if scale_kind != "dynamic":
+            weight.const_value = ir.tensor(weight_data)
+            model.graph.inputs.remove(weight)
+            model.graph.register_initializer(weight)
         inputs = {
             k: v.astype(np.float16) for k, v in self._make_inputs("input", "skip").items()
         }
+        if scale_kind == "dynamic":
+            inputs["weight"] = weight_data
         original_output = test_utils.ort_run("Original", model, inputs)
         model, counts = optimize_for_ort(model)
-        self.assertEqual(counts["skip_rms_normalization"], 1)
+        self.assertEqual(counts["rms_normalization"], 1)
+        self.assertEqual(counts["skip_rms_normalization"], expected_count)
+        self.assertEqual(
+            self._count_op(model, "SkipSimplifiedLayerNormalization", "com.microsoft"),
+            expected_count,
+        )
         test_utils.assert_allclose(
             test_utils.ort_run("Optimized", model, inputs), original_output
         )
-        fused = next(n for n in model.graph if n.op_type == "SkipSimplifiedLayerNormalization")
-        self.assertTrue(all(v.dtype == ir.DataType.FLOAT16 for v in fused.inputs))
+        if expected_count:
+            fused = next(
+                n for n in model.graph if n.op_type == "SkipSimplifiedLayerNormalization"
+            )
+            self.assertTrue(all(v.dtype == ir.DataType.FLOAT16 for v in fused.inputs))
+            np.testing.assert_array_equal(
+                fused.inputs[2].const_value.numpy(), 1.0 + weight_data.astype(np.float32)
+            )
 
     # ---- Skip Layer Norm positive tests ----
 

@@ -22,7 +22,7 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         bias_pre_add: bool = False,
         cast_back: bool = False,
     ):
-        """Fusion rule for SkipRMSNormalization."""
+        """Fuse skip RMS norm, optionally narrowing an exact scale and its cast-back."""
         super().__init__(name=name)
         self._has_bias = has_bias
         self._bias_pre_add = bias_pre_add
@@ -68,7 +68,11 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SkipSimplifiedLayerNormalization op."""
         check_result = pattern.MatchResult()
-        if input.dtype is None or input.dtype != skip.dtype:
+        if input.dtype not in (ir.DataType.FLOAT, ir.DataType.FLOAT16):
+            return check_result.fail(
+                "SkipSimplifiedLayerNormalization requires float32 or float16 input.", input
+            )
+        if input.dtype != skip.dtype:
             return check_result.fail("Input and skip must have the same known dtype.")
         if self._has_bias and bias.dtype != input.dtype:
             return check_result.fail("Bias must have the same dtype as input.", bias)
