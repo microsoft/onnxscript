@@ -306,6 +306,40 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
         """)
         self.run_failed_condition_test(model, successive_relu_clip_rule, "min .* > max")
 
+    @parameterized.parameterized.expand(
+        [
+            (
+                "relu_then_clip",
+                """
+                    x1 = Relu(X)
+                    Y = Clip<min = 1.0, max = 6.0>(x1)
+                """,
+                successive_clip_relu_rule,
+            ),
+            (
+                "clip_then_relu",
+                """
+                    x1 = Clip<min = 1.0, max = 6.0>(X)
+                    Y = Relu(x1)
+                """,
+                successive_relu_clip_rule,
+            ),
+        ]
+    )
+    def test_fail_fuse_successive_relu_clip_prior_to_opset_11(self, _, nodes, rewrite_rule):
+        model = ir.from_onnx_text(f"""
+            < ir_version: 6, opset_import: ["" : 10] >
+            test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
+            {{
+                {nodes}
+            }}
+        """)
+        self.run_failed_condition_test(
+            model,
+            rewrite_rule,
+            r"Clip min and max became inputs only in opset 11, but model opset is 10\.",
+        )
+
 
 class FuseSuccessiveClipTest(_FuseReluClipTestBase):
     @parameterized.parameterized.expand(
@@ -405,6 +439,21 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
             }
         """)
         self.run_failed_condition_test(model, successive_clip_rule, "is a graph input.")
+
+    def test_fail_fuse_successive_clips_prior_to_opset_11(self):
+        model = ir.from_onnx_text("""
+            < ir_version: 6, opset_import: ["" : 10] >
+            test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
+            {
+                x1 = Clip<min = 0.0, max = 4.0>(X)
+                Y = Clip<min = 1.0, max = 3.0>(x1)
+            }
+        """)
+        self.run_failed_condition_test(
+            model,
+            successive_clip_rule,
+            r"Clip min and max became inputs only in opset 11, but model opset is 10\.",
+        )
 
 
 class FuseReluClipWithoutTypeInfoTest(_FuseReluClipTestBase):
