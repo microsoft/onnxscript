@@ -54,6 +54,7 @@ _NON_DETERMINISTIC_OPS = frozenset(
         "RandomUniformLike",
         "RandomNormalLike",
         "Multinomial",
+        "Bernoulli",
     }
 )
 
