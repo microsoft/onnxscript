@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import unittest
+from itertools import permutations
 
 import numpy as np
 import onnx_ir as ir
+import onnxruntime as ort
 from onnx_ir.passes.common import onnx_checker
 
 from onnxscript import optimizer
@@ -25,13 +27,10 @@ def _build_chain(
     *,
     r1_shape_known: bool = True,
     output_shape_known: bool = True,
+    shape1_constant: bool = True,
+    shape2_constant: bool = True,
 ) -> ir.Model:
-    """Builds ``Reshape -> Transpose -> Reshape`` with non-constant shape
-    inputs (Shape() of a dummy tensor), then manually stamps the
-    shape-inference results this rule relies on -- mirroring
-    ``_materialize_reshape_shape_test.py``'s convention of simulating shape
-    inference having already run.
-    """
+    """Build a reshape/transpose/reshape chain with optional shape annotations."""
     n1 = len(r1_dims)
     n2 = len(output_dims)
     output_sig = (
@@ -48,6 +47,15 @@ def _build_chain(
         }}
     """
     model = ir.from_onnx_text(text)
+    for value, dims, constant in zip(
+        list(model.graph.inputs[1:]),
+        (r1_dims, output_dims),
+        (shape1_constant, shape2_constant),
+    ):
+        if constant:
+            value.const_value = ir.tensor(dims, dtype=ir.DataType.INT64)
+            model.graph.inputs.remove(value)
+            model.graph.initializers[value.name] = value
     for node in model.graph:
         if node.outputs[0].name == "r1" and r1_shape_known:
             node.outputs[0].shape = ir.Shape(r1_dims)
@@ -132,9 +140,14 @@ class ReshapeTransposeReshapeFiresTest(unittest.TestCase):
         rewritten = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
         _reshape_transpose_reshape.rules.apply_to_model(rewritten)
         data = np.arange(2 * 15 * 7, dtype=np.float32).reshape(2, 15, 7)
-        shape1 = np.array([2, 3, 5, 7], dtype=np.int64)
-        shape2 = np.array([7, 2, 15], dtype=np.int64)
-        testing.assert_numerically_equal(original, rewritten, (data, shape1, shape2))
+        testing.assert_numerically_equal(
+            original,
+            rewritten,
+            (data,),
+            rtol=0,
+            atol=0,
+            ort_optimization_level=ort.GraphOptimizationLevel.ORT_DISABLE_ALL,
+        )
 
     def test_numerical_equivalence_multiple_grouped_axes(self):
         """Verify numerical equivalence for the multi-axis-split case."""
@@ -142,9 +155,70 @@ class ReshapeTransposeReshapeFiresTest(unittest.TestCase):
         rewritten = _build_chain([6, 4, 10], [2, 3, 4, 2, 5], [3, 4, 2, 0, 1], [10, 4, 6])
         _reshape_transpose_reshape.rules.apply_to_model(rewritten)
         data = np.arange(6 * 4 * 10, dtype=np.float32).reshape(6, 4, 10)
-        shape1 = np.array([2, 3, 4, 2, 5], dtype=np.int64)
-        shape2 = np.array([10, 4, 6], dtype=np.int64)
-        testing.assert_numerically_equal(original, rewritten, (data, shape1, shape2))
+        testing.assert_numerically_equal(
+            original,
+            rewritten,
+            (data,),
+            rtol=0,
+            atol=0,
+            ort_optimization_level=ort.GraphOptimizationLevel.ORT_DISABLE_ALL,
+        )
+
+    def test_merge_then_split(self):
+        model = _build_chain([2, 3, 4], [6, 4], [1, 0], [4, 2, 3])
+        original = model.clone()
+        self.assertEqual(_reshape_transpose_reshape.rules.apply_to_model(model), 1)
+        transpose = next(iter(model.graph))
+        self.assertEqual(transpose.op_type, "Transpose")
+        self.assertEqual(list(transpose.attributes["perm"].as_ints()), [2, 0, 1])
+        self.assertEqual(model.graph.outputs[0].name, "output")
+        data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (data,),
+            rtol=0,
+            atol=0,
+            ort_optimization_level=ort.GraphOptimizationLevel.ORT_DISABLE_ALL,
+        )
+
+    def test_constant_targets_do_not_require_output_annotations(self):
+        model = _build_chain(
+            [2, 15, 7],
+            [2, 3, 5, 7],
+            [3, 0, 1, 2],
+            [7, 2, 15],
+            r1_shape_known=False,
+            output_shape_known=False,
+        )
+        self.assertEqual(_reshape_transpose_reshape.rules.apply_to_model(model), 1)
+        self.assertEqual(_op_types(model), ["Transpose"])
+
+    def test_zero_copy_and_inferred_dimensions(self):
+        for allowzero in (0, 1):
+            with self.subTest(allowzero=allowzero):
+                model = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
+                shape1 = [0, 3, -1, 7] if allowzero == 0 else [2, 3, -1, 7]
+                model.graph.initializers["shape1"].const_value = ir.tensor(
+                    shape1, dtype=ir.DataType.INT64
+                )
+                model.graph.initializers["shape2"].const_value = ir.tensor(
+                    [7, 2, -1], dtype=ir.DataType.INT64
+                )
+                for node in model.graph:
+                    if node.op_type == "Reshape":
+                        node.attributes["allowzero"] = ir.AttrInt64("allowzero", allowzero)
+                original = model.clone()
+                self.assertEqual(_reshape_transpose_reshape.rules.apply_to_model(model), 1)
+                data = np.arange(210, dtype=np.float32).reshape(2, 15, 7)
+                testing.assert_numerically_equal(
+                    original,
+                    model,
+                    (data,),
+                    rtol=0,
+                    atol=0,
+                    ort_optimization_level=ort.GraphOptimizationLevel.ORT_DISABLE_ALL,
+                )
 
 
 class ReshapeTransposeReshapeDoesNotFireTest(unittest.TestCase):
@@ -217,7 +291,12 @@ class ReshapeTransposeReshapeDoesNotFireTest(unittest.TestCase):
         annotation) -- the rule must fail closed rather than guess.
         """
         model = _build_chain(
-            [2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15], r1_shape_known=False
+            [2, 15, 7],
+            [2, 3, 5, 7],
+            [3, 0, 1, 2],
+            [7, 2, 15],
+            r1_shape_known=False,
+            shape1_constant=False,
         )
         self._assert_does_not_fire(model)
 
@@ -226,9 +305,7 @@ class ReshapeTransposeReshapeDoesNotFireTest(unittest.TestCase):
         for this first, fully-static-only implementation.
         """
         model = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
-        for node in model.graph:
-            if node.outputs[0].name == "r1":
-                node.outputs[0].shape = ir.Shape([2, "B", 5, 7])
+        model.graph.inputs[0].shape = ir.Shape([2, "B", 7])
         self._assert_does_not_fire(model)
 
     def test_unresolved_output_shape(self):
@@ -238,7 +315,12 @@ class ReshapeTransposeReshapeDoesNotFireTest(unittest.TestCase):
         above.
         """
         model = _build_chain(
-            [2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15], output_shape_known=False
+            [2, 15, 7],
+            [2, 3, 5, 7],
+            [3, 0, 1, 2],
+            [7, 2, 15],
+            output_shape_known=False,
+            shape2_constant=False,
         )
         self._assert_does_not_fire(model)
 
@@ -289,12 +371,112 @@ class ReshapeTransposeReshapeDoesNotFireTest(unittest.TestCase):
         before it is ever used to index into position-keyed structures --
         it must not raise (e.g. KeyError/IndexError) partway through.
         """
+        for perm in ([3, 0, 1], [3, 0, 1, 4], [3, 0, 1, 1], [3, 0, 1, -1]):
+            with self.subTest(perm=perm):
+                model = _build_chain([2, 15, 7], [2, 3, 5, 7], perm, [7, 2, 15])
+                self._assert_does_not_fire(model)
+
+    def test_dynamic_targets_with_static_annotations(self):
+        for shape1_constant, shape2_constant in ((False, True), (True, False), (False, False)):
+            with self.subTest(shape1=shape1_constant, shape2=shape2_constant):
+                model = _build_chain(
+                    [2, 15, 7],
+                    [2, 3, 5, 7],
+                    [1, 2, 3, 0],
+                    [15, 7, 2],
+                    shape1_constant=shape1_constant,
+                    shape2_constant=shape2_constant,
+                )
+                self._assert_does_not_fire(model)
+
+    def test_dynamic_target_can_change_order_without_changing_output_shape(self):
+        model = _build_chain(
+            [2, 15, 7],
+            [2, 3, 5, 7],
+            [1, 2, 3, 0],
+            [15, 7, 2],
+            shape1_constant=False,
+        )
+        original = model.clone()
+        data = np.arange(210, dtype=np.float32).reshape(2, 15, 7)
+        runtime_shape = np.array([3, 2, 5, 7], dtype=np.int64)
+        expected = data.reshape(runtime_shape).transpose(1, 2, 3, 0).reshape(15, 7, 2)
+        incorrect = data.transpose(1, 2, 0)
+        self.assertEqual(expected.shape, incorrect.shape)
+        self.assertFalse(np.array_equal(expected, incorrect))
+        self._assert_does_not_fire(model)
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (data, runtime_shape),
+            rtol=0,
+            atol=0,
+            ort_optimization_level=ort.GraphOptimizationLevel.ORT_DISABLE_ALL,
+        )
+
+    def test_constant_target_overrides_unproven_intermediate_annotation(self):
+        model = _build_chain([2, 15, 7], [2, 3, 5, 7], [1, 2, 3, 0], [15, 7, 2])
+        model.graph.initializers["shape1"].const_value = ir.tensor(
+            [3, 2, 5, 7], dtype=ir.DataType.INT64
+        )
+        self._assert_does_not_fire(model)
+
+    def test_overridable_initializer_is_not_constant(self):
+        for name in ("shape1", "shape2"):
+            with self.subTest(name=name):
+                model = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
+                model.graph.inputs.append(model.graph.initializers[name])
+                self._assert_does_not_fire(model)
+
+    def test_constant_target_overrides_unproven_output_annotation(self):
         model = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
-        for node in model.graph:
-            if node.op_type == "Transpose":
-                node.attributes["perm"] = ir.AttrInt64s("perm", [3, 0, 1])  # too short
-        count = _reshape_transpose_reshape.rules.apply_to_model(model)  # must not raise
-        self.assertEqual(count, 0)
+        model.graph.initializers["shape2"].const_value = ir.tensor(
+            [7, 3, 10], dtype=ir.DataType.INT64
+        )
+        self._assert_does_not_fire(model)
+
+    def test_invalid_constant_targets(self):
+        for name, dims in (
+            ("shape1", [2, 3, -1, -1]),
+            ("shape1", [2, 3, -2, 7]),
+            ("shape1", [2, 3, 6, 7]),
+            ("shape1", [2, 3, -1, 8]),
+            ("shape1", [2, 3, 5, 0]),
+            ("shape2", [7, 2, -2]),
+            ("shape2", [7, 2, 14]),
+        ):
+            with self.subTest(name=name, dims=dims):
+                model = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
+                model.graph.initializers[name].const_value = ir.tensor(
+                    dims, dtype=ir.DataType.INT64
+                )
+                self._assert_does_not_fire(model)
+
+    def test_literal_zero_with_allowzero(self):
+        model = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
+        model.graph.initializers["shape1"].const_value = ir.tensor(
+            [0, 3, 5, 7], dtype=ir.DataType.INT64
+        )
+        next(iter(model.graph)).attributes["allowzero"] = ir.AttrInt64("allowzero", 1)
+        self._assert_does_not_fire(model)
+
+    def test_zero_dimensions(self):
+        self._assert_does_not_fire(_build_chain([0, 3, 4], [0, 4], [1, 0], [4, 0, 3]))
+
+    def test_intermediate_graph_outputs(self):
+        for index in (0, 1):
+            with self.subTest(index=index):
+                model = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
+                model.graph.outputs.append(list(model.graph)[index].outputs[0])
+                self._assert_does_not_fire(model)
+
+    def test_shared_intermediate(self):
+        model = _build_chain([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15])
+        r1 = next(iter(model.graph)).outputs[0]
+        extra = ir.Node("", "Identity", [r1], num_outputs=1)
+        model.graph.append(extra)
+        model.graph.outputs.append(extra.outputs[0])
+        self._assert_does_not_fire(model)
 
 
 class ReshapeTransposeReshapeInvariantTest(unittest.TestCase):
@@ -340,76 +522,92 @@ class ReshapeTransposeReshapeInvariantTest(unittest.TestCase):
         self.assertNotEqual(len(pi), len(groups))  # 2 != 3: the invariant must reject this
         self.assertEqual(pi, [0, 2])
 
+    def test_all_small_block_permutations_preserve_element_order(self):
+        cases = (
+            ([6, 4], [2, 3, 4]),
+            ([2, 3, 4], [6, 4]),
+            ([4, 4], [2, 2, 2, 2]),
+            ([2, 2, 2, 2], [4, 4]),
+        )
+        matches = 0
+        rejections = 0
+        for original_dims, reshaped_dims in cases:
+            data = np.arange(np.prod(original_dims)).reshape(original_dims)
+            for perm in permutations(range(len(reshaped_dims))):
+                for output_perm in permutations(range(len(original_dims))):
+                    output_dims = [original_dims[axis] for axis in output_perm]
+                    expected = data.reshape(reshaped_dims).transpose(perm).reshape(output_dims)
+                    model = _build_chain(original_dims, reshaped_dims, list(perm), output_dims)
+                    count = _reshape_transpose_reshape.rules.apply_to_model(model)
+                    if not count:
+                        rejections += 1
+                        continue
+                    matches += 1
+                    node = next(iter(model.graph))
+                    actual = (
+                        data
+                        if node.op_type == "Identity"
+                        else data.transpose(node.attributes["perm"].as_ints())
+                    )
+                    np.testing.assert_array_equal(actual, expected)
+        self.assertGreater(matches, 0)
+        self.assertGreater(rejections, 0)
+
 
 class ReshapeTransposeReshapeIntegrationTest(unittest.TestCase):
-    """End-to-end regression through the REAL default optimizer pipeline
-    (not this rule in isolation), covering the integration issue found
-    during human review: `MaterializeReshapeShape` runs immediately before
-    this rule in `_DEFAULT_REWRITE_RULES` and can replace a Reshape's shape
-    input with a concrete Constant, setting `allowzero=1` on the new node.
-    This rule must still collapse the resulting chain -- it must not depend
-    on `allowzero` being 0.
-    """
+    """Exercise proven constant targets through the public optimizer."""
 
-    def test_materialize_reshape_shape_then_collapse(self):
-        """R1's shape input (`shape1`) is a genuine, non-constant graph
-        input -- nothing folds it away. R1's output shape is only known
-        because its output value declares that shape directly (exactly
-        what a prior shape-inference pass or exporter would attach), not
-        anything manually poked onto an already-built graph. Run through
-        the public `optimizer.optimize()`, exactly as a real caller would.
-        """
-        tape = ir.tape.Tape()
-        data = ir.val(
-            "data", shape=ir.Shape([2, 15, 7]), type=ir.TensorType(ir.DataType.FLOAT)
-        )
-        shape1 = ir.val("shape1", shape=ir.Shape([4]), type=ir.TensorType(ir.DataType.INT64))
-        r1 = tape.op(
-            "Reshape",
-            inputs=[data, shape1],
-            output=ir.val(
-                "r1", shape=ir.Shape([2, 3, 5, 7]), type=ir.TensorType(ir.DataType.FLOAT)
-            ),
-        )
-        t = tape.op("Transpose", inputs=[r1], attributes={"perm": [3, 0, 1, 2]})
-        shape2 = tape.op(
-            "Constant",
-            inputs=[],
-            attributes={
-                "value": ir.tensor([7, 2, 15], dtype=ir.DataType.INT64, name="shape2_val")
-            },
-        )
-        output = tape.op(
-            "Reshape",
-            inputs=[t, shape2],
-            output=ir.val(
-                "output", shape=ir.Shape([7, 2, 15]), type=ir.TensorType(ir.DataType.FLOAT)
-            ),
-        )
+    def test_constant_targets_then_collapse(self):
+        for input_dims, r1_dims, perm, output_dims in (
+            ([2, 15, 7], [2, 3, 5, 7], [3, 0, 1, 2], [7, 2, 15]),
+            ([2, 3, 4], [6, 4], [1, 0], [4, 2, 3]),
+        ):
+            with self.subTest(input_dims=input_dims):
+                model = _build_chain(input_dims, r1_dims, perm, output_dims)
+                original = model.clone()
+                onnx_checker.CheckerPass(True)(original)
+                optimized = optimizer.optimize(model, num_iterations=2)
+                self.assertIs(optimized, model)
+                self.assertIsNot(optimized, original)
+                self.assertEqual(_op_types(original), ["Reshape", "Transpose", "Reshape"])
+                self.assertEqual(_op_types(optimized), ["Transpose"])
+                self.assertEqual(optimized.graph.outputs[0].name, "output")
+                onnx_checker.CheckerPass(True)(optimized)
+                data = np.arange(np.prod(input_dims), dtype=np.float32).reshape(input_dims)
+                testing.assert_numerically_equal(
+                    original,
+                    optimized,
+                    (data,),
+                    rtol=0,
+                    atol=0,
+                    ort_optimization_level=ort.GraphOptimizationLevel.ORT_DISABLE_ALL,
+                )
 
-        model = ir.Model(
-            ir.Graph(
-                inputs=[data, shape1],
-                outputs=[output],
-                nodes=tape.nodes,
-                initializers=tape.initializers,
-                opset_imports={"": 18},
-                name="test_model",
-            ),
-            ir_version=9,
-        )
+    def test_constant_nodes(self):
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2,3,4] data) => (float[4,2,3] output) {
+                shape1 = Constant<value=int64[2] {6,4}>()
+                shape2 = Constant<value=int64[3] {4,2,3}>()
+                r1 = Reshape(data, shape1)
+                t = Transpose<perm=[1,0]>(r1)
+                output = Reshape(t, shape2)
+            }
+        """)
+        original = model.clone()
+        self.assertEqual(_reshape_transpose_reshape.rules.apply_to_model(model), 1)
+        self.assertEqual(_op_types(model), ["Constant", "Constant", "Transpose"])
+        optimizer.optimize(model)
+        self.assertEqual(_op_types(model), ["Transpose"])
         onnx_checker.CheckerPass(True)(model)
-        self.assertEqual(_op_types(model), ["Reshape", "Transpose", "Constant", "Reshape"])
-
-        optimized = optimizer.optimize(model, num_iterations=2)
-
-        self.assertEqual(_op_types(optimized), ["Transpose"])
-        onnx_checker.CheckerPass(True)(optimized)
-
-        data_np = np.arange(2 * 15 * 7, dtype=np.float32).reshape(2, 15, 7)
-        shape1_np = np.array([2, 3, 5, 7], dtype=np.int64)
+        data = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
         testing.assert_numerically_equal(
-            model, optimized, (data_np, shape1_np), rtol=0, atol=0
+            original,
+            model,
+            (data,),
+            rtol=0,
+            atol=0,
+            ort_optimization_level=ort.GraphOptimizationLevel.ORT_DISABLE_ALL,
         )
 
 

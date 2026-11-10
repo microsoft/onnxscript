@@ -7,13 +7,15 @@ sequence of values under a new shape. A Transpose is the op that reorders
 elements. So the two Reshapes around a Transpose can only ever be collapsed
 away when they are pure bookkeeping around the Transpose:
 
-- R1 splits each *original* input axis into a contiguous run of finer axes
-  (never merging two different original axes together).
+- R1 splits each *original* input axis into a contiguous run of finer axes.
 - The Transpose moves each such run around as a whole, contiguous,
   internally-ordered block (never scrambling axes within a run, never
   splitting a run apart).
 - R2 merges each relocated block back into a single axis, exactly as the
   block structure predicts.
+
+The reverse case is supported too: R1 merges contiguous original axes,
+Transpose permutes those merged blocks, and R2 splits them back in order.
 
 When all three hold, the composite is provably identical, element for
 element, to a single ``Transpose`` of the *original* input axes, and this
@@ -39,22 +41,22 @@ self-contained follow-up, not attempted here.
 Also out of scope for now, safe to relax later behind its own proof and
 tests:
 
-- Symbolic or otherwise not-fully-static shapes anywhere in the chain.
+- Symbolic input dimensions or targets that cannot be resolved to fully static shapes.
 
-Note on ``allowzero``: this rule deliberately does *not* check it. It only
-governs how a literal ``0`` in the raw shape *input tensor* is resolved,
-and this rule never reads that tensor -- it trusts the already-resolved
-``Value.shape``, which by the time it's inspected here is required to have
-every dimension >= 2 (see above). There is no ``0`` left for ``allowzero``
-to have had an interpretive choice about, so it cannot affect this rule's
-correctness regardless of its value on either Reshape node.
+Both reshape targets must be constants, not overridable graph inputs.
+Intermediate and final dimensions are computed from those targets, resolving
+``0`` and ``-1`` using Reshape semantics. Output shape annotations alone do
+not prove a dynamic target's runtime value or element ordering.
 """
 
 from __future__ import annotations
 
+import math
 from typing import Sequence
 
-from onnxscript import ir
+import onnx_ir as ir
+
+from onnxscript.rewriter import _ir_utils as ir_utils
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
@@ -63,10 +65,51 @@ def _static_dims(shape: ir.Shape | None) -> list[int] | None:
     """Returns `shape` as a list of concrete ints, or None if any dim is unknown/symbolic."""
     if shape is None:
         return None
-    dims = list(shape)
-    if not all(isinstance(d, int) for d in dims):
+    dims: list[int] = []
+    for dim in shape:
+        if not isinstance(dim, int):
+            return None
+        dims.append(dim)
+    return dims
+
+
+def _reshape_dims(
+    shape: ir.Value, input_dims: Sequence[int], node: ir.Node
+) -> list[int] | None:
+    """Resolve a constant reshape target without trusting output annotations."""
+    if shape.is_graph_input():
         return None
-    return dims  # type: ignore[return-value]
+    target = ir_utils.get_numpy_value(shape)
+    if target is None or shape.dtype != ir.DataType.INT64 or target.ndim != 1:
+        return None
+    allowzero = node.attributes.get("allowzero")
+    if allowzero is not None and (
+        allowzero.is_ref()
+        or allowzero.type != ir.AttributeType.INT
+        or allowzero.as_int() not in (0, 1)
+    ):
+        return None
+    copy_zeros = allowzero is None or allowzero.as_int() == 0
+    dims = target.tolist()
+    for axis, dim in enumerate(dims):
+        if dim < -1:
+            return None
+        if dim == 0 and copy_zeros:
+            if axis >= len(input_dims):
+                return None
+            dims[axis] = input_dims[axis]
+    if dims.count(-1) > 1 or 0 in dims:
+        return None
+    input_size = math.prod(input_dims)
+    if -1 in dims:
+        axis = dims.index(-1)
+        known_size = -math.prod(dims)
+        if input_size % known_size:
+            return None
+        dims[axis] = input_size // known_size
+    if math.prod(dims) != input_size:
+        return None
+    return dims
 
 
 def _no_trivial_dims(*dim_lists: Sequence[int]) -> bool:
@@ -92,9 +135,7 @@ def _split_into_original_axis_groups(
     consecutive `split_dims` positions until its product matches the next
     original axis's size exactly. Returns the list of runs (each a list of
     positions into `split_dims`), or None if some original axis boundary
-    cannot be matched -- i.e. R1 merges across it, mixing two different
-    original axes into one intermediate axis, which no Transpose of the
-    original axes could ever undo.
+    cannot be matched -- i.e. R1 is not a pure split of original axes.
     """
     groups: list[list[int]] = []
     pos = 0
@@ -179,12 +220,6 @@ class ReshapeTransposeReshape(RewriteRuleClassBase):
         shape2: ir.Value,
         r1_out: ir.Value,
     ) -> MatchResult:
-        # The raw shape *inputs* are never inspected: this rule trusts the
-        # already shape-inferred output shapes instead (same strategy as
-        # MaterializeReshapeShape), so it does not need to re-derive Reshape's
-        # 0/-1/allowzero resolution itself. allowzero is not checked at all --
-        # see the module docstring for why it cannot matter here.
-        del shape1, shape2
         check_result = MatchResult()
 
         if perm.is_ref() or perm.type != ir.AttributeType.INTS:
@@ -192,21 +227,17 @@ class ReshapeTransposeReshape(RewriteRuleClassBase):
         perm_ints = list(perm.as_ints())
 
         original_dims = _static_dims(x.shape)
-        split_dims = _static_dims(r1_out.shape)
-        final_dims = _static_dims(context.output_values[0].shape)
-        if original_dims is None or split_dims is None or final_dims is None:
+        if original_dims is None or not _no_trivial_dims(original_dims):
             return check_result.fail(
-                "Input, intermediate, or output shape is not fully statically known."
+                "Input dimensions must be statically known and at least 2."
             )
 
-        if len(final_dims) != len(original_dims):
-            return check_result.fail("Output rank differs from input rank.")
-
-        if not _no_trivial_dims(original_dims, split_dims, final_dims):
-            return check_result.fail(
-                "An axis of size 0 or 1 appears in this chain; out of scope for "
-                "this conservative rule (see module docstring)."
-            )
+        r1 = r1_out.producer()
+        r2 = context.output_values[0].producer()
+        assert r1 is not None and r2 is not None
+        split_dims = _reshape_dims(shape1, original_dims, r1)
+        if split_dims is None:
+            return check_result.fail("R1 target is not a valid, non-overridable constant.")
 
         # Defensive: perm must be a valid permutation of R1's output axes
         # before it's used to index into position-keyed dicts below. A
@@ -217,13 +248,23 @@ class ReshapeTransposeReshape(RewriteRuleClassBase):
                 "Transpose perm is not a valid permutation of R1's output axes."
             )
 
-        groups = _split_into_original_axis_groups(original_dims, split_dims)
-        if groups is None:
-            return check_result.fail(
-                "R1 merges across an original axis boundary; not a pure split."
-            )
+        transposed_dims = [split_dims[axis] for axis in perm_ints]
+        final_dims = _reshape_dims(shape2, transposed_dims, r2)
+        if final_dims is None:
+            return check_result.fail("R2 target is not a valid, non-overridable constant.")
+        if len(final_dims) != len(original_dims):
+            return check_result.fail("Output rank differs from input rank.")
+        if not _no_trivial_dims(split_dims, final_dims):
+            return check_result.fail("Intermediate and output dimensions must be at least 2.")
 
-        pi = _derive_block_permutation(groups, perm_ints)
+        groups = _split_into_original_axis_groups(original_dims, split_dims)
+        if groups is not None:
+            pi = _derive_block_permutation(groups, perm_ints)
+        else:
+            merged_groups = _split_into_original_axis_groups(split_dims, original_dims)
+            if merged_groups is None:
+                return check_result.fail("R1 is neither a pure split nor a pure merge.")
+            pi = [axis for group in perm_ints for axis in merged_groups[group]]
         if pi is None:
             return check_result.fail(
                 "Transpose does not move R1's axis groups as whole, internally-ordered blocks."
@@ -236,7 +277,7 @@ class ReshapeTransposeReshape(RewriteRuleClassBase):
         # today, but this rewrite's safety should not depend on that guard
         # being the only thing keeping `pi` well-formed.
         n = len(original_dims)
-        if len(pi) != n or len(groups) != n or sorted(pi) != list(range(n)):
+        if len(pi) != n or sorted(pi) != list(range(n)):
             return check_result.fail(
                 "Derived permutation failed an internal well-formedness check "
                 "(expected a permutation of range(len(original_dims)))."
