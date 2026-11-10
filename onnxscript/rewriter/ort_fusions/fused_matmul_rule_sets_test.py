@@ -11,12 +11,13 @@ import onnx.reference
 import onnx.reference.op_run
 import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
-import onnxruntime as ort
 import parameterized
 
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
+import onnxscript.rewriter.pattern as orp
 from onnxscript import FLOAT, script
 from onnxscript.onnx_opset import opset18 as op
+from onnxscript.rewriter.ort_fusions import _test_utils, optimize_for_ort
 from onnxscript.values import Opset
 
 ms_op = Opset("com.microsoft", 1)
@@ -476,17 +477,12 @@ class TestFusedMatmulRules(unittest.TestCase):
         rewritten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual([n.op_type for n in ir_model.graph], ["FusedMatMul"])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
-
-    def _ort_run(self, model: onnx.ModelProto, feeds: dict[str, Any]):
-        options = ort.SessionOptions()
-        # Execute the graph we produced. ORT's own fusions would hide a bad transBatch.
-        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
-        session = ort.InferenceSession(
-            model.SerializeToString(),
-            options,
-            providers=["CPUExecutionProvider"],
-        )
-        return session.run(None, feeds)[0]
+        feeds = self._get_random_inputs(model_proto)
+        expected = _test_utils.ort_run(
+            "original_batch", ir.serde.deserialize_model(model_proto), feeds
+        )[0]
+        got = _test_utils.ort_run("rewritten_batch", ir_model, feeds)[0]
+        np.testing.assert_allclose(got, expected, atol=1e-6, rtol=1e-7)
 
     @parameterized.parameterized.expand(
         [
@@ -517,6 +513,15 @@ class TestFusedMatmulRules(unittest.TestCase):
                 1,
                 0,
             ),
+            (
+                "equal_rank3_b",
+                _transpose_batch_matmul_div_rank2_a_rank3_b,
+                [FLOAT[2, 4, 8], FLOAT[8, 2, 16]],
+                [FLOAT[2, 4, 16]],
+                ["Constant", "FusedMatMul"],
+                0,
+                1,
+            ),
         ]
     )
     def test_trans_batch_requires_equal_rank_at_least_3(
@@ -544,9 +549,161 @@ class TestFusedMatmulRules(unittest.TestCase):
         self.assertAlmostEqual(float(attrs["alpha"]), 0.5)
         feeds = self._get_random_inputs(model_proto)
         self._check_model(model_proto, rewritten_model, feeds=feeds, atol=1e-6)
-        expected = self._ort_run(model_proto, feeds)
-        got = self._ort_run(rewritten_model, feeds)
+        expected = _test_utils.ort_run(
+            "original", ir.serde.deserialize_model(model_proto), feeds
+        )[0]
+        got = _test_utils.ort_run("rewritten", ir_model, feeds)[0]
         np.testing.assert_allclose(got, expected, atol=1e-6, rtol=1e-7)
+
+        # Match the projection in #3156: the non-transposed operand is an initializer.
+        weight_index = 0 if script_func is _transpose_batch_matmul_div_rank2_a_rank3_b else 1
+        weight = model_proto.graph.input[weight_index]
+        model_proto.graph.initializer.append(
+            onnx.numpy_helper.from_array(feeds[weight.name], name=weight.name)
+        )
+        del feeds[weight.name]
+        model_proto.graph.input.remove(weight)
+        optimized, _ = optimize_for_ort(ir.serde.deserialize_model(model_proto))
+        self.assertEqual(
+            [n.op_type for n in optimized.graph if n.op_type != "Constant"],
+            [name for name in expected_ops if name != "Constant"],
+        )
+        fused = next(n for n in optimized.graph if n.op_type == "FusedMatMul")
+        self.assertEqual(fused.attributes.get_int("transBatchA", 0), trans_batch_a)
+        self.assertEqual(fused.attributes.get_int("transBatchB", 0), trans_batch_b)
+        self.assertAlmostEqual(fused.attributes["alpha"].as_float(), 0.5)
+        got = _test_utils.ort_run("optimized", optimized, feeds)[0]
+        np.testing.assert_allclose(got, expected, atol=1e-6, rtol=1e-7)
+
+    @parameterized.parameterized.expand(
+        [
+            (
+                "batch_a",
+                fused_matmul_rule_sets.TransposeFusedMatMulWithFlippedBatch1,
+                1,
+                True,
+                False,
+            ),
+            (
+                "batch_b",
+                fused_matmul_rule_sets.TransposeFusedMatMulWithFlippedBatch2,
+                2,
+                True,
+                False,
+            ),
+            (
+                "batch_transpose_a",
+                fused_matmul_rule_sets.TransposeFusedMatMulWithFlippedBatchAndTranspose1,
+                1,
+                True,
+                True,
+            ),
+            (
+                "batch_transpose_b",
+                fused_matmul_rule_sets.TransposeFusedMatMulWithFlippedBatchAndTranspose2,
+                2,
+                True,
+                True,
+            ),
+            (
+                "transpose_a",
+                fused_matmul_rule_sets.TransposeFusedMatMulWithBatchAndTranspose1,
+                1,
+                False,
+                True,
+            ),
+            (
+                "transpose_b",
+                fused_matmul_rule_sets.TransposeFusedMatMulWithBatchAndTranspose2,
+                2,
+                False,
+                True,
+            ),
+        ]
+    )
+    def test_batch_transpose_rank_guard(self, _, rule_class, pos, flip_batch, flip_transpose):
+        for x_rank, y_rank in [
+            (None, 3),
+            (3, None),
+            (None, None),
+            (2, 2),
+            (3, 2),
+            (2, 3),
+            (3, 4),
+            (4, 3),
+            (3, 3),
+            (4, 4),
+        ]:
+            for batch_a, batch_b in [(0, 0), (1, 0), (0, 1), (1, 1)]:
+                # The transpose-only rules require the operand's batch flag to be set.
+                batch = batch_a if pos == 1 else batch_b
+                if not flip_batch and not batch:
+                    continue
+                with self.subTest(ranks=(x_rank, y_rank), flags=(batch_a, batch_b)):
+                    rank = (x_rank if pos == 1 else y_rank) or 3
+                    dims = list(range(rank))
+                    if flip_batch and flip_transpose:
+                        perm = [dims[-1], *dims[:-1]] if batch else [*dims[1:], dims[0]]
+                    elif flip_batch:
+                        perm = (
+                            [dims[-2], *dims[:-2], dims[-1]]
+                            if batch
+                            else [*dims[1:-1], dims[0], dims[-1]]
+                        )
+                    else:
+                        perm = [dims[-1], *dims[1:-1], dims[0]]
+                    inputs = [
+                        onnx.helper.make_tensor_value_info(
+                            name, onnx.TensorProto.FLOAT, None if r is None else [None] * r
+                        )
+                        for name, r in [("x", x_rank), ("y", y_rank)]
+                    ]
+                    proto = onnx.helper.make_model(
+                        onnx.helper.make_graph(
+                            [
+                                onnx.helper.make_node(
+                                    "Transpose", ["x" if pos == 1 else "y"], ["t"], perm=perm
+                                ),
+                                onnx.helper.make_node(
+                                    "FusedMatMul",
+                                    ["t", "y"] if pos == 1 else ["x", "t"],
+                                    ["out"],
+                                    domain="com.microsoft",
+                                    alpha=0.5,
+                                    transBatchA=batch_a,
+                                    transBatchB=batch_b,
+                                ),
+                            ],
+                            "rank_guard",
+                            inputs,
+                            [
+                                onnx.helper.make_tensor_value_info(
+                                    "out", onnx.TensorProto.FLOAT, None
+                                )
+                            ],
+                        ),
+                        opset_imports=[
+                            onnx.helper.make_opsetid("", 18),
+                            onnx.helper.make_opsetid("com.microsoft", 1),
+                        ],
+                    )
+                    model = ir.serde.deserialize_model(proto)
+                    result_a = 1 - batch_a if flip_batch and pos == 1 else batch_a
+                    result_b = 1 - batch_b if flip_batch and pos == 2 else batch_b
+                    compatible = x_rank is not None and x_rank == y_rank and x_rank >= 3
+                    should_fuse = not (result_a or result_b) or compatible
+                    count = orp.RewriteRuleSet([rule_class.rule()]).apply_to_model(model)
+                    self.assertEqual(count, int(should_fuse))
+                    if should_fuse:
+                        self.assertEqual([n.op_type for n in model.graph], ["FusedMatMul"])
+                        fused = next(iter(model.graph))
+                        self.assertEqual(fused.attributes.get_int("transBatchA", 0), result_a)
+                        self.assertEqual(fused.attributes.get_int("transBatchB", 0), result_b)
+                        self.assertAlmostEqual(fused.attributes["alpha"].as_float(), 0.5)
+                    else:
+                        self.assertEqual(
+                            [n.op_type for n in model.graph], ["Transpose", "FusedMatMul"]
+                        )
 
 
 if __name__ == "__main__":
