@@ -68,9 +68,14 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SkipSimplifiedLayerNormalization op."""
         check_result = pattern.MatchResult()
-        if input.dtype not in (ir.DataType.FLOAT, ir.DataType.FLOAT16):
+        if input.dtype not in (
+            ir.DataType.FLOAT,
+            ir.DataType.FLOAT16,
+            ir.DataType.BFLOAT16,
+        ):
             return check_result.fail(
-                "SkipSimplifiedLayerNormalization requires float32 or float16 input.", input
+                "SkipSimplifiedLayerNormalization requires float32, float16, or bfloat16 input.",
+                input,
             )
         if input.dtype != skip.dtype:
             return check_result.fail("Input and skip must have the same known dtype.")

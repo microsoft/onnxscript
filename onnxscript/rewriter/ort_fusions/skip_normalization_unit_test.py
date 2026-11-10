@@ -21,7 +21,7 @@ import numpy as np
 import onnx_ir as ir
 from parameterized import parameterized
 
-from onnxscript import FLOAT, FLOAT16, script
+from onnxscript import BFLOAT16, FLOAT, FLOAT16, script
 from onnxscript import opset18 as op
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter.ort_fusions import _test_utils as test_utils
@@ -374,7 +374,6 @@ class SkipNormalizationTest(unittest.TestCase):
     @parameterized.expand(
         [
             ("double", ir.DataType.DOUBLE),
-            ("bfloat16", ir.DataType.BFLOAT16),
             ("unknown", None),
         ]
     )
@@ -387,6 +386,16 @@ class SkipNormalizationTest(unittest.TestCase):
         for value in model.graph.inputs:
             value.type = None if dtype is None else ir.TensorType(dtype)
         self.assertEqual(fuse_skip_rms_normalization(model), 0)
+
+    def test_skip_rms_bfloat16_scale(self):
+        model = self._build(
+            _skip_rms_no_bias,
+            input_types=[BFLOAT16[_B, _S, _D], BFLOAT16[_B, _S, _D], BFLOAT16[_D]],
+            output_types=[BFLOAT16[_B, _S, _D]],
+        )
+        self.assertEqual(fuse_skip_rms_normalization(model), 1)
+        fused = next(n for n in model.graph if n.op_type == "SkipSimplifiedLayerNormalization")
+        self.assertTrue(all(v.dtype == ir.DataType.BFLOAT16 for v in fused.inputs))
 
     @parameterized.expand(
         [
