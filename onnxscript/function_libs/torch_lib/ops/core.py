@@ -1753,12 +1753,50 @@ def aten_ccol_indices_copy(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op(("aten::cdist", "aten::_cdist_forward"), trace_only=True)
 def aten_cdist(
-    x1: TensorType, x2: TensorType, p: float = 2.0, compute_mode: Optional[int] = None
-) -> TensorType:
+    x1: TFloat, x2: TFloat, p: float = 2.0, compute_mode: Optional[int] = None
+) -> TFloat:
     """cdist(Tensor x1, Tensor x2, float p=2, int? compute_mode=None) -> Tensor"""
 
-    raise NotImplementedError()
+    # x1: [*, P, M], x2: [*, R, M] -> [*, P, R]
+    if p == 2.0 and compute_mode != 2:
+        # Like PyTorch, use the matmul form for p=2 when compute_mode allows it:
+        # always for compute_mode=1, and for compute_mode=None/0 when P or R > 25
+        # (or unknown), which avoids materializing the [*, P, R, M] difference.
+        rows, cols = x1.shape[-2], x2.shape[-2]
+        if compute_mode == 1 or not (
+            isinstance(rows, int) and rows <= 25 and isinstance(cols, int) and cols <= 25
+        ):
+            x1_sq = op.ReduceSumSquare(x1, [-1], keepdims=True)  # [*, P, 1]
+            x2_sq = op.ReduceSumSquare(x2, [-1], keepdims=True)  # [*, R, 1]
+            x2_t = op.Transpose(x2, perm=_last_two_dims_swapped(len(x2.shape)))
+            dist_sq = op.Sub(
+                op.Add(x1_sq, op.Transpose(x2_sq, perm=_last_two_dims_swapped(len(x2.shape)))),
+                op.Mul(op.MatMul(x1, x2_t), op.CastLike(2.0, x1)),
+            )
+            return op.Sqrt(op.Max(dist_sq, op.CastLike(0.0, dist_sq)))
+
+    diff = op.Sub(op.Unsqueeze(x1, [-2]), op.Unsqueeze(x2, [-3]))  # [*, P, R, M]
+    axes = op.Constant(value_ints=[-1])
+    if math.isinf(p):
+        reduce = op.ReduceMax if p > 0 else op.ReduceMin
+        return reduce(op.Abs(diff), axes, keepdims=False)
+    if p == 0.0:
+        nonzero = op.CastLike(op.Not(op.Equal(diff, op.CastLike(0.0, diff))), diff)
+        return op.ReduceSum(nonzero, axes, keepdims=False)
+    if p == 1.0:
+        return op.ReduceL1(diff, axes, keepdims=False)
+    if p == 2.0:
+        return op.ReduceL2(diff, axes, keepdims=False)
+    dist_p = op.ReduceSum(op.Pow(op.Abs(diff), op.CastLike(p, diff)), axes, keepdims=False)
+    return op.Pow(dist_p, op.CastLike(1.0 / p, diff))
+
+
+def _last_two_dims_swapped(rank: int) -> list[int]:
+    perm = list(range(rank))
+    perm[-2], perm[-1] = perm[-1], perm[-2]
+    return perm
 
 
 @torch_op("aten::ceil", trace_only=True)
