@@ -398,6 +398,10 @@ class SimplePatternMatcher(PatternMatcher):
             # candidates for the other output nodes.
             self._init_match(verbose)
             if not self._match_node(pattern_output_nodes[0], node):
+                # Some failure paths in _match_node return False without marking the
+                # match as failed, so mark it here.
+                if self._match:
+                    self._match.fail("First output node does not match.", node)
                 return self._match
             first_match = self._match
 

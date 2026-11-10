@@ -1125,6 +1125,33 @@ class MultiOutputPatternTest(unittest.TestCase):
         self.assertEqual(count, n)
         self.assertLessEqual(calls, 2 * n)
 
+    def test_no_match_when_first_output_node_has_too_few_outputs(self):
+        def dropout_neg_pattern(op, x):
+            output, mask = op.Dropout(x, _outputs=2)
+            return output, mask, op.Neg(x)
+
+        def dropout_neg_replacement(op, x):
+            output, mask = op.Dropout(x, _outputs=2)
+            return output, mask, op.Neg(x)
+
+        rule = pattern.RewriteRule(dropout_neg_pattern, dropout_neg_replacement)
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] a) => (float[N] y)
+            {
+                y = Dropout(a)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        (dropout,) = model.graph
+
+        match = rule._matcher.match(model, model.graph, dropout)
+
+        self.assertFalse(match)
+        self.assertEqual(rule.apply_to_model(model), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
