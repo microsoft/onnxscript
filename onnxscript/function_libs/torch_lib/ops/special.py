@@ -15,6 +15,7 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence
 
+from onnxscript import FLOAT, ir
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
@@ -128,11 +129,34 @@ def aten_special_expit(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::expm1", "aten::special_expm1"))
+@torch_op(("aten::expm1", "aten::special_expm1"), trace_only=True)
 def aten_special_expm1(self: TFloat) -> TFloat:
     """special_expm1(Tensor self) -> Tensor"""
 
-    return op.Sub(op.Exp(self), 1)
+    dtype = self.dtype
+    if dtype in {ir.DataType.FLOAT16, ir.DataType.BFLOAT16}:
+        # PyTorch computes half precision expm1 in float32
+        self = op.Cast(self, to=FLOAT.dtype)
+        compute_dtype = ir.DataType.FLOAT
+    else:
+        compute_dtype = dtype
+    one = ir.tensor(1.0, dtype=compute_dtype)
+    # exp(x) - 1 loses all precision for small |x| because exp(x) is rounded.
+    # Kahan's (u - 1) * x / log(u) with u = exp(x) cancels that rounding error.
+    u = op.Exp(self)
+    u_minus_one = op.Sub(u, one)
+    result = op.Mul(u_minus_one, op.Div(self, op.Log(u)))
+    # u == 1: expm1(x) rounds to x. This also keeps the sign of -0.0
+    result = op.Where(op.Equal(u_minus_one, ir.tensor(0.0, dtype=compute_dtype)), self, result)
+    # u == 0: exp(x) underflows and expm1(x) rounds to -1
+    result = op.Where(
+        op.Equal(u_minus_one, ir.tensor(-1.0, dtype=compute_dtype)), u_minus_one, result
+    )
+    # u == inf: x / log(u) would be inf / inf
+    result = op.Where(op.IsInf(u), u, result)
+    if compute_dtype != dtype:
+        result = op.Cast(result, to=dtype)
+    return result
 
 
 def aten_special_gammainc(self: TensorType, other: TensorType) -> TensorType:

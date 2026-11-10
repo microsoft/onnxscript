@@ -5963,11 +5963,31 @@ def aten_log10(self: TFloat) -> TFloat:
     return op.Div(op.Log(self), ir.tensor(math.log(10.0), dtype=self.dtype))
 
 
-@torch_op("aten::log1p")
+@torch_op("aten::log1p", trace_only=True)
 def aten_log1p(self: TFloat) -> TFloat:
     """log1p(Tensor self) -> Tensor"""
 
-    return op.Log(op.Add(self, 1.0))
+    dtype = self.dtype
+    if dtype in {ir.DataType.FLOAT16, ir.DataType.BFLOAT16}:
+        # PyTorch computes half precision log1p in float32
+        self = op.Cast(self, to=FLOAT.dtype)
+        compute_dtype = ir.DataType.FLOAT
+    else:
+        compute_dtype = dtype
+    one = ir.tensor(1.0, dtype=compute_dtype)
+    # log(1 + x) loses all precision for small |x| because 1 + x is rounded.
+    # log(u) * x / (u - 1) with u = 1 + x cancels that rounding error
+    # (Goldberg, "What Every Computer Scientist Should Know About Floating-Point Arithmetic").
+    u = op.Add(self, one)
+    u_minus_one = op.Sub(u, one)
+    result = op.Mul(op.Log(u), op.Div(self, u_minus_one))
+    # u == 1: log1p(x) rounds to x. This also keeps the sign of -0.0
+    result = op.Where(op.Equal(u_minus_one, ir.tensor(0.0, dtype=compute_dtype)), self, result)
+    # u == inf: x / (u - 1) would be inf / inf
+    result = op.Where(op.IsInf(u, detect_negative=0), u, result)
+    if compute_dtype != dtype:
+        result = op.Cast(result, to=dtype)
+    return result
 
 
 @torch_op("aten::log2", trace_only=True)
