@@ -33,6 +33,7 @@ class _RemoveOptionalBiasTestBase(unittest.TestCase):
         weight_shape: ir.Shape,
         zero_bias: bool,
         attributes=None,
+        opset_version: int = 20,
     ):
         tape = ir.tape.Tape()
         bias_shape = weight_shape[1] if op_type == "ConvTranspose" else weight_shape[0]
@@ -64,10 +65,10 @@ class _RemoveOptionalBiasTestBase(unittest.TestCase):
                 outputs=[y],
                 nodes=tape.nodes,
                 initializers=tape.initializers,
-                opset_imports={"": 20},
+                opset_imports={"": opset_version},
                 name="test_model",
             ),
-            ir_version=10,
+            ir_version=10 if opset_version >= 20 else 7,
         )
         onnx_checker.CheckerPass(True)(ir_model)
         return ir_model
@@ -143,6 +144,22 @@ class RemoveOptionalBiasGemmTest(_RemoveOptionalBiasTestBase):
         )
         self.run_failed_condition_test(
             base_model, remove_optional_bias_from_gemm_rule, "Bias is not all zeros."
+        )
+
+    def test_fail_remove_optional_bias_gemm_opset_prior_to_11(self):
+        input_shape = (512, 256)
+        base_model = self._get_test_model(
+            op_type="Gemm",
+            input_shape=ir.Shape(input_shape),
+            weight_shape=ir.Shape((64, 256)),
+            zero_bias=True,
+            attributes={"transB": 1},
+            opset_version=9,
+        )
+        self.run_failed_condition_test(
+            base_model,
+            remove_optional_bias_from_gemm_rule,
+            r"Gemm requires input C in opset 9 \(< 11\)\.",
         )
 
 
