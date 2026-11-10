@@ -30,12 +30,12 @@ class ScatterAllDynamic(RewriteRuleClassBase):
 
     def pattern(self, op, data, axis, transposed_data, updates):
         # Construct update-indices spanning an entire axis:
-        shape = op.Shape(data, start=0)
+        shape = op.Shape(data, _outputs=["shape_out"])
         dim = op.Gather(shape, axis, axis=0)
         full_range = op.Range(0, dim, 1)
         full_range_2d = op.Unsqueeze(full_range, [-1])
         # The update is applied to the data transposed to bring the updated axis to the front:
-        return op.ScatterND(transposed_data, full_range_2d, updates, reduction="none")
+        return op.ScatterND(transposed_data, full_range_2d, updates)
 
     def check(self, context, data, axis, transposed_data, **_):
         # Check that updated-indices represent the full range of the first dimension of the transposed data.
