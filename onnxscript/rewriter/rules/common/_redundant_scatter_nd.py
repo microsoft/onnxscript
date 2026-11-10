@@ -37,10 +37,34 @@ class ScatterAllDynamic(RewriteRuleClassBase):
         # The update is applied to the data transposed to bring the updated axis to the front:
         return op.ScatterND(transposed_data, full_range_2d, updates)
 
-    def check(self, context, data, axis, transposed_data, **_):
+    def check(self, context, data, axis, transposed_data, shape_out=None, **_):
         # Check that updated-indices represent the full range of the first dimension of the transposed data.
         # That is: check that the data.shape[axis] matches transposed_data.shape[0].
         result = onnxscript.rewriter.MatchResult()
+
+        # Validate that Shape produces dimensions starting from 0 to the full rank
+        if shape_out is not None and shape_out.producer() is not None:
+            shape_node = shape_out.producer()
+            start_attr = shape_node.attributes.get("start")
+            if start_attr is not None:
+                if hasattr(start_attr, "is_ref") and start_attr.is_ref():
+                    return result.fail(
+                        f"The Shape 'start' refers to attribute {start_attr.ref_attr_name!r}, "
+                        "so it is not known to be 0.",
+                        shape_out,
+                    )
+                if start_attr.as_int() != 0:
+                    return result.fail(
+                        f"The Shape 'start' is {start_attr.as_int()!r}, expected 0.",
+                        shape_out,
+                    )
+            end_attr = shape_node.attributes.get("end")
+            if end_attr is not None:
+                return result.fail(
+                    "The 'end' attribute is present on Shape, so the full shape is not computed.",
+                    shape_out,
+                )
+
         axis_value = _ir_utils.get_singleton_value(axis)
         if not isinstance(axis_value, int):
             return result.fail("Axis value must be a constant integer.", axis)
