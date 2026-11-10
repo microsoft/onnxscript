@@ -85,6 +85,41 @@ def aten__local_scalar_dense(self: TensorType) -> TensorType:
     return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=dtype)
 
 
+@torch_op("aten::_fused_rms_norm", trace_only=True)
+def aten__fused_rms_norm(
+    input: TFloat,
+    normalized_shape: Sequence[int],
+    weight: Optional[TFloat] = None,
+    eps: Optional[float] = None,
+) -> Tuple[TFloat, TFloat]:
+    """_fused_rms_norm(Tensor input, int[] normalized_shape, Tensor? weight, float? eps) -> (Tensor, Tensor)"""
+
+    # F.rms_norm dispatches to this op for CUDA tensors. Follow the PyTorch
+    # decomposition, so that the graph is the same as when exporting on CPU:
+    # float16 and bfloat16 inputs are normalized in float32, and the returned
+    # rstd stays in that precision.
+    rank = len(input.shape)
+    axes = [rank - i - 1 for i in range(len(normalized_shape))]
+    dtype = input.dtype
+    if dtype in {ir.DataType.FLOAT16, ir.DataType.BFLOAT16}:
+        input = op.Cast(input, to=FLOAT.dtype)
+        compute_dtype = ir.DataType.FLOAT
+    else:
+        compute_dtype = dtype
+    if eps is None:
+        eps = float(np.finfo(compute_dtype.numpy()).eps)
+    mean_square = op.ReduceMean(op.Pow(input, 2.0), axes, keepdims=True)
+    rstd = op.Reciprocal(op.Sqrt(op.Add(mean_square, ir.tensor(eps, dtype=compute_dtype))))
+    result = op.Mul(input, rstd)
+    if weight is not None:
+        if weight.dtype != compute_dtype:
+            weight = op.Cast(weight, to=compute_dtype)
+        result = op.Mul(result, weight)
+    if compute_dtype != dtype:
+        result = op.Cast(result, to=dtype)
+    return result, rstd
+
+
 @torch_op("aten::_log_softmax", trace_only=True)
 def aten__log_softmax(self: TFloat, dim: int, half_to_float: bool) -> TFloatHighPrecision:
     """_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
