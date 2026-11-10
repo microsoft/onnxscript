@@ -151,3 +151,38 @@ instance_norm_to_group_norm_rule = RewriteRule(
 # NOTE: instance_norm_to_group_norm_rule is subset of instance_norm_to_group_norm_with_silu_rule,
 # so we need to run instance_norm_to_group_norm_with_silu_rule first.
 rules = RewriteRuleSet([instance_norm_to_group_norm_rule])
+
+
+def check_onnx_group_normalization(context, **kwargs) -> bool:
+    if context.graph_or_function.opset_imports.get("", 0) < 21:
+        return False
+    input_x = kwargs["input_x"]
+    weight_full = kwargs["weight_full"]
+    bias_full = kwargs["bias_full"]
+    if any(value.shape is None for value in (input_x, weight_full, bias_full)):
+        return False
+    if not check_if_simulated_instance_norm_is_used(context, **kwargs):
+        return False
+    return weight_full.shape[0] == bias_full.shape[0] == input_x.shape[1]
+
+
+def onnx_group_normalization(
+    op, input_x, weight_for_norm, weight_full, bias_full, epsilon, **_
+):
+    reshape_to_1d = op.Constant(value_ints=[-1])
+    weight_full = op.Reshape(weight_full, reshape_to_1d)
+    bias_full = op.Reshape(bias_full, reshape_to_1d)
+    return op.GroupNormalization(
+        input_x,
+        weight_full,
+        bias_full,
+        num_groups=weight_for_norm.const_value.shape[0],
+        epsilon=epsilon,
+    )
+
+
+instance_norm_to_onnx_group_norm_rule = RewriteRule(
+    instance_simulates_group_normalization_pattern,
+    onnx_group_normalization,
+    check_onnx_group_normalization,
+)

@@ -38,9 +38,7 @@ from onnxscript.rewriter.rules.common import _gemm_to_matmul_add
 
 ORT_PATTERN_REWRITE_RULES = [
     *softmax.rules.rules,
-    *instance_to_group_normalization.rules.rules,
-    # NOTE: group normalization merge silu should be applied after instance to group normalization
-    # *group_normalization_merge_silu.rules.rules,
+    instance_to_group_normalization.instance_norm_to_onnx_group_norm_rule,
     *fused_matmul_rule_sets.fused_matmul_rule_sets(),
 ]
 
