@@ -162,6 +162,35 @@ class RemoveOptionalBiasGemmTest(_RemoveOptionalBiasTestBase):
             r"Gemm requires input C in opset 9 \(< 11\)\.",
         )
 
+    def test_successful_remove_optional_bias_gemm_opset_11(self):
+        input_shape = (512, 256)
+        base_model = self._get_test_model(
+            op_type="Gemm",
+            input_shape=ir.Shape(input_shape),
+            weight_shape=ir.Shape((64, 256)),
+            zero_bias=True,
+            attributes={"transB": 1},
+            opset_version=11,
+        )
+        self.run_test(base_model, input_shape)
+
+    def test_gemm_opset_validity_preserved_across_opsets(self):
+        input_shape = (64, 128)
+        for opset_version in (9, 10):
+            model = self._get_test_model(
+                op_type="Gemm",
+                input_shape=ir.Shape(input_shape),
+                weight_shape=ir.Shape((32, 128)),
+                zero_bias=True,
+                attributes={"transB": 1},
+                opset_version=opset_version,
+            )
+            count = _remove_optional_bias.rules.apply_to_model(model)
+            self.assertEqual(count, 0)
+            self.assertEqual(len(model.graph[0].inputs), 3)
+            proto = ir.serde.serialize_model(model)
+            onnx.checker.check_model(proto, full_check=True)
+
 
 class RemoveOptionalBiasGonvTest(_RemoveOptionalBiasTestBase):
     def test_successful_remove_optional_bias_conv(self):
