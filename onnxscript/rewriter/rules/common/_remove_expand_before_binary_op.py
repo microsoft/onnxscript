@@ -9,6 +9,7 @@ This implements the optimization:
 
 This is valid when the binary operator's broadcasting semantics would produce
 the same output shape as first expanding the input and then applying the op.
+For PRelu, only the second (slope) input can supply this broadcasting.
 """
 
 from __future__ import annotations
@@ -19,7 +20,8 @@ from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._ir_utils import get_numpy_value
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
-# Binary operators in ONNX standard opset that support numpy-style broadcasting.
+# Operators supporting broadcast-based Expand removal. PRelu only broadcasts
+# its second (slope) input to the shape of its first (data) input.
 _BROADCAST_BINARY_OPS: tuple[str, ...] = (
     "Add",
     "And",
@@ -288,7 +290,8 @@ def _make_expand_before_binary_op_rules() -> list:
     """Create rewrite rules for removing Expand before each supported binary op."""
     rules = []
     for op_type in _BROADCAST_BINARY_OPS:
-        rules.append(_ExpandFirstInput.rule(op_type))
+        if op_type != "PRelu":
+            rules.append(_ExpandFirstInput.rule(op_type))
         rules.append(_ExpandSecondInput.rule(op_type))
     return rules
 

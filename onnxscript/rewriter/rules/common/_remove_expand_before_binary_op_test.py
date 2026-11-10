@@ -28,6 +28,87 @@ def _run_model(model: ir.Model, feeds: dict) -> list:
 class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
     """Tests for _remove_expand_before_binary_op rules."""
 
+    @parameterized.parameterized.expand(
+        [
+            ("leading_axis", (3,), (2, 3), True),
+            ("singleton_axis", (1, 3), (2, 3), True),
+            ("multiple_axes", (1, 1, 3), (2, 4, 3), True),
+            ("dynamic_leading_axis", (3,), (2, 3), False),
+            ("dynamic_singleton_axis", (1, 3), (2, 3), False),
+            ("dynamic_multiple_axes", (1, 1, 3), (2, 4, 3), False),
+        ]
+    )
+    def test_prelu_data_expand_preserves_output_shape(
+        self, _, input_shape, output_shape, constant_shape
+    ):
+        x = np.linspace(-2.0, 2.0, np.prod(input_shape), dtype=np.float32).reshape(input_shape)
+        slope = np.linspace(0.1, 0.8, np.prod(output_shape), dtype=np.float32).reshape(
+            output_shape
+        )
+        shape = np.array(output_shape, dtype=np.int64)
+        inputs = [
+            onnx.helper.make_tensor_value_info("x", onnx.TensorProto.FLOAT, input_shape),
+            onnx.helper.make_tensor_value_info("slope", onnx.TensorProto.FLOAT, output_shape),
+        ]
+        initializers = []
+        feeds = {"x": x, "slope": slope}
+        if constant_shape:
+            initializers.append(onnx.numpy_helper.from_array(shape, "shape"))
+        else:
+            inputs.append(
+                onnx.helper.make_tensor_value_info(
+                    "shape", onnx.TensorProto.INT64, [len(output_shape)]
+                )
+            )
+            feeds["shape"] = shape
+        proto = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                [
+                    onnx.helper.make_node("Expand", ["x", "shape"], ["expanded"]),
+                    onnx.helper.make_node("PRelu", ["expanded", "slope"], ["output"]),
+                ],
+                "prelu_data_expansion",
+                inputs,
+                [
+                    onnx.helper.make_tensor_value_info(
+                        "output", onnx.TensorProto.FLOAT, output_shape
+                    )
+                ],
+                initializers,
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 17)],
+            ir_version=8,
+        )
+        onnx.checker.check_model(proto, full_check=True)
+        model = ir.from_proto(proto)
+        mod.expand_before_binary_op_rules.apply_to_model(model)
+        onnx.checker.check_model(ir.to_proto(model), full_check=True)
+        expanded = np.broadcast_to(x, output_shape)
+        expected = np.where(expanded >= 0, expanded, expanded * slope)
+        actual = _run_model(model, feeds)[0]
+        self.assertEqual(actual.shape, output_shape)
+        np.testing.assert_array_equal(actual, expected)
+
+    def test_prelu_slope_expand_is_removed(self):
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[2, 3] x, float[3] slope) => (float[2, 3] output)
+            <int64[2] shape = {2, 3}>
+            {
+                expanded = Expand(slope, shape)
+                output = PRelu(x, expanded)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = self._apply_and_check(model_text, 1, ["PRelu"])
+        onnx.checker.check_model(ir.to_proto(model), full_check=True)
+        x = np.array([[-2.0, 0.0, 2.0], [-1.0, 1.0, -3.0]], dtype=np.float32)
+        slope = np.array([0.1, 0.2, 0.3], dtype=np.float32)
+        expected = np.where(x >= 0, x, x * slope)
+        for candidate in (original, model):
+            actual = _run_model(candidate, {"x": x, "slope": slope})[0]
+            np.testing.assert_array_equal(actual, expected)
+
     def _apply_and_check(
         self,
         model_text: str,
