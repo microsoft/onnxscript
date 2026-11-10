@@ -462,6 +462,47 @@ def gather(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
+@register("Slice", version=(10, None))
+def slice_shape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Fold slices selecting known dimensions from a partially symbolic shape."""
+    input = _get_input(node, 0)
+    if input is None or input.shape is None or input.shape.rank() != 1:
+        return None
+    shape_value = state.get_shape_value(input)
+    if shape_value is None:
+        return None
+
+    def get_index(index: int, default: int | None = None) -> int | None:
+        value = _get_input(node, index)
+        if value is None:
+            return default
+        array = _get_numpy_value(value)
+        if (
+            array is None
+            or array.shape != (1,)
+            or array.dtype not in (np.dtype("int32"), np.dtype("int64"))
+        ):
+            return None
+        return int(array.item())
+
+    start = get_index(1)
+    end = get_index(2)
+    axis = get_index(3, 0)
+    step = get_index(4, 1)
+    if start is None or end is None or axis not in (0, -1) or step is None or step == 0:
+        return None
+    # ONNX clamps reverse starts to zero, unlike Python's below-range starts.
+    if step < 0:
+        start = max(start, -len(shape_value))
+    sliced = shape_value[start:end:step]
+    output = _get_output(node, 0)
+    if output is not None:
+        state.set_sym_value(output, ir.Shape(sliced))
+    if all(isinstance(d, int) for d in sliced):
+        return op.Constant(value=ir.tensor(np.array(sliced, dtype=np.int64)))
+    return None
+
+
 def _propagate_shape_value(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Propagates symbolic shape value of input 0 to output 0.
 
