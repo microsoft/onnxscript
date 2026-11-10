@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import onnx_ir as ir
 
 from onnxscript.rewriter._rewrite_rule import RewriteRule
 
@@ -18,23 +19,9 @@ def check_if_simulated_instance_norm_is_used(
     bias_full,
     **_,
 ) -> bool:
-    """Check if the simulated instance normalization is used.
-
-    In torchlib with opset18, onnx.GroupNorm is using wrong definition, so
-    we use InstanceNormalization to simulate GroupNormalization. We need to check if there are arguments created to simulation.
-    If there are, then we need to replace the pattern. If they are not used, then we don't need to replace the pattern.
-
-    To validate this, we need to check the following:
-    1. weight_for_norm are all 1 and bias_for_norm are all 0, as they are created for the simulation.
-    2. weight_full and bias_full are unsqueezed to be easily broadcastable.
-    3. input rank should be 4
-    4. weight_full and bias_full should have ones except first dim.
-    5. adjusted_input_shape is a constant tensor of form [0, g, -1]
-    6. original_input_shape is the same as input_x shape.
-
-    Returns:
-        bool: True if the simulated instance normalization is used, False otherwise.
-    """
+    """Recognize the static NCHW InstanceNormalization decomposition of GroupNorm."""
+    if any(value.shape is None for value in (input_x, weight_full, bias_full)):
+        return False
     weight_for_norm_const_value = weight_for_norm.const_value
     if weight_for_norm_const_value is None:
         return False
@@ -45,6 +32,8 @@ def check_if_simulated_instance_norm_is_used(
         return False
     bias_for_norm = bias_for_norm_const_value.numpy()
 
+    if weight_for_norm.ndim != 1 or bias_for_norm.shape != weight_for_norm.shape:
+        return False
     if not np.all(weight_for_norm == 1):
         return False
     if not np.all(bias_for_norm == 0):
@@ -71,7 +60,8 @@ def check_if_simulated_instance_norm_is_used(
 
     g = weight_for_norm.shape[0]
     if (
-        adjusted_input_shape_const_value is None
+        g <= 0
+        or adjusted_input_shape_const_value is None
         or adjusted_input_shape_const_value.numpy().tolist() != [0, g, -1]
     ):
         return False
@@ -113,11 +103,19 @@ def check_onnx_group_normalization(context, **kwargs) -> bool:
     input_x = kwargs["input_x"]
     weight_full = kwargs["weight_full"]
     bias_full = kwargs["bias_full"]
-    if any(value.shape is None for value in (input_x, weight_full, bias_full)):
+    # GroupNormalization's float32 stash would lose precision for DOUBLE inputs.
+    if input_x.dtype not in (ir.DataType.FLOAT, ir.DataType.FLOAT16):
         return False
     if not check_if_simulated_instance_norm_is_used(context, **kwargs):
         return False
-    return weight_full.shape[0] == bias_full.shape[0] == input_x.shape[1]
+    channels = input_x.shape[1]
+    groups = kwargs["weight_for_norm"].const_value.shape[0]
+    return (
+        isinstance(channels, int)
+        and channels > 0
+        and channels % groups == 0
+        and weight_full.shape[0] == bias_full.shape[0] == channels
+    )
 
 
 def onnx_group_normalization(
