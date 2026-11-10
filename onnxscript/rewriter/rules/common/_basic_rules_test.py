@@ -717,6 +717,21 @@ class Flatten2ReshapeTest(unittest.TestCase):
         inputs = np.random.default_rng(17).random(input_shape, dtype="float32")
         testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
 
+    @parameterized.parameterized.expand(
+        [
+            ("trailing_zero", (3, 4, 0), 1),
+            ("leading_zero", (2, 0, 3, 5), 3),
+            ("first_dim_zero", (0, 3, 4), 1),
+        ]
+    )
+    def test_flatten_to_reshape_with_zero_sized_dim(self, _, input_shape, axis):
+        model = self.create_model(input_shape=input_shape, axis=axis)
+        updated_model = clone_model(model)
+        _basic_rules.flatten_to_reshape_rule.apply_to_model(updated_model)
+
+        inputs = np.zeros(input_shape, dtype="float32")
+        testing.assert_numerically_equal(model, updated_model, (inputs,), atol=0, rtol=0)
+
     def test_unsupported_flatten_to_reshape(self):
         model = self.create_model(input_shape=("N", "C1", "C2"), axis=2)
 

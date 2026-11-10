@@ -349,6 +349,13 @@ class Flatten2Reshape(RewriteRuleClassBase):
         # Verify if it is possible to apply rule.
         if np.count_nonzero(self._new_shape == -1) > 1:
             return check_result.fail("Impossible to compute new shape.")
+
+        # Reshape reads a 0 as "copy the input dim", so only the axis=1 copy of dim 0 is safe.
+        zero_dims = self._new_shape == 0
+        if axis == 1:
+            zero_dims[0] = False
+        if zero_dims.any():
+            return check_result.fail("Zero-sized dimension cannot be expressed in Reshape.")
         return check_result
 
 
