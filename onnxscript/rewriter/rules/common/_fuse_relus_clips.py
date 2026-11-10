@@ -42,6 +42,13 @@ class FuseSuccessiveRelu(RewriteRuleClassBase):
 
 
 class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
+    """Base class for Clip-Relu and Clip-Clip fusion rewrites.
+
+    In ONNX opset 1 through 10, Clip had only 1 input with min and max defined
+    as float attributes. In opset 11, min and max became tensor inputs. This
+    rule operates on tensor inputs and requires opset 11 or later.
+    """
+
     # Whether the pattern includes a Relu, which acts as a lower bound of 0.
     has_relu: bool = False
 
