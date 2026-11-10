@@ -14,6 +14,7 @@ from typing import List, Sequence
 import numpy as np
 import onnx_ir as ir
 
+from onnxscript.rewriter import _ir_utils
 from onnxscript.rewriter import pattern as orp
 
 
@@ -128,24 +129,26 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
             )
 
         # Pad constraints: inputs
-        if (pads := pad_node.inputs[1]).const_value is None:
+        pads = pad_node.inputs[1]
+        assert pads is not None
+        if (pads_value := _ir_utils.get_numpy_value(pads)) is None:
             return check_result.fail(f"{pads.name} is not a constant/initializer.")
         if len(pad_node.inputs) > 2 and (constant_value := pad_node.inputs[2]) is not None:
-            if constant_value.const_value is None:
+            if (fill_value := _ir_utils.get_numpy_value(constant_value)) is None:
                 return check_result.fail(
                     f"{constant_value.name} is not a constant/initializer."
                 )
-            elif constant_value.const_value.numpy().item() != 0:
+            elif fill_value.item() != 0:
                 return check_result.fail(f"{constant_value.name} must be equal to 0.")
         if len(pad_node.inputs) > 3 and (axes := pad_node.inputs[3]) is not None:
-            if axes.const_value is None:
+            if (axes_value := _ir_utils.get_numpy_value(axes)) is None:
                 return check_result.fail(f"{axes.name} is not a constant/initializer.")
-            axes_list = [x if x >= 0 else x_rank + x for x in axes.const_value.numpy()]
+            axes_list = [x if x >= 0 else x_rank + x for x in axes_value]
         else:
             axes_list = list(range(x_rank))
 
         # Pad constraints: values
-        self._pads_list = fill_pads_with_axes(pads.const_value.numpy(), axes_list, x_rank)
+        self._pads_list = fill_pads_with_axes(pads_value.tolist(), axes_list, x_rank)
         if np.any(self._pads_list[:2] + self._pads_list[x_rank : x_rank + 2]):
             self._pads_list = None
             return check_result.fail(f"{pads.name} must be zero in non-spatial dimensions.")
@@ -200,9 +203,9 @@ class FuseConvIntegerPad(FuseConvPad):
         # only agree when x_zero_point is absent or zero.
         conv_node = conv.producer()
         if len(conv_node.inputs) > 2 and (x_zero_point := conv_node.inputs[2]) is not None:
-            if x_zero_point.const_value is None:
+            if (zero_point_value := _ir_utils.get_numpy_value(x_zero_point)) is None:
                 return check_result.fail(f"{x_zero_point.name} is not a constant/initializer.")
-            if np.any(x_zero_point.const_value.numpy() != 0):
+            if np.any(zero_point_value != 0):
                 return check_result.fail(f"{x_zero_point.name} must be equal to 0.")
         return check_result
 

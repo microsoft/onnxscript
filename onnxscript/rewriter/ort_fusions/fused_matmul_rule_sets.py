@@ -31,9 +31,8 @@ class FusedMatMulDiv1(orp.RewriteRuleClassBase):
 
     def check(self, context, x, y, cst) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        if cst.const_value is None:
+        if (value := _ir_utils.get_numpy_value(cst)) is None:
             return check_result.fail("Divisor is not a constant value.")
-        value = cst.const_value.numpy()
         if value.size > 1:
             return check_result.fail("Divisor is not a scalar value.")
         return check_result
@@ -52,9 +51,9 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
 
     def check(self, context, x, y, cst, **_) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        if cst.const_value is None:
+        if (value := _ir_utils.get_numpy_value(cst)) is None:
             return check_result.fail("Divisor is not a constant value.")
-        if cst.const_value.numpy().size > 1:
+        if value.size > 1:
             return check_result.fail("Divisor is not a scalar value.")
         return check_result
 

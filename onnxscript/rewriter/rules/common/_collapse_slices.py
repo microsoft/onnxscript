@@ -25,10 +25,10 @@ def _check_if_redundant_slice(
     """If the starts is 0, and the ends is equal to or grater than the shape of the specified axis, then the slice is redundant."""
     del context  # Reserved for future extensions
 
-    starts_const = starts.const_value
-    ends_const = ends.const_value
-    axes_const = axes.const_value
-    steps_const = steps.const_value
+    starts_const = _ir_utils.get_const_value(starts)
+    ends_const = _ir_utils.get_const_value(ends)
+    axes_const = _ir_utils.get_const_value(axes)
+    steps_const = _ir_utils.get_const_value(steps)
 
     if starts_const is None or ends_const is None or axes_const is None or steps_const is None:
         logger.info("The value 'start', 'end', 'axis', 'step' is not statically known.")

@@ -572,7 +572,7 @@ def _copy_for_function(
         if value is None:
             return None
         if value not in value_map:
-            const_value = value.const_value
+            const_value = _ir_utils.get_const_value(value)
             if const_value is not None:
                 # create a Constant node to represent the value
                 value_attr = ir.AttrTensor("value", const_value)

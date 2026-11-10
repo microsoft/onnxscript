@@ -8,6 +8,7 @@ from typing import Sequence
 
 import onnx_ir as ir
 
+from onnxscript.rewriter import _ir_utils
 from onnxscript.rewriter._basics import MatchFailureError
 from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
@@ -235,7 +236,7 @@ def check_if_not_need_reshape(
     """
     input_a_shape = input_a.shape
     input_b_shape = input_b.shape
-    shape_c_tensor = shape_c.const_value
+    shape_c_tensor = _ir_utils.get_const_value(shape_c)
     if shape_c_tensor is None:
         logger.info("The value 'shape_c' is not statically known.")
         return False
@@ -271,7 +272,7 @@ def check_if_not_need_reshape(
     matched_reshape_b = matched_node.inputs[1].producer() if shape_b is not None else None
     allowzero_a = _get_allowzero(matched_reshape_a)
     if shape_a is not None:
-        shape_a_tensor = shape_a.const_value
+        shape_a_tensor = _ir_utils.get_const_value(shape_a)
         if shape_a_tensor is None or len(shape_a_tensor.shape) != 1:
             logger.info("The value 'shape_a' is not statically known or 1-D.")
             return False
@@ -285,7 +286,7 @@ def check_if_not_need_reshape(
 
     allowzero_b = _get_allowzero(matched_reshape_b)
     if shape_b is not None:
-        shape_b_tensor = shape_b.const_value
+        shape_b_tensor = _ir_utils.get_const_value(shape_b)
         if shape_b_tensor is None or len(shape_b_tensor.shape) != 1:
             logger.info("The value 'shape_b' is not statically known or 1-D.")
             return False

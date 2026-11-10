@@ -7,6 +7,7 @@ import logging
 import numpy as np
 import onnx
 
+from onnxscript.rewriter import _ir_utils
 from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 logger = logging.getLogger(__name__)
@@ -40,12 +41,12 @@ def check_if_simulated_instance_norm_is_used(
     Returns:
         bool: True if the simulated instance normalization is used, False otherwise.
     """
-    weight_for_norm_const_value = weight_for_norm.const_value
+    weight_for_norm_const_value = _ir_utils.get_const_value(weight_for_norm)
     if weight_for_norm_const_value is None:
         return False
     weight_for_norm = weight_for_norm_const_value.numpy()
 
-    bias_for_norm_const_value = bias_for_norm.const_value
+    bias_for_norm_const_value = _ir_utils.get_const_value(bias_for_norm)
     if bias_for_norm_const_value is None:
         return False
     bias_for_norm = bias_for_norm_const_value.numpy()
@@ -72,7 +73,7 @@ def check_if_simulated_instance_norm_is_used(
     if not all(dim == 1 for dim in bias_full_shape[1:]):
         return False
 
-    adjusted_input_shape_const_value = adjusted_input_shape.const_value
+    adjusted_input_shape_const_value = _ir_utils.get_const_value(adjusted_input_shape)
 
     g = weight_for_norm.shape[0]
     if (
@@ -82,7 +83,7 @@ def check_if_simulated_instance_norm_is_used(
         return False
 
     # NOTE: Restrict the rule to only support constant shape
-    original_input_shape_const_value = original_input_shape.const_value
+    original_input_shape_const_value = _ir_utils.get_const_value(original_input_shape)
     if (
         original_input_shape_const_value is None
         or original_input_shape_const_value.numpy().tolist() != input_x.shape

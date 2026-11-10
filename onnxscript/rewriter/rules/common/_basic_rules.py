@@ -102,15 +102,15 @@ class ExpandIdentity(RewriteRuleClassBase):
 
     def check(self, context, x, shape) -> MatchResult:
         check_result = MatchResult()
-        if shape.const_value is None:
+        if (shape_value := ir_utils.get_numpy_value(shape)) is None:
             # Shape is not a constant and cannot be guessed.
             return check_result.fail("Shape is not a constant and cannot be guessed.")
         if (x_shape := x.shape) is None:
             # We don't know the shape of the input
             return check_result.fail("Input shape is not known.")
-        if x_shape.dims != tuple(shape.const_value.numpy().tolist()):
+        if x_shape.dims != tuple(shape_value.tolist()):
             return check_result.fail(
-                f"Input shape {x_shape.dims} does not match the shape {shape.const_value.numpy().tolist()}."
+                f"Input shape {x_shape.dims} does not match the shape {shape_value.tolist()}."
             )
         return check_result
 
@@ -171,12 +171,12 @@ class SlicesSplit(RewriteRuleClassBase):
     def check(self, context, x, begin0, end0, axes0, begin1, end1, axes1) -> MatchResult:
         check_result = MatchResult()
         if (
-            axes0.const_value is None
-            or axes1.const_value is None
-            or axes0.const_value.numpy().tolist() != axes1.const_value.numpy().tolist()
+            (axes0_value := ir_utils.get_numpy_value(axes0)) is None
+            or (axes1_value := ir_utils.get_numpy_value(axes1)) is None
+            or axes0_value.tolist() != axes1_value.tolist()
         ):
             return check_result.fail("Axes are not equal or not constant.")
-        axes = axes0.const_value.numpy().tolist()
+        axes = axes0_value.tolist()
         if len(axes) != 1:
             return check_result.fail("Axes has more than one dimension.")
         if x.shape is not None:
@@ -186,18 +186,18 @@ class SlicesSplit(RewriteRuleClassBase):
         if axes[0] != -1 and axes[0] != rank - 1:
             return check_result.fail("Axes is not -1 or last dimension.")
         if (
-            begin0.const_value is None
-            or end0.const_value is None
-            or begin1.const_value is None
-            or end1.const_value is None
+            (begin0_value := ir_utils.get_numpy_value(begin0)) is None
+            or (end0_value := ir_utils.get_numpy_value(end0)) is None
+            or (begin1_value := ir_utils.get_numpy_value(begin1)) is None
+            or (end1_value := ir_utils.get_numpy_value(end1)) is None
         ):
             return check_result.fail("Begin or end are not constant values.")
-        if begin0.const_value.numpy().tolist() != [0]:
+        if begin0_value.tolist() != [0]:
             return check_result.fail("First begin value is not 0.")
         e0, b1, e1 = (
-            end0.const_value.numpy().tolist(),
-            begin1.const_value.numpy().tolist(),
-            end1.const_value.numpy().tolist(),
+            end0_value.tolist(),
+            begin1_value.tolist(),
+            end1_value.tolist(),
         )
         if e0[0] != b1[0]:
             return check_result.fail("End0 is not equal to Begin1.")

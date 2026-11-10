@@ -30,6 +30,7 @@ from typing import ClassVar
 import numpy as np
 import onnx_ir as ir
 
+from onnxscript.rewriter import _ir_utils
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
@@ -95,7 +96,7 @@ class _FuseMinMaxBase(RewriteRuleClassBase, abc.ABC):
 
         # Ensure all inputs except the first are constants
         for input_ in first_node.inputs[1:] + second_node.inputs[1:]:
-            if ir.convenience.get_const_tensor(input_) is None:
+            if _ir_utils.get_const_value(input_) is None:
                 return check_result.fail(f"{input_.name} is not a constant.")
 
             # If scalars are required (Clip fusion), enforce scalar-ness

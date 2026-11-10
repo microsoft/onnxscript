@@ -72,9 +72,9 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         if self._max_pos_id is not None:
             # Use max_pos_id from the model metadata
             max_pos_id = self._max_pos_id
-        elif position_ids.const_value is not None:
+        elif (position_ids_value := _ir_utils.get_numpy_value(position_ids)) is not None:
             # Calculate max_pos_id from the position_ids tensor
-            max_pos_id = int(np.max(position_ids.const_value.numpy()))
+            max_pos_id = int(np.max(position_ids_value))
         else:
             # Dynamically compute max_pos_id from position_ids using ONNX ops
             inv_freq = op.Reshape(inv_freq, op.Constant(value_ints=[1, -1]))
@@ -165,7 +165,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         check_result = pattern.MatchResult()
         # TODO(rama): handle redundant reshape/expand
         if self._const_freqs:
-            if (freqs.const_value is None) or not _ir_utils.has_rank(freqs, 3):
+            if (_ir_utils.get_const_value(freqs) is None) or not _ir_utils.has_rank(freqs, 3):
                 return check_result.fail("freqs is not a constant or not 3D.", freqs)
             else:
                 return check_result
@@ -184,7 +184,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             if not _ir_utils.has_rank(expanded_inv_freq, 3):
                 return check_result.fail("expanded_inv_freq is not 3D.", expanded_inv_freq)
             # TODO: check expanded_inv_freq shape
-        if inv_freq.const_value is None:  # TODO: should this be inv_freq_shape?
+        if _ir_utils.get_const_value(inv_freq) is None:
             return check_result.fail("inv_freq is not a constant.", inv_freq)
         if inv_freq_shape[0] != 1 or inv_freq_shape[2] != 1:
             return check_result.fail("inv_freq is not of shape [1, ., 1].", inv_freq)
