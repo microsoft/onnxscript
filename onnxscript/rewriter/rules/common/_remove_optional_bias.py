@@ -120,6 +120,15 @@ class RemoveOptionalBiasFromGemm(_RemoveOptionalBias):
     def pattern(self, op, x, w, b):
         return op.Gemm(x, w, b, _outputs=["out"])
 
+    def check(self, context, b: ir.Value, **kwargs) -> MatchResult:
+        check_result = MatchResult()
+        opset_version = _get_opset_version(context)
+        if opset_version is not None and opset_version < 11:
+            return check_result.fail(
+                f"Gemm requires input C in opset {opset_version} (< 11)."
+            )
+        return super().check(context, b, **kwargs)
+
 
 remove_optional_bias_from_conv_rule = RemoveOptionalBiasFromConv().rule()
 remove_optional_bias_from_conv_transpose_rule = RemoveOptionalBiasFromConvTranspose().rule()
