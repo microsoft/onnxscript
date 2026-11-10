@@ -13,6 +13,101 @@ import onnxscript.optimizer as optimizer
 
 
 class OptimizerTest(unittest.TestCase):
+    def test_materialize_reshape_shape_preserves_runtime_target(self):
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 8, opset_import: ["" : 14]>
+            reshape (float[2, 15, 7] data, int64[4] target) => (float[15, 7, 2] output)
+            <float[2, 3, 5, 7] reshaped>
+            {
+                reshaped = Reshape(data, target)
+                transposed = Transpose<perm = [1, 2, 3, 0]>(reshaped)
+                final_shape = Constant<value = int64[3] {15, 7, 2}>()
+                output = Reshape(transposed, final_shape)
+            }
+            """
+        )
+        inputs = {
+            "data": np.arange(210, dtype=np.float32).reshape(2, 15, 7),
+            "target": np.array([3, 2, 5, 7], dtype=np.int64),
+        }
+        onnx.checker.check_model(model)
+        expected = onnx.reference.ReferenceEvaluator(model).run(None, inputs)[0]
+        optimized = optimizer.optimize(model)
+        onnx.checker.check_model(optimized)
+        actual = onnx.reference.ReferenceEvaluator(optimized).run(None, inputs)[0]
+        np.testing.assert_array_equal(actual, expected)
+        self.assertTrue(any("target" in node.input for node in optimized.graph.node))
+
+    def test_materialize_reshape_shape_preserves_literal_zero(self):
+        for opset in (5, 13, 14):
+            with self.subTest(opset=opset):
+                model = onnx.parser.parse_model(
+                    f"""
+                    <ir_version: 8, opset_import: ["" : {opset}]>
+                    reshape (float[2, 0, 3] data, float[6, 0] ref) => (float[6, 0] output)
+                    {{
+                        target = Shape(ref)
+                        output = Reshape(data, target)
+                    }}
+                    """
+                )
+                inputs = {
+                    "data": np.empty((2, 0, 3), dtype=np.float32),
+                    "ref": np.empty((6, 0), dtype=np.float32),
+                }
+                onnx.checker.check_model(model)
+                expected = onnx.reference.ReferenceEvaluator(model).run(None, inputs)[0]
+                optimized = optimizer.optimize(model)
+                onnx.checker.check_model(optimized, full_check=True)
+                actual = onnx.reference.ReferenceEvaluator(optimized).run(None, inputs)[0]
+                self.assertEqual(actual.shape, (6, 0))
+                np.testing.assert_array_equal(actual, expected)
+                reshape = optimized.graph.node[0]
+                if opset < 14:
+                    self.assertEqual(len(reshape.attribute), 0)
+
+    def test_materialize_reshape_shape_opset_boundary(self):
+        for opset in (5, 13, 14):
+            with self.subTest(opset=opset):
+                model = onnx.parser.parse_model(
+                    f"""
+                    <ir_version: 8, opset_import: ["" : {opset}]>
+                    reshape (float[N, 2, 3] data) => (float[N, 6] output)
+                    {{
+                        input_shape = Shape(data)
+                        index = Constant<value = int64[1] {{0}}>()
+                        batch = Gather<axis = 0>(input_shape, index)
+                        six = Constant<value = int64[1] {{6}}>()
+                        target = Concat<axis = 0>(batch, six)
+                        output = Reshape(data, target)
+                    }}
+                    """
+                )
+                onnx.checker.check_model(model)
+                optimized = optimizer.optimize(model)
+                onnx.checker.check_model(optimized, full_check=True)
+                self.assertEqual(optimized.opset_import[0].version, opset)
+                self.assertEqual([n.op_type for n in optimized.graph.node], ["Reshape"])
+                reshape = optimized.graph.node[0]
+                self.assertEqual(
+                    {a.name: a.i for a in reshape.attribute},
+                    {"allowzero": 1} if opset >= 14 else {},
+                )
+                target = next(
+                    value
+                    for value in optimized.graph.initializer
+                    if value.name == reshape.input[1]
+                )
+                np.testing.assert_array_equal(onnx.numpy_helper.to_array(target), [-1, 6])
+                for batch in (0, 1, 4):
+                    inputs = {
+                        "data": np.arange(batch * 6, dtype=np.float32).reshape(batch, 2, 3)
+                    }
+                    expected = onnx.reference.ReferenceEvaluator(model).run(None, inputs)[0]
+                    actual = onnx.reference.ReferenceEvaluator(optimized).run(None, inputs)[0]
+                    np.testing.assert_array_equal(actual, expected)
+
     def test_preserves_magnitude_stabilizer(self):
         model = ir.from_onnx_text(
             """
