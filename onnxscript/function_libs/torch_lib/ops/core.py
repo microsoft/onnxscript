@@ -4879,7 +4879,8 @@ def aten_heaviside(self: TReal, values: TReal) -> TReal:
 
     zero = op.CastLike(0, self)
     one = op.CastLike(1, self)
-    intermediate = op.Where(op.Less(self, zero), zero, one)
+    # Like PyTorch, NaN inputs give 0 because they are not greater than 0
+    intermediate = op.Where(op.Greater(self, zero), one, zero)
 
     return op.Where(op.Equal(self, zero), values, intermediate)
 

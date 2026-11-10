@@ -2069,6 +2069,19 @@ class TorchLibe2eTest(unittest.TestCase):
         for actual, expected in zip(onnx_program(x), Model()(x)):
             torch.testing.assert_close(actual, expected, rtol=1e-15, atol=0)
 
+    def test_heaviside_of_nan_is_zero(self):
+        class Model(torch.nn.Module):
+            def forward(self, x, values):
+                return torch.heaviside(x, values)
+
+        nan, inf = float("nan"), float("inf")
+        x = torch.tensor([nan, -inf, -2.0, 0.0, 0.0, 3.5, inf, nan])
+        values = torch.tensor([0.5, 0.5, 0.5, 0.5, nan, 0.5, 0.5, nan])
+        onnx_program = torch.onnx.export(Model(), (x, values), dynamo=True, verbose=False)
+        torch.testing.assert_close(
+            onnx_program(x, values)[0], Model()(x, values), rtol=0, atol=0, equal_nan=True
+        )
+
     def test_conv3d_without_bias_produces_1d_bias(self):
         class Model(torch.nn.Module):
             def __init__(self):
