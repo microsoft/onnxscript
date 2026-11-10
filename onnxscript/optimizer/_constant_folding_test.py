@@ -912,55 +912,135 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
 
-    def test_shape_gather_concat_reshape_with_neg1_dim(self):
-        """Test that Shape->Gather->Concat->Reshape is not incorrectly folded when shape has -1 dims.
-
-        When a tensor shape has -1 as an integer (representing an unknown dynamic
-        dimension), the Shape operator should not be folded to a constant containing -1,
-        because that would cause downstream Reshape ops to receive multiple -1 values
-        (which is invalid in ONNX: at most one -1 is allowed in a Reshape shape).
-        See: https://github.com/microsoft/onnxscript/issues/2963
-        """
-        model_text = """
+    @parameterized.parameterized.expand(
+        [
+            (dim, api, as_proto, shape_inference, scalar_index)
+            for dim in (-1, -2, "N", None)
+            for api in ("fold_constants", "optimize")
+            for as_proto in (False, True)
+            for shape_inference in (False, True)
+            for scalar_index in (False, True)
+        ]
+    )
+    def test_shape_gather_concat_reshape_with_unknown_dim(
+        self, dim, api, as_proto, shape_inference, scalar_index
+    ):
+        """Regression for https://github.com/microsoft/onnxscript/issues/2963."""
+        index = "value_int=0" if scalar_index else "value_ints=[0]"
+        unsqueeze = (
+            """
+                axes = Constant <value_ints=[0]> ()
+                gathered = Unsqueeze(selected, axes)
+            """
+            if scalar_index
+            else "gathered = Identity(selected)"
+        )
+        model = ir.from_onnx_text(f"""
             <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[N, 512, 4, 1] x) => (float[?, ?] val_5)
-            {
-                shape = Shape(x)
-                index_0 = Constant <value_ints=[0]> ()
-                gathered = Gather <axis=0> (shape, index_0)
+            agraph (float[N, 512, 4, 1] x) => (float[?, ?] y)
+            {{
+                reduced = ReduceMax <axes=[2], keepdims=1> (x)
+                shape = Shape(reduced)
+                index_0 = Constant <{index}> ()
+                selected = Gather <axis=0> (shape, index_0)
+                {unsqueeze}
                 neg_one = Constant <value_ints=[-1]> ()
                 concat_shape = Concat <axis=0> (gathered, neg_one)
-                val_5 = Reshape(x, concat_shape)
-            }
-        """
-        model = ir.from_onnx_text(model_text)
-        # Set x to have -1 as an integer dim (not SymbolicDim), which is how some
-        # tools represent unknown dimensions in ONNX IR
-        model.graph.inputs[0].shape = ir.Shape([-1, 512, 4, 1])
-
-        # Fold should NOT fold Shape to a constant [-1, 512, 4, 1] because -1 dims
-        # represent unknown/dynamic dimensions, not literal -1 values
-        optimized = self._fold(model, onnx_shape_inference=True, dce=True)
-
-        # Shape node must be preserved (not folded) since it has a -1 dim
-        shape_nodes = [n for n in optimized.graph if n.op_type == "Shape"]
-        self.assertEqual(
-            len(shape_nodes),
-            1,
-            "Shape node should be preserved when input shape has -1 (unknown) dims",
+                y = Reshape(reduced, concat_shape)
+            }}
+        """)
+        model.graph.inputs[0].shape = ir.Shape([dim, 512, 4, 1])
+        original = ir.serde.serialize_model(model)
+        model = original if as_proto else model
+        if api == "optimize":
+            optimized = optimizer.optimize(model, onnx_shape_inference=shape_inference)
+        else:
+            optimizer.fold_constants(model, onnx_shape_inference=shape_inference)
+            optimizer.remove_unused_nodes(model)
+            optimized = model
+        optimized_proto = (
+            optimized
+            if isinstance(optimized, onnx.ModelProto)
+            else ir.serde.serialize_model(optimized)
         )
+        onnx.checker.check_model(optimized_proto)
+        expected_evaluator = ReferenceEvaluator(original)
+        actual_evaluator = ReferenceEvaluator(optimized_proto)
+        for batch in (2, 3):
+            with self.subTest(batch=batch):
+                x = np.arange(batch * 512 * 4, dtype=np.float32).reshape(batch, 512, 4, 1)
+                expected = expected_evaluator.run(None, {"x": x})[0]
+                actual = actual_evaluator.run(None, {"x": x})[0]
+                self.assertEqual(actual.shape, (batch, 512))
+                np.testing.assert_array_equal(actual, expected)
 
-        # Reshape must not receive [-1, -1] as its shape (two -1 values is invalid)
-        reshape_nodes = [n for n in optimized.graph if n.op_type == "Reshape"]
-        self.assertEqual(len(reshape_nodes), 1)
-        reshape_shape_input = reshape_nodes[0].inputs[1]
-        if reshape_shape_input is not None and reshape_shape_input.const_value is not None:
-            shape_vals = reshape_shape_input.const_value.numpy().tolist()
-            neg_one_count = sum(1 for v in shape_vals if v == -1)
-            self.assertLessEqual(
-                neg_one_count,
-                1,
-                f"Reshape shape {shape_vals} must not have more than one -1 value",
+    @parameterized.parameterized.expand([(-1,), (-2,), ("N",), (None,)])
+    def test_fold_known_dimensions_of_partial_shape(self, dim):
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 512, 0] x) => (int64[2] sliced, int64[1] gathered)
+            {
+                sliced = Shape <start=1, end=3> (x)
+                shape = Shape(x)
+                index = Constant <value_ints=[1]> ()
+                gathered = Gather <axis=0> (shape, index)
+            }
+        """)
+        model.graph.inputs[0].shape = ir.Shape([dim, 512, 0])
+        optimized = self._fold(model)
+        self.assertEqual([node.op_type for node in optimized.graph], ["Constant", "Constant"])
+        np.testing.assert_array_equal(optimized.graph.outputs[0].const_value.numpy(), [512, 0])
+        np.testing.assert_array_equal(optimized.graph.outputs[1].const_value.numpy(), [512])
+
+    @parameterized.parameterized.expand([(-1,), (-2,), ("N",), (None,)])
+    def test_shape_unknown_dimension_arithmetic(self, dim):
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 512] x) => (int64[1] y)
+            {
+                batch = Shape <start=0, end=1> (x)
+                one = Constant <value_ints=[1]> ()
+                incremented = Add(batch, one)
+                index = Constant <value_ints=[0]> ()
+                y = Gather <axis=0> (incremented, index)
+            }
+        """)
+        model.graph.inputs[0].shape = ir.Shape([dim, 512])
+        optimized = self._fold(model)
+        self.assertIsNone(optimized.graph.outputs[0].const_value)
+        evaluator = ReferenceEvaluator(ir.serde.serialize_model(optimized))
+        for batch in (2, 3):
+            actual = evaluator.run(None, {"x": np.zeros((batch, 512), dtype=np.float32)})[0]
+            np.testing.assert_array_equal(actual, [batch + 1])
+
+    @parameterized.parameterized.expand(
+        [
+            ("negative_one", [-1, 512], None),
+            ("negative_two", [-2, 512], None),
+            ("symbolic", ["N", 512], None),
+            ("anonymous", [None, 512], None),
+            ("known", [2, 512], 1024),
+            ("zero", [0, 512], 0),
+            ("scalar", [], 1),
+        ]
+    )
+    def test_fold_size_with_unknown_dimensions(self, _, shape, expected_size):
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 512] x) => (int64 y)
+            {
+                y = Size(x)
+            }
+        """)
+        model.graph.inputs[0].shape = ir.Shape(shape)
+        optimized = self._fold(model)
+        if expected_size is None:
+            self.assertEqual([node.op_type for node in optimized.graph], ["Size"])
+            self.assertIsNone(optimized.graph.outputs[0].const_value)
+        else:
+            self.assertEqual([node.op_type for node in optimized.graph], ["Constant"])
+            self.assertEqual(
+                optimized.graph.outputs[0].const_value.numpy().item(), expected_size
             )
 
     def test_input_size_limit(self):
