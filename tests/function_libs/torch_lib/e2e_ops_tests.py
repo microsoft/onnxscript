@@ -2044,6 +2044,31 @@ class TorchLibe2eTest(unittest.TestCase):
                 self.assertEqual(node.attributes.get_int("noop_with_empty_axes", 0), 0)
         _testing.assert_onnx_program(onnx_program)
 
+    def test_python_float_keeps_float64_precision(self):
+        # torch.export turns the Python floats into scalar_tensor(0.1, dtype=float64).
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return x + 0.1, x * 0.1, x == 0.1, torch.clamp(x, max=0.1)
+
+        x = torch.tensor([1.0, 0.3, 0.1, -2.7], dtype=torch.float64)
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        # assert_onnx_program allows 1e-7 for float64, more than 0.1 rounded to float32
+        # is off by, so compare exactly.
+        for actual, expected in zip(onnx_program(x), Model()(x)):
+            torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+    def test_log2_log10_keep_float64_precision(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.log2(x), torch.log10(x)
+
+        x = torch.tensor([8.0, 1000.0, 3.0, 1e-300, 1e300], dtype=torch.float64)
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, verbose=False)
+        # With log(2) and log(10) computed in float32, the results are off by
+        # about 3e-9, which the 1e-7 float64 tolerance of assert_onnx_program allows.
+        for actual, expected in zip(onnx_program(x), Model()(x)):
+            torch.testing.assert_close(actual, expected, rtol=1e-15, atol=0)
+
     def test_conv3d_without_bias_produces_1d_bias(self):
         class Model(torch.nn.Module):
             def __init__(self):

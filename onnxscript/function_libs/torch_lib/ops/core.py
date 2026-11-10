@@ -5960,7 +5960,7 @@ def aten_log(self: TFloat) -> TFloat:
 def aten_log10(self: TFloat) -> TFloat:
     """log10(Tensor self) -> Tensor"""
 
-    return op.Div(op.Log(self), op.CastLike(op.Log(10.0), self))
+    return op.Div(op.Log(self), ir.tensor(math.log(10.0), dtype=self.dtype))
 
 
 @torch_op("aten::log1p")
@@ -5974,7 +5974,7 @@ def aten_log1p(self: TFloat) -> TFloat:
 def aten_log2(self: TFloat) -> TFloat:
     """log2(Tensor self) -> Tensor"""
 
-    return op.Div(op.Log(self), op.CastLike(op.Log(2.0), self))
+    return op.Div(op.Log(self), ir.tensor(math.log(2.0), dtype=self.dtype))
 
 
 @torch_op("aten::logaddexp", trace_only=True)
@@ -9058,6 +9058,8 @@ def aten_scalar_tensor(
     if dtype == -1:
         dtype = FLOAT.dtype
 
+    if isinstance(s, float) and dtype in (DOUBLE.dtype, COMPLEX128.dtype):
+        s = op.Constant(value=ir.tensor(s, dtype=ir.DataType.DOUBLE))
     return common_ops.cast_to(s, dtype=dtype)
 
 
