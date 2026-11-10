@@ -578,6 +578,7 @@ class RewriteRuleTest(unittest.TestCase):
         model_proto = test_model.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
 
+        before = ir.serde.serialize_model(model).SerializeToString()
         tracer = pattern.MatchingTracer()
         count = rule.apply_to_model(model, tracer=tracer)
         self.assertEqual(count, 0)
@@ -586,6 +587,20 @@ class RewriteRuleTest(unittest.TestCase):
         best_match = best_matches[0]
         self.assertEqual(best_match.status.value, pattern.MatchStatus.NO_MATCH)
         self.assertIn("OpType mismatch: expected Abs, got Neg", best_match.match_result.reason)
+        self.assertEqual(ir.serde.serialize_model(model).SerializeToString(), before)
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            tracer.report()
+        self.assertIn("Status: NO_MATCH", buffer.getvalue())
+        self.assertIn("OpType mismatch: expected Abs, got Neg", buffer.getvalue())
+
+        node_tracer = pattern.MatchingTracer()
+        rule.match(model, model.graph, model.graph[-1], tracer=node_tracer)
+        self.assertIn(
+            "OpType mismatch: expected Abs, got Neg",
+            node_tracer.best_matches_map[rule][0].match_result.reason,
+        )
 
     def test_new_initializer(self):
         def source_pattern(op, x, y):

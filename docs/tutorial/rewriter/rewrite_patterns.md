@@ -47,3 +47,53 @@ These options are documented in detail in the following sections.
 
 ```{include} node_value_checkers.md
 ```
+
+## Debugging rewrite rules
+
+To see matcher progress and applied replacements while running a pass, set
+`verbose` explicitly:
+
+```python
+from onnxscript import rewriter
+
+rewrite_pass = rewriter.RewritePass([rule], verbose=1)
+result = rewrite_pass(model)  # model is an onnx_ir.Model
+print(result.modified)  # Whether any rewrite was applied
+```
+
+Verbose diagnostics go to stdout; they do not configure Python logging.
+`RewritePass` also logs an application count at INFO level on the
+`onnxscript.rewriter` logger when rewrites occur. With the default `verbose=None`,
+each rule retains its own verbosity setting. Use `verbose=0` to suppress verbose
+output or a higher level, such as `verbose=3`, for more matcher detail.
+Verbose mode still applies rewrites.
+
+To investigate why a rule did not apply, use the existing `MatchingTracer` instead:
+
+```python
+tracer = rewriter.MatchingTracer()
+rule.apply_to_model(model, tracer=tracer)
+tracer.report()
+```
+
+This collects diagnostics from the same matcher and condition checks used during
+rewriting, without applying replacements. The report shows the best match across
+the traced rules, its status, and any recorded failure reason and source
+nodes/values. For example, an operator mismatch reports
+`OpType mismatch: expected Abs, got Neg`; check functions can provide specific
+reasons using the failure conventions described above. If there are no partial
+matches, the report prints `No matches found.`; unrelated starting operator types
+are skipped rather than reported individually.
+
+Use a fresh tracer to inspect a particular candidate root node:
+
+```python
+tracer = rewriter.MatchingTracer()
+rule.match(model, model.graph, node, tracer=tracer)
+tracer.report()
+```
+
+`rule.match` checks the pattern and its conditions, but does not invoke the
+replacement function. Whole-model tracing can invoke replacement functions and
+rule visitors and perform analysis/cleanup, so use `model.clone()` when the
+original model must be preserved exactly.
