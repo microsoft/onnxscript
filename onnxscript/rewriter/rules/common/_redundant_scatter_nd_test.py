@@ -438,7 +438,7 @@ class RedundantScatterNdTest(unittest.TestCase):
         """Shape with non-zero start attribute should be safely rejected."""
         model_text = """
             <ir_version: 8, opset_import: ["" : 17]>
-            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            test (float[8, 4] data, float[8, 4] transposed_data, float[4, 4] updates) => (float[8, 4] out)
             <
                 int64 axis = {0},
                 int64 zero = {0},
@@ -454,6 +454,7 @@ class RedundantScatterNdTest(unittest.TestCase):
             }
         """
         model = ir.from_onnx_text(model_text)
+        onnx_check(model)
         count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
@@ -461,9 +462,9 @@ class RedundantScatterNdTest(unittest.TestCase):
         """Shape with end attribute should be safely rejected."""
         model_text = """
             <ir_version: 8, opset_import: ["" : 17]>
-            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            test (float[4, 8] data, float[8, 4] transposed_data, float[4, 4] updates) => (float[8, 4] out)
             <
-                int64 axis = {0},
+                int64 axis = {-1},
                 int64 zero = {0},
                 int64 one = {1},
                 int64[1] axes = {-1}
@@ -477,6 +478,7 @@ class RedundantScatterNdTest(unittest.TestCase):
             }
         """
         model = ir.from_onnx_text(model_text)
+        onnx_check(model)
         count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
