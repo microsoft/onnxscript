@@ -164,6 +164,19 @@ class ReferenceEvaluator:
 
     def evaluate(self, domain: str, op: str, version: int, *args, **kwargs) -> Any:
         logger.debug("Evaluating %s::%s", domain, op)
+        if (
+            (domain, op) == ("", "Conv")
+            and (domain, op) in _OPTIMIZED_OPS
+            and kwargs.get("auto_pad") in {"SAME_UPPER", "SAME_LOWER", "VALID"}
+        ):
+            # Both legacy reference kernels can silently compute incorrect automatic padding.
+            logger.info(
+                "Skipping Conv constant folding with auto_pad=%r because legacy ONNX "
+                "reference kernels compute incorrect padding; use explicit pads or "
+                "upgrade ONNX to a version with corrected reference Conv.",
+                kwargs["auto_pad"],
+            )
+            return None
         evaluator = self.get_evaluator(domain, op, version)
         if evaluator is None:
             return None

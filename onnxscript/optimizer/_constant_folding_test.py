@@ -1220,19 +1220,7 @@ class ReferenceEvaluatorOptimizedOpsTest(unittest.TestCase):
                 {"pads": [1, 2, 0, 1], "strides": [2, 1]},
             ),
             ("dilations", (1, 2, 7, 8), (3, 2, 2, 3), {"dilations": [2, 1]}),
-            (
-                "same_upper",
-                (1, 2, 6, 7),
-                (3, 2, 3, 2),
-                {"auto_pad": "SAME_UPPER", "strides": [2, 2]},
-            ),
-            (
-                "same_lower",
-                (1, 2, 6, 7),
-                (3, 2, 3, 2),
-                {"auto_pad": "SAME_LOWER", "strides": [2, 2]},
-            ),
-            ("valid", (1, 2, 6, 7), (3, 2, 3, 2), {"auto_pad": "VALID"}),
+            ("notset", (1, 2, 6, 7), (3, 2, 3, 2), {"auto_pad": "NOTSET"}),
             ("empty_batch", (0, 2, 6, 7), (3, 2, 3, 2), {}),
             ("empty_channels", (1, 0, 6, 7), (3, 0, 3, 2), {}),
         ]
@@ -1261,6 +1249,65 @@ class ReferenceEvaluatorOptimizedOpsTest(unittest.TestCase):
                     np.testing.assert_allclose(
                         actual, expected, rtol=tolerance, atol=tolerance
                     )
+
+    @parameterized.parameterized.expand(
+        [
+            ("SAME_UPPER", [0, 0, 1, 1], (1, 3, 3, 4)),
+            ("SAME_LOWER", [1, 1, 0, 0], (1, 3, 3, 4)),
+            ("VALID", [0, 0, 0, 0], (1, 3, 2, 3)),
+        ]
+    )
+    def test_conv_auto_pad_does_not_fold_incorrect_values(self, auto_pad, pads, shape):
+        rng = np.random.default_rng(42)
+        x = rng.normal(size=(1, 2, 6, 7)).astype(np.float32)
+        w = rng.normal(size=(3, 2, 3, 2)).astype(np.float32)
+        padded = np.pad(x, ((0, 0), (0, 0), (pads[0], pads[2]), (pads[1], pads[3])))
+        windows = np.lib.stride_tricks.sliding_window_view(padded, (3, 2), axis=(2, 3))
+        expected = np.einsum("nchwkl,ockl->nohw", windows[:, :, ::2, ::2], w)
+        self.assertEqual(expected.shape, shape)
+        legacy = ("", "Conv") in _constant_folding._OPTIMIZED_OPS
+        evaluator = _constant_folding.ReferenceEvaluator()
+
+        for version in (1, 11, 21):
+            with self.subTest(version=version):
+                actual = evaluator.evaluate(
+                    "", "Conv", version, x, w, auto_pad=auto_pad, strides=[2, 2]
+                )
+                if legacy:
+                    self.assertIsNone(actual)
+                else:
+                    self.assertEqual(actual.shape, shape)
+                    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+
+                model = ir.from_onnx_text(
+                    f"""
+                    <ir_version: 10, opset_import: [ "" : {version}]>
+                    agraph () => (float[1, 3, {shape[2]}, {shape[3]}] y)
+                    <float[1] x = {{0.0}}, float[1] w = {{0.0}}>
+                    {{
+                        y = Conv <auto_pad="{auto_pad}", strides=[2, 2]>(x, w)
+                    }}
+                    """
+                )
+                for name, array in (("x", x), ("w", w)):
+                    value = model.graph.initializers[name]
+                    value.shape = ir.Shape(array.shape)
+                    value.const_value = ir.tensor(array)
+                original = ir.serde.serialize_model(model)
+
+                _constant_folding.fold_constants(model)
+
+                if legacy:
+                    self.assertEqual([node.op_type for node in model.graph], ["Conv"])
+                    self.assertIsNone(model.graph.outputs[0].const_value)
+                    self.assertEqual(ir.serde.serialize_model(model), original)
+                else:
+                    self.assertEqual(len(model.graph), 0)
+                    actual = model.graph.outputs[0].const_value.numpy()
+                    self.assertEqual(actual.shape, shape)
+                    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+                self.assertEqual(tuple(model.graph.outputs[0].shape), shape)
+                onnx.checker.check_model(ir.serde.serialize_model(model))
 
     def test_fold_conv_uses_selected_evaluator(self):
         rng = np.random.default_rng(42)
