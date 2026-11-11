@@ -474,13 +474,17 @@ class TestFusedMatmulRules(unittest.TestCase):
                             model.graph[0].attributes.get_float("alpha"), expected_alpha
                         )
                         if dtype not in (ir.DataType.FLOAT, ir.DataType.DOUBLE):
-                            continue  # These CPU ORT kernels support float and double.
+                            continue
                         rewritten = ir.serde.to_proto(model)
                         onnx.checker.check_model(rewritten)
                         feeds = {
                             "x": np.array([[1, -2], [3, 4]], dtype=dtype.numpy()),
                             "y": np.array([[2, 1], [-1, 3]], dtype=dtype.numpy()),
                         }
+                        if dtype == ir.DataType.DOUBLE:
+                            # Older ORT CPU kernels do not support double FusedMatMul.
+                            self._check_model(original, rewritten, feeds)
+                            continue
                         options = ort.SessionOptions()
                         options.graph_optimization_level = (
                             ort.GraphOptimizationLevel.ORT_DISABLE_ALL
