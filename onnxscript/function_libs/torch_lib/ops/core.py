@@ -9478,15 +9478,16 @@ def aten_smm(self: TensorType, mat2: TensorType) -> TensorType:
 
 
 @torch_op(("aten::softmax.int", "aten::special_softmax"), trace_only=True)
-def aten_softmax(self: TFloat, dim: int, dtype: int = -1) -> TFloat:
+def aten_softmax(self: TReal, dim: int, dtype: int = -1) -> TFloat:
     """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
 
     self_is_scalar = len(self.shape) == 0
     if self_is_scalar:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-    result = op.Softmax(self, axis=dim)
     if dtype != -1 and dtype is not None:
-        result = op.Cast(result, to=dtype)
+        # Like PyTorch, cast the input to dtype before the operation
+        self = op.Cast(self, to=dtype)
+    result = op.Softmax(self, axis=dim)
     if self_is_scalar:
         # Convert to scalar when input is scalar
         result = op.Squeeze(result)

@@ -6,6 +6,7 @@ import math
 import unittest
 
 import numpy as np
+import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
 import parameterized
 
@@ -2068,6 +2069,37 @@ class TorchLibe2eTest(unittest.TestCase):
         # about 3e-9, which the 1e-7 float64 tolerance of assert_onnx_program allows.
         for actual, expected in zip(onnx_program(x), Model()(x)):
             torch.testing.assert_close(actual, expected, rtol=1e-15, atol=0)
+
+    @parameterized.parameterized.expand(
+        [
+            ("softmax", torch.softmax, "Softmax"),
+            ("log_softmax", torch.log_softmax, "LogSoftmax"),
+        ]
+    )
+    def test_softmax_dtype_casts_the_input_first(self, _: str, fn, onnx_op: str):
+        # PyTorch casts the input to `dtype` before the operation.
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return fn(x, -1, dtype=torch.float32)
+
+        # An integer input only works when it is cast first: ONNX Softmax and LogSoftmax
+        # take floats only.
+        x = torch.tensor([[1, 2, 3], [0, -4, 2]])
+        onnx_program = torch.onnx.export(Model(), (x,), dynamo=True, optimize=False)
+        actual = onnx_program(x)[0]
+        self.assertEqual(actual.dtype, torch.float32)
+        torch.testing.assert_close(actual, Model()(x))
+
+        # A float16 input must be computed in float32. Check the graph, because ONNX
+        # Runtime's CPU provider has no float16 Softmax and upcasts on its own.
+        x16 = torch.tensor([[0.1, 3.7, -2.25, 5.5]], dtype=torch.float16)
+        onnx_program = torch.onnx.export(Model(), (x16,), dynamo=True, optimize=False)
+        (node,) = [n for n in onnx_program.model.graph if n.op_type == onnx_op]
+        producer = node.inputs[0].producer()
+        self.assertIsNotNone(producer)
+        self.assertEqual(producer.op_type, "Cast")
+        self.assertEqual(producer.attributes["to"].as_int(), ir.DataType.FLOAT)
+        torch.testing.assert_close(onnx_program(x16)[0], Model()(x16))
 
     def test_conv3d_without_bias_produces_1d_bias(self):
         class Model(torch.nn.Module):
