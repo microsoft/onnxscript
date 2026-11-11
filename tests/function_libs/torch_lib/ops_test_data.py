@@ -1152,11 +1152,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: isinstance(sample.kwargs.get("repeats", None), int),
         reason=("ignore cases when repeasts is an int"),
     )
-    .skip(dtypes=(torch.bool,), reason="bool not supported")
-    .skip(
-        matcher=lambda sample: sample.input.numel() == 0,
-        reason="fixme: conversion not implemented when input tensor is empty",
-    ),
+    .skip(dtypes=(torch.bool,), reason="bool not supported"),
     TorchLibOpInfo("reshape", core_ops.aten_reshape),
     TorchLibOpInfo("resolve_conj", core_ops.aten_resolve_conj),
     TorchLibOpInfo("resolve_neg", core_ops.aten_resolve_neg),
