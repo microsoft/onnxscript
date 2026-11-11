@@ -16,7 +16,7 @@ import math
 from typing import Optional, Sequence
 
 from onnxscript.function_libs.torch_lib.registration import torch_op
-from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
+from onnxscript.function_libs.torch_lib.tensor_typing import TFloat, TReal
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -214,15 +214,16 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
 
 
 @torch_op(("aten::log_softmax.int", "aten::special_log_softmax"), trace_only=True)
-def aten_special_log_softmax(self: TFloat, dim: int, dtype: int = -1) -> TFloat:
+def aten_special_log_softmax(self: TReal, dim: int, dtype: int = -1) -> TFloat:
     """special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"""
 
     self_is_scalar = len(self.shape) == 0
     if self_is_scalar:
         self = op.Unsqueeze(self, [0])
+    if dtype != -1 and dtype is not None:
+        # Like PyTorch, cast the input to dtype before the operation
+        self = op.Cast(self, to=dtype)
     result = op.LogSoftmax(self, axis=dim)
-    if dtype != -1:
-        result = op.Cast(result, to=dtype)
     if self_is_scalar:  # squeeze to scalar due to input is scalar
         result = op.Squeeze(result)
     return result
