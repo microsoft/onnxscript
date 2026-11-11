@@ -2,12 +2,15 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import math
 from typing import ClassVar
 
+import numpy as np
 import onnx_ir as ir
 
 import onnxscript.rewriter.pattern as orp
 from onnxscript.rewriter import _ir_utils
+from onnxscript.rewriter._basics import MatchFailureError
 
 
 def _get_node(value: ir.Value, name: str) -> ir.Node:
@@ -23,6 +26,68 @@ def _get_kwargs(node: ir.Node) -> dict[str, float | int]:
     return kwargs
 
 
+def _division_alpha(x: ir.Value, y: ir.Value, cst: ir.Value, alpha: float = 1.0) -> float:
+    """Validate division scaling before encoding it in ORT's float32 alpha attribute.
+
+    Nonfinite divisors are intentionally left as Div: replacing division by infinity
+    with multiplication by zero changes the behavior of infinite matrix products.
+    Ordinary floating-point reciprocal rounding is allowed, but overflow/underflow
+    is not. Subnormal scales are declined to avoid lost relative precision and
+    provider-specific flushing to zero. Double precision requires an exact alpha.
+    """
+    supported = {
+        ir.DataType.FLOAT16,
+        ir.DataType.FLOAT,
+        ir.DataType.DOUBLE,
+        ir.DataType.BFLOAT16,
+    }
+    if x.dtype not in supported or y.dtype != x.dtype or cst.dtype != x.dtype:
+        raise MatchFailureError(
+            "FusedMatMul division requires matching supported floating-point dtypes.", cst
+        )
+    if cst.const_value is None:
+        raise MatchFailureError("Divisor is not a constant value.", cst)
+    c = _ir_utils.get_singleton_value(cst)
+    if c is None:
+        raise MatchFailureError("Divisor is not a singleton value.", cst)
+    divisor_rank = len(cst.const_value.shape)
+    if divisor_rank:
+        if x.shape is None or y.shape is None:
+            raise MatchFailureError("Cannot prove divisor preserves MatMul output rank.", cst)
+        x_rank, y_rank = x.shape.rank(), y.shape.rank()
+        output_rank = max(x_rank, y_rank) - int(x_rank == 1) - int(y_rank == 1)
+        if x_rank == 0 or y_rank == 0 or divisor_rank > output_rank:
+            raise MatchFailureError("Divisor would expand MatMul output rank.", cst)
+    c = float(c)
+    if not math.isfinite(c) or c == 0:
+        raise MatchFailureError("Divisor must be finite and nonzero.", cst)
+    if not math.isfinite(alpha):
+        raise MatchFailureError("Existing FusedMatMul alpha must be finite.")
+    scaled_alpha = alpha / c
+    # ONNX FLOAT attributes are float32 even when the tensor dtype is double.
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+        attribute_alpha = float(np.float32(scaled_alpha))
+        tensor_alpha = float(np.asarray(attribute_alpha, dtype=x.dtype.numpy()))
+    # Bfloat16 has the same normal exponent range as float32; double is bounded
+    # by the float32 attribute. Float16 has a narrower normal range.
+    min_normal = np.finfo(np.float16 if x.dtype == ir.DataType.FLOAT16 else np.float32).tiny
+    if (
+        not math.isfinite(attribute_alpha)
+        or not math.isfinite(tensor_alpha)
+        or (
+            alpha != 0
+            and (abs(attribute_alpha) < min_normal or abs(tensor_alpha) < min_normal)
+        )
+    ):
+        raise MatchFailureError(
+            "Division alpha overflows or underflows the FusedMatMul attribute or tensor dtype.",
+            cst,
+        )
+    if x.dtype == ir.DataType.DOUBLE and attribute_alpha != scaled_alpha:
+        raise MatchFailureError("Division alpha is not exactly representable as float32.", cst)
+    return attribute_alpha
+
+
 class FusedMatMulDiv1(orp.RewriteRuleClassBase):
     """Replaces ``MatMul + Div`` with MatMul."""
 
@@ -30,18 +95,11 @@ class FusedMatMulDiv1(orp.RewriteRuleClassBase):
         return op.Div(op.MatMul(x, y), cst)
 
     def check(self, context, x, y, cst) -> orp.MatchResult:
-        check_result = orp.MatchResult()
-        if cst.const_value is None:
-            return check_result.fail("Divisor is not a constant value.")
-        value = cst.const_value.numpy()
-        if value.size > 1:
-            return check_result.fail("Divisor is not a scalar value.")
-        return check_result
+        _division_alpha(x, y, cst)
+        return orp.MatchResult()
 
     def rewrite(self, op, x, y, cst):
-        value = cst.const_value.numpy()
-        c = float(value[0] if value.shape == (1,) else value)
-        return op.FusedMatMul(x, y, alpha=1 / c, _domain="com.microsoft")
+        return op.FusedMatMul(x, y, alpha=_division_alpha(x, y, cst), _domain="com.microsoft")
 
 
 class FusedMatMulDiv2(orp.RewriteRuleClassBase):
@@ -50,20 +108,15 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
     def pattern(self, op, x, y, cst):
         return op.Div(op.FusedMatMul(x, y, _domain="com.microsoft", _outputs=["fused"]), cst)
 
-    def check(self, context, x, y, cst, **_) -> orp.MatchResult:
-        check_result = orp.MatchResult()
-        if cst.const_value is None:
-            return check_result.fail("Divisor is not a constant value.")
-        if cst.const_value.numpy().size > 1:
-            return check_result.fail("Divisor is not a scalar value.")
-        return check_result
+    def check(self, context, x, y, cst, fused: ir.Value, **_) -> orp.MatchResult:
+        alpha = _get_node(fused, "FusedMatMul").attributes.get_float("alpha", 1.0)
+        _division_alpha(x, y, cst, alpha)
+        return orp.MatchResult()
 
     def rewrite(self, op, x, y, cst, fused: ir.Value):
-        value = cst.const_value.numpy()
-        c = float(value[0] if value.shape == (1,) else value)
         fused_node = _get_node(fused, "FusedMatMul")
         kwargs = _get_kwargs(fused_node)
-        kwargs["alpha"] = kwargs.get("alpha", 1.0) / c
+        kwargs["alpha"] = _division_alpha(x, y, cst, kwargs.get("alpha", 1.0))
         return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
 
