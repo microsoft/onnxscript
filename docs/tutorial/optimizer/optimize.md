@@ -65,6 +65,8 @@ Callbacks receive constant input tensors (`None` for omitted optional inputs),
 a read-only attribute mapping, and immutable operator information. Return one
 tensor per output, or `None` to defer to ONNX reference evaluation. Callbacks
 must be deterministic and must not mutate input tensors or attributes.
+If an input's external data is unavailable, the node is preserved without
+invoking the callback; only omitted optional inputs are passed as `None`.
 Invalid output counts, types, dtypes, and known shapes raise actionable errors.
 
 Custom evaluation follows the normal constant-input, nondeterminism, blacklist,

@@ -2,7 +2,10 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import contextlib
 import dataclasses
+import os
+import tempfile
 import unittest
 from unittest import mock
 
@@ -122,6 +125,66 @@ class ConstantEvaluationTest(unittest.TestCase):
         self._fold(model)
         self.callback.assert_not_called()
 
+    @parameterized.parameterized.expand(
+        [
+            ("missing_ir", False, False, False),
+            ("missing_proto", False, True, False),
+            ("missing_forced", False, False, True),
+            ("readable_ir", True, False, False),
+            ("readable_proto", True, True, False),
+        ]
+    )
+    def test_external_input_availability(self, _, readable, as_proto, force):
+        model = _model()
+
+        def release_inputs():
+            for call in self.callback.call_args_list:
+                for tensor in call.args[0]:
+                    if isinstance(tensor, ir.ExternalTensor):
+                        tensor.release()
+
+        with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as cleanup:
+            cleanup.callback(release_inputs)
+            location = os.path.join(directory, "input.bin")
+            if readable:
+                np.array([3, 5], dtype=np.float32).tofile(location)
+            tensor = ir.ExternalTensor(
+                location=location,
+                offset=0,
+                length=8,
+                dtype=ir.DataType.FLOAT,
+                shape=ir.Shape([2]),
+                name="x",
+            )
+            cleanup.callback(tensor.release)
+            model.graph.initializers["x"].const_value = tensor
+            node = model.graph.node(0)
+            if as_proto:
+                model = ir.to_proto(model)
+            kwargs = {"should_fold": lambda node: True} if force else {}
+            if readable:
+                optimizer.fold_constants(model, evaluators=self.evaluators, **kwargs)
+            else:
+                with self.assertLogs("onnxscript.optimizer", level="WARNING") as logs:
+                    optimizer.fold_constants(model, evaluators=self.evaluators, **kwargs)
+                self.assertTrue(any("x" in message for message in logs.output))
+            if as_proto:
+                model = ir.from_proto(model)
+            if readable:
+                self.callback.assert_called_once()
+                np.testing.assert_array_equal(
+                    model.graph.outputs[0].const_value.numpy(), [6, 10]
+                )
+                onnx.checker.check_model(ir.to_proto(model))
+            else:
+                self.callback.assert_not_called()
+                self.assertEqual(model.graph.node(0).op_type, "Double")
+                if not as_proto:
+                    self.assertIs(model.graph.node(0), node)
+                preserved = model.graph.initializers["x"].const_value
+                self.assertIsInstance(preserved, ir.ExternalTensor)
+                self.assertEqual(preserved.location, location)
+
     def test_decline_preserves_node(self):
         self.callback.side_effect = None
         self.callback.return_value = None
@@ -192,11 +255,17 @@ class ConstantEvaluationTest(unittest.TestCase):
         late.assert_called_once()
         np.testing.assert_array_equal(model.graph.outputs[0].const_value.numpy(), [2, 4])
 
-    def test_callback_failure_has_context(self):
-        self.callback.side_effect = ValueError("bad attribute")
+    @parameterized.parameterized.expand(
+        [
+            ("invalid_attribute", ValueError("bad attribute")),
+            ("callback_file", FileNotFoundError("callback configuration file is missing")),
+        ]
+    )
+    def test_callback_failure_has_context(self, _, failure):
+        self.callback.side_effect = failure
         with self.assertRaisesRegex(RuntimeError, r"test.custom::Double, opset 1") as error:
             self._fold()
-        self.assertIsInstance(error.exception.__cause__, ValueError)
+        self.assertIs(error.exception.__cause__, failure)
 
     @parameterized.parameterized.expand(
         [

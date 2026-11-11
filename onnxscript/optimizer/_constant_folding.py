@@ -1350,6 +1350,14 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 node.name,
             )
 
+        input_values = [_get_numpy_value(x) for x in node.inputs]
+        if any(
+            value is not None and array is None
+            for value, array in zip(node.inputs, input_values)
+        ):
+            # Only absent optional inputs may be passed to evaluators as None.
+            return None
+
         evaluator = (
             self._active_evaluators._lookup(node.domain, node.op_type, version)
             if self._active_evaluators is not None
@@ -1375,8 +1383,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 ) from e
             if tensors is not None:
                 return self._custom_replacement(node, tensors, is_function)
-
-        input_values = [_get_numpy_value(x) for x in node.inputs]
 
         def convert(av):
             if av.type == ir.AttributeType.TENSOR:
