@@ -15,6 +15,19 @@ import numpy as np
 import onnx_ir as ir
 
 from onnxscript.rewriter import pattern as orp
+from onnxscript.rewriter._basics import MatchFailureError
+
+
+def _require_concrete_attributes(node: ir.Node, names: Sequence[str]) -> None:
+    for name in names:
+        attribute = node.attributes.get(name)
+        if attribute is not None and attribute.is_ref():
+            raise MatchFailureError(
+                f"Cannot compute padding for {node.op_type} attribute {name!r}: it "
+                f"references function parameter {attribute.ref_attr_name!r}, "
+                "whose value is unknown.",
+                node,
+            )
 
 
 def fill_pads_with_axes(pads: Sequence[int], axes: Sequence[int], rank: int) -> List[int]:
@@ -41,6 +54,9 @@ def fill_pads_with_axes(pads: Sequence[int], axes: Sequence[int], rank: int) -> 
 
 
 def read_conv_attributes(ir_conv: ir.Node) -> dict[str, Sequence[int] | str]:
+    _require_concrete_attributes(
+        ir_conv, ("auto_pad", "pads", "kernel_shape", "strides", "dilations")
+    )
     # Read attributes
     attributes = {}
     ir_attributes = ir_conv.attributes
@@ -70,6 +86,8 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
 
     def rewrite(self, op, x: ir.Value, pad: ir.Value, conv: ir.Value) -> ir.Value:
         conv_node = conv.producer()
+        _require_concrete_attributes(pad.producer(), ("mode",))
+        _require_concrete_attributes(conv_node, ("pads", "auto_pad"))
 
         # Retrieve the padding and axes
         x_rank = len(x.shape)
@@ -115,6 +133,8 @@ class _FuseConvPadBase(orp.RewriteRuleClassBase):
         del context  # Unused
         check_result = orp.MatchResult()
         pad_node = pad.producer()
+        _require_concrete_attributes(pad_node, ("mode",))
+        _require_concrete_attributes(conv.producer(), ("pads", "auto_pad"))
         if x.shape is None:
             return check_result.fail(
                 f"Input shapes are not defined on {pad_node.name} ({pad_node.op_type})."
@@ -267,6 +287,9 @@ class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
 
         # Conv constraints: attributes
         conv_node = conv.producer()
+        _require_concrete_attributes(
+            conv_node, ("auto_pad", "pads", "kernel_shape", "strides", "dilations")
+        )
         auto_pad = conv_node.attributes.get_string("auto_pad", None)
         if auto_pad in {None, "NOTSET"}:
             return check_result.fail(
