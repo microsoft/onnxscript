@@ -5698,12 +5698,13 @@ def aten_isfinite(self: TFloatHighPrecision) -> BOOL:
     return op.And(not_inf, not_nan)
 
 
-@torch_op("aten::isinf")
+@torch_op("aten::isinf", trace_only=True)
 def aten_isinf(self: TFloat) -> BOOL:
     """isinf(Tensor self) -> Tensor"""
 
-    # Added Cast inside the function so it can support all real dtypes naturally
-    self = op.Cast(self, to=FLOAT.dtype)
+    # IsInf supports FLOAT and DOUBLE before opset 20. Do not narrow doubles.
+    if self.dtype not in (FLOAT.dtype, DOUBLE.dtype):
+        self = op.Cast(self, to=FLOAT.dtype)
     return op.IsInf(self)
 
 
@@ -5714,22 +5715,24 @@ def aten_isnan(self: TFloat) -> BOOL:
     return op.IsNaN(self)
 
 
-@torch_op("aten::isneginf")
+@torch_op("aten::isneginf", trace_only=True)
 def aten_isneginf(self: TFloat) -> BOOL:
     """isneginf(Tensor self) -> Tensor"""
 
-    # Added Cast inside the function so it can support all real dtypes naturally
-    self = op.Cast(self, to=FLOAT.dtype)
-    return op.And(op.Less(self, 0), op.IsInf(self))
+    # IsInf supports FLOAT and DOUBLE before opset 20. Do not narrow doubles.
+    if self.dtype not in (FLOAT.dtype, DOUBLE.dtype):
+        self = op.Cast(self, to=FLOAT.dtype)
+    return op.And(op.Less(self, op.CastLike(0, self)), op.IsInf(self))
 
 
-@torch_op("aten::isposinf")
+@torch_op("aten::isposinf", trace_only=True)
 def aten_isposinf(self: TFloat) -> BOOL:
     """isposinf(Tensor self) -> Tensor"""
 
-    # Added Cast inside the function so it can support all real dtypes naturally
-    self = op.Cast(self, to=FLOAT.dtype)
-    return op.And(op.Greater(self, 0), op.IsInf(self))
+    # IsInf supports FLOAT and DOUBLE before opset 20. Do not narrow doubles.
+    if self.dtype not in (FLOAT.dtype, DOUBLE.dtype):
+        self = op.Cast(self, to=FLOAT.dtype)
+    return op.And(op.Greater(self, op.CastLike(0, self)), op.IsInf(self))
 
 
 def aten_isreal(self: TensorType) -> TensorType:

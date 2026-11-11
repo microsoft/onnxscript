@@ -2069,6 +2069,60 @@ class TorchLibe2eTest(unittest.TestCase):
         for actual, expected in zip(onnx_program(x), Model()(x)):
             torch.testing.assert_close(actual, expected, rtol=1e-15, atol=0)
 
+    @parameterized.parameterized.expand(
+        [
+            (name, dtype)
+            for name in ("isinf", "isposinf", "isneginf")
+            for dtype in ("float64", "float32", "float16", "bfloat16", "int64", "bool")
+        ]
+    )
+    def test_infinity_predicates_preserve_input_range(self, name: str, dtype: str):
+        torch_op = getattr(torch, name)
+        torch_dtype = getattr(torch, dtype)
+
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                if torch_dtype == torch.bfloat16:
+                    # Exercise a bfloat16 intermediate without a NumPy bfloat16 input.
+                    x = x.to(torch.bfloat16)
+                return torch_op(x)
+
+        if torch_dtype.is_floating_point:
+            finfo = torch.finfo(torch_dtype)
+            values = [
+                0.0,
+                -0.0,
+                1.0,
+                -1.0,
+                finfo.tiny,
+                -finfo.tiny,
+                finfo.max,
+                -finfo.max,
+                math.inf,
+                -math.inf,
+                math.nan,
+            ]
+            if torch_dtype == torch.float64:
+                # These finite doubles become infinities when narrowed to float32.
+                values.extend([1e100, -1e100, 1e-300, -1e-300])
+        elif torch_dtype == torch.bool:
+            values = [True, False, True]
+        else:
+            limits = torch.iinfo(torch_dtype)
+            values = [limits.min, limits.max, 0, 1, -1]
+        input_dtype = torch.float32 if torch_dtype == torch.bfloat16 else torch_dtype
+        x = torch.tensor(values, dtype=input_dtype)
+        onnx_program = torch.onnx.export(
+            Model().eval(),
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+            optimize=False,
+        )
+        for sample in (x, x[:1], x[:0]):
+            with self.subTest(shape=sample.shape):
+                _testing.assert_onnx_program(onnx_program, args=(sample,))
+
     def test_conv3d_without_bias_produces_1d_bias(self):
         class Model(torch.nn.Module):
             def __init__(self):
