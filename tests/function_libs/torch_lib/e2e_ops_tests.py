@@ -2069,6 +2069,44 @@ class TorchLibe2eTest(unittest.TestCase):
         for actual, expected in zip(onnx_program(x), Model()(x)):
             torch.testing.assert_close(actual, expected, rtol=1e-15, atol=0)
 
+    @parameterized.parameterized.expand(
+        [
+            ("1d", torch.nn.functional.adaptive_avg_pool1d, (5,), (12,), [(17,), (40,), (3,)]),
+            (
+                "2d",
+                torch.nn.functional.adaptive_avg_pool2d,
+                (2, 3),
+                (6, 6),
+                [(8, 9), (12, 12), (1, 1)],
+            ),
+            (
+                "2d_7x7",
+                torch.nn.functional.adaptive_avg_pool2d,
+                (7, 7),
+                (14, 14),
+                [(8, 8), (13, 11)],
+            ),
+            ("3d", torch.nn.functional.adaptive_avg_pool3d, (2, 3, 4), (6, 6, 8), [(7, 9, 5)]),
+        ]
+    )
+    def test_adaptive_avg_pool_with_dynamic_spatial_dims(
+        self, _: str, fn, output_size, size, other_sizes
+    ):
+        # The pooling windows depend on the input size, so a model exported with dynamic
+        # spatial dims must still pool correctly at sizes other than the example's.
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return fn(x, output_size)
+
+        x = torch.randn(2, 3, *size)
+        dynamic_shapes = (dict.fromkeys(range(x.dim()), torch.export.Dim.AUTO),)
+        onnx_program = torch.onnx.export(
+            Model(), (x,), dynamic_shapes=dynamic_shapes, dynamo=True
+        )
+        for other_size in [size, *other_sizes]:
+            y = torch.randn(3, 2, *other_size)
+            torch.testing.assert_close(onnx_program(y)[0], Model()(y))
+
     def test_conv3d_without_bias_produces_1d_bias(self):
         class Model(torch.nn.Module):
             def __init__(self):
