@@ -59,7 +59,9 @@ class TorchLibe2eTest(unittest.TestCase):
                 return torch.searchsorted(boundaries, values, right=right)
 
         boundaries = torch.tensor([1.0, 2.0, 2.0, 3.0], dtype=dtype)
-        values = torch.tensor([[float("nan"), 0.5, 2.0], [3.0, float("nan"), 4.0]], dtype=dtype)
+        values = torch.tensor(
+            [[float("nan"), 0.5, 2.0], [3.0, float("nan"), 4.0]], dtype=dtype
+        )
         onnx_program = torch.onnx.export(Model(), (boundaries, values), dynamo=True)
         _testing.assert_onnx_program(onnx_program)
 
