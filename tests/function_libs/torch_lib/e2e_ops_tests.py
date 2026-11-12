@@ -45,6 +45,24 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(model, xs, dynamo=True)
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("left_float32", False, torch.float32),
+            ("right_float32", True, torch.float32),
+            ("left_float16", False, torch.float16),
+            ("right_float16", True, torch.float16),
+        ]
+    )
+    def test_searchsorted_places_nan_values_after_every_boundary(self, _, right, dtype):
+        class Model(torch.nn.Module):
+            def forward(self, boundaries, values):
+                return torch.searchsorted(boundaries, values, right=right)
+
+        boundaries = torch.tensor([1.0, 2.0, 2.0, 3.0], dtype=dtype)
+        values = torch.tensor([[float("nan"), 0.5, 2.0], [3.0, float("nan"), 4.0]], dtype=dtype)
+        onnx_program = torch.onnx.export(Model(), (boundaries, values), dynamo=True)
+        _testing.assert_onnx_program(onnx_program)
+
     def test_pow_tensor_scalar_int_float(self):
         class PowModel(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:

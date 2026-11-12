@@ -9216,6 +9216,11 @@ def aten_scatter_reduce(
     return result
 
 
+_FLOAT_TYPES = frozenset(
+    {ir.DataType.FLOAT, ir.DataType.DOUBLE, ir.DataType.FLOAT16, ir.DataType.BFLOAT16}
+)
+
+
 @torch_op(("aten::searchsorted.Tensor", "aten::searchsorted.Scalar"), trace_only=True)
 def aten_searchsorted(
     sorted_sequence: TReal,
@@ -9242,6 +9247,10 @@ def aten_searchsorted(
         values = op.Unsqueeze(values, [-1])
         boundaries = op.Unsqueeze(sorted_sequence, [-2])
     below = op.LessOrEqual(boundaries, values) if right else op.Less(boundaries, values)
+    if sorted_sequence.dtype in _FLOAT_TYPES:
+        # PyTorch places NaN after every boundary (its kernel compares with !(boundary >= value)), but both
+        # comparisons above are false for a NaN value, so count every boundary as below it.
+        below = op.Or(below, op.IsNaN(values))
     count = op.ReduceSum(op.Cast(below, to=INT64.dtype), [-1], keepdims=False)
     if not isinstance(self, (int, float)):
         # The result has the shape of the values (this also restores 0-d values).
