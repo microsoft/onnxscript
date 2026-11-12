@@ -1207,6 +1207,24 @@ class ReferenceEvaluatorOptimizedOpsTest(unittest.TestCase):
         optimized_cls.eval.assert_called_once_with(x)
         np.testing.assert_array_equal(actual, [0.0, 0.0, 1.0])
 
+    def test_evaluate_falls_back_and_fallback_also_fails(self):
+        """When optimized op raises and the plain fallback also raises, return None."""
+        evaluator = _constant_folding.ReferenceEvaluator()
+        optimized_cls = mock.Mock()
+        optimized_cls.eval.side_effect = RuntimeError("optimized fail")
+        x = np.array([1.0], dtype=np.float32)
+        with mock.patch.dict(_constant_folding._OPTIMIZED_OPS, {("", "Relu"): optimized_cls}):
+            with mock.patch.object(onnx.reference.ops, "load_op") as mock_load:
+                mock_load.return_value.eval.side_effect = RuntimeError("plain fail")
+                actual = evaluator.evaluate("", "Relu", 14, x)
+        self.assertIsNone(actual)
+
+    def test_evaluate_returns_none_when_no_evaluator(self):
+        """evaluate() returns None when get_evaluator returns None."""
+        evaluator = _constant_folding.ReferenceEvaluator()
+        actual = evaluator.evaluate("custom.domain", "NonExistentOp", 1)
+        self.assertIsNone(actual)
+
     @parameterized.parameterized.expand(
         [
             ("1d", (2, 2, 7), (3, 2, 3), {}),
