@@ -493,9 +493,10 @@ def aten_any(self: TTensor) -> BOOL:
         result = op.Cast(self, to=BOOL.dtype)
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)
-        # op.ReduceMax() in the next step cannot process BOOL inputs, so convert to INT64
-        self_int = op.Cast(self_bool, to=INT64.dtype)
-        any_true = op.ReduceMax(self_int, keepdims=False)
+        # ReduceMax has no BOOL input. An empty UINT8 reduction gives 0 (the dtype minimum),
+        # so any() of nothing is False.
+        self_uint8 = op.Cast(self_bool, to=UINT8.dtype)
+        any_true = op.ReduceMax(self_uint8, keepdims=False)
         result = op.Cast(any_true, to=BOOL.dtype)
     return result
 
@@ -505,11 +506,12 @@ def aten_any_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     """any.dim(Tensor self, int dim, bool keepdim=False) -> Tensor"""
 
     self_bool = op.Cast(self, to=BOOL.dtype)
-    # op.ReduceMax() in the next step cannot process BOOL inputs, so convert to INT64
-    self_int = op.Cast(self_bool, to=INT64.dtype)
+    # ReduceMax has no BOOL input. An empty UINT8 reduction gives 0 (the dtype minimum),
+    # so any() of nothing is False.
+    self_uint8 = op.Cast(self_bool, to=UINT8.dtype)
     # Change dim from int to INT64[1]
     dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
-    any_true = op.ReduceMax(self_int, dims, keepdims=keepdim)
+    any_true = op.ReduceMax(self_uint8, dims, keepdims=keepdim)
     return op.Cast(any_true, to=BOOL.dtype)
 
 
@@ -531,8 +533,10 @@ def _aten_any_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
         result = op.Cast(self, to=BOOL.dtype)
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)
-        self_int = op.Cast(self_bool, to=INT64.dtype)
-        any_true = op.ReduceMax(self_int, keepdims=keepdims)
+        # ReduceMax has no BOOL input. An empty UINT8 reduction gives 0 (the dtype minimum),
+        # so any() of nothing is False.
+        self_uint8 = op.Cast(self_bool, to=UINT8.dtype)
+        any_true = op.ReduceMax(self_uint8, keepdims=keepdims)
         result = op.Cast(any_true, to=BOOL.dtype)
     return result
 

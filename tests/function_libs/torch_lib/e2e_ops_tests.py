@@ -144,6 +144,27 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("no_dim", lambda x: torch.any(x), (0, 4)),
+            ("dim_empty", lambda x: torch.any(x, 0), (0, 4)),
+            ("dim_other_empty", lambda x: torch.any(x, 1, keepdim=True), (3, 0)),
+            ("dims", lambda x: torch.any(x, (0, 1)), (0, 4)),
+            ("dims_none_keepdim", lambda x: torch.any(x, dim=None, keepdim=True), (0, 4)),
+            ("bool_input", lambda x: torch.any(x > 0), (0, 4)),
+            ("non_empty", lambda x: torch.any(x, 1), (3, 4)),
+        ]
+    )
+    def test_any_reduces_empty_to_false(self, _: str, fn, shape):
+        class AnyModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return fn(x)
+
+        onnx_program = torch.onnx.export(
+            AnyModel(), (torch.ones(shape),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
     def test_mul_tensor_scalar_float(self):
         class Model(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
