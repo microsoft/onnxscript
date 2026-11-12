@@ -45,6 +45,35 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(model, xs, dynamo=True)
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("int64_float32", torch.int64, torch.float32, (1, 3), (2, 1)),
+            ("float32_int64", torch.float32, torch.int64, (2, 1), (1, 3)),
+            ("float32_bool", torch.float32, torch.bool, (2, 1), (1, 3)),
+            ("float16_int64", torch.float16, torch.int64, (1, 3), (2, 1)),
+            ("float32_float64", torch.float32, torch.float64, (1, 3), (2, 1)),
+            ("float64_zero_dim_float32", torch.float64, torch.float32, (), (1, 3)),
+            ("int64_zero_dim_float64", torch.int64, torch.float64, (1, 3), ()),
+        ]
+    )
+    def test_pow_tensor_tensor_mixed_dtypes(
+        self, _: str, base_dtype, exponent_dtype, base_shape, exponent_shape
+    ):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+                return torch.pow(x, y)
+
+        def make(dtype, shape):
+            return (
+                torch.randint(1, 4, shape)
+                if not dtype.is_floating_point
+                else torch.rand(shape) + 0.5
+            ).to(dtype)
+
+        inputs = (make(base_dtype, base_shape), make(exponent_dtype, exponent_shape))
+        onnx_program = torch.onnx.export(PowModel(), inputs, dynamo=True, optimize=False)
+        _testing.assert_onnx_program(onnx_program)
+
     def test_pow_tensor_scalar_int_float(self):
         class PowModel(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
