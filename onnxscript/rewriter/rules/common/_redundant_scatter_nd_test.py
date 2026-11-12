@@ -401,7 +401,7 @@ class RedundantScatterNdTest(unittest.TestCase):
         self.assertEqual(count, 0)
 
     def test_dynamic_indices_with_default_shape_and_scatter_nd_attributes(self):
-        """ScatterAllDynamic matches when Shape start and ScatterND reduction default attributes are omitted."""
+        """ScatterAllDynamic matches when Shape, Gather, and ScatterND default attributes are omitted."""
         model_text = """
             <ir_version: 8, opset_import: ["" : 17]>
             test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
@@ -413,7 +413,7 @@ class RedundantScatterNdTest(unittest.TestCase):
             >
             {
                 shape = Shape(data)
-                dim = Gather<axis = 0>(shape, axis)
+                dim = Gather(shape, axis)
                 full_range = Range(zero, dim, one)
                 full_range_2d = Unsqueeze(full_range, axes)
                 out = ScatterND(transposed_data, full_range_2d, updates)
@@ -421,6 +421,7 @@ class RedundantScatterNdTest(unittest.TestCase):
         """
         original = ir.from_onnx_text(model_text)
         model = ir.from_onnx_text(model_text)
+        onnx_check(model)
         count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertIn("Identity", [node.op_type for node in model.graph])
@@ -502,6 +503,88 @@ class RedundantScatterNdTest(unittest.TestCase):
             }
         """
         model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_non_zero_gather_axis_rejected(self):
+        """Gather with non-zero axis attribute should be safely rejected."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {1},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape(data)
+                dim = Gather<axis = 1>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_negative_full_rank_shape_start_supported(self):
+        """Shape<start = -rank> produces the full shape and should be safely rewritten."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {1},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = -2>(data)
+                dim = Gather(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND(transposed_data, full_range_2d, updates)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        onnx_check(model)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (
+                np.random.rand(4, 8).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+            ),
+        )
+
+    def test_dynamic_indices_partial_negative_shape_start_rejected(self):
+        """Shape<start = -1> on rank-2 data omits the first dimension and must be rejected."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[8, 4] data, float[8, 4] transposed_data, float[4, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {0},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = -1>(data)
+                dim = Gather(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        onnx_check(model)
         count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
