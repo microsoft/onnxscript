@@ -68,7 +68,7 @@ def _adaptive_avg_pool_along(x: TFloat, axis: int, out_size: int, rank: int) -> 
     prefix = op.CumSum(x, op.Constant(value_int=axis))
     pads = [0] * (2 * rank)
     pads[axis] = 1
-    # A tensor rather than Constant(value_ints=...): onnx<1.19 shape inference rejects the latter as Pad's pads.
+    # A tensor rather than Constant(value_ints=...): onnx<1.21 shape inference rejects the latter as Pad's pads.
     prefix = op.Pad(prefix, ir.tensor(pads, dtype=ir.DataType.INT64))
     window_sum = op.Sub(op.Gather(prefix, end, axis=axis), op.Gather(prefix, start, axis=axis))
 
