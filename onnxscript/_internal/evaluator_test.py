@@ -38,13 +38,16 @@ class EvaluatorContextTest(unittest.TestCase):
     def test_nested_overrides_restore_after_exception(self):
         original = public_evaluator.default()
         outer, inner = _SelectionEvaluator(), _SelectionEvaluator()
-        with public_evaluator.default_as(outer):
-            self.assert_selected(outer)
-            with self.assertRaisesRegex(
-                RuntimeError, "test exception"
-            ), public_evaluator.default_as(inner):
+
+        def raise_with_inner_override():
+            with public_evaluator.default_as(inner):
                 self.assert_selected(inner)
                 raise RuntimeError("test exception")
+
+        with public_evaluator.default_as(outer):
+            self.assert_selected(outer)
+            with self.assertRaisesRegex(RuntimeError, "test exception"):
+                raise_with_inner_override()
             self.assert_selected(outer)
         self.assertIs(public_evaluator.default(), original)
 
