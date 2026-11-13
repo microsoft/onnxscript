@@ -15,7 +15,7 @@ class CastConstantOfShapeTest(unittest.TestCase):
     def _apply_cast(
         self, opset: int, output_type: str, target_dtype: int, *, has_value: bool
     ) -> tuple[int, ir.Model]:
-        value_attribute = ' <value: tensor = float[1] {1.0}>' if has_value else ""
+        value_attribute = " <value: tensor = float[1] {1.0}>" if has_value else ""
         model_proto = onnx.parser.parse_model(
             f"""
             <ir_version: 10, opset_import: [ "" : {opset}]>
