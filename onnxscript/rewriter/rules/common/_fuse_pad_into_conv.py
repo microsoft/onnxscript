@@ -195,14 +195,15 @@ class FuseConvIntegerPad(FuseConvPad):
         if not check_result:
             return check_result
 
-        # Pad inserts raw zeros, whereas implicit ConvInteger padding inserts zeros
-        # after subtracting x_zero_point. These agree only for a zero input zero-point.
+        # ConvInteger subtracts x_zero_point before convolving, so its own padding behaves
+        # like padding x with x_zero_point. The Pad was checked to pad with 0, so the two
+        # only agree when x_zero_point is absent or zero.
         conv_node = conv.producer()
-        if len(conv_node.inputs) > 2 and (zero_point := conv_node.inputs[2]) is not None:
-            if zero_point.const_value is None or zero_point.is_graph_input():
-                return check_result.fail("ConvInteger input zero-point must be constant zero.")
-            if np.any(zero_point.const_value.numpy() != 0):
-                return check_result.fail("ConvInteger input zero-point must be zero.")
+        if len(conv_node.inputs) > 2 and (x_zero_point := conv_node.inputs[2]) is not None:
+            if x_zero_point.const_value is None or x_zero_point.is_graph_input():
+                return check_result.fail(f"{x_zero_point.name} is not a constant/initializer.")
+            if np.any(x_zero_point.const_value.numpy() != 0):
+                return check_result.fail(f"{x_zero_point.name} must be equal to 0.")
         return check_result
 
 
