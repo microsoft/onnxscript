@@ -433,6 +433,8 @@ class RedundantScatterNdTest(unittest.TestCase):
                 np.random.rand(8, 4).astype(np.float32),
                 np.random.rand(8, 4).astype(np.float32),
             ),
+            rtol=0.0,
+            atol=0.0,
         )
 
     def test_dynamic_indices_non_zero_shape_start_rejected(self):
@@ -562,6 +564,8 @@ class RedundantScatterNdTest(unittest.TestCase):
                 np.random.rand(8, 4).astype(np.float32),
                 np.random.rand(8, 4).astype(np.float32),
             ),
+            rtol=0.0,
+            atol=0.0,
         )
 
     def test_dynamic_indices_partial_negative_shape_start_rejected(self):
