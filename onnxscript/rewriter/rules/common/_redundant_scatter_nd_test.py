@@ -508,6 +508,40 @@ class RedundantScatterNdTest(unittest.TestCase):
         count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
+    def test_dynamic_indices_reduction_from_reference_attribute_is_not_rewritten(self):
+        """ScatterAllDynamic must safely reject when reduction is forwarded from a function reference attribute."""
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 18, "local" : 1]>
+            agraph (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] output)
+            {
+                output = local.ScatterDynamic <mode = "none"> (data, transposed_data, updates)
+            }
+            <domain: "local", opset_import: [ "" : 18]>
+            ScatterDynamic <mode> (data, transposed_data, updates) => (output)
+            {
+                axis = Constant <value = int64 {1}> ()
+                zero = Constant <value = int64 {0}> ()
+                one = Constant <value = int64 {1}> ()
+                axes = Constant <value = int64[1] {-1}> ()
+                shape = Shape (data)
+                dim = Gather (shape, axis)
+                full_range = Range (zero, dim, one)
+                full_range_2d = Unsqueeze (full_range, axes)
+                output = ScatterND <reduction: string = @mode> (transposed_data, full_range_2d, updates)
+            }
+        """
+        )
+        onnx.checker.check_model(model_proto, full_check=True)
+        model = ir.serde.deserialize_model(model_proto)
+        function = next(iter(model.functions.values()))
+        for v, s in zip(function.inputs, ([4, 8], [8, 4], [8, 4])):
+            v.shape = ir.Shape(s)
+
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertIn("ScatterND", [node.op_type for node in function])
+
     def test_dynamic_indices_non_zero_gather_axis_rejected(self):
         """Gather with non-zero axis attribute should be safely rejected."""
         model_text = """
