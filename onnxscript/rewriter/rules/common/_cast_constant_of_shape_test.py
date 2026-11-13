@@ -12,6 +12,25 @@ from onnxscript.rewriter.rules.common import _cast_constant_of_shape
 
 
 class CastConstantOfShapeTest(unittest.TestCase):
+    def _apply_cast(
+        self, opset: int, output_type: str, target_dtype: int, *, has_value: bool
+    ) -> tuple[int, ir.Model]:
+        value_attribute = " <value: tensor = float[1] {1.0}>" if has_value else ""
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 10, opset_import: [ "" : {opset}]>
+            agraph (int64[2] input_x) => ({output_type}[1, 4] output)
+            {{
+                constant = ConstantOfShape{value_attribute} (input_x)
+                output = Cast <to = {target_dtype}> (constant)
+            }}
+            """
+        )
+        onnx.checker.check_model(model_proto, True)
+        model = ir.serde.deserialize_model(model_proto)
+        count = _cast_constant_of_shape.rules.apply_to_model(model)
+        return count, model
+
     def test_cast_after_constant_of_shape_is_fused(self):
         input_model_proto = onnx.parser.parse_model(
             """
@@ -78,6 +97,27 @@ class CastConstantOfShapeTest(unittest.TestCase):
         self.assertEqual(fused_value.dtype, to)
         expected = value_array.astype(ir.DataType(to).numpy())
         np.testing.assert_array_equal(fused_value.numpy(), expected)
+
+    def test_bfloat16_cast_is_not_fused_before_constant_of_shape_support(self):
+        count, model = self._apply_cast(
+            17, "bfloat16", onnx.TensorProto.BFLOAT16, has_value=True
+        )
+        self.assertEqual(count, 0)
+        self.assertEqual([node.op_type for node in model.graph], ["ConstantOfShape", "Cast"])
+
+    def test_float8_cast_is_not_fused_before_constant_of_shape_support(self):
+        count, model = self._apply_cast(
+            19, "float8e4m3fn", onnx.TensorProto.FLOAT8E4M3FN, has_value=False
+        )
+        self.assertEqual(count, 0)
+        self.assertEqual([node.op_type for node in model.graph], ["ConstantOfShape", "Cast"])
+
+    def test_float8_cast_is_fused_when_constant_of_shape_supports_it(self):
+        count, model = self._apply_cast(
+            20, "float8e4m3fn", onnx.TensorProto.FLOAT8E4M3FN, has_value=False
+        )
+        self.assertEqual(count, 1)
+        onnx.checker.check_model(ir.serde.serialize_model(model), True)
 
 
 if __name__ == "__main__":
