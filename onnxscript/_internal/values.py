@@ -337,13 +337,32 @@ class OnnxFunction(Op, Generic[_P, _R]):
         """Returns the IR graph representation of this function.
 
         Returns:
-            The :class:`ir.Graph` representing the computation graph of this function.
-            NOTE: This is not a copy, and should not be modified by the caller.
+            The live :class:`onnx_ir.Graph` owned by this function, not a copy.
+            Callers must not modify it. Use ``function.graph().clone()`` to obtain
+            an independent graph for inspection or transformation.
         """
         return self.function_ir.graph
 
     def to_model_proto(self, **kwargs):
-        """Converts the function into :class:`onnx.ModelProto`."""
+        """Converts the function into :class:`onnx.ModelProto` without validation.
+
+        Export permits incomplete input/output types. Use
+        :func:`onnx.checker.check_model` on the returned model to explicitly validate
+        it; checker errors propagate to the caller. Functions with required
+        attributes cannot be exported as models.
+
+        Keyword arguments supplied here override those supplied to :func:`onnxscript.script`.
+        ``io_types`` fills missing input/output types, while ``input_types`` and
+        ``output_types`` replace the corresponding types, including annotations.
+        Each supplied sequence must have exactly one type per model input or output;
+        function attributes are not model inputs. An empty sequence is valid only
+        for a model with no inputs or no outputs, respectively.
+
+        Other supported keywords are ``value_infos`` (a name-to-type mapping for
+        intermediate values), ``opset_version`` (the standard opset version if none
+        can be inferred), and model fields such as ``ir_version`` and ``producer_name``.
+        Export does not modify the function's graph.
+        """
         if self.function_ir.attrs and any(
             attr.value is None for attr in self.function_ir.attrs
         ):
@@ -386,6 +405,16 @@ class OnnxFunction(Op, Generic[_P, _R]):
         Returns:
             An instance of :class:`onnx.ModelProto`.
         """
+        for name, type_overrides, expected in (
+            ("input_types", input_types, len(self.function_ir.graph.inputs)),
+            ("output_types", output_types, len(self.function_ir.graph.outputs)),
+        ):
+            if type_overrides is not None and len(type_overrides) != expected:
+                raise ValueError(
+                    f"{name} must contain exactly {expected} types for function "
+                    f"'{self.name}'; got {len(type_overrides)}."
+                )
+
         # Identify functions to include in the model
         sub_functions = self.function_ir.get_called_functions()
         ir_functions: list[ir.Function] = [func.function_ir for func in sub_functions.values()]

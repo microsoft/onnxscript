@@ -663,11 +663,12 @@ class Converter:
 
             A[i:i+j, k]
 
-        Not supported:
+        Default start/stop values require a statically known step direction.
+        For a dynamic step, specify both bounds:
 
         ::
 
-            A[::-1]
+            A[0:10:step]
         """
         var = self._translate_expr(node.value)
         var_name = var.name
@@ -701,8 +702,10 @@ class Converter:
             if node_arg is None:
                 if default_value is None:
                     # TODO: Emit "Where(step > 0, pos_default, neg_default)"
-                    raise RuntimeError(
-                        "Default start/stop not supported when step direction is unknown."
+                    self._fail(
+                        node.slice,
+                        "Slice default start/stop is not supported when step direction "
+                        "is unknown. Specify both start and stop, or use a constant step.",
                     )
                 return const_1d(default_value), default_value
 
@@ -711,7 +714,11 @@ class Converter:
                 if isinstance(cst, int):
                     return const_1d(cst), cst
                 else:
-                    raise RuntimeError(f"Slice component type must be int, not {type(cst)}")
+                    self._fail(
+                        node_arg,
+                        f"Slice component type must be int, not {type(cst).__name__}. "
+                        "Use integer start, stop, and step values.",
+                    )
             else:
                 value = self._translate_expr(node_arg)
                 reshaped = self._generate_unique_name(f"{value.name}_reshaped")
