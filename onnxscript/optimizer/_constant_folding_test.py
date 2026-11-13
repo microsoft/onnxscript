@@ -169,6 +169,105 @@ class FoldConstantsTest(unittest.TestCase):
         self.assertEqual(optimized.graph[0].outputs[0].name, "z")
         self.assertEqual(optimized.graph[0].op_type, "Mul")
 
+    @parameterized.parameterized.expand(
+        [
+            ("tail", -1, 9223372036854775807, None, None, [16]),
+            ("known", 2, 4, 0, 1, [4, 16]),
+            ("negative_axis", 2, 4, -1, None, [4, 16]),
+            ("strided", 1, 4, 0, 2, [8, 16]),
+            ("reverse", -1, 0, 0, -1, [16, 4, 8]),
+            ("reverse_sentinel", 3, -9223372036854775808, 0, -1, None),
+            ("clipped", 2, 100, 0, 1, [4, 16]),
+            ("empty", 3, 1, None, None, []),
+            ("symbolic", 0, 2, None, None, None),
+            ("unknown_start", None, 4, None, None, None),
+            ("unknown_end", 2, None, None, None, None),
+            ("unknown_axis", 2, 4, "dynamic", None, None),
+            ("unknown_step", 2, 4, 0, "dynamic", None),
+        ]
+    )
+    def test_slice_symbolic_shape(self, _, start, end, axis, step, expected):
+        inputs = [
+            onnx.helper.make_tensor_value_info("x", onnx.TensorProto.FLOAT, ["B", 8, 4, 16])
+        ]
+        nodes = [onnx.helper.make_node("Shape", ["x"], ["shape"])]
+        slice_inputs = ["shape"]
+        for name, value in (("start", start), ("end", end), ("axis", axis), ("step", step)):
+            if value is None and name in ("axis", "step"):
+                slice_inputs.append("")
+            elif value is None or value == "dynamic":
+                inputs.append(
+                    onnx.helper.make_tensor_value_info(name, onnx.TensorProto.INT64, [1])
+                )
+                slice_inputs.append(name)
+            else:
+                nodes.append(onnx.helper.make_node("Constant", [], [name], value_ints=[value]))
+                slice_inputs.append(name)
+        nodes.append(onnx.helper.make_node("Slice", slice_inputs, ["sliced"]))
+        proto = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                nodes,
+                "slice_shape",
+                inputs,
+                [onnx.helper.make_tensor_value_info("sliced", onnx.TensorProto.INT64, [None])],
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 18)],
+        )
+        feeds = {"x": np.zeros((2, 8, 4, 16), dtype=np.float32)}
+        feeds.update(
+            {
+                value.name: np.array([0 if value.name == "axis" else 1], dtype=np.int64)
+                for value in inputs[1:]
+            }
+        )
+        baseline = ReferenceEvaluator(proto).run(None, feeds)[0]
+        optimized = self._fold(ir.serde.deserialize_model(proto), onnx_shape_inference=True)
+        actual = ReferenceEvaluator(ir.serde.serialize_model(optimized)).run(None, feeds)[0]
+        np.testing.assert_array_equal(actual, baseline)
+        if expected is not None:
+            np.testing.assert_array_equal(actual, expected)
+            self.assertFalse(any(node.op_type == "Slice" for node in optimized.graph))
+        else:
+            self.assertTrue(any(node.op_type == "Slice" for node in optimized.graph))
+
+    def test_slice_propagates_symbolic_shape(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[B, 256] x) => (float[B, 256] z) {
+                shape = Shape (x)
+                start = Constant <value_ints=[0]> ()
+                end = Constant <value_ints=[1]> ()
+                b = Slice (shape, start, end)
+                const_256 = Constant <value_ints=[256]> ()
+                new_shape = Concat <axis=0> (b, const_256)
+                z = Reshape (x, new_shape)
+            }
+        """
+        optimized = self._fold(model, onnx_shape_inference=True)
+        self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
+
+    @parameterized.parameterized.expand([(9,), (10,), (13,), (18,)])
+    def test_slice_shape_opset_boundary(self, opset):
+        slice_node = (
+            "z = Slice <starts=[1], ends=[2]> (shape)"
+            if opset < 10
+            else "z = Slice (shape, start, end)"
+        )
+        model = f"""
+            <ir_version: 7, opset_import: [ "" : {opset}]>
+            agraph (float[B, 8] x) => (int64[1] z) {{
+                shape = Shape (x)
+                start = Constant <value: tensor = int64[1] {{1}}> ()
+                end = Constant <value: tensor = int64[1] {{2}}> ()
+                {slice_node}
+            }}
+        """
+        optimized = self._fold(model, onnx_shape_inference=True)
+        self.assertEqual(any(node.op_type == "Slice" for node in optimized.graph), opset < 10)
+        feeds = {"x": np.zeros((2, 8), dtype=np.float32)}
+        actual = ReferenceEvaluator(ir.serde.serialize_model(optimized)).run(None, feeds)[0]
+        np.testing.assert_array_equal(actual, [8])
+
     def test_fold_if_cond_with_subgraph_initializer(self):
         """If branch initializers should be moved to the main graph when the branch is inlined."""
         # A model with a non-constant condition; constants inside the then_branch will

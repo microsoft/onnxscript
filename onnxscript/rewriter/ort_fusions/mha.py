@@ -14,6 +14,7 @@ The MultiHeadAttention pattern: generate an instance
 where query has shape (B, S, D), key has shape (B, Skv, D), and value has shape (B, Skv, Dv).
 The next two inputs bias and key_padding_mask are None in this pattern. The mask (attention_bias)
 must be  of shape (1 or B, 1 or H, S, St). past_key and past_value are of shape (B, H, Spast, Dh).
+Cross-attention keys may enter the pattern in BHSd or BSHd format; values use BHSd.
 
 We use the following abbreviations for the dimensions:
 B: Batch size
@@ -172,9 +173,19 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             )
         # If cross-attention, key/value shapes are 4D
         if self._is_cross_attention:
-            if no_match(key, ["B", "H", "Skv", "Dh"]):
+            self._key_format = sdpa_node.attributes.get_string("key_format")
+            if self._key_format == "BHSd":
+                key_dims = ["B", "H", "Skv", "Dh"]
+            elif self._key_format == "BSHd":
+                key_dims = ["B", "Skv", "H", "Dh"]
+            else:
                 return check_result.fail(
-                    f"Shape mismatch: {key} does not match expected dimensions ['B', 'H', 'Skv', 'Dh']",
+                    f"Unsupported cross-attention key format: {self._key_format}. Expected BHSd or BSHd.",
+                    sdpa_node,
+                )
+            if no_match(key, key_dims):
+                return check_result.fail(
+                    f"Shape mismatch: {key} does not match expected dimensions {key_dims}",
                     key,
                 )
             if no_match(value, ["B", "H", "Skv", "Dv"]):
@@ -305,10 +316,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 )
             else:
                 key_BSD_emb = key
+                if self._key_format == "BSHd":
+                    key_BSD_emb = op.Transpose(key, perm=[0, 2, 1, 3])
         elif self._is_cross_attention:
             query_BSD_emb = query_BSD
-            # Must convert key/value from 4D to 3D for use in MHA
-            key = op.Transpose(key, perm=[0, 2, 1, 3])
+            # Flatten heads only after converting keys to BSHd.
+            if self._key_format == "BHSd":
+                key = op.Transpose(key, perm=[0, 2, 1, 3])
             key_BSD_emb = op.Reshape(key, op.Constant(value_ints=[0, 0, -1]))
             value = op.Transpose(value, perm=[0, 2, 1, 3])
             value = op.Reshape(value, op.Constant(value_ints=[0, 0, -1]))
