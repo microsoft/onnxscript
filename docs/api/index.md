@@ -9,6 +9,7 @@ decorator
 opsets
 converter
 values
+evaluator
 ```
 
 ## Model transformation
