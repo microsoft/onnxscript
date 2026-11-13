@@ -15,6 +15,7 @@ from typing import (
 import onnx_ir as ir
 
 import onnxscript.rewriter._basics as _basics
+import onnxscript.rewriter._ir_utils as _ir_utils
 import onnxscript.rewriter._pattern_ir as _pattern_ir
 
 
@@ -81,7 +82,7 @@ class SimplePatternMatcher(PatternMatcher):
         if subgraph replacement happens. But subsequent DCE will remove the constant
         node if it is not used elsewhere.
         """
-        constant_value = value.const_value
+        constant_value = _ir_utils.get_const_value(value)
         if constant_value is None:
             return self.fail(
                 f"Value {value.name} is not a constant, expecting {pattern_constant.value}.",

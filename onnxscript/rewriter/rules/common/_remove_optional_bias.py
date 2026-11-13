@@ -9,6 +9,7 @@ from typing import ClassVar
 import numpy as np
 import onnx_ir as ir
 
+from onnxscript.rewriter import _ir_utils
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
@@ -37,7 +38,7 @@ class _RemoveOptionalBias(RewriteRuleClassBase):
         check_result = MatchResult()
 
         # Check if bias is a constant/initializer
-        bias_tensor = ir.convenience.get_const_tensor(b)
+        bias_tensor = _ir_utils.get_const_value(b)
         if bias_tensor is None:
             return check_result.fail("Bias is not a constant/initializer.")
 

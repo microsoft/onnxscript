@@ -30,6 +30,9 @@ class MaterializeReshapeShape(RewriteRuleClassBase):
     def check(self, context, data: ir.Value, shape: ir.Value) -> MatchResult:
         check_result = MatchResult()
 
+        if shape.is_graph_input() and shape.const_value is not None:
+            return check_result.fail("Shape input has an overridable initializer default.")
+
         # Shape input must not already be a constant
         if ir_utils.get_numpy_value(shape) is not None:
             return check_result.fail("Shape input is already a constant.")

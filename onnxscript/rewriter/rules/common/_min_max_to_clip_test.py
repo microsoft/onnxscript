@@ -177,7 +177,7 @@ class TestFuseSuccessiveMinOrMax(_TestMinMaxToClipBase):
             ("max_graph_input", "Max"),
         ]
     )
-    def test_successful_fuse_successive_min_or_max_graph_inputs_as_constants(self, _, op_type):
+    def test_preserve_successive_min_or_max_with_overridable_defaults(self, _, op_type):
         base_model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14, 17] X, float[1] cst1, float[1] cst2) => (float[N, ?, ?, ?] Y)
@@ -187,7 +187,7 @@ class TestFuseSuccessiveMinOrMax(_TestMinMaxToClipBase):
                 Y = {op_type}(x1, cst2)
             }}
         """)
-        self.run_test(base_model, expected_op_types=[op_type])
+        self.run_test(base_model, expected_op_types=[op_type, op_type])
 
 
 class TestMinMaxToClip(_TestMinMaxToClipBase):
@@ -216,7 +216,7 @@ class TestMinMaxToClip(_TestMinMaxToClipBase):
         """)
         self.run_test(base_model, expected_op_types=["Constant", "Clip"])
 
-    def test_successful_min_max_to_clip_graph_inputs_as_constants(self):
+    def test_preserve_min_max_with_overridable_defaults(self):
         base_model = ir.from_onnx_text("""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14, 17] X, float[1] min, float[1] max) => (float [N, ?, ?, ?] Y)
@@ -226,7 +226,7 @@ class TestMinMaxToClip(_TestMinMaxToClipBase):
                 Y = Max(x1, max)
             }
         """)
-        self.run_test(base_model, expected_op_types=["Clip"])
+        self.run_test(base_model, expected_op_types=["Min", "Max"])
 
     def test_failure_min_max_to_clip_invalid_bounds(self):
         """Min node should have the max value and Max node should have the min value."""
@@ -293,7 +293,7 @@ class TestMaxMinToClip(_TestMinMaxToClipBase):
         """)
         self.run_test(base_model, expected_op_types=["Constant", "Clip"])
 
-    def test_successful_max_min_to_clip_graph_inputs_as_constants(self):
+    def test_preserve_max_min_with_overridable_defaults(self):
         base_model = ir.from_onnx_text("""
                 < ir_version: 10, opset_import: ["" : 20] >
                 test_model (float[N, 32, 14, 17] X, float[1] min, float[1] max) => (float [N, ?, ?, ?] Y)
@@ -303,7 +303,7 @@ class TestMaxMinToClip(_TestMinMaxToClipBase):
                     Y = Min(x1, min)
                 }
             """)
-        self.run_test(base_model, expected_op_types=["Clip"])
+        self.run_test(base_model, expected_op_types=["Max", "Min"])
 
     def test_successful_max_min_to_clip_check_bounds(self):
         base_model = ir.from_onnx_text("""
