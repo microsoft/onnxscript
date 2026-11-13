@@ -400,6 +400,300 @@ class RedundantScatterNdTest(unittest.TestCase):
         count = _redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
+    def test_dynamic_indices_with_default_shape_and_scatter_nd_attributes(self):
+        """ScatterAllDynamic matches when Shape, Gather, and ScatterND default attributes are omitted."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {1},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape(data)
+                dim = Gather(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND(transposed_data, full_range_2d, updates)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        onnx_check(model)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (
+                np.random.rand(4, 8).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+            ),
+            rtol=0.0,
+            atol=0.0,
+        )
+
+    def test_dynamic_indices_non_zero_shape_start_rejected(self):
+        """Shape with non-zero start attribute should be safely rejected."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[8, 4] data, float[8, 4] transposed_data, float[4, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {0},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = 1>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        onnx_check(model)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_shape_start_from_reference_attribute_is_not_rewritten(self):
+        """ScatterAllDynamic must safely reject when Shape.start is forwarded from a function reference attribute."""
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 18, "local" : 1]>
+            agraph (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] output)
+            {
+                output = local.ScatterDynamic <start_val = 0> (data, transposed_data, updates)
+            }
+            <domain: "local", opset_import: [ "" : 18]>
+            ScatterDynamic <start_val> (data, transposed_data, updates) => (output)
+            {
+                axis = Constant <value = int64 {1}> ()
+                zero = Constant <value = int64 {0}> ()
+                one = Constant <value = int64 {1}> ()
+                axes = Constant <value = int64[1] {-1}> ()
+                shape = Shape <start: int = @start_val> (data)
+                dim = Gather (shape, axis)
+                full_range = Range (zero, dim, one)
+                full_range_2d = Unsqueeze (full_range, axes)
+                output = ScatterND (transposed_data, full_range_2d, updates)
+            }
+        """
+        )
+        onnx.checker.check_model(model_proto, full_check=True)
+        model = ir.serde.deserialize_model(model_proto)
+        function = next(iter(model.functions.values()))
+        for v, s in zip(function.inputs, ([4, 8], [8, 4], [8, 4])):
+            v.shape = ir.Shape(s)
+
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertIn("ScatterND", [node.op_type for node in function])
+
+    def test_dynamic_indices_shape_end_attribute_rejected(self):
+        """Shape with end attribute should be safely rejected."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[4, 8] data, float[8, 4] transposed_data, float[4, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {-1},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<end = 1>(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        onnx_check(model)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_reducing_scatter_nd_rejected(self):
+        """ScatterND with reduction other than 'none' should be safely rejected."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {1},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape(data)
+                dim = Gather<axis = 0>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND<reduction = "add">(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_reduction_from_reference_attribute_is_not_rewritten(self):
+        """ScatterAllDynamic must safely reject when reduction is forwarded from a function reference attribute."""
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 18, "local" : 1]>
+            agraph (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] output)
+            {
+                output = local.ScatterDynamic <mode = "none"> (data, transposed_data, updates)
+            }
+            <domain: "local", opset_import: [ "" : 18]>
+            ScatterDynamic <mode> (data, transposed_data, updates) => (output)
+            {
+                axis = Constant <value = int64 {1}> ()
+                zero = Constant <value = int64 {0}> ()
+                one = Constant <value = int64 {1}> ()
+                axes = Constant <value = int64[1] {-1}> ()
+                shape = Shape (data)
+                dim = Gather (shape, axis)
+                full_range = Range (zero, dim, one)
+                full_range_2d = Unsqueeze (full_range, axes)
+                output = ScatterND <reduction: string = @mode> (transposed_data, full_range_2d, updates)
+            }
+        """
+        )
+        onnx.checker.check_model(model_proto, full_check=True)
+        model = ir.serde.deserialize_model(model_proto)
+        function = next(iter(model.functions.values()))
+        for v, s in zip(function.inputs, ([4, 8], [8, 4], [8, 4])):
+            v.shape = ir.Shape(s)
+
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertIn("ScatterND", [node.op_type for node in function])
+
+    def test_dynamic_indices_non_zero_gather_axis_rejected(self):
+        """Gather with non-zero axis attribute should be safely rejected."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {1},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape(data)
+                dim = Gather<axis = 1>(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_dynamic_indices_gather_axis_from_reference_attribute_is_not_rewritten(self):
+        """ScatterAllDynamic must safely reject when Gather.axis is forwarded from a function reference attribute."""
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 18, "local" : 1]>
+            agraph (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] output)
+            {
+                output = local.ScatterDynamic <axis_val = 0> (data, transposed_data, updates)
+            }
+            <domain: "local", opset_import: [ "" : 18]>
+            ScatterDynamic <axis_val> (data, transposed_data, updates) => (output)
+            {
+                axis = Constant <value = int64 {1}> ()
+                zero = Constant <value = int64 {0}> ()
+                one = Constant <value = int64 {1}> ()
+                axes = Constant <value = int64[1] {-1}> ()
+                shape = Shape (data)
+                dim = Gather <axis: int = @axis_val> (shape, axis)
+                full_range = Range (zero, dim, one)
+                full_range_2d = Unsqueeze (full_range, axes)
+                output = ScatterND (transposed_data, full_range_2d, updates)
+            }
+        """
+        )
+        onnx.checker.check_model(model_proto, full_check=True)
+        model = ir.serde.deserialize_model(model_proto)
+        function = next(iter(model.functions.values()))
+        for v, s in zip(function.inputs, ([4, 8], [8, 4], [8, 4])):
+            v.shape = ir.Shape(s)
+
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertIn("ScatterND", [node.op_type for node in function])
+
+    def test_dynamic_indices_negative_full_rank_shape_start_supported(self):
+        """Shape<start = -rank> produces the full shape and should be safely rewritten."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[4, 8] data, float[8, 4] transposed_data, float[8, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {1},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = -2>(data)
+                dim = Gather(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND(transposed_data, full_range_2d, updates)
+            }
+        """
+        original = ir.from_onnx_text(model_text)
+        model = ir.from_onnx_text(model_text)
+        onnx_check(model)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertIn("Identity", [node.op_type for node in model.graph])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (
+                np.random.rand(4, 8).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+                np.random.rand(8, 4).astype(np.float32),
+            ),
+            rtol=0.0,
+            atol=0.0,
+        )
+
+    def test_dynamic_indices_partial_negative_shape_start_rejected(self):
+        """Shape<start = -1> on rank-2 data omits the first dimension and must be rejected."""
+        model_text = """
+            <ir_version: 8, opset_import: ["" : 17]>
+            test (float[8, 4] data, float[8, 4] transposed_data, float[4, 4] updates) => (float[8, 4] out)
+            <
+                int64 axis = {0},
+                int64 zero = {0},
+                int64 one = {1},
+                int64[1] axes = {-1}
+            >
+            {
+                shape = Shape<start = -1>(data)
+                dim = Gather(shape, axis)
+                full_range = Range(zero, dim, one)
+                full_range_2d = Unsqueeze(full_range, axes)
+                out = ScatterND(transposed_data, full_range_2d, updates)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        onnx_check(model)
+        count = _redundant_scatter_nd.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
