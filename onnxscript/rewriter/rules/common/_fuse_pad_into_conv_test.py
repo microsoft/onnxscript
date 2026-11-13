@@ -6,10 +6,12 @@ import unittest
 from typing import Mapping, Sequence
 
 import numpy as np
+import onnx.checker
 import onnx_ir as ir
 import parameterized
 from onnx_ir.passes.common import onnx_checker, shape_inference
 
+from onnxscript import optimizer, rewriter
 from onnxscript.rewriter import pattern as orp
 from onnxscript.rewriter import testing
 from onnxscript.rewriter.rules.common import _fuse_pad_into_conv
@@ -22,6 +24,101 @@ from onnxscript.rewriter.rules.common._fuse_pad_into_conv import (
 
 def _clone_model(model: ir.Model) -> ir.Model:
     return ir.from_proto(ir.to_proto(model))
+
+
+class ReferenceAttributesTest(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        [
+            (op_type, normalize, name, attr_type)
+            for op_type in ("Conv", "ConvInteger")
+            for normalize, name, attr_type in (
+                (False, "pads", ir.AttributeType.INTS),
+                (False, "mode", ir.AttributeType.STRING),
+                (False, "auto_pad", ir.AttributeType.STRING),
+                (False, "strides", ir.AttributeType.INTS),
+                (True, "kernel_shape", ir.AttributeType.INTS),
+                (True, "strides", ir.AttributeType.INTS),
+                (True, "dilations", ir.AttributeType.INTS),
+                (True, "auto_pad", ir.AttributeType.STRING),
+            )
+        ]
+    )
+    def test_reference_attributes_are_preserved(self, op_type, normalize, name, attr_type):
+        dtype = ir.DataType.FLOAT if op_type == "Conv" else ir.DataType.UINT8
+        x = ir.val("x", dtype, [1, 1, 4, 4])
+        w = ir.val("w", dtype, [1, 1, 1, 1])
+        pads = ir.Node(
+            "",
+            "Constant",
+            [],
+            [
+                ir.AttrTensor(
+                    "value", ir.tensor(np.array([0, 0, 1, 1, 0, 0, 1, 1], dtype=np.int64))
+                )
+            ],
+        )
+        pad = ir.Node("", "Pad", [x, pads.outputs[0]])
+        conv = ir.Node("", op_type, [x if normalize else pad.outputs[0], w])
+        conv.outputs[0].shape = (
+            ir.Shape([1, 1, 4, 4]) if normalize else ir.Shape([1, 1, "H", "W"])
+        )
+        conv.outputs[0].dtype = ir.DataType.FLOAT if op_type == "Conv" else ir.DataType.INT32
+        if normalize:
+            conv.attributes["auto_pad"] = ir.AttrString("auto_pad", "SAME_UPPER")
+        owner = pad if name == "mode" else conv
+        owner.attributes[name] = ir.RefAttr(name, "parameter", attr_type)
+        function = ir.Function(
+            "local",
+            "F",
+            graph=ir.Graph(
+                [x, w],
+                conv.outputs,
+                nodes=[conv] if normalize else [pads, pad, conv],
+                opset_imports={"": 18},
+            ),
+            attributes=[ir.Attr("parameter", attr_type, None)],
+        )
+        model = ir.Model(
+            ir.Graph([], [], nodes=[], name="main", opset_imports={"": 18, "local": 1}),
+            ir_version=10,
+            functions=[function],
+        )
+        onnx.checker.check_model(ir.to_proto(model))
+        optimizer.basic_constant_propagation(function)
+        before = ir.to_proto(model).SerializeToString()
+        preserves_reference = not normalize and name == "strides"
+        self.assertEqual(
+            _fuse_pad_into_conv.rules.apply_to_model(model), int(preserves_reference)
+        )
+        rewriter.RewritePass(rewriter._DEFAULT_REWRITE_RULES)(model)
+        if preserves_reference:
+            self.assertTrue(function.graph[-1].attributes[name].is_ref())
+            self.assertEqual(function.graph[-1].attributes[name].ref_attr_name, "parameter")
+            onnx.checker.check_model(ir.to_proto(model))
+            return
+        self.assertEqual(ir.to_proto(model).SerializeToString(), before)
+
+        if normalize:
+            original_rule = (
+                _fuse_pad_into_conv.normalize_pad_format_conv_rule
+                if op_type == "Conv"
+                else _fuse_pad_into_conv.normalize_pad_format_conv_integer_rule
+            )
+        else:
+            original_rule = (
+                _fuse_pad_into_conv.fuse_pad_into_conv_rule
+                if op_type == "Conv"
+                else _fuse_pad_into_conv.fuse_pad_into_conv_integer_rule
+            )
+        unguarded_rule = orp.RewriteRule(
+            original_rule._target_pattern, original_rule._replacement_pattern
+        )
+        self.assertIsNone(unguarded_rule.try_rewrite(model, function, conv))
+        del owner.attributes[name]
+        if normalize and name == "auto_pad":
+            conv.attributes["auto_pad"] = ir.AttrString("auto_pad", "SAME_UPPER")
+        self.assertEqual(_fuse_pad_into_conv.rules.apply_to_model(model), 1)
+        onnx.checker.check_model(ir.to_proto(model))
 
 
 class FuseConvPadBaseTest(unittest.TestCase):

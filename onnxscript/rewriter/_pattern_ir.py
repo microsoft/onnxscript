@@ -127,6 +127,8 @@ class AttrConstantPattern(AttrPattern):
         self._value = value
 
     def matches(self, attr: ir.Attr) -> bool:
+        if attr.is_ref():
+            return False
         if attr.type in {
             ir.AttributeType.INTS,
             ir.AttributeType.FLOATS,
