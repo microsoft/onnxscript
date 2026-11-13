@@ -10,6 +10,7 @@ import onnx_ir.passes.common as common_passes
 
 from onnxscript import rewriter
 from onnxscript.optimizer import _constant_folding
+from onnxscript.optimizer._constant_evaluation import ConstantEvaluatorRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ def optimize_ir(
     output_size_limit: int = _constant_folding.DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
     should_fold: Callable[[ir.Node], bool | None] = lambda node: None,
     inline: bool = True,
+    evaluators: ConstantEvaluatorRegistry | None = None,
 ) -> None:
     """Optimizes a model.
 
@@ -41,7 +43,9 @@ def optimize_ir(
             The function should return True/False value to indicate if this particular
             node should be folded, or None to use the default folding rules.
         inline: If True, inlines all functions in the model.
+        evaluators: Custom concrete constant evaluators for this invocation.
     """
+    original_opsets = dict(model.opset_imports)
     passes = [
         ir.passes.PassManager(
             [
@@ -50,6 +54,7 @@ def optimize_ir(
                     input_size_limit=input_size_limit,
                     output_size_limit=output_size_limit,
                     should_fold=should_fold,
+                    evaluators=evaluators,
                 ),
                 rewriter.RewritePass(rewriter._DEFAULT_REWRITE_RULES),
                 common_passes.RemoveUnusedNodesPass(),
@@ -74,3 +79,6 @@ def optimize_ir(
     assert optimizer_pass.in_place
     result = optimizer_pass(model)
     assert result.model is model
+    if not model.opset_imports:
+        # ONNX requires an opset import even when all nodes became initializers.
+        model.opset_imports.update(original_opsets)

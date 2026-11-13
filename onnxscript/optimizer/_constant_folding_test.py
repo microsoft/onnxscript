@@ -1094,6 +1094,29 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         self.assertIn("y", output_names)
         self.assertIn("z", output_names)
 
+    def test_register_constant_folder(self):
+        evaluators = optimizer.ConstantEvaluatorRegistry()
+
+        @optimizer.register_constant_folder(
+            "CustomAdd", domain="test.custom", registry=evaluators
+        )
+        def fold_custom_add(inputs, attributes, context):
+            return [ir.tensor(inputs[0].numpy() + inputs[1].numpy())]
+
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17, "test.custom" : 1 ]>
+            agraph () => (int64 z) {
+                x = Constant <value_int=20> ()
+                y = Constant <value_int=22> ()
+                z = test.custom.CustomAdd(x, y)
+            }
+        """
+        optimized = self._fold(model, evaluators=evaluators)
+        self.assertFalse(any(n.op_type == "CustomAdd" for n in optimized.graph))
+        z_value = optimized.graph.outputs[0]
+        self.assertIsNotNone(z_value.const_value)
+        np.testing.assert_equal(z_value.const_value.numpy(), np.array(42, dtype=np.int64))
+
 
 def _all_value_names_unique(model: ir.Model) -> bool:
     """Return True if all named values in the top-level graph have unique names."""

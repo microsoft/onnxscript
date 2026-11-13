@@ -23,6 +23,60 @@ The `onnxscript.optimizer.optimize` call takes in several optional parameters th
     :noindex:
 ```
 
+## Custom constant evaluation
+
+Use an explicit `ConstantEvaluatorRegistry` to evaluate custom operators whose
+inputs are constant. Registrations affect only calls receiving that registry;
+they do not modify global optimizer behavior.
+
+```python
+from typing import Mapping, Sequence
+
+import onnx_ir as ir
+from onnxscript import optimizer
+
+evaluators = optimizer.ConstantEvaluatorRegistry()
+
+
+@optimizer.register_constant_folder(
+    "Double", domain="example", version=(1, None), registry=evaluators
+)
+def double(
+    inputs: Sequence[ir.TensorProtocol | None],
+    attributes: Mapping[str, ir.Attr],
+    context: optimizer.ConstantEvaluationContext,
+) -> Sequence[ir.TensorProtocol] | None:
+    if inputs[0] is None:
+        return None
+    return [ir.tensor(inputs[0].numpy() * 2)]
+
+
+optimizer.optimize(model, evaluators=evaluators)
+# Or: optimizer.fold_constants(model, evaluators=evaluators)
+```
+
+The equivalent decorator is `@evaluators.register("Double", domain="example",
+version=(1, None))`. An integer version matches exactly; a tuple specifies
+inclusive bounds, and `None` means no bound. Overlapping registrations for the
+same domain/operator are rejected, and `ai.onnx` is normalized to the standard
+empty domain.
+
+Callbacks receive constant input tensors (`None` for omitted optional inputs),
+a read-only attribute mapping, and immutable operator information. Return one
+tensor per output, or `None` to defer to ONNX reference evaluation. Callbacks
+must be deterministic and must not mutate input tensors or attributes.
+If an input's external data is unavailable, the node is preserved without
+invoking the callback; only omitted optional inputs are passed as `None`.
+Invalid output counts, types, dtypes, and known shapes raise actionable errors.
+
+Custom evaluation follows the normal constant-input, nondeterminism, blacklist,
+input-size, and output-size policies. As with reference evaluation,
+`should_fold=True` can override the default blacklist and input-size limit,
+but not the constant-input or nondeterminism requirements. Built-in partial
+simplifications run first and are not overridden by this API. Use the
+[rewriter](../../api/rewriter.md) for algebraic rewrites of nonconstant inputs,
+not the optimizer's private partial-evaluator registry.
+
 ## Description of optimizations applied by `onnxscript.optimizer.optimize`
 
 | Optimization | Description |

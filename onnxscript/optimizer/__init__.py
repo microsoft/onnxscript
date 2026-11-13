@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import TypeVar
 
 __all__ = [
+    "ConstantEvaluationContext",
+    "ConstantEvaluator",
+    "ConstantEvaluatorRegistry",
     "basic_constant_propagation",
     "fold_constants_ir",
     "fold_constants",
@@ -12,6 +15,7 @@ __all__ = [
     "inline",
     "optimize_ir",
     "optimize",
+    "register_constant_folder",
     "remove_unused_nodes",
 ]
 
@@ -20,6 +24,12 @@ import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
 
 import onnxscript.optimizer._constant_folding as constant_folding
+from onnxscript.optimizer._constant_evaluation import (
+    ConstantEvaluationContext,
+    ConstantEvaluator,
+    ConstantEvaluatorRegistry,
+    register_constant_folder,
+)
 from onnxscript.optimizer._constant_folding import FOLDED_FROM_KEY, basic_constant_propagation
 from onnxscript.optimizer._constant_folding import fold_constants as fold_constants_ir
 from onnxscript.optimizer._optimizer import optimize_ir
@@ -36,6 +46,7 @@ def optimize(
     input_size_limit: int = constant_folding.DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = constant_folding.DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
     inline: bool = True,
+    evaluators: ConstantEvaluatorRegistry | None = None,
 ) -> _ModelProtoOrIr:
     """Optimizes a model.
 
@@ -49,6 +60,7 @@ def optimize(
             of the output tensor is greater than this.
         stop_if_no_change: Stop the optimization loop if no change is detected in an iteration.
         inline: If True, inlines all functions in the model.
+        evaluators: Custom concrete constant evaluators for this invocation.
 
     Returns:
         The optimized model. If the input was a ModelProto, the output will also be a
@@ -65,6 +77,7 @@ def optimize(
             input_size_limit=input_size_limit,
             output_size_limit=output_size_limit,
             inline=inline,
+            evaluators=evaluators,
         )
         return model
     else:
@@ -78,6 +91,7 @@ def optimize(
             input_size_limit=input_size_limit,
             output_size_limit=output_size_limit,
             inline=inline,
+            evaluators=evaluators,
         )
         # Move the model back to the proto
         new_proto = ir.serde.serialize_model(model_ir)
@@ -91,16 +105,23 @@ def inline(model: ir.Model) -> None:
 
 
 def fold_constants(
-    model: ir.Model | onnx.ModelProto, *args, **kwargs
+    model: ir.Model | onnx.ModelProto,
+    *args,
+    evaluators: ConstantEvaluatorRegistry | None = None,
+    **kwargs,
 ) -> constant_folding.FoldConstantsResult:
-    """Fold constants in a model in place."""
+    """Fold constants in a model in place.
+
+    Pass an explicit ``ConstantEvaluatorRegistry`` as ``evaluators`` to evaluate
+    custom operators. Remaining arguments are forwarded to ``fold_constants_ir``.
+    """
     if isinstance(model, ir.Model):
-        return constant_folding.fold_constants(model, *args, **kwargs)
+        return constant_folding.fold_constants(model, *args, evaluators=evaluators, **kwargs)
     else:
         assert isinstance(model, onnx.ModelProto)
         model_proto = model
         model = ir.serde.deserialize_model(model_proto)
-        result = constant_folding.fold_constants(model, *args, **kwargs)
+        result = constant_folding.fold_constants(model, *args, evaluators=evaluators, **kwargs)
         # Move the model back to the proto
         new_proto = ir.serde.serialize_model(model)
         model_proto.Clear()
