@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import unittest
 
+import onnx.checker
 import onnx.parser
 import onnx_ir as ir
 
@@ -63,10 +64,10 @@ class CastConstantOfShapeExtendedTest(unittest.TestCase):
         self.assertEqual(model.graph[0].attributes["value"].value.dtype, 11)
 
     def test_cast_to_bfloat16(self):
-        """ConstantOfShape(float) → Cast(to=BFLOAT16) fuses."""
+        """ConstantOfShape(float) → Cast(to=BFLOAT16) fuses at opset 20."""
         model = self._apply(
             """
-            <ir_version: 7, opset_import: [ "" : 17]>
+            <ir_version: 7, opset_import: [ "" : 20]>
             agraph (int64[2] input_x) => (bfloat16[1, 4] output)
             {
                 constant = ConstantOfShape <value: tensor = float[1] {1.}>(input_x)
@@ -77,6 +78,7 @@ class CastConstantOfShapeExtendedTest(unittest.TestCase):
         self.assertEqual(len(model.graph), 1)
         # dtype 16 = BFLOAT16
         self.assertEqual(model.graph[0].attributes["value"].value.dtype, 16)
+        onnx.checker.check_model(ir.serde.serialize_model(model), True)
 
     def test_without_value_cast_to_int32(self):
         """ConstantOfShape (no value) → Cast(to=INT32) fuses with zero default."""
