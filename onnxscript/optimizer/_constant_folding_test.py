@@ -912,6 +912,137 @@ func (float[1,M] x, int64[3] split) => (float[1,M] return_val) {
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
 
+    @parameterized.parameterized.expand(
+        [
+            (dim, api, as_proto, shape_inference, scalar_index)
+            for dim in (-1, -2, "N", None)
+            for api in ("fold_constants", "optimize")
+            for as_proto in (False, True)
+            for shape_inference in (False, True)
+            for scalar_index in (False, True)
+        ]
+    )
+    def test_shape_gather_concat_reshape_with_unknown_dim(
+        self, dim, api, as_proto, shape_inference, scalar_index
+    ):
+        """Regression for https://github.com/microsoft/onnxscript/issues/2963."""
+        index = "value_int=0" if scalar_index else "value_ints=[0]"
+        unsqueeze = (
+            """
+                axes = Constant <value_ints=[0]> ()
+                gathered = Unsqueeze(selected, axes)
+            """
+            if scalar_index
+            else "gathered = Identity(selected)"
+        )
+        model = ir.from_onnx_text(f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 512, 4, 1] x) => (float[?, ?] y)
+            {{
+                reduced = ReduceMax <axes=[2], keepdims=1> (x)
+                shape = Shape(reduced)
+                index_0 = Constant <{index}> ()
+                selected = Gather <axis=0> (shape, index_0)
+                {unsqueeze}
+                neg_one = Constant <value_ints=[-1]> ()
+                concat_shape = Concat <axis=0> (gathered, neg_one)
+                y = Reshape(reduced, concat_shape)
+            }}
+        """)
+        model.graph.inputs[0].shape = ir.Shape([dim, 512, 4, 1])
+        original = ir.serde.serialize_model(model)
+        model = original if as_proto else model
+        if api == "optimize":
+            optimized = optimizer.optimize(model, onnx_shape_inference=shape_inference)
+        else:
+            optimizer.fold_constants(model, onnx_shape_inference=shape_inference)
+            optimizer.remove_unused_nodes(model)
+            optimized = model
+        optimized_proto = (
+            optimized
+            if isinstance(optimized, onnx.ModelProto)
+            else ir.serde.serialize_model(optimized)
+        )
+        onnx.checker.check_model(optimized_proto)
+        expected_evaluator = ReferenceEvaluator(original)
+        actual_evaluator = ReferenceEvaluator(optimized_proto)
+        for batch in (2, 3):
+            with self.subTest(batch=batch):
+                x = np.arange(batch * 512 * 4, dtype=np.float32).reshape(batch, 512, 4, 1)
+                expected = expected_evaluator.run(None, {"x": x})[0]
+                actual = actual_evaluator.run(None, {"x": x})[0]
+                self.assertEqual(actual.shape, (batch, 512))
+                np.testing.assert_array_equal(actual, expected)
+
+    @parameterized.parameterized.expand([(-1,), (-2,), ("N",), (None,)])
+    def test_fold_known_dimensions_of_partial_shape(self, dim):
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 512, 0] x) => (int64[2] sliced, int64[1] gathered)
+            {
+                sliced = Shape <start=1, end=3> (x)
+                shape = Shape(x)
+                index = Constant <value_ints=[1]> ()
+                gathered = Gather <axis=0> (shape, index)
+            }
+        """)
+        model.graph.inputs[0].shape = ir.Shape([dim, 512, 0])
+        optimized = self._fold(model)
+        self.assertEqual([node.op_type for node in optimized.graph], ["Constant", "Constant"])
+        np.testing.assert_array_equal(optimized.graph.outputs[0].const_value.numpy(), [512, 0])
+        np.testing.assert_array_equal(optimized.graph.outputs[1].const_value.numpy(), [512])
+
+    @parameterized.parameterized.expand([(-1,), (-2,), ("N",), (None,)])
+    def test_shape_unknown_dimension_arithmetic(self, dim):
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 512] x) => (int64[1] y)
+            {
+                batch = Shape <start=0, end=1> (x)
+                one = Constant <value_ints=[1]> ()
+                incremented = Add(batch, one)
+                index = Constant <value_ints=[0]> ()
+                y = Gather <axis=0> (incremented, index)
+            }
+        """)
+        model.graph.inputs[0].shape = ir.Shape([dim, 512])
+        optimized = self._fold(model)
+        self.assertIsNone(optimized.graph.outputs[0].const_value)
+        evaluator = ReferenceEvaluator(ir.serde.serialize_model(optimized))
+        for batch in (2, 3):
+            actual = evaluator.run(None, {"x": np.zeros((batch, 512), dtype=np.float32)})[0]
+            np.testing.assert_array_equal(actual, [batch + 1])
+
+    @parameterized.parameterized.expand(
+        [
+            ("negative_one", [-1, 512], None),
+            ("negative_two", [-2, 512], None),
+            ("symbolic", ["N", 512], None),
+            ("anonymous", [None, 512], None),
+            ("known", [2, 512], 1024),
+            ("zero", [0, 512], 0),
+            ("scalar", [], 1),
+        ]
+    )
+    def test_fold_size_with_unknown_dimensions(self, _, shape, expected_size):
+        model = ir.from_onnx_text("""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 512] x) => (int64 y)
+            {
+                y = Size(x)
+            }
+        """)
+        model.graph.inputs[0].shape = ir.Shape(shape)
+        optimized = self._fold(model)
+        if expected_size is None:
+            self.assertEqual([node.op_type for node in optimized.graph], ["Size"])
+            self.assertIsNone(optimized.graph.outputs[0].const_value)
+        else:
+            self.assertEqual([node.op_type for node in optimized.graph], ["Constant"])
+            self.assertEqual(
+                optimized.graph.outputs[0].const_value.numpy().item(), expected_size
+            )
+
     def test_input_size_limit(self):
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>
