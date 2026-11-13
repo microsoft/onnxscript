@@ -27,6 +27,16 @@ import onnx_ir.passes.common as ir_passes_common
 import onnxscript.utils.utils as utils
 from onnxscript._internal.tape_builder import BuilderBase, TapeBuilder
 
+try:
+    from onnx.reference.ops_optimized import optimized_operators
+except ModuleNotFoundError as e:
+    if e.name != "onnx.reference.ops_optimized":
+        raise
+    # Newer ONNX versions vectorize the plain ops and remove this module.
+    optimized_operators = []
+
+_OPTIMIZED_OPS = {(cls.op_domain, cls.__name__): cls for cls in optimized_operators}
+
 OptimizerContext = BuilderBase
 
 DEFAULT_CONSTANT_FOLD_BLACKLIST = [
@@ -144,6 +154,8 @@ def basic_constant_propagation(nodes: Iterable[ir.Node]) -> None:
 
 class ReferenceEvaluator:
     def get_evaluator(self, domain: str, op: str, version: int) -> Callable | None:
+        if (domain, op) in _OPTIMIZED_OPS:
+            return _OPTIMIZED_OPS[domain, op].eval
         try:
             op_impl_class = onnx.reference.ops.load_op(domain, op, version)
             return op_impl_class.eval  # noqa: TRY300
@@ -152,11 +164,39 @@ class ReferenceEvaluator:
 
     def evaluate(self, domain: str, op: str, version: int, *args, **kwargs) -> Any:
         logger.debug("Evaluating %s::%s", domain, op)
+        if (
+            (domain, op) == ("", "Conv")
+            and (domain, op) in _OPTIMIZED_OPS
+            and kwargs.get("auto_pad") in {"SAME_UPPER", "SAME_LOWER", "VALID"}
+        ):
+            # Both legacy reference kernels can silently compute incorrect automatic padding.
+            logger.info(
+                "Skipping Conv constant folding with auto_pad=%r because legacy ONNX "
+                "reference kernels compute incorrect padding; use explicit pads or "
+                "upgrade ONNX to a version with corrected reference Conv.",
+                kwargs["auto_pad"],
+            )
+            return None
         evaluator = self.get_evaluator(domain, op, version)
         if evaluator is None:
             return None
         try:
             return evaluator(*args, **kwargs)
+        except Exception as e:
+            if (domain, op) not in _OPTIMIZED_OPS:
+                logger.warning("Evaluation failed: %s", e)
+                return None
+            # Older optimized Conv implementations cannot handle empty inputs.
+            logger.debug(
+                "Optimized evaluation of %s::%s (opset %s) failed: %s; "
+                "retrying with the plain reference implementation.",
+                domain,
+                op,
+                version,
+                e,
+            )
+        try:
+            return onnx.reference.ops.load_op(domain, op, version).eval(*args, **kwargs)
         except Exception as e:
             logger.warning("Evaluation failed: %s", e)
             return None
