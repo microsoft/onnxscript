@@ -521,6 +521,38 @@ class TestConverter(testutils.TestBase):
                 Temp = op.Abs(X)
                 return op.DummyOp(body=inner)
 
+    def test_failed_nested_function_restores_enclosing_state(self):
+        def bad_return(x) -> FLOAT:
+            @graph()
+            def body(state, element) -> tuple[FLOAT, FLOAT]:
+                return state
+
+            return x
+
+        def bad_branch(x) -> FLOAT:
+            @graph()
+            def body(state, element) -> tuple[FLOAT, FLOAT]:
+                if state > element:
+                    return state
+                return state, element
+
+            return x
+
+        for function, error in ((bad_return, SyntaxError), (bad_branch, ValueError)):
+            with self.subTest(function=function.__name__):
+                source = textwrap.dedent(inspect.getsource(function))
+                function_ast = ast.parse(source).body[0]
+                cvt = converter.Converter(
+                    opset=op, global_names=globals(), source=source, default_opset=op
+                )
+                with self.assertRaises(error):
+                    cvt.translate_function_def(function_ast)
+                self.assertEqual(cvt.returntype, (FLOAT,))
+                self.assertEqual(cvt._current_fn.name, function.__name__)
+                self.assertEqual(cvt._outer, [])
+                self.assertEqual(len(cvt._locals), 1)
+                self.assertIn("x", cvt._locals[0])
+
     def test_attr(self):
         from tests.functions import attr_test
 
