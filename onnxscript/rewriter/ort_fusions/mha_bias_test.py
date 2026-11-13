@@ -4,7 +4,7 @@
 """Unit tests for FuseBiasMHA rule (mha_bias.py).
 
 The rule detects Add(matmul, bias) before MultiHeadAttention inputs and
-fuses the biases into the MHA's consolidated bias input (Concat of q/k/v biases).
+fuses matching 1D biases into the MHA's consolidated bias input (Concat of q/k/v biases).
 """
 
 from __future__ import annotations
@@ -13,11 +13,13 @@ import unittest
 
 import numpy as np
 import onnx_ir as ir
+import parameterized
 
 from onnxscript import FLOAT, INT32, script, values
 from onnxscript import opset18 as op
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter.ort_fusions import _test_utils as test_utils
+from onnxscript.rewriter.ort_fusions import optimize_for_ort
 from onnxscript.rewriter.ort_fusions.mha_bias import fuse_mha_bias
 
 msft_op = values.Opset("com.microsoft", 1)
@@ -64,6 +66,18 @@ def _mha_qk_biases(query_matmul, key_matmul, value_matmul, q_bias, k_bias):
     query = op.Add(query_matmul, q_bias)
     key = op.Add(key_matmul, k_bias)
     return msft_op.MultiHeadAttention(query, key, value_matmul, num_heads=_NUM_HEADS)
+
+
+@script()
+def _attention_with_position(query_matmul, key_matmul, value_matmul, q_bias):
+    query = op.Add(query_matmul, q_bias)
+    shape = op.Constant(value_ints=[0, 0, _NUM_HEADS, -1])
+    query = op.Transpose(op.Reshape(query, shape), perm=[0, 2, 1, 3])
+    key = op.Transpose(op.Reshape(key_matmul, shape), perm=[0, 2, 3, 1])
+    value = op.Transpose(op.Reshape(value_matmul, shape), perm=[0, 2, 1, 3])
+    scores = op.Mul(op.MatMul(query, key), 0.5)
+    output = op.MatMul(op.Softmax(scores, axis=-1), value)
+    return op.Reshape(op.Transpose(output, perm=[0, 2, 1, 3]), [0, 0, -1])
 
 
 # --- Script models for negative tests ---
@@ -226,6 +240,66 @@ class FuseBiasMHATest(unittest.TestCase):
         self._check_numerical_equivalence(model, inputs, expected_count=1)
 
     # --- Negative tests: fusion should NOT apply ---
+
+    @parameterized.parameterized.expand(
+        [
+            ("query", _mha_q_bias_only, "q_bias"),
+            ("key", _mha_k_bias_only, "k_bias"),
+            ("value", _mha_v_bias_only, "v_bias"),
+        ]
+    )
+    def test_position_embedding_not_packed(self, _, script_fn, bias_name):
+        for bias_shape in [(_B, _S, _D), (1, _D), (1,)]:
+            with self.subTest(bias_shape=bias_shape):
+                model = self._build(
+                    script_fn,
+                    input_types=[FLOAT[_B, _S, _D]] * 3 + [FLOAT[bias_shape]],
+                    output_types=[FLOAT[_B, _S, _D]],
+                )
+                rng = np.random.default_rng(0)
+                inputs = {
+                    name: rng.standard_normal((_B, _S, _D)).astype(np.float32)
+                    for name in ("query_matmul", "key_matmul", "value_matmul")
+                }
+                inputs[bias_name] = rng.standard_normal(bias_shape).astype(np.float32)
+                self._check_numerical_equivalence(model, inputs, expected_count=0)
+
+    @parameterized.parameterized.expand(
+        [("position_embedding", FLOAT["B", "S", _D], 0), ("bias", FLOAT[_D], 1)]
+    )
+    def test_bias_shape_full_pipeline(self, _, bias_type, expected_count):
+        model = self._build(
+            _attention_with_position,
+            input_types=[FLOAT["B", "S", _D]] * 3 + [bias_type],
+            output_types=[FLOAT["B", "S", _D]],
+        )
+        rng = np.random.default_rng(0)
+        inputs = {
+            name: rng.standard_normal((_B, _S, _D)).astype(np.float32)
+            for name in ("query_matmul", "key_matmul", "value_matmul")
+        }
+        bias_shape = (_D,) if expected_count else (_B, _S, _D)
+        inputs["q_bias"] = rng.standard_normal(bias_shape).astype(np.float32)
+        original_outputs = test_utils.ort_run("original", model, inputs)
+        model, counts = optimize_for_ort(model)
+        self.assertGreater(counts["mha1"] + counts["mha2"], 0)
+        self.assertEqual(counts["mha_bias"], expected_count)
+        self.assertEqual(_count_op(model, "Add"), 1 - expected_count)
+        test_utils.assert_allclose(
+            test_utils.ort_run("optimized", model, inputs), original_outputs
+        )
+
+    @parameterized.parameterized.expand(
+        [("unknown", None), ("unknown_length", ["D"]), ("scalar", [])]
+    )
+    def test_unproven_bias_shape_not_packed(self, _, shape):
+        model = self._build(
+            _mha_q_bias_only,
+            input_types=[FLOAT["B", "S", _D]] * 3 + [FLOAT[_D]],
+            output_types=[FLOAT["B", "S", _D]],
+        )
+        model.graph.inputs[3].shape = ir.Shape(shape) if shape is not None else None
+        self.assertEqual(self._apply(model), 0)
 
     def test_no_biases_no_fusion(self):
         """No bias Adds at all → rule should not apply."""

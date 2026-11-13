@@ -75,6 +75,14 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
 
     def check(self, op, x, end1, start2, x_part_1_rope, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
+        if x is None or x.shape is None or len(x.shape) != 4:
+            return check_result.fail("Input is not a 4D tensor.", x)
+        num_heads = x.shape[1]
+        if not isinstance(num_heads, int) or num_heads <= 0:
+            return check_result.fail("A positive static number of heads is required.", x)
+        head_size = x.shape[3]
+        if not isinstance(head_size, int):
+            return check_result.fail("A static head size is required.", x)
         end1_value = _ir_utils.get_singleton_value(end1)
         start2_value = _ir_utils.get_singleton_value(start2)
         if not isinstance(end1_value, int) or not isinstance(start2_value, int):
@@ -84,6 +92,11 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         if end1_value != start2_value:
             return check_result.fail(
                 "The end1 value of first slice and start2 value of second slice are not equal."
+            )
+        if end1_value <= 0 or end1_value % 2 != 0 or end1_value > head_size:
+            return check_result.fail(
+                "The rotary dimension must be positive, even, and no larger than the head size.",
+                end1,
             )
         rotary_embedding_attributes = x_part_1_rope.producer().attributes
         if "rotary_embedding_dim" in rotary_embedding_attributes:
@@ -103,6 +116,7 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         inputs[0] = x
         attrs = dict(original_node.attributes)
         attrs["rotary_embedding_dim"] = rotary_embedding_dim
+        attrs["num_heads"] = x.shape[1]
         return op.RotaryEmbedding(
             *inputs,
             **attrs,

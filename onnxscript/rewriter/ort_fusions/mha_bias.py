@@ -68,6 +68,9 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         has_q_bias,
         has_k_bias,
         has_v_bias,
+        q_bias,
+        k_bias,
+        v_bias,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
@@ -115,6 +118,17 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
             return check_result.fail(
                 "Could not determine the hidden sizes of query, key, and value.",
             )
+
+        for bias, hidden_size in (
+            (q_bias, self.Dh_q),
+            (k_bias, self.Dh_k),
+            (v_bias, self.Dh_v),
+        ):
+            if bias is not None and (bias.shape is None or list(bias.shape) != [hidden_size]):
+                return check_result.fail(
+                    f"Expected a 1D bias of length {hidden_size}; keep other Add inputs outside MHA.",
+                    bias,
+                )
 
         return check_result
 

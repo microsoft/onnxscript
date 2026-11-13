@@ -7,7 +7,7 @@ RotaryEmbeddingFusion matches: x * cos + rotate_half(x) * sin
 and rewrites to RotaryEmbedding(x, cos, sin, ...).
 
 PartialRotaryEmbeddingFusion matches: Concat(RotaryEmbedding(Slice(x)), Slice(x))
-and adds rotary_embedding_dim attribute to the RotaryEmbedding op.
+and sets rotary_embedding_dim and num_heads on the RotaryEmbedding op.
 """
 
 from __future__ import annotations
@@ -16,10 +16,12 @@ import unittest
 
 import numpy as np
 import onnx_ir as ir
+import parameterized
 
-from onnxscript import FLOAT, script, values
+from onnxscript import FLOAT, INT64, script, values
 from onnxscript import opset18 as op
 from onnxscript.optimizer import optimize
+from onnxscript.rewriter.ort_fusions import _test_utils, optimize_for_ort
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
     fuse_rotary_embedding,
@@ -144,6 +146,75 @@ class RotaryEmbeddingFusionTest(unittest.TestCase):
         self.assertEqual(len(rope_nodes), 1)
         self.assertIn("rotary_embedding_dim", rope_nodes[0].attributes)
         self.assertEqual(rope_nodes[0].attributes["rotary_embedding_dim"].value, _HALF)
+
+    @parameterized.parameterized.expand(
+        [
+            (False, _H, None),
+            (True, _H, None),
+            (False, "heads", None),
+            (True, "heads", None),
+            (False, _H, 0),
+            (False, _H, _H),
+        ]
+    )
+    def test_partial_rotary_numerical(self, full_pipeline, heads, original_heads):
+        model = self._build(
+            _partial_rotary,
+            input_types=[
+                FLOAT["B", heads, "S", _Dh],
+                FLOAT["S", _HALF // 2],
+                FLOAT["S", _HALF // 2],
+                INT64["B", "S"],
+            ],
+            output_types=[FLOAT["B", heads, "S", _Dh]],
+        )
+        if original_heads is not None:
+            rope = next(n for n in model.graph if n.op_type == "RotaryEmbedding")
+            rope.attributes["num_heads"] = ir.AttrInt64("num_heads", original_heads)
+        rng = np.random.default_rng(0)
+        inputs = {
+            "x": rng.standard_normal((_B, _H, _S, _Dh)).astype(np.float32),
+            "cos": rng.standard_normal((_S, _HALF // 2)).astype(np.float32),
+            "sin": rng.standard_normal((_S, _HALF // 2)).astype(np.float32),
+            "position_ids": np.tile(np.arange(_S, dtype=np.int64), (_B, 1)),
+        }
+        original_outputs = _test_utils.ort_run("original", model, inputs)
+        if full_pipeline:
+            model, counts = optimize_for_ort(model)
+            count = counts["partial_rotary_embedding"]
+        else:
+            count = fuse_partial_rotary_embedding(model)
+        self.assertEqual(count, int(isinstance(heads, int)))
+        rope = next(n for n in model.graph if n.op_type == "RotaryEmbedding")
+        if count:
+            self.assertEqual(rope.attributes["num_heads"].as_int(), _H)
+            self.assertEqual(rope.attributes["rotary_embedding_dim"].as_int(), _HALF)
+        _test_utils.assert_allclose(
+            _test_utils.ort_run("optimized", model, inputs), original_outputs
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("unknown_shape", None),
+            ("unknown_heads", [_B, None, _S, _Dh]),
+            ("zero_heads", [_B, 0, _S, _Dh]),
+            ("unknown_head_size", [_B, _H, _S, "head_size"]),
+            ("short_head", [_B, _H, _S, _HALF - 1]),
+        ]
+    )
+    def test_partial_rotary_invalid_shape(self, _, shape):
+        model = self._build(
+            _partial_rotary,
+            input_types=[
+                FLOAT[_B, _H, _S, _Dh],
+                FLOAT[_S, _HALF // 2],
+                FLOAT[_S, _HALF // 2],
+                INT64[_B, _S],
+            ],
+            output_types=[FLOAT[_B, _H, _S, _Dh]],
+        )
+        model.graph.inputs[0].shape = ir.Shape(shape) if shape is not None else None
+        self.assertEqual(fuse_partial_rotary_embedding(model), 0)
 
     # --- Negative tests ---
 
