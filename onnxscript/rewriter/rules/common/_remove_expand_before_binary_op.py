@@ -16,7 +16,7 @@ from __future__ import annotations
 import onnx_ir as ir
 
 from onnxscript.rewriter._basics import MatchResult
-from onnxscript.rewriter._ir_utils import get_numpy_value
+from onnxscript.rewriter._ir_utils import get_numpy_value, same_dim, same_shape
 from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
 # Binary operators in ONNX standard opset that support numpy-style broadcasting.
@@ -54,7 +54,7 @@ def _compute_broadcast_dim(d1, d2):
         return d2
     if d2 == 1:
         return d1
-    if d1 == d2:
+    if same_dim(d1, d2):
         return d1
     return None
 
@@ -107,6 +107,8 @@ def _check_dims_sufficient(
     y_rank = y_shape.rank()
     if e_rank is None:
         return check_result.fail("Expand output rank is unknown.")
+    if e_rank > max(x_rank, y_rank):
+        return check_result.fail("Removing Expand would reduce the output rank.")
 
     for rev_i in range(e_rank):
         i = e_rank - 1 - rev_i
@@ -117,12 +119,12 @@ def _check_dims_sufficient(
 
         x_idx = x_rank - 1 - rev_i
         x_d = x_shape[x_idx] if x_idx >= 0 else 1
-        if x_d == e_d:
+        if same_dim(x_d, e_d):
             continue  # expand is a no-op at this dimension
 
         y_idx = y_rank - 1 - rev_i
         y_d = y_shape[y_idx] if y_idx >= 0 else 1
-        if y_d == e_d:
+        if same_dim(y_d, e_d):
             continue  # y already supplies this dimension
 
         return check_result.fail(
@@ -189,8 +191,16 @@ def _check_expand_removable(
     # --- Strategy 1: expand target shape is a compile-time constant ---
     expand_shape_val = get_numpy_value(shape)
     if expand_shape_val is not None:
+        if (
+            expand_shape_val.ndim != 1
+            or shape.dtype != ir.DataType.INT64
+            or any(int(dim) < 0 for dim in expand_shape_val)
+        ):
+            return check_result.fail("Expand target must be a nonnegative int64 vector.")
         expand_shape = tuple(int(v) for v in expand_shape_val.tolist())
         expand_rank = len(expand_shape)
+        if expand_rank > max(x_rank, y_rank):
+            return check_result.fail("Removing Expand would reduce the output rank.")
 
         for rev_i in range(expand_rank):
             i = expand_rank - 1 - rev_i
@@ -231,7 +241,7 @@ def _check_expand_removable(
         if op_output_shape.rank() is not None:
             computed = _compute_broadcast_shape(x_shape, y_shape)
             if computed is not None and len(computed) == op_output_shape.rank():
-                if all(c == a for c, a in zip(computed, op_output_shape)):
+                if all(same_dim(c, a) for c, a in zip(computed, op_output_shape)):
                     return check_result
         return check_result.fail(
             "broadcast(x.shape, y.shape) does not match the binary op output shape."
@@ -242,17 +252,20 @@ def _check_expand_removable(
     )
 
 
-class _ExpandFirstInput(RewriteRuleClassBase):
+class _RemoveExpandFromFirstInput(RewriteRuleClassBase):
     """Removes ``BinaryOp(Expand(x, shape), y)`` -> ``BinaryOp(x, y)``."""
 
     def __init__(self, op_type: str) -> None:
-        super().__init__(f"ExpandFirst_{op_type}", remove_nodes=False)
+        super().__init__(f"RemoveExpandFrom{op_type}FirstInput", remove_nodes=False)
         self._op_type = op_type
 
     def pattern(self, op, x, shape, y):
         return getattr(op, self._op_type)(op.Expand(x, shape), y)
 
     def check(self, context, x: ir.Value, shape: ir.Value, y: ir.Value) -> MatchResult:
+        self._attributes = dict(context.root.attributes)
+        if self._op_type == "PRelu" and not same_shape(x.shape, context.root.outputs[0].shape):
+            return MatchResult().fail("PRelu slopes must broadcast into the data shape.")
         expand_output = context.root.inputs[0] if context.root.inputs else None
         binary_op_output = context.root.outputs[0] if context.root.outputs else None
         return _check_expand_removable(
@@ -260,20 +273,21 @@ class _ExpandFirstInput(RewriteRuleClassBase):
         )
 
     def rewrite(self, op, x: ir.Value, shape: ir.Value, y: ir.Value) -> ir.Value:
-        return getattr(op, self._op_type)(x, y)
+        return getattr(op, self._op_type)(x, y, **self._attributes)
 
 
-class _ExpandSecondInput(RewriteRuleClassBase):
+class _RemoveExpandFromSecondInput(RewriteRuleClassBase):
     """Removes ``BinaryOp(x, Expand(y, shape))`` -> ``BinaryOp(x, y)``."""
 
     def __init__(self, op_type: str) -> None:
-        super().__init__(f"ExpandSecond_{op_type}", remove_nodes=False)
+        super().__init__(f"RemoveExpandFrom{op_type}SecondInput", remove_nodes=False)
         self._op_type = op_type
 
     def pattern(self, op, x, y, shape):
         return getattr(op, self._op_type)(x, op.Expand(y, shape))
 
     def check(self, context, x: ir.Value, y: ir.Value, shape: ir.Value) -> MatchResult:
+        self._attributes = dict(context.root.attributes)
         expand_output = context.root.inputs[1] if context.root.inputs else None
         binary_op_output = context.root.outputs[0] if context.root.outputs else None
         return _check_expand_removable(
@@ -281,15 +295,15 @@ class _ExpandSecondInput(RewriteRuleClassBase):
         )
 
     def rewrite(self, op, x: ir.Value, y: ir.Value, shape: ir.Value) -> ir.Value:
-        return getattr(op, self._op_type)(x, y)
+        return getattr(op, self._op_type)(x, y, **self._attributes)
 
 
 def _make_expand_before_binary_op_rules() -> list:
     """Create rewrite rules for removing Expand before each supported binary op."""
     rules = []
     for op_type in _BROADCAST_BINARY_OPS:
-        rules.append(_ExpandFirstInput.rule(op_type))
-        rules.append(_ExpandSecondInput.rule(op_type))
+        rules.append(_RemoveExpandFromFirstInput.rule(op_type))
+        rules.append(_RemoveExpandFromSecondInput.rule(op_type))
     return rules
 
 

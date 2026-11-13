@@ -42,6 +42,93 @@ class RemoveExpandBeforeBinaryOpTest(unittest.TestCase):
         self.assertEqual(actual_op_types, expected_op_types)
         return model
 
+    def test_leading_unit_expansion_preserves_rank(self):
+        self._apply_and_check(
+            """
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph (float[] x, float[] y) => (float[1] output)
+            <int64[1] shape = {1}> {
+                expanded = Expand(x,shape)
+                output = Add(expanded,y)
+            }
+            """,
+            0,
+            ["Expand", "Add"],
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("scalar", "int64", "{2}"),
+            ("negative", "int64[1]", "{-1}"),
+            ("matrix", "int64[1,1]", "{2}"),
+            ("int32", "int32[1]", "{2}"),
+        ]
+    )
+    def test_invalid_constant_expansion_target_is_not_rewritten(self, _, dtype, value):
+        self._apply_and_check(
+            f"""
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph (float[1] x, float[2] y) => (float[2] output)
+            <{dtype} shape = {value}> {{
+                expanded = Expand(x,shape)
+                output = Add(expanded,y)
+            }}
+            """,
+            0,
+            ["Expand", "Add"],
+        )
+
+    @parameterized.parameterized.expand([("Mod",), ("BitShift",)])
+    def test_binary_attributes_are_preserved(self, op_type):
+        dtype = "int32" if op_type == "Mod" else "uint32"
+        attribute = "fmod=1" if op_type == "Mod" else 'direction="LEFT"'
+        text = f"""
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph ({dtype}[1] x, {dtype}[2] y) => ({dtype}[2] output)
+            <int64[1] shape = {{2}}> {{
+                expanded = Expand(x,shape)
+                output = {op_type}<{attribute}>(expanded,y)
+            }}
+        """
+        model = self._apply_and_check(text, 1, [op_type])
+        onnx.checker.check_model(ir.to_proto(model))
+        numpy_dtype = np.int32 if op_type == "Mod" else np.uint32
+        feeds = {
+            "x": np.array([-5] if op_type == "Mod" else [3], numpy_dtype),
+            "y": np.array([2, 4], numpy_dtype),
+        }
+        np.testing.assert_array_equal(
+            _run_model(ir.from_onnx_text(text), feeds)[0], _run_model(model, feeds)[0]
+        )
+
+    def test_prelu_data_expansion_is_not_replaced_by_slope_broadcast(self):
+        self._apply_and_check(
+            """
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph (float[1] x, float[2] slope) => (float[2] output)
+            <int64[1] shape = {2}> {
+                expanded = Expand(x,shape)
+                output = PRelu(expanded,slope)
+            }
+            """,
+            0,
+            ["Expand", "PRelu"],
+        )
+
+    def test_unknown_dimensions_do_not_prove_equal_broadcasts(self):
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 8, opset_import: ["" : 18]>
+            graph (float[N] x, float[1] y, int64[1] shape) => (float[M] output) {
+                expanded = Expand(x,shape)
+                output = Add(expanded,y)
+            }
+            """
+        )
+        model.graph.inputs[0].shape = ir.Shape([None])
+        model.graph[0].outputs[0].shape = ir.Shape([None])
+        self.assertEqual(mod.expand_before_binary_op_rules.apply_to_model(model), 0)
+
     # ------------------------------------------------------------------
     # Cases where the Expand should be removed
     # ------------------------------------------------------------------

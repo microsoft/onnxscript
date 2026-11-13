@@ -14,7 +14,7 @@ import onnxscript.optimizer
 import onnxscript.rewriter
 from onnxscript import FLOAT, script
 from onnxscript import opset17 as op
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _matcher, pattern
 from onnxscript.rewriter.rules.common import _cast_constant_of_shape
 
 logger = logging.getLogger(__name__)
@@ -975,6 +975,356 @@ class ValueNodeCheckersTest(unittest.TestCase):
             if node.op_type == "Div":
                 tag = onnxscript.rewriter.RULE_NAME_TAG
                 self.assertEqual(node.metadata_props.get(tag), "ReciprocalMulRule")
+
+
+class MultiOutputBacktrackingTest(unittest.TestCase):
+    @staticmethod
+    def _identity_model(body: str, outputs: str) -> ir.Model:
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 10, opset_import: ["" : 18]>
+            graph (float[2] x, float[2] y) => ({outputs}) {{
+              {body}
+            }}
+            """
+        )
+        return ir.serde.deserialize_model(model_proto)
+
+    @staticmethod
+    def _two_identity_pattern(op, x):
+        return op.Identity(x), op.Identity(x)
+
+    @staticmethod
+    def _two_identity_replacement(op, x):
+        return op.Identity(x), op.Identity(x)
+
+    def test_value_checker_rejection_retries_without_stale_bindings(self):
+        model = self._identity_model(
+            "first=Identity(x) rejected=Identity(x) accepted=Identity(y)",
+            "float[2] first, float[2] rejected, float[2] accepted",
+        )
+        attempts = []
+
+        def is_y(context, value):
+            del context
+            attempts.append(value.name)
+            return value.name == "y"
+
+        def target(op, x):
+            return op.Identity(x), op.Identity(pattern.Var("other", check=is_y))
+
+        def replacement(op, x, other):
+            return op.Identity(x), op.Identity(other)
+
+        rule = pattern.RewriteRule(target, replacement)
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "accepted"])
+        self.assertEqual(attempts, ["x", "y"])
+        self.assertIs(match.bindings["other"], model.graph.inputs[1])
+
+    def test_legacy_matcher_keeps_single_result_contract(self):
+        class LegacyMatcher(_matcher.PatternMatcher):
+            def match(self, model, graph_or_function, node, **kwargs):
+                return _matcher.SimplePatternMatcher(self.pattern).match(
+                    model, graph_or_function, node, **kwargs
+                )
+
+        model = self._identity_model(
+            "first=Identity(x) second=Identity(x)",
+            "float[2] first, float[2] second",
+        )
+        rule = pattern.RewriteRule(
+            self._two_identity_pattern,
+            self._two_identity_replacement,
+            matcher=LegacyMatcher,
+        )
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "second"])
+
+    def test_no_candidate_for_remaining_root_returns_no_match(self):
+        model = self._identity_model("first=Identity(x)", "float[2] first")
+
+        def target(op, x):
+            return op.Identity(x), op.Neg(x)
+
+        rule = pattern.RewriteRule(target, self._two_identity_replacement)
+        self.assertFalse(rule.match(model, model.graph, model.graph[0]))
+
+    def test_multiple_outputs_of_one_root_do_not_require_distinct_producers(self):
+        model = self._identity_model(
+            "first,second=Split<axis=0,num_outputs=2>(x)",
+            "float[1] first, float[1] second",
+        )
+
+        def target(op, x):
+            return op.Split(x, axis=0, num_outputs=2, _outputs=2)
+
+        def replacement(op, x):
+            return op.Split(x, axis=0, num_outputs=2, _outputs=2)
+
+        rule = pattern.RewriteRule(target, replacement)
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "second"])
+
+    def test_candidate_pruning_preserves_omitted_optional_inputs(self):
+        model = self._identity_model(
+            "first=Clip(x) second=Clip(x)",
+            "float[2] first, float[2] second",
+        )
+
+        def target(op, x):
+            return op.Clip(x, None, None), op.Clip(x, None, None)
+
+        def replacement(op, x):
+            return op.Clip(x), op.Clip(x)
+
+        rule = pattern.RewriteRule(target, replacement)
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "second"])
+
+    def test_condition_failure_backtracks_to_valid_alternative(self):
+        model = self._identity_model(
+            """
+            first = Identity (x)
+            rejected = Identity (x)
+            accepted = Identity (x)
+            """,
+            "float[2] first, float[2] rejected, float[2] accepted",
+        )
+        attempts: list[str] = []
+
+        def condition(context, x):
+            del x
+            second = context.output_values[1].name
+            attempts.append(second)
+            return second == "accepted"
+
+        rule = pattern.RewriteRule(
+            self._two_identity_pattern,
+            self._two_identity_replacement,
+            condition,
+        )
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "accepted"])
+        self.assertEqual(attempts, ["rejected", "accepted"])
+
+    def test_node_checker_failure_backtracks_to_valid_alternative(self):
+        model = self._identity_model(
+            """
+            first = Identity (x)
+            rejected = Identity (x)
+            accepted = Identity (x)
+            """,
+            "float[2] first, float[2] rejected, float[2] accepted",
+        )
+
+        def accepted_node(context, node):
+            del context
+            return node.outputs[0].name == "accepted"
+
+        def source(op, x):
+            return op.Identity(x), op.Identity(x, _check=accepted_node)
+
+        rule = pattern.RewriteRule(source, self._two_identity_replacement)
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "accepted"])
+
+    def test_distinct_pattern_nodes_cannot_reuse_one_graph_node(self):
+        model = self._identity_model(
+            "first = Identity (x)",
+            "float[2] first",
+        )
+        rule = pattern.RewriteRule(self._two_identity_pattern, self._two_identity_replacement)
+        self.assertFalse(rule.match(model, model.graph, model.graph[0]))
+
+    def test_backtracking_preserves_shared_input_binding(self):
+        model = self._identity_model(
+            """
+            first = Identity (x)
+            wrong_input = Identity (y)
+            accepted = Identity (x)
+            """,
+            "float[2] first, float[2] wrong_input, float[2] accepted",
+        )
+        rule = pattern.RewriteRule(self._two_identity_pattern, self._two_identity_replacement)
+        match = rule.match(model, model.graph, model.graph[0])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["first", "accepted"])
+
+    def test_internal_pattern_nodes_may_share_cse_graph_producer(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: ["" : 18]>
+            graph (float[2] x, float[2] y, float[2] z)
+                => (float[2] added, float[2] subtracted) {
+              product = Mul (x, y)
+              added = Add (product, z)
+              subtracted = Sub (product, z)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+
+        def source(op, x, y, z):
+            product0 = op.Mul(x, y)
+            product1 = op.Mul(x, y)
+            return op.Add(product0, z), op.Sub(product1, z)
+
+        def replacement(op, x, y, z):
+            return op.FusedAdd(x, y, z), op.FusedSub(x, y, z)
+
+        rule = pattern.RewriteRule(source, replacement)
+        match = rule.match(model, model.graph, model.graph[1])
+        self.assertIsNotNone(match)
+        assert match is not None
+        self.assertEqual([value.name for value in match.outputs], ["added", "subtracted"])
+
+    def test_search_is_bounded_by_candidate_product(self):
+        model = self._identity_model(
+            """
+            n0 = Identity (x)
+            n1 = Identity (x)
+            n2 = Identity (x)
+            n3 = Identity (x)
+            n4 = Identity (x)
+            n5 = Identity (x)
+            """,
+            "float[2] n0, float[2] n1, float[2] n2, float[2] n3, float[2] n4, float[2] n5",
+        )
+        attempts = 0
+
+        def reject_all(context, x):
+            nonlocal attempts
+            del context, x
+            attempts += 1
+            return False
+
+        rule = pattern.RewriteRule(
+            self._two_identity_pattern,
+            self._two_identity_replacement,
+            reject_all,
+        )
+        self.assertIsNone(rule.match(model, model.graph, model.graph[0]))
+        self.assertEqual(attempts, 5)
+
+    def test_bound_input_pruning_excludes_many_unrelated_roots(self):
+        related_nodes = "\n".join(f"r{i} = Add (x, y)" for i in range(4))
+        unrelated_nodes = "\n".join(f"u{i} = Add (y, x)" for i in range(8))
+        outputs = ", ".join(
+            [*(f"float[2] r{i}" for i in range(4)), *(f"float[2] u{i}" for i in range(8))]
+        )
+        model = self._identity_model(f"{related_nodes}\n{unrelated_nodes}", outputs)
+        condition_attempts = 0
+
+        def source(op, a0, a1, a2, a3, shared):
+            return (
+                op.Add(a0, shared),
+                op.Add(a1, shared),
+                op.Add(a2, shared),
+                op.Add(a3, shared),
+            )
+
+        def replacement(op, a0, a1, a2, a3, shared):
+            return (
+                op.Add(a0, shared),
+                op.Add(a1, shared),
+                op.Add(a2, shared),
+                op.Add(a3, shared),
+            )
+
+        def reject_all(context, a0, a1, a2, a3, shared):
+            nonlocal condition_attempts
+            del context, a0, a1, a2, a3, shared
+            condition_attempts += 1
+            return False
+
+        rule = pattern.RewriteRule(source, replacement, reject_all)
+        structural_attempts = 0
+        original_multi_match = rule._matcher._multi_match
+
+        def counted_multi_match(candidate, check_removable):
+            nonlocal structural_attempts
+            structural_attempts += 1
+            return original_multi_match(candidate, check_removable)
+
+        rule._matcher._multi_match = counted_multi_match
+        self.assertIsNone(rule.match(model, model.graph, model.graph[0]))
+        # Four roots share the value y at input 1: with the first anchored, only
+        # 3! distinct permutations remain. The eight same-op roots whose input 1 is x
+        # are pruned before Cartesian enumeration.
+        self.assertEqual(structural_attempts, 6)
+        self.assertEqual(condition_attempts, 6)
+
+    def test_removability_still_rejects_shared_internal_output(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: ["" : 18]>
+            graph (float[2] x, float[2] y)
+                => (float[2] relu, float[2] sigmoid, float[2] shared) {
+              shared = Add (x, y)
+              relu = Relu (shared)
+              sigmoid = Sigmoid (shared)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+
+        def source(op, x, y):
+            shared = op.Add(x, y)
+            return op.Relu(shared), op.Sigmoid(shared)
+
+        def replacement(op, x, y):
+            return op.FusedRelu(x, y), op.FusedSigmoid(x, y)
+
+        rule = pattern.RewriteRule(source, replacement)
+        self.assertFalse(rule.match(model, model.graph, model.graph[1]))
+
+    def test_nested_or_value_preserves_node_checker_bindings(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: ["" : 18]>
+            graph (float[2] x, float[2] y) => (float[2] z) {
+              sum = Add (x, y)
+              z = Relu (sum)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        checked: list[str] = []
+
+        def record_check(context, node):
+            del context
+            checked.append(node.op_type)
+            return True
+
+        def source(op, x, y):
+            choice = pattern.OrValue(
+                [
+                    op.Add(x, y, _check=record_check),
+                    op.Mul(x, y, _check=record_check),
+                ]
+            )
+            return op.Relu(choice)
+
+        def replacement(op, x, y):
+            return op.FusedRelu(x, y)
+
+        rule = pattern.RewriteRule(source, replacement)
+        self.assertTrue(rule.match(model, model.graph, model.graph[1]))
+        self.assertEqual(checked, ["Add"])
 
 
 class PatternBuilderTest(unittest.TestCase):

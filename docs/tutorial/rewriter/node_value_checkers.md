@@ -3,6 +3,11 @@
 
 The pattern matching infrastructure supports custom validation logic at both the node and value levels through checker functions. These checkers allow for more sophisticated pattern matching by enabling additional constraints beyond basic operator and structure matching.
 
+Checkers must not mutate the graph and may be called repeatedly while the matcher
+tries alternative output-node assignments. See
+[multiple outputs and candidate retries](conditional_rewrite.md#multiple-outputs-and-candidate-retries)
+for the condition/checker contract and search limits.
+
 ## Value-Level Checkers
 
 Value-level checkers validate properties of specific values in the pattern. They are particularly useful for checking constants, shapes, or other value-specific properties.
@@ -36,6 +41,19 @@ def add_pattern(op, x, y):
 ```
 
 This pattern will only match `Add` operations where the first input is a positive constant value.
+
+A named variable can carry the same checker while remaining available to the
+replacement and condition:
+
+```python
+def add_pattern(op, y):
+    positive = pattern.Var("positive", check=is_positive_constant)
+    return op.Add(positive, y)
+```
+
+Named and anonymous value checkers have the same rejection and retry behavior.
+Each candidate receives fresh bindings; rejecting one candidate does not bind
+the variable for a later candidate.
 
 ### Example Usage
 

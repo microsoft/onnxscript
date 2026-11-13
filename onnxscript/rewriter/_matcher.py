@@ -8,6 +8,7 @@ import abc
 import itertools
 import math
 from typing import (
+    TYPE_CHECKING,
     Iterable,
     Sequence,
 )
@@ -16,6 +17,9 @@ import onnx_ir as ir
 
 import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._pattern_ir as _pattern_ir
+
+if TYPE_CHECKING:
+    from onnxscript.rewriter._basics import MatchingTracer
 
 
 def _valid_to_replace(
@@ -52,12 +56,36 @@ class PatternMatcher(abc.ABC):
         *,
         verbose: int = 0,
         remove_nodes: bool = True,
-        tracer: _basics.MatchingTracer | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> _basics.MatchResult:
         """Match the pattern against the subgraph ending at the given node."""
 
     def __str__(self) -> str:
         return str(self.pattern)
+
+    def iter_matches(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+        *,
+        verbose: int = 0,
+        remove_nodes: bool = True,
+        tracer: MatchingTracer | None = None,
+    ) -> Iterable[_basics.MatchResult]:
+        """Yield structural matches for ``node``.
+
+        Matchers that can produce alternative structural matches should override this
+        method. The default preserves the single-result matcher contract.
+        """
+        yield self.match(
+            model,
+            graph_or_function,
+            node,
+            verbose=verbose,
+            remove_nodes=remove_nodes,
+            tracer=tracer,
+        )
 
 
 class SimplePatternMatcher(PatternMatcher):
@@ -260,6 +288,23 @@ class SimplePatternMatcher(PatternMatcher):
             )
         return self._match_node(pattern_value.producer(), node)
 
+    @staticmethod
+    def _matches_bound_inputs(
+        pattern_node: _pattern_ir.NodePattern,
+        node: ir.Node,
+        match: _basics.MatchResult,
+    ) -> bool:
+        """Check candidate inputs whose pattern values are already bound."""
+        for node_input, pattern_input in itertools.zip_longest(
+            node.inputs, pattern_node.inputs, fillvalue=None
+        ):
+            if pattern_input is None:
+                continue
+            is_bound, bound_value = match.lookup_value(pattern_input)
+            if is_bound and node_input is not bound_value:
+                return False
+        return True
+
     def _init_match(self, verbose: int) -> None:
         """Initialize the match state. Invoked before starting a new match."""
         self._verbose = verbose
@@ -353,7 +398,7 @@ class SimplePatternMatcher(PatternMatcher):
         *,
         verbose: int = 0,
         remove_nodes: bool = True,
-        tracer: _basics.MatchingTracer | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> _basics.MatchResult:
         """Match the pattern against the subgraph ending at the given node.
 
@@ -370,6 +415,39 @@ class SimplePatternMatcher(PatternMatcher):
         matching in the presence of subgraphs (control-flow) can introduce some
         complications which require careful consideration.
         """
+        return next(
+            iter(
+                self.iter_matches(
+                    model,
+                    graph_or_function,
+                    node,
+                    verbose=verbose,
+                    remove_nodes=remove_nodes,
+                    tracer=tracer,
+                )
+            )
+        )
+
+    def iter_matches(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+        *,
+        verbose: int = 0,
+        remove_nodes: bool = True,
+        tracer: MatchingTracer | None = None,
+    ) -> Iterable[_basics.MatchResult]:
+        """Yield structural matches, including alternatives for multi-output patterns.
+
+        The first output node remains anchored to ``node``. For K output nodes with
+        post-filter candidate-pool sizes N1..Nk, at most ``N2 * ... * Nk``
+        combinations are examined. Candidate roots are filtered by op identifier and
+        every input value already bound while matching the anchored root. Distinct
+        pattern output nodes must match distinct graph nodes; internal pattern nodes
+        retain the existing non-injective matching semantics so CSE'd producers can be
+        shared.
+        """
         self._tracer = tracer
         if isinstance(graph_or_function, ir.Graph):
             self._graph: ir.Graph = graph_or_function
@@ -377,38 +455,53 @@ class SimplePatternMatcher(PatternMatcher):
             self._graph = graph_or_function.graph
         if self.pattern.has_single_output_node:
             self._init_match(verbose)
-            return self._match_single_output_node(
+            yield self._match_single_output_node(
                 model, graph_or_function, node, check_removable=remove_nodes
             )
+            return
         else:
             # Note: This is a potentially expensive algorithm for matching patterns with
             # multiple output nodes. For patterns with N output nodes, we try all possible
             # combinations of N nodes from the graph, and check if they match the pattern.
             # The first node is fixed to the node argument in this method call. We do
-            # some simple filtering by restricting the candidates for each remaining
-            # output nodes to graph nodes with the same op_type as the corresponding pattern
-            # node. For now, this is intended to be a simple, but robust, implementation
-            # that can be used for debugging and testing. The GenericPatternMatcher is a
-            # more sophisticated implementation, but incomplete.
+            # Candidate roots are restricted by op identifier and any inputs already
+            # bound by the anchored output root. For now, this is intended to be a
+            # simple, but robust, implementation that can be used for debugging and
+            # testing. The GenericPatternMatcher is a more sophisticated implementation,
+            # but incomplete.
             pattern_output_nodes = self.pattern.output_nodes
+            self._init_match(verbose)
+            if not self._match_node(pattern_output_nodes[0], node):
+                yield self._match
+                return
+            anchored_match = self._match
             op_to_nodes: dict[tuple[str, str, str], list[ir.Node]] = {}
             for n in graph_or_function:
                 op_to_nodes.setdefault(n.op_identifier(), []).append(n)
-            all_nodes = iter(graph_or_function)
+            all_nodes = list(graph_or_function)
 
             def get_nodes(pattern_node):
                 id = pattern_node.op_identifier()
                 if id is None:
-                    return all_nodes
-                return op_to_nodes.get(id, [])
+                    candidate_nodes = all_nodes
+                else:
+                    candidate_nodes = op_to_nodes.get(id, [])
+                return [
+                    candidate
+                    for candidate in candidate_nodes
+                    if self._matches_bound_inputs(pattern_node, candidate, anchored_match)
+                ]
 
             candidates = [iter([node])] + [get_nodes(pn) for pn in pattern_output_nodes[1:]]
             match = None
             for combination in itertools.product(*candidates):
+                if len(set(combination)) != len(combination):
+                    continue
                 self._init_match(verbose)
                 match = self._multi_match(combination, check_removable=remove_nodes)
                 if match:
-                    return match
+                    yield match
             if match is None:
-                return _basics.MatchResult().fail("No match found.")
-            return match
+                yield _basics.MatchResult().fail("No match found.")
+            elif not match:
+                yield match

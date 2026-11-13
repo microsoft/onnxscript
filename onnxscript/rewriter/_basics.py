@@ -13,7 +13,6 @@ import onnx_ir as ir
 
 if TYPE_CHECKING:
     import onnxscript.rewriter._pattern_ir as _pattern_ir
-    import onnxscript.rewriter._rewrite_rule as _rewrite_rule
 
 
 class MatchFailureInfo:
@@ -158,7 +157,10 @@ class MatchResult:
                     return False
             self._current_match.value_bindings[pattern_value] = value
             return True
-        return self.bind(var_name, value)
+        if not self.bind(var_name, value):
+            return False
+        self._current_match.value_bindings[pattern_value] = value
+        return True
 
     def bind(self, var: str, value: Any) -> bool:
         for match in self._partial_matches:
@@ -213,6 +215,20 @@ class MatchResult:
             if pattern_node in match.node_bindings:
                 return match.node_bindings[pattern_node]
         return None
+
+    def lookup_value(
+        self, pattern_value: _pattern_ir.ValuePattern
+    ) -> tuple[bool, ir.Value | None]:
+        """Look up a value binding across active partial matches."""
+        if pattern_value.name is not None:
+            for match in self._partial_matches:
+                if pattern_value.name in match.bindings:
+                    return True, match.bindings[pattern_value.name]
+            return False, None
+        for match in self._partial_matches:
+            if pattern_value in match.value_bindings:
+                return True, match.value_bindings[pattern_value]
+        return False, None
 
     def num_matched_nodes(self) -> int:
         """Returns the number of nodes matched so far."""
@@ -292,6 +308,8 @@ class PartialMatchResult:
             # that the two matches are compatible. No need to check for conflicts here.
             self._bindings.update(other._bindings)
             self._matched_nodes.extend(other.nodes)
+            self._value_bindings.update(other.value_bindings)
+            self._node_bindings.update(other.node_bindings)
             # Note: outputs should be set only at end of the (top-level) match. There
             # should be no outputs in the sub-match.
             assert not other._outputs
@@ -474,3 +492,8 @@ class MatchingTracer:
             best_match.print()
         else:
             print("No matches found.")
+
+
+# RewriteRule depends on MatchingTracer through the matcher; define the tracer first.
+if TYPE_CHECKING:
+    import onnxscript.rewriter._rewrite_rule as _rewrite_rule

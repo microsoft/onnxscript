@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import math
 from typing import Sequence, Union
 
 import onnx_ir as ir
@@ -32,6 +33,26 @@ The suffix "BH_Skv_Dh" indicates that the tensor has the shape (B*H, Skv, Dh).
 Dim = Union[int, ir.SymbolicDim]
 
 
+def _is_unit_layout(source: ir.Value, laid_out: ir.Value) -> bool:
+    if source.shape is None or laid_out.shape is None:
+        return False
+    before, after = source.shape, laid_out.shape
+    if len(before) == 2 and len(after) == 4 and after[0] == 1:
+        before = [1, *before]
+    return (
+        len(before) == 3
+        and len(after) == 4
+        and _ir_utils.same_dim(before[0], after[0])
+        and _ir_utils.same_dim(before[1], after[2])
+        and (before[1] == 1 or after[1] == 1)
+        and isinstance(after[1], int)
+        and isinstance(after[3], int)
+        and after[1] > 0
+        and after[3] > 0
+        and before[2] == after[1] * after[3]
+    )
+
+
 class MultiHeadAttention(pattern.RewriteRuleClassBase):
     def __init__(
         self,
@@ -40,11 +61,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         is_rotary: bool,
         has_past_present: bool,
         is_cross_attention: bool,
+        unit_layout: bool = False,
     ):
         super().__init__(name)
         self._is_rotary = is_rotary
         self._has_past_present = has_past_present
         self._is_cross_attention = is_cross_attention
+        self._unit_layout = unit_layout
 
     def pattern(
         self,
@@ -63,33 +86,50 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         # Reshape from (B, S, D) to (B, S, H, D/H)
         query_BSHDh = op.Reshape(query_BSD, pattern.ANY_VALUE, _outputs=["query_BSHDh"])
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
-        query_BHSDh = op.Transpose(query_BSHDh, perm=[0, 2, 1, 3])
+        query_BHSDh = (
+            query_BSHDh if self._unit_layout else op.Transpose(query_BSHDh, perm=[0, 2, 1, 3])
+        )
 
         if not self._is_cross_attention:
             # Reshape from (B, S, D) to (B, S, H, D/H)
             key = op.Reshape(key, pattern.ANY_VALUE, _outputs=["key_BSHDh"])
             # Key may or may not be transposed at this point, based on usage pattern
-            key = pattern.OrValue(
-                [op.Transpose(key, perm=[0, 2, 1, 3]), key],
-                tag_var="key_transposed",
-                tag_values=[True, False],
-            )
+            if not self._unit_layout:
+                key = pattern.OrValue(
+                    [op.Transpose(key, perm=[0, 2, 1, 3]), key],
+                    tag_var="key_transposed",
+                    tag_values=[True, False],
+                )
 
             # Reshape from (B, S, D) to (B, S, H, D/H)
             value_BSHDh = op.Reshape(value, pattern.ANY_VALUE, _outputs=["value_BSHDh"])
             # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
-            value_BHSDh = op.Transpose(value_BSHDh, perm=[0, 2, 1, 3])
+            value_BHSDh = (
+                value_BSHDh
+                if self._unit_layout
+                else op.Transpose(value_BSHDh, perm=[0, 2, 1, 3])
+            )
         else:
             # For cross-attention, key and value are not reshaped
             value_BHSDh = value
 
         if self._is_rotary:
             query_BHSDh_emb = op.RotaryEmbedding(
-                query_BHSDh, position_ids, cos, sin, _domain="com.microsoft"
+                query_BHSDh,
+                position_ids,
+                cos,
+                sin,
+                _domain="com.microsoft",
+                _outputs=["query_rotary"],
             )
             if not self._is_cross_attention:
                 key_BHSDh_emb = op.RotaryEmbedding(
-                    key, position_ids, cos, sin, _domain="com.microsoft"
+                    key,
+                    position_ids,
+                    cos,
+                    sin,
+                    _domain="com.microsoft",
+                    _outputs=["key_rotary"],
                 )
             else:
                 key_BHSDh_emb = key
@@ -126,6 +166,8 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
         # Transpose attention back to (B, S, H, D/H)
         attention_transposed = op.Transpose(sdpa, perm=[0, 2, 1, 3])
+        if self._unit_layout:
+            attention_transposed = pattern.OrValue([attention_transposed, sdpa])
         # Reshape back to (B, S, D)
         attention = op.Reshape(
             attention_transposed, pattern.ANY_VALUE, _outputs=["attention_reshaped"]
@@ -148,28 +190,124 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         key_transposed=None,
         key_BSHDh=None,
         value_BSHDh=None,
+        attention_reshaped=None,
+        query_rotary=None,
+        key_rotary=None,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
+        if query_BSD.dtype not in (ir.DataType.FLOAT, ir.DataType.FLOAT16):
+            return check_result.fail(
+                "ORT MultiHeadAttention requires FLOAT or FLOAT16 inputs."
+            )
 
         sdpa_node = sdpa_output.producer()
+        if any(attr.is_ref() for attr in sdpa_node.attributes.values()):
+            return check_result.fail("SDPA attributes must be concrete for MHA fusion.")
+        if set(sdpa_node.attributes) - {"key_format", "scale"}:
+            return check_result.fail("SDPA attributes are not supported by MHA fusion.")
 
         bindings: dict[str, Dim] = {}
+        self._packed_2d = _ir_utils.has_rank(query_BSD, 2)
+        if self._packed_2d:
+            imports = op.graph_or_function.opset_imports
+            if imports.get("", op.model.opset_imports.get("", 0)) < 13:
+                return check_result.fail("Packed rank-two inputs require input-form axes.")
+            bindings["B"] = 1
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
             return not _fusion_utils.check_shape_bool(bindings, val, dims)
 
-        if no_match(query_BSD, ["B", "S", "D"]):
+        if no_match(query_BSD, ["S", "D"] if self._packed_2d else ["B", "S", "D"]):
             return check_result.fail(
                 f"Shape mismatch: {query_BSD} does not match expected dimensions ['B', 'S', 'D']",
                 query_BSD,
             )
 
-        if no_match(query_BSHDh, ["B", "S", "H", "Dh"]):
+        query_layout = ["B", "H", "S", "Dh"] if self._unit_layout else ["B", "S", "H", "Dh"]
+        if no_match(query_BSHDh, query_layout):
             return check_result.fail(
                 f"Shape mismatch: {query_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
                 query_BSHDh,
             )
+        if self._packed_2d:
+            if not (
+                isinstance(bindings["H"], int)
+                and isinstance(bindings["Dh"], int)
+                and bindings["H"] > 0
+                and bindings["Dh"] > 0
+                and query_BSD.shape[1] == bindings["H"] * bindings["Dh"]
+                and attention_reshaped is not None
+                and _ir_utils.has_rank(attention_reshaped, 2)
+                and _ir_utils.same_dim(attention_reshaped.shape[0], query_BSD.shape[0])
+            ):
+                return check_result.fail(
+                    "Rank-two inputs must represent a single packed batch."
+                )
+        if self._unit_layout:
+            if not _is_unit_layout(query_BSD, query_BSHDh):
+                return check_result.fail(
+                    "Query Reshape is not an equivalent unit-axis layout."
+                )
+            if not self._is_cross_attention and not (
+                key_BSHDh is not None
+                and value_BSHDh is not None
+                and _is_unit_layout(key, key_BSHDh)
+                and _is_unit_layout(value, value_BSHDh)
+            ):
+                return check_result.fail("Key/value Reshapes are not unit-axis layouts.")
+            value_layout = value if self._is_cross_attention else value_BSHDh
+            if not _ir_utils.has_rank(value_layout, 4):
+                return check_result.fail("Value head layout must have known rank four.")
+            value_head_size = value_layout.shape[3]
+            head_count = query_BSHDh.shape[1]
+            output_shape = attention_reshaped.shape if attention_reshaped is not None else None
+            if (
+                output_shape is None
+                or len(output_shape) != (2 if self._packed_2d else 3)
+                or (
+                    not self._packed_2d
+                    and not _ir_utils.same_dim(output_shape[0], query_BSD.shape[0])
+                )
+                or not _ir_utils.same_dim(output_shape[-2], query_BSD.shape[-2])
+                or not isinstance(value_head_size, int)
+                or output_shape[-1] != head_count * value_head_size
+            ):
+                return check_result.fail(
+                    "Attention output does not restore the packed layout."
+                )
+        if self._is_rotary:
+            for rotary in (query_rotary, key_rotary):
+                if rotary is None:
+                    continue
+                attrs = rotary.producer().attributes
+                if any(attr.is_ref() for attr in attrs.values()) or set(attrs) - {
+                    "interleaved",
+                    "num_heads",
+                    "rotary_embedding_dim",
+                    "scale",
+                    "is_packed_batching",
+                }:
+                    return check_result.fail(
+                        "Rotary attributes are not supported by MHA fusion."
+                    )
+                dimension = attrs.get_int("rotary_embedding_dim", 0)
+                if (
+                    attrs.get_int("interleaved", 0) not in (0, 1)
+                    or attrs.get_int("num_heads", 0) not in (0, bindings["H"])
+                    or attrs.get_int("is_packed_batching", 0) != 0
+                    or (
+                        dimension != 0
+                        and not (
+                            isinstance(bindings["Dh"], int)
+                            and 0 < dimension <= bindings["Dh"]
+                            and dimension % 2 == 0
+                        )
+                    )
+                ):
+                    return check_result.fail(
+                        "MHA fusion requires compatible head counts, rotary dimensions, and unpacked batches."
+                    )
         # If cross-attention, key/value shapes are 4D
         if self._is_cross_attention:
             if no_match(key, ["B", "H", "Skv", "Dh"]):
@@ -194,19 +332,20 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                     past_value,
                 )
         else:
-            if no_match(key, ["B", "Skv", "D"]):
+            packed_dimensions = ["Skv", "D"] if self._packed_2d else ["B", "Skv", "D"]
+            if no_match(key, packed_dimensions):
                 return check_result.fail(
                     f"Shape mismatch: {key} does not match expected dimensions ['B', 'Skv', 'D']",
                     query_BSD,
                 )
             sdpa_key_format = sdpa_node.attributes.get_string("key_format")
-            expected_key_format = "BHSd" if key_transposed else "BSHd"
+            expected_key_format = "BHSd" if self._unit_layout or key_transposed else "BSHd"
             if sdpa_key_format != expected_key_format:
                 return check_result.fail(
                     f"Unexpected key format: {sdpa_key_format}. Expected: {expected_key_format}",
                     sdpa_node,
                 )
-            if no_match(value, ["B", "Skv", "D"]):
+            if no_match(value, packed_dimensions):
                 return check_result.fail(
                     f"Shape mismatch: {value} does not match expected dimensions ['B', 'Skv', 'D']",
                     value,
@@ -223,6 +362,30 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                         past_value,
                     )
 
+        if self._packed_2d:
+            if not self._is_cross_attention and not self._unit_layout:
+                for source, layout in ((key, key_BSHDh), (value, value_BSHDh)):
+                    if not (
+                        layout is not None
+                        and _ir_utils.has_rank(layout, 4)
+                        and layout.shape[0] == 1
+                        and _ir_utils.same_dim(layout.shape[1], source.shape[0])
+                        and layout.shape[2] == bindings["H"]
+                        and isinstance(layout.shape[3], int)
+                        and source.shape[1] == bindings["H"] * layout.shape[3]
+                    ):
+                        return check_result.fail("Packed key/value layouts are inconsistent.")
+            if self._is_cross_attention:
+                hidden_size = (
+                    value.shape[1] * value.shape[3]
+                    if isinstance(value.shape[1], int) and isinstance(value.shape[3], int)
+                    else None
+                )
+            else:
+                hidden_size = value.shape[1]
+            if not _ir_utils.same_dim(attention_reshaped.shape[1], hidden_size):
+                return check_result.fail("Packed attention output has an inconsistent width.")
+
         # mask (aka attention_bias) shape check:
         # ONNX's Attention op (named SDPA here) allows a mask broadcastable to (B, H, S, St)
         # ORT's contrib ops (MHA, Attention) allow a mask of shape (1 or B, 1 or H, S, St)
@@ -233,6 +396,10 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             mask = sdpa_node.inputs[3]
         self.mask = mask
         if mask is not None:
+            if mask.dtype != query_BSD.dtype:
+                return check_result.fail(
+                    "ORT attention bias must have the query's floating type."
+                )
             if (mask_shape := mask.shape) is None:
                 return check_result.fail(
                     "Mask shape cannot be determined.",
@@ -269,6 +436,10 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             self._use_mask_broadcast = False
 
         self._scale = sdpa_node.attributes.get_float("scale", None)
+        if self._scale is not None and (not math.isfinite(self._scale) or self._scale == 0):
+            return check_result.fail(
+                "MHA fusion requires finite nonzero explicit scale; zero selects an automatic ORT scale."
+            )
         # TODO: verify Reshapes:
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
         # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
@@ -287,21 +458,32 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         position_ids,
         cos,
         sin,
+        query_rotary=None,
+        key_rotary=None,
         **_,
     ):
-        num_heads = _ir_utils.get_dim(query_BSHDh, 2)
+        num_heads = _ir_utils.get_dim(query_BSHDh, 1 if self._unit_layout else 2)
         if not isinstance(num_heads, int):
             return None
 
-        # TODO: forward other attributes
+        if self._packed_2d:
+            axes = op.Constant(value_ints=[0])
+            query_BSD = op.Unsqueeze(query_BSD, axes)
+            if not self._is_cross_attention:
+                key = op.Unsqueeze(key, axes)
+                value = op.Unsqueeze(value, axes)
 
         if self._is_rotary:
+            query_attrs = dict(query_rotary.producer().attributes)
+            query_attrs["num_heads"] = ir.AttrInt64("num_heads", num_heads)
             query_BSD_emb = op.RotaryEmbedding(
-                query_BSD, position_ids, cos, sin, _domain="com.microsoft"
+                query_BSD, position_ids, cos, sin, **query_attrs, _domain="com.microsoft"
             )
             if not self._is_cross_attention:
+                key_attrs = dict(key_rotary.producer().attributes)
+                key_attrs["num_heads"] = ir.AttrInt64("num_heads", num_heads)
                 key_BSD_emb = op.RotaryEmbedding(
-                    key, position_ids, cos, sin, _domain="com.microsoft"
+                    key, position_ids, cos, sin, **key_attrs, _domain="com.microsoft"
                 )
             else:
                 key_BSD_emb = key
@@ -324,7 +506,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             mask = op.Expand(mask, shape_11S1)
 
         num_outputs = 1 + (2 * self._has_past_present)
-        return op.MultiHeadAttention(
+        outputs = op.MultiHeadAttention(
             query_BSD_emb,
             key_BSD_emb,
             value,
@@ -338,6 +520,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             _outputs=num_outputs,
             scale=self._scale,
         )
+        if self._packed_2d:
+            axes = op.Constant(value_ints=[0])
+            if self._has_past_present:
+                attention, present_key, present_value = outputs
+                return op.Squeeze(attention, axes), present_key, present_value
+            return op.Squeeze(outputs, axes)
+        return outputs
 
 
 def _make_rule_set(has_past_present: bool):
@@ -346,19 +535,22 @@ def _make_rule_set(has_past_present: bool):
             "is_rotary": is_rotary,
             "has_past_present": has_past_present,
             "is_cross_attention": is_cross_attention,
+            "unit_layout": unit_layout,
         }
         for is_rotary in [False, True]
         for is_cross_attention in ([False] if has_past_present else [False, True])
+        for unit_layout in [False, True]
     ]
 
     # Dynamically create the rules
     mha_rules = pattern.RewriteRuleSet(
         [
             MultiHeadAttention.rule(
-                f"MHA"
-                f"{'_Rotary' if params['is_rotary'] else ''}"
-                f"{'_Past' if params['has_past_present'] else ''}"
-                f"{'_CrossAttention' if params['is_cross_attention'] else ''}",
+                f"FuseMultiHeadAttention"
+                f"{'WithRotary' if params['is_rotary'] else ''}"
+                f"{'WithPast' if params['has_past_present'] else ''}"
+                f"{'ForCrossAttention' if params['is_cross_attention'] else ''}"
+                f"{'FromUnitAxisLayout' if params['unit_layout'] else ''}",
                 **params,
             )
             for params in parameter_combinations

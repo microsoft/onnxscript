@@ -36,6 +36,34 @@ SQRT_CUSTOM_MUL_SCALE_FACTOR = math.sqrt(CUSTOM_MUL_SCALE_FACTOR)
 SQRT_CUSTOM_DIV_SCALE_FACTOR = math.sqrt(CUSTOM_DIV_SCALE_FACTOR)
 
 
+class SqueezedKeyLayoutTest(unittest.TestCase):
+    def test_only_the_batch_axis_can_be_squeezed(self):
+        for batch, heads, axis, count in ((1, 2, 0, 1), (2, 1, 1, 0)):
+            with self.subTest(axis=axis):
+                model = ir.from_onnx_text(
+                    f"""
+                    <ir_version: 8, opset_import: ["" : 18]>
+                    graph (float[{batch},{heads},3,4] query,
+                           float[{batch},{heads},5,4] key,
+                           float[{batch},{heads},5,6] value)
+                        => (float[{batch},{heads},3,6] y)
+                    <int64[1] axes = {{{axis}}}> {{
+                        key_3d = Squeeze(key,axes)
+                        transposed = Transpose<perm=[0,2,1]>(key_3d)
+                        key_4d = Unsqueeze(transposed,axes)
+                        scores = MatMul(query,key_4d)
+                        weights = Softmax<axis=-1>(scores)
+                        y = MatMul(weights,value)
+                    }}
+                    """
+                )
+                self.assertEqual(fuse_sdpa(model), count)
+                if count:
+                    self.assertEqual(
+                        model.graph[-1].attributes.get_string("key_format"), "BHSd"
+                    )
+
+
 @script()
 def _unmasked_pre_div_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
