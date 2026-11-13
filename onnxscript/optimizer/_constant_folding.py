@@ -305,11 +305,10 @@ def _get_numpy_value(
 ) -> np.ndarray | None:
     """Returns the numpy value of a constant value, if available.
 
-    It returns None if the value is not a constant value, or if the value is not of
-    the specified element dtype, or if the size of the value exceeds the specified
-    size_limit.
+    It returns None for graph inputs (whose initializers are overridable defaults),
+    unavailable data, a different element dtype, or values exceeding size_limit.
     """
-    if val is None:
+    if val is None or val.is_graph_input():
         return None
     const_value = val.const_value
     if const_value is not None:
@@ -330,12 +329,14 @@ def _get_numpy_value(
                 # implementations  of ir.TensorProtocol (e.g. PyTorch<=2.7) do
                 # not use ml_dtypes for bfloat16 etc.
                 array = array.view(const_value.dtype.numpy())
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             # External data is not available.
             logger.warning(
-                "External data for value '%s' is not available. "
-                "This may lead to incorrect constant folding.",
+                "Skipping constant evaluation of value '%s' because external data "
+                "is unavailable: %s. Provide the external data at the referenced path "
+                "to enable folding.",
                 val.name,
+                e,
             )
             return None
         assert isinstance(array, np.ndarray)
@@ -1343,6 +1344,12 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             )
 
         input_values = [_get_numpy_value(x) for x in node.inputs]
+        if any(
+            value is not None and array is None
+            for value, array in zip(node.inputs, input_values)
+        ):
+            # Only absent optional inputs may be passed to the evaluator as None.
+            return None
 
         def convert(av):
             if av.type == ir.AttributeType.TENSOR:
@@ -1486,7 +1493,11 @@ def _clear_unused_initializers(values: Sequence[ir.Value]) -> None:
         if value is None or not value.is_initializer():
             continue
 
-        if (not value.uses()) and (not value.is_graph_output()):
+        if (
+            (not value.uses())
+            and (not value.is_graph_output())
+            and (not value.is_graph_input())
+        ):
             assert value.is_initializer()
             assert value.graph is not None
             assert value.name is not None
@@ -1513,6 +1524,10 @@ def fold_constants(
 ) -> FoldConstantsResult:
     """
     Applies constant folding optimization to the model.
+
+    Initializers that are graph inputs remain overridable defaults, not constants.
+    Operations requiring unavailable external input data are left unchanged;
+    metadata-only folding, such as Shape, can still proceed.
 
     Args:
         model: The ONNX model to optimize.
