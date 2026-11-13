@@ -70,10 +70,22 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
 
 
 class RewritePass(ir.passes.InPlacePass):
+    """Apply rewrite rules, optionally displaying the existing matcher diagnostics.
+
+    Args:
+        rules: The rewrite rules to apply.
+        verbose: Override the rules' verbosity. None preserves each rule's setting,
+            0 suppresses verbose output, and positive values print matcher progress
+            and applied replacements to stdout. This does not change logging levels
+            or enable the non-rewriting MatchingTracer mode.
+    """
+
     def __init__(
         self,
         rules: Sequence[pattern.RewriteRule] | pattern.RewriteRuleSet,
         /,
+        *,
+        verbose: int | None = None,
     ) -> None:
         super().__init__()
         if isinstance(rules, Sequence):
@@ -83,9 +95,10 @@ class RewritePass(ir.passes.InPlacePass):
             rules = pattern.RewriteRuleSet(rules)
         assert isinstance(rules, pattern.RewriteRuleSet)
         self.rules: pattern.RewriteRuleSet = rules
+        self.verbose = verbose
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        count = self.rules.apply_to_model(model)
+        count = self.rules.apply_to_model(model, verbose=self.verbose)
         if count:
             logger.info("Applied %s of general pattern rewrite rules.", count)
 

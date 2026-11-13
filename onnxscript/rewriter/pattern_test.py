@@ -15,6 +15,7 @@ import onnxscript.rewriter
 from onnxscript import FLOAT, script
 from onnxscript import opset17 as op
 from onnxscript.rewriter import pattern
+from onnxscript.rewriter._basics import MatchFailureError
 from onnxscript.rewriter.rules.common import _cast_constant_of_shape
 
 logger = logging.getLogger(__name__)
@@ -578,6 +579,7 @@ class RewriteRuleTest(unittest.TestCase):
         model_proto = test_model.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
 
+        before = ir.serde.serialize_model(model).SerializeToString()
         tracer = pattern.MatchingTracer()
         count = rule.apply_to_model(model, tracer=tracer)
         self.assertEqual(count, 0)
@@ -586,6 +588,20 @@ class RewriteRuleTest(unittest.TestCase):
         best_match = best_matches[0]
         self.assertEqual(best_match.status.value, pattern.MatchStatus.NO_MATCH)
         self.assertIn("OpType mismatch: expected Abs, got Neg", best_match.match_result.reason)
+        self.assertEqual(ir.serde.serialize_model(model).SerializeToString(), before)
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            tracer.report()
+        self.assertIn("Status: NO_MATCH", buffer.getvalue())
+        self.assertIn("OpType mismatch: expected Abs, got Neg", buffer.getvalue())
+
+        node_tracer = pattern.MatchingTracer()
+        rule.match(model, model.graph, model.graph[-1], tracer=node_tracer)
+        self.assertIn(
+            "OpType mismatch: expected Abs, got Neg",
+            node_tracer.best_matches_map[rule][0].match_result.reason,
+        )
 
     def test_new_initializer(self):
         def source_pattern(op, x, y):
@@ -820,6 +836,145 @@ class RewriteRuleTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         rule.apply_to_model(model)
         self.assertEqual([x.op_type for x in model.graph], ["ReluPlus"])
+
+
+class MatchingTracerStatusTest(unittest.TestCase):
+    def test_pattern_and_rewrite_statuses(self):
+        for outcome in ("no_match", "condition_failed", "replacement_failed", "success"):
+            with self.subTest(outcome=outcome):
+
+                def target(op, x):
+                    return op.Neg(op.Neg(x))
+
+                def check(context, x, outcome=outcome):
+                    if outcome == "condition_failed":
+                        result = pattern.MatchResult()
+                        result.fail("Input shape is not supported", x)
+                        return result
+                    return True
+
+                def replacement(op, x, outcome=outcome):
+                    if outcome == "replacement_failed":
+                        raise MatchFailureError(
+                            "Replacement requires a supported input type", x
+                        )
+                    return op.Identity(x)
+
+                first_op = "Abs" if outcome == "no_match" else "Neg"
+                model = ir.from_onnx_text(
+                    f"""
+                    <ir_version: 7, opset_import: [ "" : 17]>
+                    graph (float[N] x) => (float[N] z)
+                    {{
+                        t = {first_op}(x)
+                        z = Neg(t)
+                    }}
+                    """
+                )
+                rule = pattern.RewriteRule(target, replacement, check, name="TestRule")
+                node = model.graph[-1]
+                tracer = pattern.MatchingTracer()
+                rule.match(model, model.graph, node, tracer=tracer)
+                expected_pattern_status = {
+                    "no_match": pattern.MatchStatus.NO_MATCH,
+                    "condition_failed": pattern.MatchStatus.CONDITION_FAILED,
+                    "replacement_failed": pattern.MatchStatus.SUCCESS,
+                    "success": pattern.MatchStatus.SUCCESS,
+                }[outcome]
+                self.assertEqual(
+                    tracer.best_matches_map[rule][0].status, expected_pattern_status
+                )
+
+                tracer = pattern.MatchingTracer()
+                delta = rule.try_rewrite(model, model.graph, node, tracer=tracer)
+                matches = tracer.best_matches_map[rule]
+                self.assertEqual(len(matches), 1)
+                self.assertEqual(matches[0].status, pattern.MatchStatus[outcome.upper()])
+                self.assertEqual(delta is not None, outcome == "success")
+                if outcome == "replacement_failed":
+                    buffer = io.StringIO()
+                    with contextlib.redirect_stdout(buffer):
+                        tracer.report()
+                    self.assertIn("Status: REPLACEMENT_FAILED", buffer.getvalue())
+                    self.assertIn(
+                        "Replacement requires a supported input type", buffer.getvalue()
+                    )
+                    self.assertIn(
+                        model.graph.inputs[0], matches[0].match_result.failure_nodes_and_values
+                    )
+
+    def test_all_replacement_failure_conventions(self):
+        for failure in ("none", "false", "match_result", "exception"):
+            with self.subTest(failure=failure):
+
+                def target(op, x):
+                    return op.Neg(x)
+
+                def replacement(op, x, failure=failure):
+                    if failure == "none":
+                        return None
+                    if failure == "false":
+                        return False
+                    if failure == "exception":
+                        raise MatchFailureError("Unsupported input type", x)
+                    result = pattern.MatchResult()
+                    result.fail("Unsupported input type", x)
+                    return result
+
+                model = ir.from_onnx_text(
+                    """
+                    <ir_version: 7, opset_import: [ "" : 17]>
+                    graph (float[N] x) => (float[N] z) { z = Neg(x) }
+                    """
+                )
+                rule = pattern.RewriteRule(target, replacement)
+                tracer = pattern.MatchingTracer()
+                self.assertEqual(rule.apply_to_model(model, tracer=tracer), 0)
+                matches = tracer.best_matches_map[rule]
+                self.assertEqual(len(matches), 1)
+                self.assertEqual(matches[0].status, pattern.MatchStatus.REPLACEMENT_FAILED)
+                if failure in ("match_result", "exception"):
+                    self.assertEqual(matches[0].match_result.reason, "Unsupported input type")
+
+    def test_best_match_ranking_uses_final_rewrite_status(self):
+        for has_success in (False, True):
+            for reverse in (False, True):
+                with self.subTest(has_success=has_success, reverse=reverse):
+
+                    def target(op, x):
+                        return op.Neg(x)
+
+                    def replacement(op, x, has_success=has_success):
+                        if has_success and x.name == "good":
+                            return op.Identity(x)
+                        raise MatchFailureError(f"Unsupported input: {x.name}", x)
+
+                    nodes = ["a = Neg(good)", "b = Neg(bad)"]
+                    if reverse:
+                        nodes.reverse()
+                    node_text = "\n".join(nodes)
+                    model = ir.from_onnx_text(
+                        f"""
+                        <ir_version: 7, opset_import: [ "" : 17]>
+                        graph (float[N] good, float[N] bad) => (float[N] a, float[N] b)
+                        {{
+                            {node_text}
+                        }}
+                        """
+                    )
+                    rule = pattern.RewriteRule(target, replacement)
+                    tracer = pattern.MatchingTracer()
+                    self.assertEqual(rule.apply_to_model(model, tracer=tracer), 0)
+                    matches = tracer.best_matches_map[rule]
+                    expected_status = (
+                        pattern.MatchStatus.SUCCESS
+                        if has_success
+                        else pattern.MatchStatus.REPLACEMENT_FAILED
+                    )
+                    self.assertEqual(len(matches), 1 if has_success else 2)
+                    self.assertTrue(all(match.status == expected_status for match in matches))
+                    if has_success:
+                        self.assertEqual(matches[0].root_node.outputs[0].name, "a")
 
 
 class ValueNodeCheckersTest(unittest.TestCase):
