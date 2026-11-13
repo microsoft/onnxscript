@@ -155,7 +155,7 @@ class CastConstantOfShapeTest(unittest.TestCase):
             <domain: "pkg", opset_import: ["": 17]>
             my_func <target> (shape) => (output) {
                 constant = ConstantOfShape <value: tensor = float[1] {1.0}> (shape)
-                output = Cast <to = @target> (constant)
+                output = Cast <to: int = @target> (constant)
             }
         """
         model = ir.from_onnx_text(model_text)
@@ -163,6 +163,10 @@ class CastConstantOfShapeTest(unittest.TestCase):
         self.assertEqual(count, 0)
         function = next(iter(model.functions.values()))
         self.assertEqual([node.op_type for node in function], ["ConstantOfShape", "Cast"])
+        cast_node = function[1]
+        self.assertIn("to", cast_node.attributes)
+        self.assertTrue(cast_node.attributes["to"].is_ref())
+        self.assertEqual(cast_node.attributes["to"].ref_attr_name, "target")
 
     def test_cast_with_ref_attr_to_after_constant_of_shape_without_value_is_not_fused(self):
         """Cast with reference target dtype without value should not be fused."""
@@ -174,7 +178,7 @@ class CastConstantOfShapeTest(unittest.TestCase):
             <domain: "pkg", opset_import: ["": 17]>
             my_func <target> (shape) => (output) {
                 constant = ConstantOfShape (shape)
-                output = Cast <to = @target> (constant)
+                output = Cast <to: int = @target> (constant)
             }
         """
         model = ir.from_onnx_text(model_text)
@@ -182,6 +186,10 @@ class CastConstantOfShapeTest(unittest.TestCase):
         self.assertEqual(count, 0)
         function = next(iter(model.functions.values()))
         self.assertEqual([node.op_type for node in function], ["ConstantOfShape", "Cast"])
+        cast_node = function[1]
+        self.assertIn("to", cast_node.attributes)
+        self.assertTrue(cast_node.attributes["to"].is_ref())
+        self.assertEqual(cast_node.attributes["to"].ref_attr_name, "target")
 
     def test_cast_to_undefined_after_constant_of_shape_is_not_fused(self):
         """Cast to undefined data type should not be fused into ConstantOfShape."""
