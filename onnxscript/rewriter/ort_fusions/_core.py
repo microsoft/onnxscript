@@ -9,10 +9,7 @@ import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_ru
 import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter import rewrite
-from onnxscript.rewriter.ort_fusions import (
-    instance_to_group_normalization,
-    softmax,
-)
+from onnxscript.rewriter.ort_fusions import softmax
 from onnxscript.rewriter.ort_fusions.attention import fuse_attention
 from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
@@ -34,13 +31,14 @@ from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
     fuse_skip_rms_normalization,
 )
-from onnxscript.rewriter.rules.common import _gemm_to_matmul_add
+from onnxscript.rewriter.rules.common import (
+    _gemm_to_matmul_add,
+    instance_norm_to_onnx_group_norm_rule,
+)
 
 ORT_PATTERN_REWRITE_RULES = [
     *softmax.rules.rules,
-    *instance_to_group_normalization.rules.rules,
-    # NOTE: group normalization merge silu should be applied after instance to group normalization
-    # *group_normalization_merge_silu.rules.rules,
+    instance_norm_to_onnx_group_norm_rule,
     *fused_matmul_rule_sets.fused_matmul_rule_sets(),
 ]
 
