@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+import unittest.mock
 from typing import Any
 
 import numpy as np
@@ -428,10 +429,9 @@ class BasicRulesTest(unittest.TestCase):
         ]
         return models
 
-    @unittest.skipIf(True, reason="see https://github.com/microsoft/onnxscript/issues/1642")
     def test_slices_split_rule(self):
-        for model_proto in self._slices_split_models():
-            ir_model = ir.serde.deserialize_model(model_proto)
+        for ir_model in self._slices_split_models():
+            model_proto = ir.serde.serialize_model(ir_model)
             rule_set = _basic_rules.basic_optimization_rules()
             rule_set.apply_to_model(ir_model)
             rewritten_model = ir.serde.serialize_model(ir_model)
@@ -669,6 +669,222 @@ class ReshapeReshapeTest(unittest.TestCase):
         tracer_match = tracer.best_matches_map[_basic_rules.reshape_reshape_rule][0]
         self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
         self.assertRegex(tracer_match.match_result.reason, error_msg)
+
+
+class SlicesSplitTest(unittest.TestCase):
+    @staticmethod
+    def create_model(slices, shape=(2, 8)):
+        x = ir.val("x", ir.DataType.FLOAT, ir.Shape(shape) if shape is not None else None)
+        nodes, initializers = [], []
+        for i, (start, stop, axis) in enumerate(slices):
+            args = []
+            for name, value in (("start", start), ("stop", stop), ("axis", axis)):
+                args.append(
+                    ir.Value(
+                        name=f"{name}{i}",
+                        const_value=ir.tensor(np.array([value], dtype=np.int64)),
+                    )
+                )
+            node = ir.node("Slice", [x, *args])
+            node.outputs[0].name = f"y{i}"
+            node.outputs[0].dtype = ir.DataType.FLOAT
+            nodes.append(node)
+            initializers.extend(args)
+        return ir.Model(
+            ir.Graph(
+                [x],
+                [node.outputs[0] for node in nodes],
+                nodes=nodes,
+                initializers=initializers,
+                opset_imports={"": 18},
+                name="slices",
+            ),
+            ir_version=10,
+        )
+
+    @parameterized.parameterized.expand(
+        [(axis, reverse) for axis in (-1, 1) for reverse in (False, True)]
+    )
+    def test_complementary_halves_in_either_order(self, axis, reverse):
+        slices = [(0, 4, axis), (4, 8, axis)]
+        model = self.create_model(slices[::-1] if reverse else slices)
+        original = model.clone()
+        self.assertEqual(_basic_rules.SlicesSplit.rule().apply_to_model(model), 1)
+        self.assertEqual([node.op_type for node in model.graph], ["Split"])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (np.arange(16, dtype=np.float32).reshape(2, 8),),
+            atol=0,
+            rtol=0,
+            use_reference=True,
+        )
+
+    @parameterized.parameterized.expand([False, True])
+    def test_interleaved_consumer_remains_topologically_ordered(self, reverse):
+        slices = [(0, 4, 1), (4, 8, 1)]
+        model = self.create_model(slices[::-1] if reverse else slices)
+        first = model.graph[0]
+        consumer = ir.node("Relu", [first.outputs[0]])
+        consumer.outputs[0].name = "relu"
+        consumer.outputs[0].dtype = ir.DataType.FLOAT
+        model.graph.insert_after(first, consumer)
+        model.graph.outputs.append(consumer.outputs[0])
+        original = model.clone()
+        self.assertEqual(_basic_rules.SlicesSplit.rule().apply_to_model(model), 1)
+        onnx.checker.check_model(
+            onnx.shape_inference.infer_shapes(ir.to_proto(model)), full_check=True
+        )
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (np.arange(16, dtype=np.float32).reshape(2, 8),),
+            atol=0,
+            rtol=0,
+            use_reference=True,
+        )
+
+    def test_slices_of_different_inputs_are_not_combined(self):
+        model = self.create_model([(0, 4, 1), (4, 8, 1)])
+        other = ir.val("other", ir.DataType.FLOAT, ir.Shape((2, 8)))
+        model.graph.inputs.append(other)
+        model.graph[0].replace_input_with(0, other)
+        self.assertEqual(_basic_rules.SlicesSplit.rule().apply_to_model(model), 0)
+
+    def test_older_opset_is_not_rewritten_with_num_outputs(self):
+        model = self.create_model([(0, 4, 1), (4, 8, 1)])
+        model.graph.opset_imports[""] = 17
+        self.assertEqual(_basic_rules.SlicesSplit.rule().apply_to_model(model), 0)
+
+    def test_default_optimizer_uses_indexed_rule(self):
+        model = self.create_model([(0, 4, 1), (4, 8, 1)])
+        original = model.clone()
+        onnxscript.optimizer.optimize(model)
+        self.assertEqual([node.op_type for node in model.graph], ["Split"])
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (np.arange(16, dtype=np.float32).reshape(2, 8),),
+            atol=0,
+            rtol=0,
+            use_reference=True,
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("wrong_axis", [(0, 1, 0), (1, 2, 0)], (2, 8)),
+            ("different_axes", [(0, 4, -1), (4, 8, 1)], (2, 8)),
+            ("overlap", [(0, 5, 1), (4, 8, 1)], (2, 8)),
+            ("gap", [(0, 3, 1), (4, 8, 1)], (2, 8)),
+            ("odd_dimension", [(0, 3, 1), (3, 7, 1)], (2, 7)),
+            ("symbolic_dimension", [(0, 4, 1), (4, 8, 1)], (2, "N")),
+            ("unknown_rank", [(0, 4, -1), (4, 8, -1)], None),
+            ("scalar_input", [(0, 4, -1), (4, 8, -1)], ()),
+            ("empty_dimension", [(0, 0, 1), (0, 0, 1)], (2, 0)),
+        ]
+    )
+    def test_noncomplementary_slices_are_unchanged(self, _, slices, shape):
+        model = self.create_model(slices, shape)
+        self.assertEqual(_basic_rules.SlicesSplit.rule().apply_to_model(model), 0)
+        self.assertTrue(all(node.op_type == "Slice" for node in model.graph))
+
+    @parameterized.parameterized.expand(["dynamic", "empty", "multi_axis", "steps", "domain"])
+    def test_unsupported_slice_parameters(self, kind):
+        model = self.create_model([(0, 4, 1), (4, 8, 1)])
+        node = model.graph[0]
+        if kind == "dynamic":
+            node.inputs[1].const_value = None
+        elif kind == "empty":
+            node.inputs[1].const_value = ir.tensor(np.array([], dtype=np.int64))
+        elif kind == "multi_axis":
+            node.inputs[3].const_value = ir.tensor(np.array([0, 1], dtype=np.int64))
+        elif kind == "steps":
+            step = ir.Value(name="step", const_value=ir.tensor(np.array([2], dtype=np.int64)))
+            model.graph.initializers["step"] = step
+            node.resize_inputs(5)
+            node.replace_input_with(4, step)
+        else:
+            node.domain = "custom"
+        self.assertEqual(_basic_rules.SlicesSplit.rule().apply_to_model(model), 0)
+
+    @parameterized.parameterized.expand(
+        [(n, paired) for n in (32, 64, 128) for paired in (False, True)]
+    )
+    def test_shared_input_index_work_is_linear(self, n, paired):
+        # Duplicate eligible prefixes exercise the case that an early axis/begin
+        # check alone cannot fix, with and without complementary suffixes.
+        slices = [(0, 4, 1)] * n
+        if paired:
+            slices += [(4, 8, 1)] * n
+        model = self.create_model(slices)
+        with unittest.mock.patch.object(
+            _basic_rules, "_slice_half", wraps=_basic_rules._slice_half
+        ) as classify:
+            count = _basic_rules.SlicesSplit.rule().apply_to_model(model)
+        self.assertEqual(count, n if paired else 0)
+        # One classification at each anchor, one when indexing, and at most
+        # one partner validation plus two condition checks per rewritten pair.
+        self.assertLessEqual(classify.call_count, 4 * len(slices))
+
+    def test_index_is_reset_between_models_and_passes(self):
+        rule = _basic_rules.SlicesSplit.rule()
+        for _ in range(2):
+            model = self.create_model([(0, 4, 1), (4, 8, 1)])
+            self.assertEqual(rule.apply_to_model(model), 1)
+            self.assertEqual(rule.apply_to_model(model), 0)
+            self.assertEqual(rule._matcher._indices, [])
+
+    def test_direct_match_does_not_cache_missing_partner(self):
+        rule = _basic_rules.SlicesSplit.rule()
+        model = self.create_model([(0, 4, 1), (4, 8, 1)])
+        first, second = model.graph
+        model.graph.remove(second)
+        self.assertFalse(rule.match(model, model.graph, first))
+        model.graph.append(second)
+        self.assertTrue(rule.match(model, model.graph, first))
+        self.assertEqual(rule._matcher._indices, [])
+
+    def test_new_slice_in_an_indexed_input_is_considered(self):
+        rule = _basic_rules.SlicesSplit.rule()
+        model = self.create_model([(0, 4, 1), (4, 8, 1)])
+        first, second = model.graph
+        model.graph.remove(second)
+        matcher = rule._matcher
+        matcher.setup()
+        try:
+            self.assertFalse(rule.match(model, model.graph, first))
+            model.graph.append(second)
+            self.assertTrue(rule.match(model, model.graph, second))
+        finally:
+            matcher.cleanup()
+
+    def test_nested_graph_does_not_clear_parent_index(self):
+        rule = _basic_rules.SlicesSplit.rule()
+        parent = self.create_model([(0, 4, 1), (4, 8, 1)])
+        child = self.create_model([(0, 4, 1), (4, 8, 1)])
+        matcher = rule._matcher
+        matcher.setup()
+        try:
+            self.assertTrue(rule.match(parent, parent.graph, parent.graph[0]))
+            parent_index = matcher._indices[-1]
+            matcher.setup()
+            try:
+                self.assertTrue(rule.match(child, child.graph, child.graph[0]))
+                self.assertIsNot(matcher._indices[-1], parent_index)
+            finally:
+                matcher.cleanup()
+            self.assertIs(matcher._indices[-1], parent_index)
+            self.assertTrue(rule.match(parent, parent.graph, parent.graph[1]))
+        finally:
+            matcher.cleanup()
+
+    def test_function_graph(self):
+        model = self.create_model([(0, 4, 1), (4, 8, 1)])
+        function = ir.Function("local", "halves", "", graph=model.graph, attributes=())
+        rule = _basic_rules.SlicesSplit.rule()
+        match = rule.match(model, function, function.graph[0])
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), list(function.graph.outputs))
 
 
 class Flatten2ReshapeTest(unittest.TestCase):

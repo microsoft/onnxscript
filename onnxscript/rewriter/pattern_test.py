@@ -4,6 +4,7 @@ import contextlib
 import io
 import logging
 import unittest
+import unittest.mock
 
 import numpy as np
 import onnx.checker
@@ -1053,6 +1054,220 @@ class NameClashAfterRewriteTest(unittest.TestCase):
             _all_value_names_unique(model),
             "All value names must be unique after apply_to_model",
         )
+
+
+class MultiOutputPatternTest(unittest.TestCase):
+    @staticmethod
+    def _model(inputs, nodes):
+        return ir.Model(
+            ir.Graph(
+                inputs,
+                [output for node in nodes for output in node.outputs],
+                nodes=nodes,
+                opset_imports={"": 18},
+            ),
+            ir_version=10,
+        )
+
+    @staticmethod
+    def _rule() -> pattern.RewriteRule:
+        def relu_neg_pattern(op, x):
+            return op.Relu(x), op.Neg(x)
+
+        def relu_neg_replacement(op, x):
+            return op.Relu(x), op.Mul(x, op.Constant(value_float=-1.0))
+
+        return pattern.RewriteRule(relu_neg_pattern, relu_neg_replacement)
+
+    def test_other_outputs_are_matched_against_consumers_of_bound_inputs(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] a, float[N] b, float[N] c) => (float[N] y1, float[N] y2, float[N] y3, float[N] y4)
+            {
+                y1 = Relu(a)
+                y2 = Neg(b)
+                y3 = Neg(c)
+                y4 = Relu(c)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = self._rule().apply_to_model(model)
+
+        self.assertEqual(count, 1)
+        # Only the Relu and Neg that share the input c are rewritten.
+        self.assertEqual(
+            sorted(n.op_type for n in model.graph), ["Constant", "Mul", "Neg", "Relu", "Relu"]
+        )
+        (mul,) = [n for n in model.graph if n.op_type == "Mul"]
+        self.assertEqual(mul.inputs[0].name, "c")
+
+    def test_candidates_are_limited_to_consumers_of_bound_inputs(self):
+        # Each Relu has its own input, so no Neg can complete a match with it. Only the
+        # Neg that reads the same input is tried, instead of every Neg in the graph.
+        n = 20
+        inputs = ", ".join(f"float[N] x{i}" for i in range(n))
+        outputs = ", ".join(f"float[N] r{i}, float[N] s{i}" for i in range(n))
+        body = "\n".join(f"r{i} = Relu(x{i})\ns{i} = Neg(x{(i + 1) % n})" for i in range(n))
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph ({inputs}) => ({outputs})
+            {{
+                {body}
+            }}
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        matcher_class = onnxscript.rewriter._matcher.SimplePatternMatcher
+        original_multi_match = matcher_class._multi_match
+        calls = 0
+
+        def counting_multi_match(self, *args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return original_multi_match(self, *args, **kwargs)
+
+        with unittest.mock.patch.object(matcher_class, "_multi_match", counting_multi_match):
+            count = self._rule().apply_to_model(model)
+
+        # Every Relu shares its input with exactly one Neg, so each pair is rewritten.
+        self.assertEqual(count, n)
+        self.assertLessEqual(calls, 2 * n)
+
+    def test_no_match_when_first_output_node_has_too_few_outputs(self):
+        def dropout_neg_pattern(op, x):
+            output, mask = op.Dropout(x, _outputs=2)
+            return output, mask, op.Neg(x)
+
+        def dropout_neg_replacement(op, x):
+            output, mask = op.Dropout(x, _outputs=2)
+            return output, mask, op.Neg(x)
+
+        rule = pattern.RewriteRule(dropout_neg_pattern, dropout_neg_replacement)
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] a) => (float[N] y)
+            {
+                y = Dropout(a)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        (dropout,) = model.graph
+
+        match = rule._matcher.match(model, model.graph, dropout)
+
+        self.assertFalse(match)
+        self.assertEqual(rule.apply_to_model(model), 0)
+
+    def test_no_match_when_later_output_node_has_too_few_outputs(self):
+        def target(op, x):
+            output, mask = op.Dropout(x, _outputs=2)
+            return op.Neg(x), output, mask
+
+        x = ir.Value(name="x")
+        neg = ir.node("Neg", [x])
+        dropout = ir.node("Dropout", [x])
+        model = self._model([x], [neg, dropout])
+        match = pattern.Pattern(target).match(model, model.graph, neg)
+        self.assertFalse(match)
+
+    def test_disconnected_outputs_and_unbound_inputs(self):
+        def target(op, x, y, z):
+            return op.Relu(x), op.Neg(y), op.Abs(z)
+
+        x, y, z = (ir.Value(name=name) for name in ("x", "y", "z"))
+        nodes = [ir.node("Relu", [x]), ir.node("Neg", [y]), ir.node("Abs", [z])]
+        model = self._model([x, y, z], nodes)
+        match = pattern.Pattern(target).match(model, model.graph, nodes[0])
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), list(model.graph.outputs))
+        self.assertEqual(match.bindings, {"x": x, "y": y, "z": z})
+
+    def test_multiple_unbound_wildcard_outputs_and_attribute_constraints(self):
+        def target(op, x, y, z):
+            return (
+                op.Relu(x),
+                op.submodule("")(y, to=1),
+                op.submodule("")(z, to=6),
+            )
+
+        x, y, z = (ir.Value(name=name) for name in ("x", "y", "z"))
+        nodes = [
+            ir.node("Relu", [x]),
+            ir.node("Cast", [y], {"to": 1}),
+            ir.node("Cast", [z], {"to": 6}),
+        ]
+        model = self._model([x, y, z], nodes)
+        match = pattern.Pattern(target).match(model, model.graph, nodes[0])
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), list(model.graph.outputs))
+
+    def test_bound_input_candidates_still_check_literal_attributes(self):
+        def target(op, x):
+            return op.Relu(x), op.Cast(x, to=1)
+
+        x = ir.Value(name="x")
+        relu = ir.node("Relu", [x])
+        wrong = ir.node("Cast", [x], {"to": 6})
+        missing = ir.node("Cast", [x])
+        right = ir.node("Cast", [x], {"to": 1})
+        model = self._model([x], [relu, wrong, missing, right])
+        matcher = pattern.Pattern(target)
+        match = matcher.match(model, model.graph, relu)
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), [relu.outputs[0], right.outputs[0]])
+        right.attributes["to"] = ir.AttrInt64("to", 6)
+        self.assertFalse(matcher.match(model, model.graph, relu))
+
+    def test_unnamed_shared_intermediate(self):
+        def target(op, x):
+            shared = op.Relu(x)
+            return op.Abs(shared), op.Neg(shared)
+
+        x = ir.Value(name="x")
+        relu = ir.node("Relu", [x])
+        absolute = ir.node("Abs", [relu.outputs[0]])
+        wrong = ir.node("Neg", [x])
+        right = ir.node("Neg", [relu.outputs[0]])
+        model = self._model([x], [relu, absolute, wrong, right])
+        model.graph.outputs.remove(relu.outputs[0])
+        match = pattern.Pattern(target).match(model, model.graph, absolute)
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), [absolute.outputs[0], right.outputs[0]])
+
+    def test_consumer_at_wrong_input_position_is_not_a_candidate(self):
+        def target(op, x, y):
+            return op.Relu(x), op.Sub(y, x)
+
+        x, y = ir.Value(name="x"), ir.Value(name="y")
+        relu = ir.node("Relu", [x])
+        wrong = ir.node("Sub", [x, y])
+        right = ir.node("Sub", [y, x])
+        model = self._model([x, y], [relu, wrong, right])
+        match = pattern.Pattern(target).match(model, model.graph, relu)
+        self.assertTrue(match)
+        self.assertEqual(list(match.outputs), [relu.outputs[0], right.outputs[0]])
+
+    def test_captured_input_does_not_match_consumers_in_another_graph(self):
+        def target(op, x):
+            return op.Relu(x), op.Neg(x)
+
+        x = ir.Value(name="x")
+        relu = ir.node("Relu", [x])
+        neg = ir.node("Neg", [x])
+        other_graph = ir.Graph([], [neg.outputs[0]], nodes=[neg])
+        model = self._model([x], [relu])
+        matcher = pattern.Pattern(target)
+        self.assertFalse(matcher.match(model, model.graph, relu))
+        self.assertIs(neg.graph, other_graph)
+        local_neg = ir.node("Neg", [x])
+        model.graph.append(local_neg)
+        self.assertTrue(matcher.match(model, model.graph, relu))
 
 
 if __name__ == "__main__":
