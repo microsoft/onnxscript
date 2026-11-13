@@ -232,6 +232,14 @@ class UINT2(TensorType, dtype=ir.DataType.UINT2):
     pass
 
 
+class FLOAT6E2M3(TensorType, dtype=ir.DataType.FLOAT6E2M3):
+    pass
+
+
+class FLOAT6E3M2(TensorType, dtype=ir.DataType.FLOAT6E3M2):
+    pass
+
+
 def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto, *, reversible: bool = True) -> str:
     """Converts an onnx type into the string representation of the type in *onnxscript*.
 
@@ -248,7 +256,7 @@ def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto, *, reversible: bool 
     """
     if onnx_type.HasField("tensor_type"):
         elem_type = onnx_type.tensor_type.elem_type
-        name = onnx.TensorProto.DataType.Name(elem_type)
+        name = ir.DataType(elem_type).name
         if onnx_type.tensor_type.HasField("shape"):
             shape = []
             for d in onnx_type.tensor_type.shape.dim:

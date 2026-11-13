@@ -30,30 +30,102 @@ class ScatterAllDynamic(RewriteRuleClassBase):
 
     def pattern(self, op, data, axis, transposed_data, updates):
         # Construct update-indices spanning an entire axis:
-        shape = op.Shape(data, start=0)
-        dim = op.Gather(shape, axis, axis=0)
+        shape = op.Shape(data, _outputs=["shape_out"])
+        dim = op.Gather(shape, axis, _outputs=["gather_dim"])
         full_range = op.Range(0, dim, 1)
         full_range_2d = op.Unsqueeze(full_range, [-1])
         # The update is applied to the data transposed to bring the updated axis to the front:
-        return op.ScatterND(transposed_data, full_range_2d, updates, reduction="none")
+        return op.ScatterND(transposed_data, full_range_2d, updates)
 
-    def check(self, context, data, axis, transposed_data, **_):
+    def check(
+        self,
+        context,
+        data,
+        axis,
+        transposed_data,
+        shape_out=None,
+        gather_dim=None,
+        **_,
+    ):
         # Check that updated-indices represent the full range of the first dimension of the transposed data.
         # That is: check that the data.shape[axis] matches transposed_data.shape[0].
         result = onnxscript.rewriter.MatchResult()
-        axis_value = _ir_utils.get_singleton_value(axis)
-        if not isinstance(axis_value, int):
-            return result.fail("Axis value must be a constant integer.", axis)
+
         shape: ir.Shape | None = data.shape
         if shape is None:
             return result.fail("Data shape is not statically known.", data)
-        updated_dim_value = shape[axis_value]
+
+        # Validate that Shape produces dimensions starting from 0 (or -rank) to the full rank
+        if shape_out is not None and shape_out.producer() is not None:
+            shape_node = shape_out.producer()
+            start_attr = shape_node.attributes.get("start")
+            if start_attr is not None:
+                if hasattr(start_attr, "is_ref") and start_attr.is_ref():
+                    return result.fail(
+                        f"The Shape 'start' refers to attribute {start_attr.ref_attr_name!r}, "
+                        "so it is not known to cover the full shape.",
+                        shape_out,
+                    )
+                start_val = start_attr.as_int()
+                if start_val != 0 and start_val != -len(shape):
+                    return result.fail(
+                        f"The Shape 'start' is {start_val!r}, expected 0 or {-len(shape)!r}.",
+                        shape_out,
+                    )
+            end_attr = shape_node.attributes.get("end")
+            if end_attr is not None:
+                return result.fail(
+                    "The 'end' attribute is present on Shape, so the full shape is not computed.",
+                    shape_out,
+                )
+
+        # Validate that Gather indexes along axis 0 of Shape's 1D output
+        if gather_dim is not None and gather_dim.producer() is not None:
+            gather_node = gather_dim.producer()
+            gather_axis = gather_node.attributes.get("axis")
+            if gather_axis is not None:
+                if hasattr(gather_axis, "is_ref") and gather_axis.is_ref():
+                    return result.fail(
+                        f"The Gather 'axis' refers to attribute {gather_axis.ref_attr_name!r}, "
+                        "so it is not known to be 0.",
+                        gather_dim,
+                    )
+                if gather_axis.as_int() != 0:
+                    return result.fail(
+                        f"The Gather 'axis' is {gather_axis.as_int()!r}, expected 0.",
+                        gather_dim,
+                    )
+
+        # Validate that the scatter-update is an assignment, not a reduction
+        reduction = context.root.attributes.get("reduction")
+        if reduction is not None:
+            if reduction.is_ref():
+                return result.fail(
+                    f"The 'reduction' refers to attribute {reduction.ref_attr_name!r}, "
+                    "so it is not known to be 'none'."
+                )
+            if reduction.as_string() != "none":
+                return result.fail(
+                    f"The 'reduction' is {reduction.as_string()!r}, "
+                    "so 'data' still contributes to the result."
+                )
+
+        axis_value = _ir_utils.get_singleton_value(axis)
+        if not isinstance(axis_value, int):
+            return result.fail("Axis value must be a constant integer.", axis)
+        updated_dim_value = _ir_utils.get_dim(data, axis_value)
+        if updated_dim_value is None:
+            return result.fail("Axis value is out of bounds for data shape.", axis)
         transposed_data_shape: ir.Shape | None = transposed_data.shape
         if transposed_data_shape is None:
             return result.fail(
                 "Transposed data shape is not statically known.", transposed_data
             )
-        actual_dim_value = transposed_data_shape[0]
+        actual_dim_value = _ir_utils.get_dim(transposed_data, 0)
+        if actual_dim_value is None:
+            return result.fail(
+                "Transposed data shape must have at least rank 1.", transposed_data
+            )
         if not _ir_utils.same_dim(updated_dim_value, actual_dim_value):
             # The first dimension of the transposed data does not match the updated dimension,
             # so we cannot apply this rule.

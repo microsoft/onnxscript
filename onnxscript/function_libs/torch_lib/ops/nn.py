@@ -2588,6 +2588,32 @@ def aten_upsample_linear1d(
     )
 
 
+@torch_op("aten::upsample_linear1d.vec", trace_only=True)
+def aten_upsample_linear1d_vec(
+    self: TReal,
+    output_size: Optional[INT64],
+    align_corners: bool,
+    scale_factors: Optional[Sequence[float]],
+) -> TReal:
+    """upsample_linear1d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
+
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    if scale_factors is not None:
+        return _aten_upsample_scales(
+            self,
+            scale_factors,
+            mode="linear",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+    assert output_size is not None
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        mode="linear",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+    )
+
+
 def aten_upsample_linear1d_backward(
     grad_output: TensorType,
     output_size: INT64,
