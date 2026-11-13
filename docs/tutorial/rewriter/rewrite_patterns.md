@@ -47,3 +47,6 @@ These options are documented in detail in the following sections.
 
 ```{include} node_value_checkers.md
 ```
+
+```{include} generate_pattern.md
+```
