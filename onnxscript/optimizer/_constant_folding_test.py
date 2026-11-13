@@ -107,6 +107,107 @@ class FoldConstantsTest(unittest.TestCase):
         optimized = self._fold(model, dce=True)
         self.assertEqual(len(optimized.graph), 1)
 
+    @parameterized.parameterized.expand(
+        [
+            ("identity", "Identity(classes)", ["cat", "dog", "bird"]),
+            ("concat", "Concat <axis=0> (classes, extra)", ["cat", "dog", "bird", "fish"]),
+            ("cast", "Cast <to=8> (ids)", ["1", "20"]),
+        ]
+    )
+    def test_fold_string_output(self, _, expression, expected):
+        model = f"""
+            <ir_version: 8, opset_import: [ "" : 18]>
+            agraph (int64[1] idx) => (string[1] label)
+            <string[3] classes = {{"cat", "dog", "bird"}}, string[1] extra = {{"fish"}},
+             int64[2] ids = {{1, 20}}>
+            {{
+                labels = {expression}
+                label = Gather(labels, idx)
+            }}
+        """
+
+        optimized = self._fold(model)
+        labels = optimized.graph.initializers["labels"].const_value
+        self.assertEqual(labels.dtype, ir.DataType.STRING)
+        self.assertEqual([x.decode() for x in labels.string_data()], expected)
+
+        proto = ir.to_proto(optimized)
+        feeds = {"idx": np.array([len(expected) - 1], dtype=np.int64)}
+        np.testing.assert_array_equal(
+            ReferenceEvaluator(proto).run(None, feeds)[0], [expected[-1]]
+        )
+        optimized_proto = optimizer.optimize(onnx.parser.parse_model(model))
+        onnx.checker.check_model(optimized_proto)
+        np.testing.assert_array_equal(
+            ReferenceEvaluator(optimized_proto).run(None, feeds)[0], [expected[-1]]
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("unicode_scalar", np.array("caf\u00e9"), ["caf\u00e9".encode()]),
+            (
+                "unicode_matrix",
+                np.array([["cat", ""], ["\u732b", "caf\u00e9"]]),
+                [b"cat", b"", "\u732b".encode(), "caf\u00e9".encode()],
+            ),
+            ("bytes", np.array([b"cat", b"a\x00b"]), [b"cat", b"a\x00b"]),
+            (
+                "objects",
+                np.array([b"a\x00", "", "\u732b"], dtype=object),
+                [b"a\x00", b"", "\u732b".encode()],
+            ),
+            ("empty_unicode", np.empty((2, 0), dtype=str), []),
+            ("empty_bytes", np.empty((0,), dtype=bytes), []),
+            ("empty_objects", np.empty((0, 2), dtype=object), []),
+        ]
+    )
+    def test_create_folded_string_tensor(self, _, array, expected):
+        folder = _constant_folding.FoldConstantsPass(
+            shape_inference=False, input_size_limit=1024, output_size_limit=1024
+        )
+        node = ir.Node("", "Identity", [ir.Value()], num_outputs=1)
+        node.outputs[0].name = "folded"
+
+        initializer = folder.new_initializer(node, array)
+        constant = folder.new_constant(node, array)
+
+        self.assertIsNotNone(initializer)
+        self.assertIsNotNone(constant)
+        for tensor in (initializer.const_value, constant.attributes["value"].as_tensor()):
+            with self.subTest(tensor=tensor):
+                proto = ir.serde.serialize_tensor(tensor)
+                self.assertEqual(proto.name, "folded")
+                self.assertEqual(proto.data_type, onnx.TensorProto.STRING)
+                self.assertEqual(list(proto.dims), list(array.shape))
+                self.assertEqual(list(proto.string_data), expected)
+
+    def test_fold_string_output_in_function(self):
+        model = """
+            <ir_version: 8, opset_import: [ "" : 18, "local" : 1]>
+            agraph (int64[1] idx) => (string[1] label) {
+                label = local.labels(idx)
+            }
+            <opset_import: [ "" : 18 ], domain: "local">
+            labels (idx) => (label) {
+                ids = Constant <value_ints = [1, 20]> ()
+                strings = Cast <to = 8> (ids)
+                label = Gather(strings, idx)
+            }
+        """
+
+        optimized = self._fold(model)
+        function = optimized.functions[("local", "labels", "")]
+        self.assertEqual([node.op_type for node in function], ["Constant", "Gather"])
+        tensor = function[0].attributes["value"].as_tensor()
+        self.assertEqual(tensor.dtype, ir.DataType.STRING)
+        self.assertEqual(list(tensor.string_data()), [b"1", b"20"])
+        np.testing.assert_array_equal(
+            ReferenceEvaluator(ir.to_proto(optimized)).run(
+                None, {"idx": np.array([1], dtype=np.int64)}
+            )[0],
+            ["20"],
+        )
+
     def test_fold_shape(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>
