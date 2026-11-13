@@ -15,6 +15,13 @@ from onnxscript import BOOL, DOUBLE, FLOAT, INT64, graph, script
 from onnxscript import opset17 as op
 
 
+def _reference_scan_supports_outer_scope() -> bool:
+    from onnx.reference.op_run import OpRun
+    from onnx.reference.ops.op_scan import Scan
+
+    return Scan.need_context is not OpRun.need_context
+
+
 @parameterized.parameterized_class(
     (
         "name",
@@ -285,6 +292,12 @@ class EagerModeTest(unittest.TestCase):
                 )
 
     def test_nested_graph_with_capture(self):
+        if (
+            isinstance(self.evaluator, onnxscript.evaluator.OnnxReferenceRuntimeEvaluator)
+            and not _reference_scan_supports_outer_scope()
+        ):
+            self.skipTest("onnx.reference Scan does not pass outer-scope values to its body")
+
         @script()
         def scan(x: FLOAT["N"], bias: FLOAT) -> FLOAT["N"]:  # noqa: F821
             @graph()
