@@ -5,6 +5,7 @@ import unittest
 import numpy as np
 import onnx
 import onnx_ir as ir
+import onnxruntime as ort
 import parameterized
 
 from onnxscript.rewriter import testing
@@ -12,6 +13,118 @@ from onnxscript.rewriter.rules.common import _fuse_batchnorm
 
 
 class FuseBatchnormTest(unittest.TestCase):
+    def _mode_test_model(self, op_type, opset, attributes, output_count):
+        shape = [2, 2] if op_type == "Gemm" else [2, 2, 3, 3]
+        weight_shape = [2, 2] if op_type == "Gemm" else [2, 2, 1, 1]
+        model_proto = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                [
+                    onnx.helper.make_node(
+                        op_type,
+                        ["X", "W", "B"],
+                        ["X1"],
+                        **({"broadcast": 1} if op_type == "Gemm" and opset < 7 else {}),
+                    ),
+                    onnx.helper.make_node(
+                        "BatchNormalization",
+                        ["X1", "gamma", "beta", "input_mean", "input_var"],
+                        ["Y", *[f"aux_{i}" for i in range(output_count - 1)]],
+                        **attributes,
+                    ),
+                ],
+                "mode_test",
+                [onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, shape)],
+                [onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, shape)],
+                [
+                    onnx.numpy_helper.from_array(
+                        np.array([[1.0, 0.5], [-0.5, 2.0]], dtype=np.float32).reshape(
+                            weight_shape
+                        ),
+                        name="W",
+                    ),
+                    onnx.numpy_helper.from_array(
+                        np.array([0.25, -0.5], dtype=np.float32), name="B"
+                    ),
+                    *[
+                        onnx.numpy_helper.from_array(np.array(values, np.float32), name=name)
+                        for name, values in [
+                            ("gamma", [1.5, 0.5]),
+                            ("beta", [0.25, -0.5]),
+                            ("input_mean", [0.5, -0.25]),
+                            ("input_var", [0.5, 1.5]),
+                        ]
+                    ],
+                ],
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", opset)],
+            ir_version=10,
+        )
+        onnx.checker.check_model(model_proto, full_check=True)
+        x = np.arange(np.prod(shape), dtype=np.float32).reshape(shape) / 10
+        return ir.from_proto(model_proto), x
+
+    @parameterized.parameterized.expand(
+        [
+            (op_type, opset, attributes, output_count)
+            for op_type in ("Conv", "ConvTranspose", "Gemm")
+            for opset, attributes, output_count in [
+                (17, {"training_mode": 1}, 3),
+                (14, {"training_mode": 1}, 3),
+                (13, {}, 5),
+                (9, {}, 5),
+                (7, {}, 5),
+                (6, {}, 5),
+                (6, {"is_test": 0}, 5),
+                (6, {}, 1),
+                (6, {"is_test": 0}, 1),
+            ]
+        ]
+    )
+    def test_unsupported_batchnorm_mode(self, op_type, opset, attributes, output_count):
+        model, _ = self._mode_test_model(op_type, opset, attributes, output_count)
+        before = ir.to_proto(model).SerializeToString()
+        nodes = tuple(model.graph)
+        initializers = dict(model.graph.initializers)
+
+        self.assertEqual(_fuse_batchnorm.rules.apply_to_model(model), 0)
+
+        self.assertEqual(ir.to_proto(model).SerializeToString(), before)
+        self.assertEqual(tuple(model.graph), nodes)
+        self.assertEqual(dict(model.graph.initializers), initializers)
+
+    @parameterized.parameterized.expand(
+        [
+            (op_type, opset, attributes)
+            for op_type in ("Conv", "ConvTranspose", "Gemm")
+            for opset, attributes in [
+                (17, {}),
+                (17, {"training_mode": 0}),
+                (14, {}),
+                (14, {"training_mode": 0}),
+                (13, {}),
+                (9, {}),
+                (7, {}),
+                (6, {"is_test": 1}),
+            ]
+        ]
+    )
+    def test_inference_batchnorm_mode(self, op_type, opset, attributes):
+        model, x = self._mode_test_model(op_type, opset, attributes, 1)
+        original = ir.to_proto(model)
+
+        self.assertEqual(_fuse_batchnorm.rules.apply_to_model(model), 1)
+        self.assertEqual(len(model.graph), 1)
+        onnx.checker.check_model(ir.to_proto(model), full_check=True)
+        testing.assert_numerically_equal(
+            original,
+            model,
+            (x,),
+            ort_optimization_level=ort.GraphOptimizationLevel.ORT_DISABLE_ALL,
+            rtol=1e-5,
+            atol=1e-6,
+            use_reference=opset < 7,
+        )
+
     @parameterized.parameterized.expand([("Conv",), ("ConvTranspose",), ("Gemm",)])
     def test_preserves_inbound_metadata(self, op_type: str):
         shape = [1, 2] if op_type == "Gemm" else [1, 2, 3, 3]

@@ -181,7 +181,7 @@ class FuseConvPad(_FuseConvPadBase):
 
 
 class FuseConvIntegerPad(FuseConvPad):
-    """Replaces ``ConvInteger(Pad(x))`` with ``ConvInteger(x)``."""
+    """Replaces ``ConvInteger(Pad(x))`` with ``ConvInteger(x)`` for zero input zero-point."""
 
     def pattern(self, op, x):
         return op.ConvInteger(
@@ -200,7 +200,7 @@ class FuseConvIntegerPad(FuseConvPad):
         # only agree when x_zero_point is absent or zero.
         conv_node = conv.producer()
         if len(conv_node.inputs) > 2 and (x_zero_point := conv_node.inputs[2]) is not None:
-            if x_zero_point.const_value is None:
+            if x_zero_point.const_value is None or x_zero_point.is_graph_input():
                 return check_result.fail(f"{x_zero_point.name} is not a constant/initializer.")
             if np.any(x_zero_point.const_value.numpy() != 0):
                 return check_result.fail(f"{x_zero_point.name} must be equal to 0.")

@@ -6,6 +6,8 @@
 - BatchNormalization ∘ Gemm         -> Gemm
 
 Approach:
+    Only inference-mode BatchNormalization can be folded.
+
     Given an inbound operation output: Y = W * X + B
     And a BatchNormalization outputs: Y_BN = (gamma * (Y - μ) / std) + β, where std = sqrt(var + eps)
 
@@ -102,7 +104,6 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
         return fused_out
 
     def check(self, context, x, inbound_out: ir.Value, batchnorm_out: ir.Value) -> MatchResult:
-        del context  # Unused
         check_result = MatchResult()
 
         inbound_node = inbound_out.producer()
@@ -113,6 +114,20 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
                 "BatchNormalization in training mode uses the batch statistics, "
                 "not input_mean and input_var."
             )
+
+        # Before opset 7, is_test defaults to 0 (training). In opsets 7-13,
+        # training is indicated by the presence of auxiliary outputs.
+        version = batchnorm_node.version
+        if version is None:
+            version = context.graph_or_function.opset_imports.get(
+                "", context.model.opset_imports.get("")
+            )
+        if version is None or (
+            version < 7 and batchnorm_node.attributes.get_int("is_test", 0) == 0
+        ):
+            return check_result.fail("BatchNormalization inference mode is not established.")
+        if len(batchnorm_node.outputs) != 1:
+            return check_result.fail("BatchNormalization auxiliary outputs are not supported.")
 
         # Check that inbound weights + (inbound bias) + batchnorm params are initializers
         # and that they are not graph inputs
