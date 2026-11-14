@@ -10442,15 +10442,23 @@ def aten_unique_consecutive(
             f"Not implemented for x={x!r} with rank={rank_x} and dim={dim}."
         )
 
-    lag = op.Concat(
-        # Hopefully this will never be equal to the first value of the tensor x
-        # ideally we could do differently but with a higher cost
-        op.Constant(value=ir.tensor([_INT32_MAX], dtype=x.dtype)),
-        op.Slice(x, zero64, minus_one, zero64),
+    one64 = op.Constant(value=ir.tensor([1], dtype=INT64.dtype))
+    # A nonempty input always starts a run, regardless of its first value.
+    first = op.ConstantOfShape(
+        op.Shape(op.Slice(x, zero64, one64, zero64)),
+        value=ir.tensor([True], dtype=BOOL.dtype),
+    )
+    changed = op.Not(
+        op.Equal(
+            op.Slice(x, one64, op.Shape(x), zero64),
+            op.Slice(x, zero64, minus_one, zero64),
+        )
+    )
+    diff = op.Concat(
+        first,
+        changed,
         axis=0,
     )
-    eq = op.Equal(x, lag)
-    diff = op.Not(eq)
     res = op.Compress(x, diff, axis=0)
 
     zero_no_dim = op.Constant(value=ir.tensor(0, dtype=x.dtype))

@@ -871,6 +871,64 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
+    @parameterized.parameterized.expand(
+        [
+            ("values", False, False),
+            ("counts", False, True),
+            ("inverse", True, False),
+            ("inverse_and_counts", True, True),
+        ]
+    )
+    def test_aten_unique_consecutive_first_run(self, _, return_inverse, return_counts):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.unique_consecutive(
+                    x, return_inverse=return_inverse, return_counts=return_counts
+                )
+
+        limit = torch.iinfo(torch.int32).max
+        x = torch.tensor([limit, limit, 1, 1], dtype=torch.int64)
+        onnx_program = torch.onnx.export(
+            Model().eval(),
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+            optimize=False,
+        )
+        for values in (
+            [limit, limit, 1, 1],
+            [limit],
+            [limit, 1, limit, limit],
+            [limit, limit, limit],
+            [torch.iinfo(torch.int64).max, torch.iinfo(torch.int64).min],
+            [torch.iinfo(torch.int32).min, torch.iinfo(torch.int32).min, 0],
+            [0, 0, 1, 1, 0],
+            [],
+        ):
+            with self.subTest(values=values):
+                _testing.assert_onnx_program(
+                    onnx_program, args=(torch.tensor(values, dtype=torch.int64),)
+                )
+
+    def test_aten_unique_consecutive_first_run_int32(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return torch.unique_consecutive(x)
+
+        limit = torch.iinfo(torch.int32).max
+        x = torch.tensor([limit, limit, 1, 1], dtype=torch.int32)
+        onnx_program = torch.onnx.export(
+            Model().eval(),
+            (x,),
+            dynamic_shapes=({0: "length"},),
+            dynamo=True,
+        )
+        for values in ([limit, limit, 1], [limit], [limit, 0, limit], [-(limit + 1)], []):
+            with self.subTest(values=values):
+                _testing.assert_onnx_program(
+                    onnx_program, args=(torch.tensor(values, dtype=torch.int32),)
+                )
+
     def test_aten_stft_1(self):
         class Model(torch.nn.Module):
             def forward(self, x):
