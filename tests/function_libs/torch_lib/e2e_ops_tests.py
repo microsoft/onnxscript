@@ -294,6 +294,30 @@ class TorchLibe2eTest(unittest.TestCase):
             optimize=False,
         )
         _testing.assert_onnx_program(onnx_program)
+        _testing.assert_onnx_program(onnx_program, backend="reference")
+
+    def test_repeat_interleave_tensor_empty_and_reference_backend(self):
+        class Repeat1ArgModel(torch.nn.Module):
+            def forward(self, repeats: torch.Tensor) -> torch.Tensor:
+                return torch.repeat_interleave(repeats)
+
+        onnx_program = torch.onnx.export(
+            Repeat1ArgModel(),
+            (torch.tensor([2, 0, 1], dtype=torch.int32),),
+            dynamo=True,
+            dynamic_shapes=({0: torch.export.Dim("n", min=0)},),
+        )
+        _testing.assert_onnx_program(onnx_program, backend="reference")
+        _testing.assert_onnx_program(
+            onnx_program,
+            args=(torch.tensor([], dtype=torch.int32),),
+            backend="onnxruntime",
+        )
+        _testing.assert_onnx_program(
+            onnx_program,
+            args=(torch.tensor([], dtype=torch.int32),),
+            backend="reference",
+        )
 
     def test_repeat_interleave_tensor_none(self):
         class Model(torch.nn.Module):

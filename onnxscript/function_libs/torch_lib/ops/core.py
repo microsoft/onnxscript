@@ -8732,7 +8732,10 @@ def aten_repeat_interleave_Tensor(
     """
     if repeats is None:
         repeats = self
-        self = op.Range(0, op.Squeeze(op.Shape(repeats, start=-1), [0]), 1)
+        self = op.CastLike(
+            op.Range(0, op.Squeeze(op.Shape(repeats, start=-1), [0]), 1),
+            repeats,
+        )
     if dim is None:
         # flatten
         self = op.Reshape(self, [-1])
@@ -8754,9 +8757,10 @@ def aten_repeat_interleave_Tensor(
             )
         shape_x = None
 
-    ci = op.CumSum(repeats, [0])
-    last_ci = op.Gather(ci, [-1])
-    trange = op.Range(0, op.Squeeze(last_ci, [0]), 1)
+    repeats_i64 = op.Cast(repeats, to=INT64.dtype)
+    ci = op.CumSum(repeats_i64, 0)
+    total_repeats = op.ReduceSum(repeats_i64, [0], keepdims=0)
+    trange = op.Range(0, total_repeats, 1)
     rows = op.Less(trange, op.Unsqueeze(ci, [-1]))
     srows = op.Sub(
         op.Shape(self, start=0, end=1),
