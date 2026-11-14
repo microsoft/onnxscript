@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+import numpy as np
 import onnx_ir as ir
 
 from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
@@ -17,9 +18,13 @@ def cast_constant_of_shape(op, shape, scalar, dtype):
 
 
 def fused_cast_constant_of_shape(op, shape: ir.Value, scalar: ir.Attr, dtype: ir.Attr, **_):
-    # Cast scalar (a TensorProto attribute) to the specified dtype
-    scalar_value = scalar.as_tensor().numpy().item()
-    cast_value = ir.tensor([scalar_value], dtype=ir.DataType(dtype.as_int()))
+    # Cast scalar (a TensorProto attribute) to the specified dtype. Convert the array, not a
+    # Python scalar, so that values outside the target range wrap like the Cast op instead of
+    # raising OverflowError.
+    to_dtype = ir.DataType(dtype.as_int())
+    with np.errstate(invalid="ignore"):
+        cast_array = scalar.as_tensor().numpy().astype(to_dtype.numpy()).reshape(1)
+    cast_value = ir.tensor(cast_array, dtype=to_dtype)
     return op.ConstantOfShape(shape, value=cast_value)
 
 
