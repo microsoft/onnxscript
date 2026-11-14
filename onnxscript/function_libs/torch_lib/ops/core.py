@@ -8062,8 +8062,44 @@ def aten_positive(self: TensorType) -> TensorType:
 @torch_op(("aten::pow.Tensor_Tensor", "_operator::pow"), trace_only=True)
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
-    # TODO(justinchuby): Add type promotion
+    if (
+        isinstance(self, ir.Value)
+        and isinstance(exponent, ir.Value)
+        and self.dtype != exponent.dtype
+        and (self.dtype.is_floating_point() or exponent.dtype.is_floating_point())
+    ):
+        # ONNX Pow keeps the dtype of the base, but torch promotes the result when
+        # the dtypes differ, e.g. an int64 base and a float32 exponent gives float32.
+        result_dtype = _promoted_float_dtype(self, exponent)
+        if self.dtype != result_dtype:
+            self = op.Cast(self, to=result_dtype)
+        # Pow accepts an integer exponent next to a float base, so integer exponents
+        # are left alone. Float and bool exponents (Pow has no bool input) follow the
+        # promoted dtype.
+        if not exponent.dtype.is_integer() and exponent.dtype != result_dtype:
+            exponent = op.Cast(exponent, to=result_dtype)
     return op.Pow(self, exponent)
+
+
+def _promoted_float_dtype(a: TensorType, b: TensorType) -> int:
+    """The result dtype torch gives to a binary op on tensors a and b, one of them float.
+
+    A zero-dim tensor only decides the dtype when it is of a higher category (float over
+    integer) than the other operand, mirroring torch.result_type.
+    """
+    a_float = a.dtype.is_floating_point()
+    b_float = b.dtype.is_floating_point()
+    if a_float != b_float:
+        # One float operand and one integer or bool operand: the float one decides.
+        return (a if a_float else b).dtype
+    a_scalar = a.shape is not None and len(a.shape) == 0
+    b_scalar = b.shape is not None and len(b.shape) == 0
+    if a_scalar != b_scalar:
+        # Both are floats of different widths. The dimensioned operand wins.
+        return (b if a_scalar else a).dtype
+    if {a.dtype, b.dtype} == {ir.DataType.FLOAT16, ir.DataType.BFLOAT16}:
+        return ir.DataType.FLOAT
+    return a.dtype if a.dtype.bitwidth >= b.dtype.bitwidth else b.dtype
 
 
 @torch_op("aten::pow.Tensor_Scalar", trace_only=True)
