@@ -236,6 +236,118 @@ class BasicRulesTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
+            (source, target)
+            for source in (ot.FLOAT, ot.FLOAT16, ot.BFLOAT16)
+            for target in (ot.FLOAT16, ot.BFLOAT16)
+        ]
+    )
+    def test_cast_cast_exact_widening(self, source, target):
+        model_proto = self._double_cast_model(source, ot.FLOAT, target)
+        model = ir.from_proto(model_proto)
+        self.assertEqual(_basic_rules.cast_cast_rule.apply_to_model(model), 1)
+        values = np.array(
+            [0.0, -0.0, 1.0, -1.0, 0.1, -0.1, 2.0, -2.0, np.inf, -np.inf],
+            dtype=ir.DataType(source.dtype).numpy(),
+        )
+        expected = onnx.reference.ReferenceEvaluator(model_proto).run(None, {"x": values})[0]
+        actual = onnx.reference.ReferenceEvaluator(ir.to_proto(model)).run(
+            None, {"x": values}
+        )[0]
+        np.testing.assert_array_equal(expected.view(np.uint16), actual.view(np.uint16))
+        onnx.checker.check_model(ir.to_proto(model), full_check=True)
+
+    @parameterized.parameterized.expand([(False,), (True,)])
+    def test_cast_cast_preserves_double_rounding(self, full_optimizer):
+        target = ot.FLOAT16
+        midpoint = 1.00048828125
+        model_proto = self._double_cast_model(ot.DOUBLE, ot.FLOAT, target)
+        model = ir.from_proto(model_proto)
+        values = np.array([midpoint + 2**-30, -midpoint - 2**-30] * 5, dtype=np.float64)
+        feeds = {"x": values}
+        expected = onnx.reference.ReferenceEvaluator(model_proto).run(None, feeds)[0]
+        # The intermediate FLOAT cast changes the rounding result at these midpoints.
+        direct = values.astype(ir.DataType(target.dtype).numpy())
+        self.assertFalse(np.array_equal(expected.view(np.uint16), direct.view(np.uint16)))
+        if full_optimizer:
+            onnxscript.optimizer.optimize(model)
+            self.assertEqual([node.op_type for node in model.graph], ["Cast", "Cast"])
+        else:
+            self.assertEqual(_basic_rules.cast_cast_rule.apply_to_model(model), 0)
+        actual = onnx.reference.ReferenceEvaluator(ir.to_proto(model)).run(None, feeds)[0]
+        np.testing.assert_array_equal(expected.view(np.uint16), actual.view(np.uint16))
+
+    @parameterized.parameterized.expand(
+        [
+            (source, target)
+            for source in (ot.BOOL, ot.INT8, ot.UINT8, ot.INT16, ot.UINT16)
+            for target in (ot.FLOAT16, ot.BFLOAT16)
+        ]
+    )
+    def test_cast_cast_exact_integer_widening(self, source, target):
+        model_proto = self._double_cast_model(source, ot.FLOAT, target)
+        model = ir.from_proto(model_proto)
+        self.assertEqual(_basic_rules.cast_cast_rule.apply_to_model(model), 1)
+        values = np.arange(10).astype(ir.DataType(source.dtype).numpy())
+        feeds = {"x": values}
+        expected = onnx.reference.ReferenceEvaluator(model_proto).run(None, feeds)[0]
+        actual = onnx.reference.ReferenceEvaluator(ir.to_proto(model)).run(None, feeds)[0]
+        np.testing.assert_array_equal(expected.view(np.uint16), actual.view(np.uint16))
+
+    @parameterized.parameterized.expand(
+        [
+            (source, target)
+            for source in (
+                ir.DataType.FLOAT8E4M3FN,
+                ir.DataType.FLOAT8E4M3FNUZ,
+                ir.DataType.FLOAT8E5M2,
+                ir.DataType.FLOAT8E5M2FNUZ,
+            )
+            for target in (ir.DataType.FLOAT16, ir.DataType.BFLOAT16)
+        ]
+    )
+    def test_cast_cast_exact_float8_widening(self, source, target):
+        values = np.arange(256, dtype=np.uint8).view(source.numpy())
+        values = values[np.isfinite(values.astype(np.float32))]
+        model_proto = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                [
+                    onnx.helper.make_node("Cast", ["x"], ["m"], to=FLOAT),
+                    onnx.helper.make_node("Cast", ["m"], ["y"], to=int(target)),
+                ],
+                "float8_casts",
+                [onnx.helper.make_tensor_value_info("x", int(source), [len(values)])],
+                [onnx.helper.make_tensor_value_info("y", int(target), [len(values)])],
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 19)],
+            ir_version=10,
+        )
+        model = ir.from_proto(model_proto)
+        self.assertEqual(_basic_rules.cast_cast_rule.apply_to_model(model), 1)
+        feeds = {"x": values}
+        expected = onnx.reference.ReferenceEvaluator(model_proto).run(None, feeds)[0]
+        actual = onnx.reference.ReferenceEvaluator(ir.to_proto(model)).run(None, feeds)[0]
+        np.testing.assert_array_equal(expected.view(np.uint16), actual.view(np.uint16))
+        onnx.checker.check_model(ir.to_proto(model), full_check=True)
+
+    @parameterized.parameterized.expand(
+        [
+            (source, target)
+            for source in (ot.DOUBLE, ot.INT32, ot.INT64, ot.UINT32, ot.UINT64, ot.STRING)
+            for target in (ot.FLOAT16, ot.BFLOAT16)
+        ]
+    )
+    def test_cast_cast_unproven_source_type(self, source, target):
+        model = ir.from_proto(self._double_cast_model(source, ot.FLOAT, target))
+        self.assertEqual(_basic_rules.cast_cast_rule.apply_to_model(model), 0)
+
+    @parameterized.parameterized.expand([(ot.FLOAT16,), (ot.BFLOAT16,)])
+    def test_cast_cast_unknown_source_type(self, target):
+        model = ir.from_proto(self._double_cast_model(ot.DOUBLE, ot.FLOAT, target))
+        model.graph.inputs[0].type = None
+        self.assertEqual(_basic_rules.cast_cast_rule.apply_to_model(model), 0)
+
+    @parameterized.parameterized.expand(
+        [
             (
                 "cast_identity",
                 ir.serde.deserialize_model(cast_identity_model.to_model_proto()),

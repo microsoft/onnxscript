@@ -85,6 +85,18 @@ class CastCast(RewriteRuleClassBase):
                 f"Intermediate cast elimination not recognized as valid from {type2} to {type3}. "
                 f"Cast-Cast rule may be incomplete for this combination."
             )
+        # Eliminating the intermediate FLOAT cast is safe only if it is exact.
+        # In particular, DOUBLE can round to a FLOAT16/BFLOAT16 midpoint in FLOAT,
+        # so bypassing FLOAT changes the result through double rounding.
+        source = x.dtype
+        if source is None or not (
+            source == ir.DataType.BOOL
+            or (source.is_floating_point() and source.bitwidth <= 32)
+            or (source.is_integer() and source.bitwidth <= 16)
+        ):
+            return check_result.fail(
+                "Source type is not known to be exactly representable in FLOAT"
+            )
         return check_result
 
     def rewrite(self, op, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr):
