@@ -41,7 +41,94 @@ _INT64_MIN = -9223372036854775808
 TFloatUnlessFloat32 = TypeVar("TFloatUnlessFloat32", bound=Union[BFLOAT16, FLOAT16, DOUBLE])
 
 
-# NOTE: Implementations of adaptive_average_pool are handled by torch decomp
+def _adaptive_avg_pool_along(x: TFloat, axis: int, out_size: int, rank: int) -> TFloat:
+    """Average ``x`` over PyTorch's adaptive pooling windows along one axis.
+
+    Output index ``i`` averages ``x[start_i:end_i]`` with ``start_i = floor(i * n / out_size)``
+    and ``end_i = ceil((i + 1) * n / out_size)``, where ``n`` is the size of ``axis``. ``n`` is
+    read from the shape at run time, so the result is correct for any input size, including
+    dynamic ones. The window sums are differences of a prefix sum.
+    """
+    if out_size == 1:
+        return op.ReduceMean(x, op.Constant(value_ints=[axis]), keepdims=True)
+
+    n = op.Shape(x, start=axis, end=axis + 1)
+    index = op.Constant(value_ints=list(range(out_size)))
+    # Integer Div truncates, which is floor division for these non-negative values.
+    start = op.Div(op.Mul(index, n), op.Constant(value_ints=[out_size]))
+    end = op.Div(
+        op.Add(
+            op.Mul(op.Add(index, op.Constant(value_ints=[1])), n),
+            op.Constant(value_ints=[out_size - 1]),
+        ),
+        op.Constant(value_ints=[out_size]),
+    )
+
+    # prefix[k] = sum(x[:k]) along axis, with a leading 0 so that prefix[0] = 0.
+    prefix = op.CumSum(x, op.Constant(value_int=axis))
+    pads = [0] * (2 * rank)
+    pads[axis] = 1
+    # A tensor rather than Constant(value_ints=...): onnx<1.21 shape inference rejects the latter as Pad's pads.
+    prefix = op.Pad(prefix, ir.tensor(pads, dtype=ir.DataType.INT64))
+    window_sum = op.Sub(op.Gather(prefix, end, axis=axis), op.Gather(prefix, start, axis=axis))
+
+    # Broadcast the window lengths along ``axis``.
+    length = op.CastLike(op.Sub(end, start), x)
+    length = op.Reshape(length, op.Constant(value_ints=[out_size] + [1] * (rank - 1 - axis)))
+    return op.Div(window_sum, length)
+
+
+def _adaptive_avg_pool(
+    self: TFloat, output_size: Union[int, Sequence[Optional[int]]], num_spatial: int
+) -> TFloat:
+    rank = len(self.shape)
+    if isinstance(output_size, int):
+        output_size = [output_size] * num_spatial
+    # A window sum is the difference of two prefix sums, which loses precision when the
+    # prefix sums are large. Accumulate one precision level up: float16/bfloat16 in float32
+    # and float32 in float64.
+    if self.dtype in (ir.DataType.FLOAT16, ir.DataType.BFLOAT16):
+        accumulate = FLOAT.dtype
+    elif self.dtype == ir.DataType.FLOAT:
+        accumulate = DOUBLE.dtype
+    else:
+        accumulate = None
+    result = op.Cast(self, to=accumulate) if accumulate is not None else self
+    for i, out_size in enumerate(output_size):
+        if out_size is None:
+            # None keeps the input size, so this axis is left as it is.
+            continue
+        result = _adaptive_avg_pool_along(result, rank - num_spatial + i, out_size, rank)
+    if accumulate is not None:
+        result = op.CastLike(result, self)
+    return result
+
+
+@torch_op("aten::adaptive_avg_pool1d", trace_only=True)
+def aten_adaptive_avg_pool1d(
+    self: TFloat, output_size: Union[int, Sequence[Optional[int]]]
+) -> TFloat:
+    """adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor"""
+
+    return _adaptive_avg_pool(self, output_size, 1)
+
+
+@torch_op(("aten::adaptive_avg_pool2d", "aten::_adaptive_avg_pool2d"), trace_only=True)
+def aten_adaptive_avg_pool2d(
+    self: TFloat, output_size: Union[int, Sequence[Optional[int]]]
+) -> TFloat:
+    """adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor"""
+
+    return _adaptive_avg_pool(self, output_size, 2)
+
+
+@torch_op(("aten::adaptive_avg_pool3d", "aten::_adaptive_avg_pool3d"), trace_only=True)
+def aten_adaptive_avg_pool3d(
+    self: TFloat, output_size: Union[int, Sequence[Optional[int]]]
+) -> TFloat:
+    """adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor"""
+
+    return _adaptive_avg_pool(self, output_size, 3)
 
 
 def aten_adaptive_max_pool1d(

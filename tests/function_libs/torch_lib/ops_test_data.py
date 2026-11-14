@@ -1576,6 +1576,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
         reason="fixme: ORT doesn't match PyTorch when ceil_mode=True until opset 19",
     ),
+    TorchLibOpInfo("nn.functional.adaptive_avg_pool1d", nn_ops.aten_adaptive_avg_pool1d),
+    TorchLibOpInfo("nn.functional.adaptive_avg_pool2d", nn_ops.aten_adaptive_avg_pool2d),
+    TorchLibOpInfo(
+        "nn.functional.adaptive_avg_pool3d",
+        nn_ops.aten_adaptive_avg_pool3d,
+        # The export accumulates float16 in float32, PyTorch's CPU kernel in float16, so the
+        # two differ by about one float16 ulp. The export is the closer of the two to float64.
+        tolerance={torch.float16: (1e-2, 4e-3)},
+    ),
     TorchLibOpInfo(
         "nn.functional.avg_pool2d",
         nn_ops.aten_avg_pool2d,
