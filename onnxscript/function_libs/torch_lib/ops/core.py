@@ -9132,6 +9132,12 @@ def aten_scatter_add(
     return op.ScatterElements(self, index, src, axis=dim, reduction="add")
 
 
+# Floating-point types whose identity for max / min is -inf / +inf
+_SCATTER_REDUCE_INF_DTYPES = frozenset(
+    {ir.DataType.FLOAT16, ir.DataType.BFLOAT16, ir.DataType.FLOAT, ir.DataType.DOUBLE}
+)
+
+
 @torch_op("aten::scatter_reduce.two", trace_only=True)
 def aten_scatter_reduce(
     self: TReal,
@@ -9169,28 +9175,17 @@ def aten_scatter_reduce(
         # It is -inf if the reduction is max, inf for min, 0 for add, 1 for mul.
         # mean is not supported.
         if onnx_reduce == "max":
-            if dtype in {
-                ir.DataType.FLOAT16,
-                ir.DataType.FLOAT,
-                ir.DataType.DOUBLE,
-            }:
-                value = ir.tensor([np.finfo(dtype.numpy()).min], dtype=dtype)
-            elif dtype == ir.DataType.BFLOAT16:
-                value = ir.tensor([torch.finfo(torch.bfloat16).min], dtype=dtype)
+            if dtype in _SCATTER_REDUCE_INF_DTYPES:
+                # -inf, not the lowest finite value, so that a -inf in src still wins
+                value = ir.tensor([-math.inf], dtype=dtype)
             elif dtype == ir.DataType.BOOL:
                 value = ir.tensor([False], dtype=dtype)
             else:
                 value = ir.tensor([np.iinfo(dtype.numpy()).min], dtype=dtype)
             reduction_init = "min"
         elif onnx_reduce == "min":
-            if dtype in {
-                ir.DataType.FLOAT16,
-                ir.DataType.FLOAT,
-                ir.DataType.DOUBLE,
-            }:
-                value = ir.tensor([np.finfo(dtype.numpy()).max], dtype=dtype)
-            elif dtype == ir.DataType.BFLOAT16:
-                value = ir.tensor([torch.finfo(torch.bfloat16).max], dtype=dtype)
+            if dtype in _SCATTER_REDUCE_INF_DTYPES:
+                value = ir.tensor([math.inf], dtype=dtype)
             elif dtype == ir.DataType.BOOL:
                 value = ir.tensor([True], dtype=dtype)
             else:

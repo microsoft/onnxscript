@@ -2092,6 +2092,30 @@ class TorchLibe2eTest(unittest.TestCase):
         self.assertIsNotNone(bias_shape)
         self.assertEqual(bias_shape.rank(), 1)
 
+    @parameterized.parameterized.expand(
+        [
+            (reduce, dtype)
+            for reduce in ("amax", "amin")
+            for dtype in (torch.float16, torch.float32, torch.float64)
+        ]
+    )
+    def test_scatter_reduce_without_self_keeps_infinite_src(self, reduce, dtype):
+        class Model(torch.nn.Module):
+            def forward(self, x, index, src):
+                return torch.scatter_reduce(
+                    x, 0, index, src, reduce=reduce, include_self=False
+                )
+
+        inf = -math.inf if reduce == "amax" else math.inf
+        x = torch.tensor([10.0, 20.0, 30.0], dtype=dtype)
+        # x[0] only receives inf, x[1] receives inf and 5.0, x[2] is not written
+        index = torch.tensor([0, 1, 1])
+        src = torch.tensor([inf, inf, 5.0], dtype=dtype)
+        onnx_program = torch.onnx.export(Model(), (x, index, src), dynamo=True, verbose=False)
+        torch.testing.assert_close(
+            onnx_program(x, index, src)[0], Model()(x, index, src), rtol=0, atol=0
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
